@@ -114,7 +114,13 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 - Mit Sync landen sie verschlüsselt als `files/<zufällige-ID>` im Tresor-Repo; Dateinamen stehen nur im verschlüsselten Tresor. Andere Geräte laden sie erst beim Öffnen.
 - Vorschau für Bilder, Texte, Audio/Video, dazu Herunterladen, Teilen, Ordner, Notizen und „Nur in der Cloud behalten“ (lokale Kopie löschen).
 
-**Tastatur:** `N` neu (je nach Bereich) · `/` suchen · `1`–`4` Bereiche · `D` dongeln · `L` sperren · `Strg/⌘ + Enter` speichern
+**WaffG-Prüfstand (aus dem VUF-Werkzeugkasten)**
+- Straftat oder Ordnungswidrigkeit? Gegenstand (Messer, Schusswaffe, SRS, Druckluft, Munition, Anscheinswaffe, Kriegswaffe, Hieb-/Stoßwaffen), Handlung, Ort und Umstände antippen. Das Ergebnis erscheint sofort: Einstufung, Vorschrift, Rechtsfolge, Begründung und Prüfpfad.
+- Die Prüflogik ist unverändert aus VUF übernommen (WaffG, Stand Reformen 2024/2025, inklusive der dort eingearbeiteten Rechtsprechung). **Keine Rechtsberatung**, sondern eine Orientierungshilfe.
+- Daraus entsteht ein Text für Anzeige oder Meldung mit Platzhaltern (`[Datum]`, `[Personalien]` …). Du kannst ihn frei bearbeiten, kopieren oder per „Als Aufgabe“ in den Planner legen.
+- „Speichern“ legt die Prüfung mit Zeitstempel und optionalem Aktenzeichen im verschlüsselten Tresor ab (Verlauf, durchsuchbar). Ungespeicherte Eingaben bleiben nur im Arbeitsspeicher und sind nach dem Sperren weg.
+
+**Tastatur:** `N` neu (je nach Bereich) · `/` suchen · `1`–`5` Bereiche · `D` dongeln · `L` sperren · `Strg/⌘ + Enter` speichern
 
 **Backups:** *⋯ → Verschlüsseltes Backup* speichert eine `.vault`-Datei. Einspielen geht per Zusammenführen oder Ersetzen.
 
@@ -132,7 +138,7 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 | --- | --- |
 | `index.html` | Oberfläche, Styles, Content-Security-Policy |
 | `js/vault.js` | Verschlüsselung, Schlüsselverwaltung, GitHub-Speicher |
-| `js/app.js` | App-Logik (Planner, Dienste, Termine, Routinen, Team, Ablage), Sync und Zusammenführen, Sperre |
+| `js/app.js` | App-Logik (Planner, Dienste, Termine, Routinen, Team, Ablage, WaffG-Prüfstand), Sync und Zusammenführen, Sperre |
 | `vendor/hash-wasm/` | Argon2id (hash-wasm 4.12.0, MIT), unverändert aus npm |
 | `fonts/` | Inter Tight & Geist Mono (SIL Open Font License) |
 | `assets/`, `icons/`, `manifest.webmanifest` | Bild, App-Icons, Home-Bildschirm |

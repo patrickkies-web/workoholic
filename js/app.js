@@ -107,9 +107,9 @@ const defaultTpls = () => [
   { id: 'tpl-nacht', name: 'Nachtdienst', start: '22:00', end: '06:00', breakMin: 45, color: 'blau', u: 1 },
   { id: 'tpl-tag', name: 'Tagdienst', start: '08:00', end: '16:30', breakMin: 30, color: 'lime', u: 1 }
 ];
-const blank = () => ({ v: 3, items: [], shifts: [], tpls: defaultTpls(), appts: [], routines: [], runs: [], people: [], notes: [], files: [], del: {}, settings: { targetMin: 480, name: '', u: 0 } });
+const blank = () => ({ v: 3, items: [], shifts: [], tpls: defaultTpls(), appts: [], routines: [], runs: [], people: [], notes: [], files: [], checks: [], del: {}, settings: { targetMin: 480, name: '', u: 0 } });
 const RHYTHMS = { manual: 'Bei Bedarf', daily: 'Täglich', weekdays: 'Werktags', weekly: 'Wöchentlich', monthly: 'Monatlich' };
-const COLLECTIONS = ['items', 'shifts', 'tpls', 'appts', 'routines', 'runs', 'people', 'notes', 'files'];
+const COLLECTIONS = ['items', 'shifts', 'tpls', 'appts', 'routines', 'runs', 'people', 'notes', 'files', 'checks'];
 const keyOf = g => g === 'items' ? 'updatedAt' : 'u';
 const num = v => (typeof v === 'number' && Number.isFinite(v)) ? v : null;
 const isKey = k => typeof k === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(k);
@@ -210,6 +210,41 @@ function normFile(x) {
   if (!x || !x.name) return null;
   return { id: String(x.id || uid()), name: str(x.name, 200).trim() || 'Datei', type: str(x.type, 100), size: Math.max(0, Math.round(Number(x.size) || 0)), folder: str(x.folder, 60).trim(), note: str(x.note, 1000), added: num(x.added) || 1, remote: !!x.remote, u: num(x.u) || 1 };
 }
+/** WaffG-Prüfstand: erlaubte Eingaben (feste Reihenfolge = kanonische Form) */
+const WF_DEFAULT = () => ({
+  objektart: 'messer', handlung: 'fuehren', ort: 'normal', volljaehrig: true, vorsatz: true, berechtigt: false,
+  messerBauart: 'einhand', klingenlaenge: 9, beidseitig: false, springOeffnung: 'seitlich', dolch: false,
+  schusserlaubnis: 'keine', vollautomat: false, schussZustand: 'normal',
+  srsPtb: true, kwSchein: false, druckEnergie: 'f75', sonstigeItem: 'schlagstock',
+  munFrei: false, munErlaubnis: false, munKriegswaffe: false
+});
+const WF_ENUMS = {
+  objektart: ['messer', 'schuss', 'srs', 'druck', 'munition', 'anschein', 'kriegswaffe', 'sonstige'],
+  handlung: ['besitz', 'transport', 'fuehren'],
+  ort: ['normal', 'veranstaltung', 'oepnv', 'zone'],
+  messerBauart: ['spring', 'fall', 'butterfly', 'faust', 'einhand', 'feststehend', 'klapp', 'multi'],
+  springOeffnung: ['seitlich', 'frontal'],
+  schusserlaubnis: ['keine', 'wbk', 'waffenschein'],
+  schussZustand: ['normal', 'deko', 'antik'],
+  druckEnergie: ['spielzeug', 'f75', 'ueber75'],
+  sonstigeItem: ['schlagstock', 'teleskop', 'schlagring', 'wurfstern', 'nunchaku', 'praezschleuder', 'elektro', 'armbrust', 'pfefferPtb', 'pfefferOhne']
+};
+const WF_LEVEL_KEYS = ['erlaubt', 'hinweis', 'owi', 'straftat'];
+function wfNormState(x) {
+  const d = WF_DEFAULT(), o = {};
+  for (const k of Object.keys(d)) {
+    const v = x && x[k];
+    if (WF_ENUMS[k]) o[k] = WF_ENUMS[k].includes(v) ? v : d[k];
+    else if (typeof d[k] === 'boolean') o[k] = typeof v === 'boolean' ? v : d[k];
+    else { const n = Number(v); o[k] = Number.isFinite(n) ? clamp(Math.round(n * 2) / 2, 2, 30) : d[k]; }
+  }
+  return o;
+}
+function normCheck(x) {
+  const at = num(x && x.at);
+  if (at == null || !x.st || typeof x.st !== 'object') return null;
+  return { id: String(x.id || uid()), at, title: str(x.title, 120).trim(), st: wfNormState(x.st), level: WF_LEVEL_KEYS.includes(x.level) ? x.level : 'hinweis', verdict: str(x.verdict, 160), text: str(x.text, 8000), u: num(x.u) || 1 };
+}
 function normList(arr, fn) {
   const m = new Map();
   for (const x of (Array.isArray(arr) ? arr : [])) {
@@ -293,6 +328,7 @@ function normalize(s) {
   }
   b.notes = normList(s.notes, normNote).filter(live).filter(n => pmap.has(n.pid)).sort((a, c) => a.at - c.at || cmp(a.id, c.id));
   b.files = normList(s.files, normFile).filter(live).sort((a, c) => a.added - c.added || cmp(a.id, c.id));
+  b.checks = normList(s.checks, normCheck).filter(live).sort((a, c) => a.at - c.at || cmp(a.id, c.id));
   b.tpls = b.tpls.filter(x => !(b.del[x.id] >= x.u)).sort((a, c) => cmp(a.start, c.start) || cmp(a.name, c.name) || cmp(a.id, c.id));
   const se = s.settings || {};
   const t = Number(se.targetMin);
@@ -1699,7 +1735,7 @@ menu.addEventListener('click', async e => {
   }
   else if (a === 'demo') loadDemo();
   else if (a === 'wipe') {
-    const r = await ask({ title: 'Alles löschen?', text: 'Entfernt alle Einträge, Dienste, Termine, Team-Notizen und Dateien – auch auf allen synchronisierten Geräten. Dienste-Katalog, Routinen-Vorlagen, Tresor und Passwort bleiben.', buttons: [{ label: 'Abbrechen', value: null }, { label: 'Alles löschen', value: 'ok', cls: 'btn-ghost btn-danger', submit: true }] });
+    const r = await ask({ title: 'Alles löschen?', text: 'Entfernt alle Einträge, Dienste, Termine, Team-Notizen, gespeicherten Prüfungen und Dateien – auch auf allen synchronisierten Geräten. Dienste-Katalog, Routinen-Vorlagen, Tresor und Passwort bleiben.', buttons: [{ label: 'Abbrechen', value: null }, { label: 'Alles löschen', value: 'ok', cls: 'btn-ghost btn-danger', submit: true }] });
     if (!r) return;
     const snap = snapshot(); applyState({ ...blank(), tpls: state.tpls, routines: state.routines, settings: state.settings }); toast('Alles gelöscht', { undo: snap });
   }
@@ -1733,7 +1769,7 @@ $('#importFile').addEventListener('change', async e => {
 /* ======================= Demo data ======================= */
 async function loadDemo() {
   if (state.items.length || state.shifts.length || state.appts.length || state.people.length || state.routines.length) {
-    const r = await ask({ title: 'Beispieldaten laden?', text: 'Ersetzt Einträge, Dienste, Termine, Routinen und Team (auch auf synchronisierten Geräten). Dienste-Katalog und Dateien bleiben. Du kannst es direkt danach rückgängig machen.', buttons: [{ label: 'Abbrechen', value: null }, { label: 'Ersetzen', value: 'ok', cls: 'btn-accent', submit: true }] });
+    const r = await ask({ title: 'Beispieldaten laden?', text: 'Ersetzt Einträge, Dienste, Termine, Routinen und Team (auch auf synchronisierten Geräten). Dienste-Katalog, Dateien und gespeicherte Prüfungen bleiben. Du kannst es direkt danach rückgängig machen.', buttons: [{ label: 'Abbrechen', value: null }, { label: 'Ersetzen', value: 'ok', cls: 'btn-accent', submit: true }] });
     if (!r) return;
   }
   const snap = snapshot(), now = Date.now(), today = sod(now);
@@ -1807,13 +1843,13 @@ async function loadDemo() {
     A('Zahnarzt', 0, 16, 30, 30, 'Praxis Dr. Berg'),
     { id: uid(), title: 'Fortbildung Hygiene', start: T(8, 0), end: T(8, 0), allDay: true, location: 'Bildungszentrum', notes: '', alarm: 1440, u: now }
   ];
-  applyState({ v: 3, items, shifts, tpls: state.tpls, appts, routines, runs, people: [lena, sabine, jonas, mehmet, anna], notes, files: state.files, del: {}, settings: { ...state.settings } });
+  applyState({ v: 3, items, shifts, tpls: state.tpls, appts, routines, runs, people: [lena, sabine, jonas, mehmet, anna], notes, files: state.files, checks: state.checks, del: {}, settings: { ...state.settings } });
 
   toast('Beispieldaten geladen', { undo: snap });
 }
 
 /* ======================= Bereiche ======================= */
-const AREAS = ['heute', 'routinen', 'team', 'ablage'];
+const AREAS = ['heute', 'routinen', 'team', 'ablage', 'waffg'];
 function syncDockTabs() {
   const heute = document.body.dataset.area === 'heute';
   $$('.dock-btn[data-tab]').forEach(b => b.setAttribute('aria-pressed', String(heute && b.dataset.tab === document.body.dataset.tab)));
@@ -1822,6 +1858,8 @@ function setArea(a, opts = {}) {
   if (!AREAS.includes(a)) a = 'heute';
   document.body.dataset.area = a;
   $$('#areas [data-area]').forEach(b => b.setAttribute('aria-current', b.dataset.area === a ? 'page' : 'false'));
+  const cur = $(`#areas [data-area="${a}"]`), nav = $('#areas');
+  if (cur && nav.scrollWidth > nav.clientWidth) nav.scrollTo({ left: Math.max(0, cur.offsetLeft - (nav.clientWidth - cur.offsetWidth) / 2), behavior: reduceMotion.matches ? 'auto' : 'smooth' });
   syncDockTabs();
   try { sessionStorage.setItem('workoholic:area', a); } catch (e) {}
   if (!opts.keepScroll) scrollTo({ top: 0 });
@@ -1833,16 +1871,19 @@ function renderArea() {
   if (a === 'routinen') renderRoutines();
   else if (a === 'team') renderTeam();
   else if (a === 'ablage') renderAblage();
+  else if (a === 'waffg') renderWaffg();
   const set = (id, n) => { const el = $(id); el.textContent = n || ''; el.hidden = !n; };
   set('#nRoutinen', state.routines.filter(r => routineDue(r)).length);
   set('#nTeam', state.people.length);
   set('#nAblage', state.files.length);
+  set('#nWaffg', state.checks.length);
 }
 function contextNew() {
   const a = document.body.dataset.area;
   if (a === 'routinen') openRoutineEditor(null);
   else if (a === 'team') openPersonDialog(null);
   else if (a === 'ablage') $('#fileInput').click();
+  else if (a === 'waffg') wfReset();
   else openComposer();
 }
 $('#areas').addEventListener('click', e => { const b = e.target.closest('[data-area]'); if (b) setArea(b.dataset.area); });
@@ -2583,6 +2624,545 @@ $('#fdDelete').addEventListener('click', async () => {
   toast('Datei gelöscht');
 });
 
+/* ======================= WaffG-Prüfstand ======================= */
+/* Prüflogik unverändert aus dem VUF-Werkzeugkasten (WaffG, Stand Reformen 2024/2025). Keine Rechtsberatung. */
+function wfLabelBauart(b) {
+  return {
+    spring: 'ein Springmesser', fall: 'ein Fallmesser', butterfly: 'ein Butterfly-/Balisongmesser',
+    faust: 'ein Faustmesser', einhand: 'ein Einhandmesser (einhändig zu öffnen, mit feststellbarer Klinge)',
+    feststehend: 'ein feststehendes Messer', klapp: 'ein zweihändig zu öffnendes Klappmesser',
+    multi: 'ein Multitool bzw. kleines Taschenmesser'
+  }[b];
+}
+
+function wfDescribe(s) {
+  var L = Number(s.klingenlaenge).toFixed(1).replace('.', ',');
+  if (s.objektart === 'messer') {
+    var t = wfLabelBauart(s.messerBauart);
+    if (s.messerBauart === 'spring') {
+      t += s.springOeffnung === 'frontal' ? ', dessen Klinge frontal aus dem Griff herausspringt (OTF)' : ', dessen Klinge seitlich aus dem Griff herausspringt';
+      t += ', mit einer Klingenlänge von ' + L + ' cm' + (s.beidseitig ? ', zweiseitig geschliffen' : ', einseitig geschliffen');
+    } else if (s.messerBauart === 'feststehend') {
+      t += ', mit einer Klingenlänge von ' + L + ' cm' + (s.dolch ? ', zweiseitig geschliffen (Dolch)' : '');
+    }
+    return t;
+  }
+  if (s.objektart === 'schuss') {
+    if (s.schussZustand === 'deko') return 'eine zertifiziert unbrauchbar gemachte Dekowaffe';
+    if (s.schussZustand === 'antik') return 'eine Antikwaffe (Vorderlader, Modell vor 1871)';
+    var erl = { keine: '; eine Erlaubnis liegt nicht vor', wbk: '; es liegt eine Waffenbesitzkarte (WBK), jedoch kein Waffenschein vor', waffenschein: '; es liegt ein Waffenschein vor' }[s.schusserlaubnis];
+    return 'eine scharfe Schusswaffe' + (s.vollautomat ? ' (vollautomatisch)' : '') + erl;
+  }
+  if (s.objektart === 'srs') {
+    var t2 = 'eine Schreckschuss-, Reizstoff- oder Signalwaffe' + (s.srsPtb ? ' mit amtlichem PTB-Zulassungszeichen' : ' ohne amtliches PTB-Zulassungszeichen');
+    if (s.handlung === 'fuehren' && s.srsPtb) t2 += s.kwSchein ? '; ein kleiner Waffenschein liegt vor' : '; ein kleiner Waffenschein liegt nicht vor';
+    return t2;
+  }
+  if (s.objektart === 'druck') return { spielzeug: 'ein Softair-Gerät mit einer Mündungsenergie unter 0,5 Joule', f75: 'eine Druckluft-/Federdruckwaffe bis 7,5 Joule (F-im-Fünfeck-Kennzeichnung)', ueber75: 'eine Druckluftwaffe mit einer Mündungsenergie über 7,5 Joule' }[s.druckEnergie];
+  if (s.objektart === 'munition') {
+    if (s.munKriegswaffe) return 'Munition für Kriegswaffen';
+    if (s.munFrei) return 'erlaubnisfreie Munition (z. B. Kartuschenmunition für PTB-Waffen)';
+    return 'erlaubnispflichtige Munition' + (s.munErlaubnis ? '; eine entsprechende Erlaubnis liegt vor' : '; eine Erlaubnis liegt nicht vor');
+  }
+  if (s.objektart === 'anschein') return 'eine Anscheinswaffe (täuschend echte Nachbildung einer Schusswaffe)';
+  if (s.objektart === 'kriegswaffe') return 'eine Kriegswaffe im Sinne des Kriegswaffenkontrollgesetzes';
+  return {
+    schlagstock: 'einen Schlagstock (Hieb-/Stoßwaffe)', teleskop: 'einen ausziehbaren Teleskopschlagstock (Hieb-/Stoßwaffe)',
+    schlagring: 'einen Schlagring bzw. Totschläger / eine Stahlrute', wurfstern: 'einen Wurfstern bzw. ein Wurfmesser',
+    elektro: 'ein Elektroimpulsgerät ohne amtliche Zulassung', armbrust: 'eine Armbrust',
+    nunchaku: 'ein Nunchaku (Würgeholz)', praezschleuder: 'eine Präzisionsschleuder (Zwille mit Armstütze)',
+    pfefferPtb: 'ein Reizstoffsprühgerät mit PTB-Zulassung (Tierabwehr)', pfefferOhne: 'ein Reizstoffsprühgerät ohne PTB-Zulassung bzw. zur Menschenabwehr'
+  }[s.sonstigeItem];
+}
+
+function wfOrtPhrase(s) {
+  return { normal: 'im öffentlichen Raum', veranstaltung: 'im Bereich einer öffentlichen Veranstaltung (z. B. Volksfest, Markt, Messe)', oepnv: 'in einem Verkehrsmittel bzw. an einem Bahnhof/Haltepunkt des öffentlichen Personen(fern)verkehrs', zone: 'innerhalb einer durch Rechtsverordnung ausgewiesenen Waffen-/Messerverbotszone' }[s.ort];
+}
+
+function wfBuildAnzeige(s, r) {
+  var objekt = wfDescribe(s);
+  var tail, ort = '';
+  if (s.handlung === 'besitz') tail = 'besaß bzw. erwarb';
+  else if (s.handlung === 'transport') tail = 'nicht schussbereit und nicht zugriffsbereit zu einem legitimen Zweck beförderte';
+  else { tail = 'zugriffsbereit führte'; ort = ' ' + wfOrtPhrase(s); }
+  if (s.objektart === 'kriegswaffe') { tail = 'unerlaubt Umgang hatte mit'; }
+
+  var header = { straftat: 'STRAFANZEIGE – SACHVERHALTSDARSTELLUNG', owi: 'ANZEIGE EINER ORDNUNGSWIDRIGKEIT – SACHVERHALT', erlaubt: 'AKTENVERMERK – KEIN VERSTOSS FESTSTELLBAR', hinweis: 'PRÜFVERMERK – EINZELFALLPRÜFUNG ERFORDERLICH' }[r.level];
+  var einstufung = { straftat: 'Das festgestellte Verhalten erfüllt einen Straftatbestand.', owi: 'Das festgestellte Verhalten stellt eine Ordnungswidrigkeit dar.', erlaubt: 'Nach den angegebenen Merkmalen ist kein Verstoß gegen das Waffengesetz ersichtlich.', hinweis: 'Die waffenrechtliche Einordnung bedarf einer Einzelfallprüfung.' }[r.level];
+
+  var sachverhalt = s.objektart === 'kriegswaffe'
+    ? 'Am [Datum] gegen [Uhrzeit] Uhr wurde am Feststellungsort [Ort/Anschrift] festgestellt, dass die betroffene Person [Personalien] unerlaubt Umgang mit ' + objekt + ' hatte.'
+    : 'Am [Datum] gegen [Uhrzeit] Uhr wurde am Feststellungsort [Ort/Anschrift] festgestellt, dass die betroffene Person [Personalien] ' + objekt + ' ' + (ort ? ort + ' ' : '') + tail + '.';
+
+  var lines = [];
+  lines.push(header); lines.push('');
+  lines.push('1. Sachverhalt'); lines.push(sachverhalt); lines.push('');
+  lines.push('2. Rechtliche Würdigung');
+  lines.push(r.reason + ' ' + einstufung);
+  lines.push('Einschlägige Vorschrift(en): ' + r.paragraph + '.');
+  if (r.level === 'straftat' && s.vorsatz === false) lines.push('Nach den Angaben liegt fahrlässiges Handeln vor; der Strafrahmen ist entsprechend reduziert (vgl. § 52 Abs. 4 WaffG).');
+  lines.push('');
+  lines.push('3. Einstufung und Rechtsfolge');
+  lines.push('Einstufung: ' + r.verdict + ' (' + { straftat: 'Straftat', owi: 'Ordnungswidrigkeit', erlaubt: 'kein Verstoß', hinweis: 'Einzelfallprüfung' }[r.level] + ').');
+  lines.push('Mögliche Rechtsfolge: ' + r.folge + '.');
+  if (r.hinweis && r.hinweis.length) { lines.push(''); lines.push('4. Hinweise'); r.hinweis.forEach(function(h) { lines.push('– ' + h); }); }
+  lines.push('');
+  lines.push('Hinweis: Diese Sachverhalts- und Rechtseinschätzung wurde orientierend mit dem WaffG-Prüfstand erstellt und ersetzt keine juristische oder behördliche Prüfung. Maßgeblich sind der konkrete Einzelfall, etwaige Feststellungsbescheide des BKA sowie das einschlägige Landesrecht.');
+  return lines.join('\n');
+}
+
+function wfCore(s) {
+  var path = [];
+  var step = function(t) { path.push(t); return t; };
+  var R = function(level, verdict, paragraph, folge, reason, hinweis) {
+    return { level: level, verdict: verdict, paragraph: paragraph, folge: folge, reason: reason, hinweis: hinweis || [], path: path };
+  };
+  var H = s.handlung;
+  step({ messer: 'Objekt: Messer', schuss: 'Objekt: Schusswaffe', srs: 'Objekt: SRS-Waffe', druck: 'Objekt: Druckluft/Softair', anschein: 'Objekt: Anscheinswaffe', sonstige: 'Objekt: Hieb-/Stoß & Sonstige', munition: 'Objekt: Munition', kriegswaffe: 'Objekt: Kriegswaffe' }[s.objektart]);
+  step({ besitz: 'Handlung: Besitz/Erwerb', transport: 'Handlung: Transport (§12)', fuehren: 'Handlung: Führen' }[H]);
+
+  var minorFree = function() { step('Person < 18 → OWi'); return R('owi', 'Verstoß gegen Altersgrenze', '§ 2 Abs. 1 i.V.m. § 53 WaffG', 'Bußgeld möglich', 'Der Gegenstand wäre ab 18 erlaubnisfrei — Erwerb/Besitz durch Minderjährige ist eine Ordnungswidrigkeit.'); };
+
+  var restrictedOrt = function() {
+    if (H !== 'fuehren') return null;
+    if (s.ort === 'veranstaltung') { step('Ort: öffentl. Veranstaltung → §42'); return R('owi', 'Führen bei Veranstaltung verboten', '§ 42 Abs. 1 i.V.m. § 53 WaffG', 'Bußgeld', 'Bei Volksfesten, Märkten, Messen und ähnlichen Veranstaltungen ist das Führen von Waffen und Messern jeder Art verboten.'); }
+    if (s.ort === 'oepnv') { step('Ort: ÖPNV/Fernverkehr → §42b'); return R('owi', 'Führen im ÖPNV/Fernverkehr verboten', '§ 42b i.V.m. § 53 WaffG', 'Bußgeld', 'Im öffentlichen Personen(fern)verkehr und an Bahnhöfen/Haltepunkten gilt seit 2024 ein Verbot — unabhängig von Bauart und Länge.'); }
+    if (s.ort === 'zone') { step('Ort: Verbotszone → Landesrecht'); return R('owi', 'Führen in Waffen-/Messerverbotszone', 'Landesrecht i.V.m. § 42 Abs. 5 WaffG', 'Bußgeld nach Landesrecht', 'In ausgewiesenen Verbotszonen ist das Führen jeder Waffe/jedes Messers untersagt.'); }
+    return null;
+  };
+
+  if (s.objektart === 'kriegswaffe') {
+    step('Kriegswaffe → KrWaffKG');
+    return R('straftat', 'Unerlaubter Umgang mit Kriegswaffen', '§ 22a KrWaffKG', 'Freiheitsstrafe 1 bis 5 Jahre', 'Vollautomatische Gewehre, Granaten, panzerbrechende Waffen u. Ä. sind Kriegswaffen. Umgang ist ohne staatliche Genehmigung strafbar.', ['In minder schweren Fällen Freiheitsstrafe bis 3 Jahre oder Geldstrafe; fahrlässig eigener Strafrahmen.']);
+  }
+
+  if (s.objektart === 'munition') {
+    if (s.munKriegswaffe) { step('Kriegswaffenmunition → KrWaffKG'); return R('straftat', 'Kriegswaffenmunition', '§ 22a KrWaffKG', 'Freiheitsstrafe 1 bis 5 Jahre', 'Munition für Kriegswaffen unterliegt dem Kriegswaffenkontrollgesetz.'); }
+    if (s.munFrei) { step('freie Munition (z. B. PTB-Kartuschen)'); if (!s.volljaehrig) return minorFree(); return R('erlaubt', 'Freie Munition', 'Anlage 2 Abschn. 3 WaffG', 'Kein Verstoß', 'Erlaubnisfreie Munition (z. B. Kartuschen für PTB-Waffen, Softair-BBs) darf ab 18 erworben werden.'); }
+    step('erlaubnispflichtige Munition');
+    if (s.munErlaubnis) { step('Erlaubnis vorhanden (WBK/Munitionserwerbsschein)'); return R('erlaubt', 'Munitionsbesitz im Rahmen der Erlaubnis', '§ 10 Abs. 3 WaffG', 'Kein Verstoß', 'Mit Munitionserwerbsschein oder passendem WBK-Eintrag ist Erwerb/Besitz erlaubt.'); }
+    step('keine Erlaubnis → Straftat');
+    return R('straftat', 'Munitionsbesitz ohne Erlaubnis', '§ 52 Abs. 3 Nr. 2b WaffG', 'Freiheitsstrafe bis 3 Jahre oder Geldstrafe', 'Munition für erlaubnispflichtige Schusswaffen darf ohne Erlaubnis nicht erworben oder besessen werden.');
+  }
+
+  if (s.objektart === 'messer') {
+    var L = Number(s.klingenlaenge);
+    var b = s.messerBauart;
+    var verboten = false, verbotGrund = '';
+    if (b === 'fall' || b === 'butterfly' || b === 'faust') { verboten = true; verbotGrund = 'Fall-/Faust-/Butterflymesser sind verbotene Gegenstände.'; }
+    else if (b === 'spring') {
+      if (s.springOeffnung === 'frontal') { verboten = true; verbotGrund = 'Frontal öffnende Springmesser (OTF) sind ausnahmslos verboten.'; }
+      else {
+        var exemptForm = L <= 8.5 && !s.beidseitig;
+        if (!exemptForm) { verboten = true; verbotGrund = 'Seitlich öffnende Springmesser sind verboten, wenn Klinge > 8,5 cm oder zweiseitig geschliffen.'; }
+        else if (!s.berechtigt) { verboten = true; verbotGrund = 'Seit 2024 ist selbst das kleine seitliche Springmesser nur mit berechtigtem Interesse / beruflichem Bezug erlaubt.'; }
+      }
+    }
+    var verbMsgNr = { spring: 'Nr. 1.4.1', fall: 'Nr. 1.4.2', faust: 'Nr. 1.4.3', butterfly: 'Nr. 1.4.4' }[b] || 'Nr. 1.4';
+    if (verboten) { step('Einstufung: verbotene Waffe'); return R('straftat', 'Verbotene Waffe', 'Anlage 2 Abschn. 1 ' + verbMsgNr + ' i.V.m. § 52 Abs. 3 Nr. 1 WaffG', 'Freiheitsstrafe bis 3 Jahre oder Geldstrafe', verbotGrund + ' Schon der Besitz ist strafbar.'); }
+
+    step('Einstufung: erlaubtes Messer (kein verbotener Gegenstand)');
+    if (H === 'besitz' || H === 'transport') {
+      return R('erlaubt', H === 'transport' ? 'Transport erlaubt' : 'Besitz erlaubt', '§ 42a / § 12 WaffG', 'Kein Verstoß', H === 'transport' ? 'Nicht zugriffsbereit verpackt (mehr als drei Handgriffe) darf jedes erlaubte Messer transportiert werden.' : 'Erlaubte Messer sind keine Waffen i.S.d. § 1 Abs. 2 WaffG, sondern tragbare Gegenstände nach § 42a — für Erwerb und Besitz besteht keine waffenrechtliche Altersgrenze; nur das Führen ist beschränkt.');
+    }
+    var ro = restrictedOrt();
+    var fuehrungsverbot = b === 'einhand' || b === 'spring' || (b === 'feststehend' && (L > 12 || s.dolch));
+    if (ro) {
+      if (s.berechtigt) { step('berechtigtes Interesse → enge Ausnahme?'); return R('hinweis', 'Ausnahme möglich, aber eng', ro.paragraph, 'Einzelfall', 'Bei Veranstaltungen/ÖPNV/Zonen gelten nur enge gesetzliche Ausnahmen (Beruf, Jagd, Sport, Brauchtum). Ob sie greifen, ist im Einzelfall zu prüfen.', ['Ohne einschlägige Ausnahme bleibt es eine Ordnungswidrigkeit.']); }
+      return ro;
+    }
+    step('Ort: normaler öffentlicher Raum');
+    if (fuehrungsverbot) {
+      if (s.berechtigt) { step('berechtigtes Interesse → §42a Abs. 3 greift'); return R('erlaubt', 'Führen mit berechtigtem Interesse', '§ 42a Abs. 3 WaffG', 'Kein Verstoß', 'Mit nachweisbarem berechtigten Interesse (Beruf, Sport, Brauchtum) ist das Führen zulässig — Nachweis mitführen.'); }
+      step('§42a Führungsverbot greift → OWi');
+      return R('owi', 'Führungsverbot', '§ 42a Abs. 1 i.V.m. § 53 WaffG', 'Bußgeld bis 10.000 €', b === 'feststehend' ? (s.dolch && L <= 12 ? 'Zweiseitig geschliffene feststehende Messer (Dolche) sind Hieb-/Stoßwaffen und unterliegen unabhängig von der Klingenlänge dem Führungsverbot.' : 'Feststehende Messer mit über 12 cm Klinge dürfen nicht zugriffsbereit geführt werden.') : 'Einhand-/Springmesser (einhändig, feststellbar) unterliegen dem allgemeinen Führungsverbot.', ['Zulässig nur bei berechtigtem Interesse oder nicht zugriffsbereitem Transport.']);
+    }
+    step('kein Führungsverbot → erlaubt');
+    return R('erlaubt', 'Führen erlaubt', '§ 42a WaffG (nicht erfasst)', 'Kein Verstoß', 'Zweihand-Klappmesser und feststehende Messer bis 12 cm Klinge dürfen außerhalb von Zonen/Veranstaltungen geführt werden.');
+  }
+
+  if (s.objektart === 'schuss') {
+    if (s.schussZustand === 'deko' || s.schussZustand === 'antik') {
+      step('Zustand: ' + (s.schussZustand === 'deko' ? 'Deko (zertifiziert unbrauchbar)' : 'Antik (vor 1871)') + ' → frei');
+      if (H === 'besitz' || H === 'transport') { if (!s.volljaehrig) return minorFree(); return R('erlaubt', 'Erlaubnisfrei', '§ 2 Abs. 1, Anlage 1 WaffG', 'Kein Verstoß', 'Zertifiziert unbrauchbar gemachte Dekowaffen und Antikwaffen (Vorderlader vor 1871) sind erlaubnisfrei.'); }
+      return R('owi', 'Führen ggf. eingeschränkt', '§ 42a WaffG', 'Einzelfall / Bußgeld', 'Auch bei freien Deko-/Antikwaffen kann das Führen (Anscheinswaffe!) eingeschränkt sein.');
+    }
+    if (s.vollautomat) { step('vollautomatisch → verbotene Waffe/Kriegswaffe'); return R('straftat', 'Verbotene Waffe / ggf. Kriegswaffe', '§ 52 Abs. 1 Nr. 1 WaffG, ggf. KrWaffKG', 'Freiheitsstrafe 6 Monate bis 5 Jahre', 'Vollautomatische Schusswaffen sind verbotene Gegenstände bzw. Kriegswaffen — Umgang ohne Sondererlaubnis strafbar.'); }
+    var e = s.schusserlaubnis;
+    step('Erlaubnis: ' + (e === 'keine' ? 'keine' : e === 'wbk' ? 'WBK (nur Besitz)' : 'Waffenschein'));
+    if (H === 'besitz') {
+      if (e === 'keine') { step('Besitz ohne Erlaubnis → Straftat'); return R('straftat', 'Besitz ohne Erlaubnis', '§ 52 Abs. 3 Nr. 2a WaffG', 'Freiheitsstrafe bis 3 Jahre oder Geldstrafe', 'Scharfe Schusswaffen sind erlaubnispflichtig — Besitz ohne WBK ist strafbar.'); }
+      return R('erlaubt', 'Besitz im Rahmen der Erlaubnis', '§ 2 Abs. 2, § 10 WaffG', 'Kein Verstoß', 'Mit gültiger WBK ist der Besitz der eingetragenen Waffe erlaubt (Aufbewahrung nach § 36 beachten).');
+    }
+    if (H === 'transport') {
+      if (e === 'keine') { step('Transport ohne Erlaubnis → Besitz illegal → Straftat'); return R('straftat', 'Transport ohne Erlaubnis', '§ 52 Abs. 3 Nr. 2a WaffG', 'Freiheitsstrafe bis 3 Jahre oder Geldstrafe', 'Ohne WBK ist schon der Besitz strafbar — das Transportprivileg heilt das nicht.'); }
+      step('§12 Abs. 3: nicht schuss-/zugriffsbereit, legitimer Zweck → erlaubt');
+      return R('erlaubt', 'Transport erlaubt (§ 12)', '§ 12 Abs. 3 Nr. 2 WaffG', 'Kein Verstoß', 'Ungeladen und nicht zugriffsbereit (z. B. verschlossener Waffenkoffer) zu einem vom Bedürfnis umfassten Zweck — kein Waffenschein nötig.');
+    }
+    var ro2 = restrictedOrt();
+    if (e === 'waffenschein') { if (ro2) { step('trotz Waffenschein am Ort verboten'); return ro2; } step('Führen mit Waffenschein → erlaubt'); return R('erlaubt', 'Führen mit Waffenschein', '§ 10 Abs. 4 WaffG', 'Kein Verstoß', 'Zugriffsbereites Führen ist mit gültigem Waffenschein erlaubt.'); }
+    step('Führen ohne Waffenschein → Straftat');
+    return R('straftat', 'Führen ohne Waffenschein', '§ 52 Abs. 3 Nr. 2a WaffG', 'Freiheitsstrafe bis 3 Jahre oder Geldstrafe', 'Eine WBK erlaubt nur den Besitz. Zugriffsbereites Führen ohne Waffenschein ist strafbar (statt Führen ggf. Transport nach § 12 nutzen).');
+  }
+
+  if (s.objektart === 'srs') {
+    if (!s.srsPtb) { step('kein PTB-Zeichen → wie erlaubnispflichtige Waffe'); return R('straftat', 'Ohne PTB-Zulassung wie scharfe Waffe', '§ 52 Abs. 3 Nr. 2a WaffG', 'Freiheitsstrafe bis 3 Jahre oder Geldstrafe', 'Ohne amtliches PTB-Prüfzeichen (Kreis mit „PTB“) gilt die Waffe nicht als freie SRS-Waffe.'); }
+    step('PTB-Zeichen vorhanden');
+    if (H === 'besitz' || H === 'transport') { if (!s.volljaehrig) return minorFree(); return R('erlaubt', H === 'transport' ? 'Transport erlaubt (§ 12)' : 'Besitz erlaubt (ab 18)', 'Anlage 2 Abschn. 2 / § 12 WaffG', 'Kein Verstoß', H === 'transport' ? 'Ungeladen, nicht zugriffsbereit zu legitimem Zweck darf die PTB-Waffe ohne kleinen Waffenschein transportiert werden.' : 'PTB-geprüfte SRS-Waffen dürfen ab 18 ohne WBK erworben und besessen werden.'); }
+    var ro3 = restrictedOrt();
+    if (!s.kwSchein) { step('Führen ohne kleinen Waffenschein → Straftat'); return R('straftat', 'Führen ohne kleinen Waffenschein', '§ 52 Abs. 3 Nr. 2a WaffG', 'Freiheitsstrafe bis 3 Jahre oder Geldstrafe', 'Das zugriffsbereite Führen einer SRS-Waffe erfordert einen kleinen Waffenschein (§ 10 Abs. 4 S. 4 WaffG). Fehlt er, wird eine Schusswaffe ohne Erlaubnis geführt — das ist strafbar, keine bloße Ordnungswidrigkeit (vgl. OLG Frankfurt a. M., 1 Ss 336/03).', ['Statt Führen ist der nicht zugriffsbereite Transport nach § 12 Abs. 3 erlaubnisfrei möglich.']); }
+    if (ro3) { step('trotz kl. Waffenschein am Ort verboten'); return ro3; }
+    step('Führen mit kleinem Waffenschein → erlaubt');
+    return R('erlaubt', 'Führen mit kleinem Waffenschein', '§ 10 Abs. 4 Satz 4 WaffG', 'Kein Verstoß', 'Mit gültigem kleinen Waffenschein zulässig (nicht bei Veranstaltungen/ÖPNV).');
+  }
+
+  if (s.objektart === 'druck') {
+    if (s.druckEnergie === 'spielzeug') { step('< 0,5 J → keine Waffe'); return R('erlaubt', 'Spielzeug (unter 0,5 Joule)', 'keine Waffe i.S.d. WaffG', 'Kein Verstoß', 'Softair unter 0,5 Joule gilt nicht als Waffe im Sinne des Waffengesetzes.'); }
+    if (s.druckEnergie === 'ueber75') { step('> 7,5 J → erlaubnispflichtig wie scharfe Waffe'); return R('straftat', 'Erlaubnispflichtig — Umgang ohne Erlaubnis', '§ 52 Abs. 3 Nr. 2a WaffG', 'Freiheitsstrafe bis 3 Jahre oder Geldstrafe', 'Druckluftwaffen über 7,5 Joule sind erlaubnispflichtig; ohne Erlaubnis ist der Umgang strafbar.'); }
+    step('bis 7,5 J mit F-Zeichen → erlaubnisfrei ab 18');
+    if (H === 'besitz' || H === 'transport') { if (!s.volljaehrig) return minorFree(); return R('erlaubt', H === 'transport' ? 'Transport erlaubt' : 'Besitz erlaubt (ab 18)', 'Anlage 2 Abschn. 3 WaffG', 'Kein Verstoß', 'Druckluftwaffen bis 7,5 Joule mit F-im-Fünfeck sind ab 18 erlaubnisfrei.'); }
+    var ro4 = restrictedOrt(); if (ro4) return ro4;
+    step('Führen: Schießen nur auf zugelassener Anlage');
+    return R('hinweis', 'Führen eingeschränkt', '§ 12 Abs. 3, § 42a WaffG', 'Einzelfall prüfen', 'Ungeladenes, verpacktes Mitführen ist unkritisch; Schießen nur auf zugelassenen Anlagen oder befriedetem Besitztum.');
+  }
+
+  if (s.objektart === 'anschein') {
+    if (H === 'besitz' || H === 'transport') return R('erlaubt', H === 'transport' ? 'Transport erlaubt' : 'Besitz erlaubt', '§ 42a WaffG (nur Führen erfasst)', 'Kein Verstoß', 'Besitz und nicht zugriffsbereiter Transport täuschend echter Nachbildungen sind erlaubt.');
+    step('Führen von Anscheinswaffe → OWi');
+    return R('owi', 'Führen von Anscheinswaffen verboten', '§ 42a Abs. 1 Nr. 1 i.V.m. § 53 WaffG', 'Bußgeld bis 10.000 €', 'Das Führen von Anscheinswaffen (Deko/Nachbildungen, die echten Waffen täuschend ähneln) ist in der Öffentlichkeit verboten.');
+  }
+
+  if (s.objektart === 'sonstige') {
+    var item = s.sonstigeItem;
+    if (['schlagring', 'wurfstern', 'elektro', 'nunchaku', 'praezschleuder'].indexOf(item) !== -1) {
+      step('verbotener Gegenstand');
+      var verbNr = { nunchaku: ' Nr. 1.3.8', praezschleuder: ' Nr. 1.3.7' }[item] || '';
+      var verbTxt = {
+        schlagring: 'Schlagring, Totschläger und Stahlrute sind verbotene Gegenstände — schon der Besitz ist strafbar.',
+        wurfstern: 'Wurfsterne und Wurfmesser sind verbotene Gegenstände — schon der Besitz ist strafbar.',
+        elektro: 'Elektroimpulsgeräte ohne amtliche PTB-Zulassung sind verbotene Gegenstände — schon der Besitz ist strafbar.',
+        nunchaku: 'Nunchakus (Würgehölzer) sind verbotene Gegenstände — schon der Besitz ist strafbar.',
+        praezschleuder: 'Präzisionsschleudern (Zwillen mit Armstütze) sind verbotene Gegenstände — schon der Besitz ist strafbar.'
+      }[item];
+      return R('straftat', 'Verbotene Waffe', 'Anlage 2 Abschn. 1' + verbNr + ' i.V.m. § 52 Abs. 3 Nr. 1 WaffG', 'Freiheitsstrafe bis 3 Jahre oder Geldstrafe', verbTxt);
+    }
+    if (item === 'teleskop') {
+      step('Teleskopschlagstock → Hieb-/Stoßwaffe (BGH 3 StR 81/22)');
+      if (H === 'besitz' || H === 'transport') { return R('erlaubt', H === 'transport' ? 'Transport erlaubt' : 'Besitz erlaubt (ab 18)', 'Anlage 1 Abschn. 1 UA 2 Nr. 1.1 WaffG', 'Kein Verstoß', 'Der Teleskopschlagstock ist eine Hieb-/Stoßwaffe, kein verbotener Gegenstand (BGH, Beschl. v. 21.04.2022 – 3 StR 81/22). Besitz und nicht zugriffsbereiter Transport sind ab 18 erlaubnisfrei.', ['Ein echter Totschläger/eine Stahlrute (biegsam bzw. gegliedert) wäre dagegen eine verbotene Waffe.']); }
+      var roT = restrictedOrt(); if (roT) return roT;
+      if (s.berechtigt) { step('berechtigtes Interesse → §42a Abs. 3'); return R('erlaubt', 'Führen mit berechtigtem Interesse', '§ 42a Abs. 3 WaffG', 'Kein Verstoß', 'Mit nachweisbarem berechtigten Interesse ist das Führen zulässig.'); }
+      step('Hieb-/Stoßwaffe → Führungsverbot (OWi)');
+      return R('owi', 'Führungsverbot', '§ 42a Abs. 1 Nr. 2 i.V.m. § 53 Abs. 1 Nr. 21a WaffG', 'Bußgeld bis 10.000 €', 'Der Teleskopschlagstock ist eine Hieb-/Stoßwaffe; sein zugriffsbereites Führen in der Öffentlichkeit ist nach § 42a verboten — dies ist jedoch nur eine Ordnungswidrigkeit, keine Straftat (BGH, Beschl. v. 21.04.2022 – 3 StR 81/22).', ['Der Besitz bleibt erlaubt; strafbar wäre nur ein echter Totschläger/Schlagring.']); }
+    if (item === 'armbrust') { step('Armbrust → frei ab 18'); if (H === 'besitz' || H === 'transport') { if (!s.volljaehrig) return minorFree(); return R('erlaubt', 'Erlaubnisfrei (ab 18)', '§ 2 Abs. 1, Anlage 2 WaffG', 'Kein Verstoß', 'Armbrüste sind ab 18 erlaubnisfrei zu erwerben und zu besitzen.'); } return R('hinweis', 'Führen im Einzelfall', 'Landesrecht / § 42 WaffG', 'Einzelfall', 'Ein allgemeines Führungsverbot nach § 42a besteht nicht; bei Veranstaltungen/Zonen kann Landesrecht greifen.'); }
+    if (item === 'pfefferPtb') return R('erlaubt', 'Reizstoffsprühgerät mit PTB (Tierabwehr)', 'Anlage 2 Abschn. 2 WaffG', 'Kein Verstoß', 'Reizstoffsprühgeräte mit PTB-Zeichen (Tierabwehr) dürfen ab 18 erworben, besessen und geführt werden.');
+    if (item === 'pfefferOhne') { step('Reizstoff ohne PTB / Menschenabwehr'); return R('hinweis', 'Reizstoff zur Menschenabwehr', '§ 2 Abs. 2, Anlage 2 WaffG', 'Einzelfall prüfen', 'Reizstoffsprühgeräte ohne PTB-Zeichen bzw. zur Menschenabwehr sind erlaubnispflichtig oder verboten — Kennzeichnung und Reizstoff entscheiden.'); }
+    if (H === 'besitz' || H === 'transport') return R('erlaubt', H === 'transport' ? 'Transport erlaubt' : 'Besitz erlaubt', '§ 2 Abs. 1 / § 12 WaffG', 'Kein Verstoß', 'Der Besitz/nicht zugriffsbereite Transport einer Hieb-/Stoßwaffe ist ab 18 erlaubt.');
+    var ro5 = restrictedOrt(); if (ro5) return ro5;
+    if (s.berechtigt) { step('berechtigtes Interesse → §42a Abs. 3'); return R('erlaubt', 'Führen mit berechtigtem Interesse', '§ 42a Abs. 3 WaffG', 'Kein Verstoß', 'Mit nachweisbarem berechtigten Interesse ist das Führen zulässig.'); }
+    step('Hieb-/Stoßwaffe → Führungsverbot');
+    return R('owi', 'Führungsverbot', '§ 42a Abs. 1 Nr. 2 i.V.m. § 53 Abs. 1 Nr. 21a WaffG', 'Bußgeld bis 10.000 €', 'Hieb- und Stoßwaffen dürfen in der Öffentlichkeit nicht zugriffsbereit geführt werden.');
+  }
+
+  return R('hinweis', 'Bitte Objektart wählen', '—', '—', 'Wähle oben eine Objektart aus.');
+}
+
+function wfEvaluate(s) {
+  var r = wfCore(s);
+  if (r.level === 'straftat' && s.vorsatz === false) {
+    r.folge += ' · fahrlässig: reduzierter Strafrahmen (vgl. § 52 Abs. 4 WaffG)';
+    r.path = r.path.concat(['Fahrlässigkeit → milderer Strafrahmen']);
+  }
+  return r;
+}
+
+
+/* ---------- Prüfstand: Oberfläche ---------- */
+const WF_LEVEL = {
+  erlaubt: { label: 'Kein Verstoß', short: 'Erlaubt', c: COLORS.lime },
+  hinweis: { label: 'Einzelfallprüfung', short: 'Einzelfall', c: COLORS.blau },
+  owi: { label: 'Ordnungswidrigkeit', short: 'OWi', c: COLORS.gelb },
+  straftat: { label: 'Straftat', short: 'Straftat', c: COLORS.koralle }
+};
+const WF_OBJ = [
+  { value: 'messer', label: 'Messer / Klinge', desc: 'Klapp-, Einhand-, Spring-, feststehend …' },
+  { value: 'schuss', label: 'Scharfe Schusswaffe', desc: 'Pistole, Revolver, Gewehr (auch Deko/Antik)' },
+  { value: 'srs', label: 'Schreckschuss / Reizstoff / Signal', desc: 'SRS-Waffe mit/ohne PTB-Zeichen' },
+  { value: 'druck', label: 'Druckluft / Softair', desc: 'Luftgewehr, -pistole, Softair' },
+  { value: 'munition', label: 'Munition', desc: 'Patronen, Kartuschen, Geschosse' },
+  { value: 'anschein', label: 'Anscheinswaffe', desc: 'täuschend echte Nachbildung / Deko' },
+  { value: 'kriegswaffe', label: 'Kriegswaffe', desc: 'Vollautomat, Granate, panzerbrechend (KrWaffKG)' },
+  { value: 'sonstige', label: 'Hieb-/Stoßwaffe & Sonstige', desc: 'Schlagstock, Schlagring, Pfefferspray, Armbrust …' }
+];
+const WF_HANDLUNG = { besitz: 'Besitz', transport: 'Transport', fuehren: 'Führen' };
+const wf = { st: WF_DEFAULT(), res: null, gen: '', text: '', edited: false, title: '', ver: 1, drawn: 0, histHtml: null, savedSig: '', savedId: null };
+const wfCm = v => Number(v).toFixed(1).replace('.', ',');
+const wfCtx = st => { const o = WF_OBJ.find(x => x.value === st.objektart); return st.objektart === 'kriegswaffe' ? o.label : `${o.label} · ${WF_HANDLUNG[st.handlung]}`; };
+function wfRecalc() {
+  wf.res = wfEvaluate(wf.st);
+  wf.gen = wfBuildAnzeige(wf.st, wf.res);
+  if (!wf.edited) wf.text = wf.gen;
+}
+wfRecalc();
+
+const wfOpt = (key, o) => `<button type="button" class="wf-opt" data-wk="${key}" data-wv="${o.value}" aria-pressed="${wf.st[key] === o.value}"><span class="wf-opt-dot" aria-hidden="true"></span><span class="wf-opt-txt"><span class="wf-opt-l">${esc(o.label)}</span>${o.desc ? `<span class="wf-opt-d">${esc(o.desc)}</span>` : ''}</span></button>`;
+const wfChoice = (key, opts, cls = '') => `<div class="wf-choice ${cls}" role="group">${opts.map(o => wfOpt(key, o)).join('')}</div>`;
+const wfToggle = (label, key, yes = 'Ja', no = 'Nein') => `<div class="wf-toggle"><span class="wf-toggle-l">${esc(label)}</span><div class="seg wf-seg" role="group" aria-label="${esc(label)}">${[[true, yes], [false, no]].map(([v, l]) => `<button type="button" data-wk="${key}" data-wv="${v}" aria-pressed="${wf.st[key] === v}">${esc(l)}</button>`).join('')}</div></div>`;
+const wfBox = (...parts) => `<div class="wf-box">${parts.filter(Boolean).join('')}</div>`;
+const wfThr = () => wf.st.messerBauart === 'spring' ? 8.5 : 12;
+const wfLenHtml = () => `${wfCm(wf.st.klingenlaenge)}<small> cm</small>`;
+
+function wfFormHtml() {
+  const s = wf.st, secs = [];
+  secs.push(['Was liegt vor?', wfChoice('objektart', WF_OBJ, 'wf-objs')]);
+  if (s.objektart === 'messer') {
+    let b = wfChoice('messerBauart', [
+      { value: 'spring', label: 'Springmesser', desc: 'Klinge springt auf Knopfdruck heraus' },
+      { value: 'fall', label: 'Fallmesser' }, { value: 'butterfly', label: 'Butterfly / Balisong' },
+      { value: 'faust', label: 'Faustmesser' },
+      { value: 'einhand', label: 'Einhandmesser', desc: 'einhändig zu öffnen, feststellbar' },
+      { value: 'feststehend', label: 'Feststehendes Messer' },
+      { value: 'klapp', label: 'Zweihand-Klappmesser', desc: 'beidhändig zu öffnen' },
+      { value: 'multi', label: 'Multitool / kleines Taschenmesser' }
+    ]);
+    if (s.messerBauart === 'spring') b += wfChoice('springOeffnung', [
+      { value: 'seitlich', label: 'Klinge springt seitlich heraus', desc: 'ausnahmefähig, wenn ≤ 8,5 cm & einseitig' },
+      { value: 'frontal', label: 'Klinge springt frontal heraus (OTF)', desc: 'ausnahmslos verboten' }
+    ], 'wf-sub');
+    if (s.messerBauart === 'feststehend' || s.messerBauart === 'spring') {
+      const thr = wfThr(), over = s.klingenlaenge > thr;
+      b += wfBox(
+        `<div class="wf-len-top"><label for="wfLen">Klingenlänge</label><span class="wf-len mono${over ? ' over' : ''}" id="wfLenVal">${wfLenHtml()}</span></div>`,
+        `<div class="wf-range-wrap${over ? ' over' : ''}" style="--thr:${((thr - 2) / 28).toFixed(4)}"><i class="wf-thr" aria-hidden="true"></i><input type="range" class="wf-range" id="wfLen" min="2" max="30" step="0.5" value="${s.klingenlaenge}" style="--f:${((s.klingenlaenge - 2) / 28).toFixed(4)}" aria-valuetext="${wfCm(s.klingenlaenge)} Zentimeter"></div>`,
+        `<div class="wf-scale"><span>2</span><span>Grenze ${wfCm(thr)} cm</span><span>30</span></div>`,
+        s.messerBauart === 'spring' ? wfToggle('Zweiseitig geschliffen?', 'beidseitig') : wfToggle('Zweiseitig geschliffen (Dolch)?', 'dolch'));
+    }
+    secs.push(['Bauart & Klinge', b]);
+  }
+  if (s.objektart === 'schuss') {
+    secs.push(['Erlaubnis · Typ · Zustand', wfChoice('schusserlaubnis', [
+      { value: 'keine', label: 'Keine Erlaubnis' },
+      { value: 'wbk', label: 'Waffenbesitzkarte (WBK)', desc: 'erlaubt nur Besitz + Transport' },
+      { value: 'waffenschein', label: 'Waffenschein', desc: 'erlaubt auch das Führen' }
+    ]) + wfBox(wfToggle('Vollautomatisch?', 'vollautomat'), '<span class="wf-box-l">Zustand / Bauart</span>', wfChoice('schussZustand', [
+      { value: 'normal', label: 'Funktionsfähig / scharf' },
+      { value: 'deko', label: 'Deko, zertifiziert unbrauchbar', desc: 'frei' },
+      { value: 'antik', label: 'Antik / Vorderlader vor 1871', desc: 'frei' }
+    ], 'wf-sub'))]);
+  }
+  if (s.objektart === 'srs') secs.push(['Kennzeichnung & Berechtigung', wfBox(wfToggle('PTB-Zulassungszeichen vorhanden?', 'srsPtb'), s.handlung === 'fuehren' && s.srsPtb ? wfToggle('Kleiner Waffenschein vorhanden?', 'kwSchein') : '')]);
+  if (s.objektart === 'druck') secs.push(['Energie / Kennzeichnung', wfChoice('druckEnergie', [
+    { value: 'spielzeug', label: 'Unter 0,5 Joule', desc: 'Softair-Spielzeug — keine Waffe' },
+    { value: 'f75', label: 'Bis 7,5 Joule (F-Zeichen)', desc: 'erlaubnisfrei ab 18' },
+    { value: 'ueber75', label: 'Über 7,5 Joule', desc: 'erlaubnispflichtig wie scharfe Waffe' }
+  ])]);
+  if (s.objektart === 'munition') secs.push(['Art & Erlaubnis', wfBox(wfToggle('Kriegswaffenmunition?', 'munKriegswaffe'),
+    !s.munKriegswaffe ? wfToggle('Erlaubnisfreie Munition? (z. B. PTB-Kartuschen, BBs)', 'munFrei') : '',
+    !s.munKriegswaffe && !s.munFrei ? wfToggle('Erlaubnis vorhanden? (WBK / Munitionserwerbsschein)', 'munErlaubnis') : '')]);
+  if (s.objektart === 'sonstige') secs.push(['Gegenstand', wfChoice('sonstigeItem', [
+    { value: 'schlagstock', label: 'Schlagstock (klassisch)', desc: 'Hieb-/Stoßwaffe' },
+    { value: 'teleskop', label: 'Teleskopschlagstock', desc: 'Hieb-/Stoßwaffe (BGH 3 StR 81/22)' },
+    { value: 'schlagring', label: 'Schlagring / Totschläger / Stahlrute' },
+    { value: 'wurfstern', label: 'Wurfstern / Wurfmesser' },
+    { value: 'nunchaku', label: 'Nunchaku / Würgeholz' },
+    { value: 'praezschleuder', label: 'Präzisionsschleuder (Zwille)' },
+    { value: 'elektro', label: 'Elektroimpulsgerät (ohne PTB)' },
+    { value: 'armbrust', label: 'Armbrust' },
+    { value: 'pfefferPtb', label: 'Pfefferspray mit PTB (Tierabwehr)' },
+    { value: 'pfefferOhne', label: 'Reizstoff ohne PTB / Menschenabwehr' }
+  ])]);
+  if (s.objektart !== 'kriegswaffe') secs.push(['Handlung', wfChoice('handlung', [
+    { value: 'besitz', label: 'Besitz / Erwerb', desc: 'zuhause / im befriedeten Besitztum' },
+    { value: 'transport', label: 'Transport (§ 12)', desc: 'nicht schussbereit & nicht zugriffsbereit, zu legitimem Zweck' },
+    { value: 'fuehren', label: 'Führen in der Öffentlichkeit', desc: 'zugriffsbereit dabei' }
+  ])]);
+  if (s.handlung === 'fuehren' && s.objektart !== 'kriegswaffe' && s.objektart !== 'munition') secs.push(['Ort / Situation', wfChoice('ort', [
+    { value: 'normal', label: 'Normaler öffentlicher Raum' },
+    { value: 'veranstaltung', label: 'Veranstaltung / Volksfest / Markt', desc: '§ 42 WaffG' },
+    { value: 'oepnv', label: 'ÖPNV / Bahnhof / Fernverkehr', desc: '§ 42b WaffG' },
+    { value: 'zone', label: 'Waffen-/Messerverbotszone', desc: 'Landesrecht' }
+  ])]);
+  if (s.objektart !== 'kriegswaffe') {
+    const showBer = s.objektart === 'messer' || (s.objektart === 'sonstige' && s.handlung === 'fuehren');
+    secs.push(['Person & Umstände', wfBox(
+      s.objektart !== 'anschein' ? wfToggle('Person ist volljährig (≥ 18)?', 'volljaehrig') : '',
+      showBer ? wfToggle('Berechtigtes Interesse nachweisbar? (Beruf, Jagd, Sport, Brauchtum)', 'berechtigt') : '',
+      wfToggle('Handelte die Person vorsätzlich?', 'vorsatz', 'Vorsatz', 'Fahrlässig'))]);
+  }
+  return secs.map(([t, b], i) => `<section class="wf-sec"><div class="wf-sec-head"><span class="wf-sec-n mono">${pad(i + 1)}</span><h3 class="wf-sec-t">${esc(t)}</h3></div>${b}</section>`).join('');
+}
+
+function renderWfLive() {
+  const el = $('#wfLive'), r = wf.res, L = WF_LEVEL[r.level];
+  el.style.setProperty('--c', L.c);
+  el.innerHTML = `<span class="wf-live-dot" aria-hidden="true"></span><span class="wf-live-l">${esc(L.label)}</span><span class="wf-live-v">${esc(r.verdict)}</span><span class="wf-live-go">Ergebnis${ico('chev')}</span>`;
+  el.setAttribute('aria-label', `Ergebnis: ${L.label} – ${r.verdict}. Zum Ergebnis springen`);
+  const say = `${L.label}: ${r.verdict}`, an = $('#wfSay');
+  if (an.textContent !== say) an.textContent = say;
+}
+function wfStaleUi() {
+  const stale = wf.edited && wf.text !== wf.gen;
+  const b = $('#wfRegen'); if (b) b.hidden = !stale;
+}
+function renderWfResult() {
+  const box = $('#wfRes'), r = wf.res, L = WF_LEVEL[r.level];
+  const big = r.level === 'owi' ? 'Ordnungs&shy;widrigkeit' : r.level === 'hinweis' ? 'Einzelfall&shy;prüfung' : esc(L.label);
+  box.dataset.level = r.level;
+  box.style.setProperty('--c', L.c);
+  box.innerHTML = `<div class="card-head"><div><span class="spaced">Ergebnis</span><p class="wf-ctx">${esc(wfCtx(wf.st))}</p></div><span class="pill wf-src" title="Stand der Rechtslage">WaffG 2024/25</span></div>
+    <div class="wf-level">${big}</div>
+    <div class="wf-meter" role="img" aria-label="Einstufung: ${esc(L.label)}">${WF_LEVEL_KEYS.map(k => `<span class="${k === r.level ? 'on' : ''}" style="--c:${WF_LEVEL[k].c}"><i></i><b>${esc(WF_LEVEL[k].short)}</b></span>`).join('')}</div>
+    <h3 class="wf-verdict">${esc(r.verdict)}</h3>
+    <dl class="wf-facts"><div><dt>Vorschrift</dt><dd class="mono">${esc(r.paragraph)}</dd></div><div><dt>Rechtsfolge</dt><dd>${esc(r.folge)}</dd></div></dl>
+    <p class="wf-reason">${esc(r.reason)}</p>
+    ${r.hinweis && r.hinweis.length ? `<ul class="wf-hints">${r.hinweis.map(h => `<li>${esc(h)}</li>`).join('')}</ul>` : ''}
+    <span class="f-label">Prüfpfad</span>
+    <ol class="wf-path">${r.path.map(p => `<li><span>${esc(String(p))}</span></li>`).join('')}<li class="fin"><span>${esc(L.label)}</span></li></ol>
+    <div class="wf-text-head"><label class="f-label" for="wfText">Text für Anzeige / Meldung</label><button type="button" class="link wf-regen" id="wfRegen" hidden>${ico('repeat')}Neu erzeugen</button></div>
+    <textarea class="input wf-text" id="wfText" spellcheck="false" rows="12"></textarea>
+    <p class="wf-note">Platzhalter in eckigen Klammern ([Datum], [Personalien] …) vor der Verwendung ausfüllen. Der Text ist frei bearbeitbar.</p>
+    <label class="sr" for="wfTitle">Notiz oder Aktenzeichen</label>
+    <input class="input wf-title" id="wfTitle" maxlength="120" placeholder="Notiz / Aktenzeichen (optional)" autocomplete="off" spellcheck="false" enterkeyhint="done">
+    <div class="wf-actions"><button type="button" class="btn btn-accent" id="wfCopy">Kopieren</button><button type="button" class="btn btn-ghost" id="wfSave">${ico('check')}Speichern</button><button type="button" class="btn btn-ghost" id="wfTodo">${ico('brief')}Als Aufgabe</button></div>`;
+  $('#wfText').value = wf.text;
+  $('#wfTitle').value = wf.title;
+  wfStaleUi();
+}
+function renderWfHist() {
+  const q = norm(ui.q);
+  const list = state.checks.filter(c => !q || norm(`${c.title} ${c.verdict} ${c.text} ${WF_LEVEL[c.level].label}`).includes(q)).slice().reverse();
+  const html = list.length ? list.map(c => {
+    const L = WF_LEVEL[c.level];
+    return `<li class="wf-h" style="--c:${L.c}"><button type="button" class="wf-h-row" data-check="${esc(c.id)}"><span class="wf-h-dot" aria-hidden="true"></span><span class="wf-h-main"><span class="wf-h-t">${esc(c.title || c.verdict)}</span><span class="wf-h-m">${esc(L.label)} · ${esc(wfCtx(c.st))}${c.title ? ' · ' + esc(c.verdict) : ''}</span></span><span class="wf-h-at mono">${esc(dateShort(c.at))}<br>${hm(c.at)}</span></button><button type="button" class="icon-btn sm wf-h-del" data-check-del="${esc(c.id)}" aria-label="Prüfung löschen">${ico('x')}</button></li>`;
+  }).join('') : `<li class="wf-h-empty">${q ? 'Keine gespeicherte Prüfung passt zur Suche.' : 'Noch nichts gespeichert. „Speichern“ legt die Prüfung samt Text verschlüsselt im Tresor ab – mit Zeitstempel.'}</li>`;
+  if (html !== wf.histHtml) { wf.histHtml = html; $('#wfHist').innerHTML = html; }
+  const n = $('#wfHistN'); n.textContent = state.checks.length ? String(state.checks.length) : ''; n.hidden = !state.checks.length;
+}
+function renderWaffg(force) {
+  if (!S) return;
+  if (force || wf.drawn !== wf.ver) {
+    wf.drawn = wf.ver;
+    $('#wfForm').innerHTML = wfFormHtml();
+    renderWfResult();
+    renderWfLive();
+    wfLiveVis();
+  }
+  renderWfHist();
+}
+function wfChanged() { wf.ver++; wfRecalc(); }
+
+/* Eingaben */
+$('#wfForm').addEventListener('click', e => {
+  const b = e.target.closest('button[data-wk]'); if (!b) return;
+  const k = b.dataset.wk, raw = b.dataset.wv;
+  const v = raw === 'true' ? true : raw === 'false' ? false : raw;
+  if (wf.st[k] === v) return;
+  wf.st[k] = v; wfChanged(); renderWaffg();
+  const nb = $(`#wfForm button[data-wk="${k}"][data-wv="${raw}"]`);
+  if (nb) nb.focus({ preventScroll: true });
+});
+$('#wfForm').addEventListener('input', e => {
+  if (e.target.id !== 'wfLen') return;
+  const v = clamp(Math.round(Number(e.target.value) * 2) / 2, 2, 30);
+  wf.st.klingenlaenge = v;
+  const over = v > wfThr();
+  e.target.style.setProperty('--f', ((v - 2) / 28).toFixed(4));
+  e.target.setAttribute('aria-valuetext', `${wfCm(v)} Zentimeter`);
+  e.target.parentElement.classList.toggle('over', over);
+  const val = $('#wfLenVal'); val.innerHTML = wfLenHtml(); val.classList.toggle('over', over);
+  wfChanged(); wf.drawn = wf.ver; // Formular bleibt stehen (Schieberegler nicht unterbrechen)
+  renderWfResult(); renderWfLive();
+});
+
+/* Live-Leiste: zeigt das Ergebnis, solange die Ergebniskarte nicht im Blick ist */
+function wfLiveVis() {
+  if (document.body.dataset.area !== 'waffg') return;
+  const r = $('#wfRes').getBoundingClientRect();
+  $('#wfLive').classList.toggle('quiet', r.top < innerHeight - 140 && r.top + 300 > 0);
+}
+let wfRaf = 0;
+addEventListener('scroll', () => { if (!wfRaf) wfRaf = requestAnimationFrame(() => { wfRaf = 0; wfLiveVis(); }); }, { passive: true });
+addEventListener('resize', () => wfLiveVis(), { passive: true });
+$('#wfLive').addEventListener('click', () => $('#wfRes').scrollIntoView({ behavior: reduceMotion.matches ? 'auto' : 'smooth', block: 'start' }));
+
+/* Ergebnis: Text, Speichern, Aufgabe */
+$('#wfRes').addEventListener('input', e => {
+  if (e.target.id === 'wfText') { wf.text = e.target.value; wf.edited = wf.text !== wf.gen; wfStaleUi(); }
+  else if (e.target.id === 'wfTitle') wf.title = e.target.value;
+});
+$('#wfRes').addEventListener('keydown', e => { if (e.target.id === 'wfTitle' && e.key === 'Enter') { e.preventDefault(); wfSave(); } });
+$('#wfRes').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.id === 'wfCopy') wfCopy(b);
+  else if (b.id === 'wfSave') wfSave();
+  else if (b.id === 'wfTodo') wfTodo();
+  else if (b.id === 'wfRegen') {
+    const prev = wf.text;
+    wf.text = wf.gen; wf.edited = false; $('#wfText').value = wf.text; wfStaleUi();
+    toast('Text neu erzeugt', { action: { label: 'Rückgängig', fn: () => { wf.text = prev; wf.edited = prev !== wf.gen; const t = $('#wfText'); if (t) t.value = prev; wfStaleUi(); } } });
+  }
+});
+function wfCopy(btn) {
+  const done = ok => {
+    toast(ok ? 'Text kopiert' : 'Kopieren nicht möglich – Text bitte markieren und kopieren.');
+    if (!ok) { const t = $('#wfText'); t.focus(); t.select(); return; }
+    btn.textContent = 'Kopiert ✓'; clearTimeout(btn._t); btn._t = setTimeout(() => { btn.textContent = 'Kopieren'; }, 1600);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(wf.text).then(() => done(true), () => done(false));
+  else done(false);
+}
+function wfSave() {
+  if (!S) return;
+  const sig = JSON.stringify([wf.st, wf.text, wf.title.trim()]);
+  if (sig === wf.savedSig && state.checks.some(c => c.id === wf.savedId)) { toast('Diese Prüfung ist schon gespeichert.'); return; }
+  const now = Date.now();
+  const c = normCheck({ id: uid(), at: now, title: wf.title, st: wf.st, level: wf.res.level, verdict: wf.res.verdict, text: wf.text, u: now });
+  state.checks.push(c);
+  wf.savedSig = sig; wf.savedId = c.id;
+  commit();
+  toast(`Prüfung gespeichert · ${hm(now)}`);
+}
+function wfTodo() {
+  if (!S) return;
+  const r = wf.res, now = Date.now(), t = wf.title.trim();
+  const what = { straftat: 'Strafanzeige', owi: 'OWi-Anzeige', erlaubt: 'Aktenvermerk', hinweis: 'Prüfvermerk' }[r.level];
+  const snap = snapshot();
+  state.items.push(normItem({ id: uid(), title: `${what}: ${r.verdict}${t ? ' · ' + t : ''}`, notes: wf.text, kind: 'aufgabe', mode: r.level === 'straftat' || r.level === 'owi' ? 'asap' : 'einmalig', createdAt: now, updatedAt: now }));
+  commit();
+  toast(`Aufgabe angelegt · ${what}`, { undo: snap });
+}
+async function wfReset() {
+  if (wf.edited && wf.text !== wf.gen && wf.savedSig !== JSON.stringify([wf.st, wf.text, wf.title.trim()])) {
+    const r = await ask({ title: 'Neue Prüfung?', text: 'Dein bearbeiteter Text ist nicht gespeichert und geht verloren.', buttons: [{ label: 'Abbrechen', value: null }, { label: 'Neu beginnen', value: 'y', cls: 'btn-accent', submit: true }] });
+    if (!r) return;
+  }
+  wf.st = WF_DEFAULT(); wf.title = ''; wf.edited = false; wf.savedSig = ''; wf.savedId = null;
+  wfChanged(); renderWaffg();
+  scrollTo({ top: 0, behavior: reduceMotion.matches ? 'auto' : 'smooth' });
+}
+$('#wfReset').addEventListener('click', wfReset);
+
+/* Verlauf */
+$('#wfHist').addEventListener('click', e => {
+  const del = e.target.closest('[data-check-del]');
+  if (del) {
+    const c = state.checks.find(x => x.id === del.dataset.checkDel); if (!c) return;
+    const snap = snapshot();
+    state.checks = state.checks.filter(x => x.id !== c.id); state.del[c.id] = tombTs(c);
+    commit(); toast('Prüfung gelöscht', { undo: snap });
+    return;
+  }
+  const row = e.target.closest('[data-check]'); if (!row) return;
+  const c = state.checks.find(x => x.id === row.dataset.check); if (!c) return;
+  wf.st = wfNormState(c.st); wf.title = c.title; wf.edited = false;
+  wfChanged();
+  wf.text = c.text || wf.gen; wf.edited = wf.text !== wf.gen;
+  wf.savedSig = JSON.stringify([wf.st, wf.text, wf.title.trim()]); wf.savedId = c.id;
+  renderWaffg();
+  toast(`Prüfung vom ${dateShort(c.at)} ${hm(c.at)} geladen`);
+  if (mobileMQ.matches) $('#wfRes').scrollIntoView({ behavior: reduceMotion.matches ? 'auto' : 'smooth', block: 'start' });
+  else scrollTo({ top: 0, behavior: reduceMotion.matches ? 'auto' : 'smooth' });
+});
+
 try { const a0 = sessionStorage.getItem('workoholic:area'); setArea(AREAS.includes(a0) ? a0 : 'heute', { keepScroll: true }); } catch (e) { setArea('heute', { keepScroll: true }); }
 
 /* ======================= Synchronisierung ======================= */
@@ -3039,7 +3619,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { closeMenu(); return; }
   const k = e.key.toLowerCase();
   if (k === 'n') { e.preventDefault(); contextNew(); }
-  else if (/^[1-4]$/.test(e.key)) { e.preventDefault(); setArea(AREAS[Number(e.key) - 1]); }
+  else if (/^[1-5]$/.test(e.key)) { e.preventDefault(); setArea(AREAS[Number(e.key) - 1]); }
   else if (e.key === '/') { e.preventDefault(); if (mobileMQ.matches) searchBox.classList.add('expanded'); searchInput.focus(); }
   else if (k === 'd' && !e.repeat) { e.preventDefault(); dongleAction(); }
   else if (k === 'l') { e.preventDefault(); lock('manual'); }
