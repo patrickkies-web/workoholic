@@ -950,7 +950,10 @@ body[data-area=schreiben] .pane-schreiben{display:grid}
 .w-title{font-size:18px;font-weight:400;letter-spacing:-.01em;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .w-back{display:none}
 .w-rail{display:flex;gap:6px;margin:4px 0 10px;overflow:hidden}
-.w-rail-p{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
+.w-rail-p{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px;padding:6px 0;margin:-6px 0;background:none;border:0;color:inherit;font:inherit;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.w-rail-p.on{flex:2.4}
+.w-rail-p:hover b{color:var(--text-2)}
+.w-rail-p:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
 .w-rail-p i{display:block;height:3px;border-radius:2px;background:rgba(255,255,255,.1)}
 .w-rail-p.done i{background:rgba(198,220,122,.55)}
 .w-rail-p.on i{background:var(--accent);box-shadow:0 0 10px rgba(236,217,111,.45)}
@@ -1035,12 +1038,15 @@ body[data-area=schreiben] .pane-schreiben{display:grid}
 .w-offen .check-line{margin-top:0;padding:8px 0;border-top:1px solid var(--line)}
 .w-offen li:first-child .check-line{border-top:0}
 .w-ov{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.w-ov-ph{margin:12px 4px 0;font-size:10.5px;font-weight:500;letter-spacing:.2em;text-transform:uppercase;color:var(--text-3)}
+.w-ov-ph:first-child{margin-top:0}
+.w-rlab{display:inline-block;margin-top:4px;font-weight:600;color:var(--text)}
 .w-ov-i{display:flex;align-items:center;gap:12px;width:100%;padding:10px 12px;border-radius:14px;background:rgba(255,255,255,.035);border:1px solid var(--line);text-align:left}
 .w-ov-i.on{border-color:rgba(236,217,111,.35)}
 .w-ov-n{width:26px;color:var(--text-3);font-size:11px}
 .w-ov-t{flex:1;min-width:0}
 .w-ov-t b{display:block;font-weight:500;font-size:14px}
-.w-ov-t small{display:block;font-size:11.5px;color:var(--text-3)}
+.w-ov-t small{display:block;font-size:11.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 /* Satzbausteine: fester Satzanfang (hellgrau) · Beispiel-Fortsetzung (dunkelgrau, kursiv) · eigener Text (weiß) */
 .w-sent{position:relative;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid var(--line);padding:12px 14px;font-size:14px;line-height:1.5;transition:border-color .15s ease,background-color .15s ease;cursor:text}
 .w-sent:focus-within{border-color:rgba(236,217,111,.45);background:rgba(255,255,255,.07)}
@@ -1076,6 +1082,7 @@ body[data-area=schreiben] .pane-schreiben{display:grid}
   .w-grid{grid-template-columns:1fr}
   .w-q.half{grid-column:1/-1}
   .w-rail-p b{display:none}
+  .w-rail-p{padding:12px 0;margin:-12px 0}
   .w-h{font-size:23px}
   /* Beim Aufnehmen gehört die untere Leiste dem Assistenten: Dock ausblenden, Weiter/Zurück ganz unten */
   body.w-open[data-area=schreiben] .dock{display:none}

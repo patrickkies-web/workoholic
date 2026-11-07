@@ -87,18 +87,18 @@
     const k = base ? (f.k ? base + '.' + f.k : base) : f.k;
     const v = k ? getP(d, k) : undefined;
     const half = f.w === 'half' ? ' half' : '';
-    const item = base ? getP(d, base) : undefined;
+    const item = base ? (getP(d, base) || {}) : undefined; // auch die noch leere erste Listenkarte hat ein Objekt
     const ans = answered(v);
     const Q = `<div class="w-q${half}${ans ? ' ans' : ''}" data-q="${esc(k || '')}">`;
     const L = forId => label(f, forId, d, item);
     switch (f.t) {
-      case 'info': return `<div class="w-q full"><div class="w-info">${esc(f.text)}</div></div>`;
+      case 'info': return `<div class="w-q full"><div class="w-info">${esc(R(f.text, d, item))}</div></div>`;
       case 'yn': {
-        const o = Array.isArray(f.o) ? f.o : [['ja', 'Ja'], ['nein', 'Nein']];
-        return `${Q}${L()}<div class="w-seg" role="group" aria-label="${esc(f.l || '')}">${o.map(([val, lab]) => `<button type="button" class="w-opt${val === 'ja' ? ' yes' : val === 'nein' ? ' no' : ''}" data-set="${esc(k)}" data-v="${esc(val)}" aria-pressed="${String(v === val)}">${esc(lab)}</button>`).join('')}</div></div>`;
+        const o = Array.isArray(R(f.o, d, item)) ? R(f.o, d, item) : [['ja', 'Ja'], ['nein', 'Nein']];
+        return `${Q}${L()}<div class="w-seg" role="group" aria-label="${esc(R(f.l, d, item) || '')}">${o.map(([val, lab]) => `<button type="button" class="w-opt${val === 'ja' ? ' yes' : val === 'nein' ? ' no' : ''}" data-set="${esc(k)}" data-v="${esc(val)}" aria-pressed="${String(v === val)}">${esc(lab)}</button>`).join('')}</div></div>`;
       }
-      case 'choice': return `${Q}${L()}<div class="w-chips" role="group">${f.o.map(([val, lab]) => `<button type="button" class="chip" data-set="${esc(k)}" data-v="${esc(val)}" aria-pressed="${String(v === val)}">${esc(lab)}</button>`).join('')}</div></div>`;
-      case 'multi': { const a = Array.isArray(v) ? v : []; return `${Q}${L()}<div class="w-chips" role="group">${f.o.map(([val, lab]) => `<button type="button" class="chip" data-toggle="${esc(k)}" data-v="${esc(val)}" aria-pressed="${String(a.includes(val))}">${esc(lab)}</button>`).join('')}</div></div>`; }
+      case 'choice': return `${Q}${L()}<div class="w-chips" role="group">${R(f.o, d, item).map(([val, lab]) => `<button type="button" class="chip" data-set="${esc(k)}" data-v="${esc(val)}" aria-pressed="${String(v === val)}">${esc(lab)}</button>`).join('')}</div></div>`;
+      case 'multi': { const a = Array.isArray(v) ? v : []; return `${Q}${L()}<div class="w-chips" role="group">${R(f.o, d, item).map(([val, lab]) => `<button type="button" class="chip" data-toggle="${esc(k)}" data-v="${esc(val)}" aria-pressed="${String(a.includes(val))}">${esc(lab)}</button>`).join('')}</div></div>`; }
       case 'text': case 'area': {
         if (f.pre || f.t === 'area') return sentenceHtml(f, k, v, d, item, half, ans);
         const ph = R(f.ph, d, item) || '';
@@ -119,8 +119,9 @@
       }
       case 'number': case 'euro': {
         const step = f.step || 1, unit = f.t === 'euro' ? '€' : (f.unit || '');
-        const q = Array.isArray(f.q) ? `<div class="w-quick">${f.q.map(n => `<button type="button" class="chip sm" data-set="${esc(k)}" data-v="${n}" data-n="1" aria-pressed="${String(Number(v) === n)}">${f.t === 'euro' ? n.toLocaleString('de-DE') + ' €' : n}</button>`).join('')}</div>` : '';
-        return `${Q}${L(fid(k))}<div class="w-num"><button type="button" class="step" data-step="${esc(k)}" data-d="${-step}" aria-label="weniger">−${f.t === 'euro' ? '' : step}</button><input class="input mono" type="number" inputmode="${step % 1 ? 'decimal' : 'numeric'}" id="${fid(k)}" data-k="${esc(k)}" data-num="1" value="${esc(v ?? '')}" ${f.min != null ? `min="${f.min}"` : ''} ${f.max != null ? `max="${f.max}"` : ''} step="${step}" placeholder="–">${unit ? `<span class="w-unit">${unit}</span>` : ''}<button type="button" class="step" data-step="${esc(k)}" data-d="${step}" aria-label="mehr">+${f.t === 'euro' ? '' : step}</button></div>${q}</div>`;
+        const sl = f.t === 'euro' || step % 1 ? '' : step;
+        const q = Array.isArray(f.q) ? `<div class="w-quick">${f.q.map(n => `<button type="button" class="chip sm" data-set="${esc(k)}" data-v="${n}" data-n="1" aria-pressed="${String(Number(v) === n)}">${f.t === 'euro' ? n.toLocaleString('de-DE') + ' €' : n.toLocaleString('de-DE') + (unit && unit !== '€' ? ' ' + unit : '')}</button>`).join('')}</div>` : '';
+        return `${Q}${L(fid(k))}<div class="w-num"><button type="button" class="step" data-step="${esc(k)}" data-d="${-step}" aria-label="weniger">−${sl}</button><input class="input mono" type="number" inputmode="${step % 1 ? 'decimal' : 'numeric'}" id="${fid(k)}" data-k="${esc(k)}" data-num="1" value="${esc(v ?? '')}" ${f.min != null ? `min="${f.min}"` : ''} ${f.max != null ? `max="${f.max}"` : ''} step="${step}" placeholder="–">${unit ? `<span class="w-unit">${unit}</span>` : ''}<button type="button" class="step" data-step="${esc(k)}" data-d="${step}" aria-label="mehr">+${sl}</button></div>${q}</div>`;
       }
       case 'crew': {
         const rows = Array.isArray(v) && v.length ? v : [{}];
@@ -138,11 +139,11 @@
         if (want.includes('tel')) parts.push(txt('tel', 'Telefon', 'nur auf dem Original', 'inputmode="tel"'));
         if (want.includes('anschrift')) parts.push(`<div class="w-q full"><label class="w-lbl" for="${fid(k + '.anschrift')}">Anschrift</label><input class="input" id="${fid(k + '.anschrift')}" data-k="${esc(k)}.anschrift" value="${esc(p.anschrift ?? '')}" placeholder="Straße Nr., PLZ Ort" autocomplete="off" spellcheck="false" maxlength="160"></div>`);
         if (want.includes('email')) parts.push(txt('email', 'E-Mail (optional)', 'für digitale Unfallmitteilung', 'inputmode="email"'));
-        return `<div class="w-sub"><div class="w-sub-h">${esc(f.l || 'Person')}</div><div class="w-grid">${parts.join('')}</div></div>`;
+        return `<div class="w-sub"><div class="w-sub-h">${esc(R(f.l, d, item) || 'Person')}</div><div class="w-grid">${parts.join('')}</div></div>`;
       }
       case 'vehicle': {
         const fz = (v && typeof v === 'object') ? v : {};
-        return `<div class="w-sub"><div class="w-sub-h">${esc(f.l || 'Fahrzeug')}</div><div class="w-grid">
+        return `<div class="w-sub"><div class="w-sub-h">${esc(R(f.l, d, item) || 'Fahrzeug')}</div><div class="w-grid">
           <div class="w-q full"><span class="w-lbl">Fahrzeugart</span><div class="w-chips">${FZ_ARTEN.map(([val, lab]) => `<button type="button" class="chip" data-set="${esc(k)}.art" data-v="${val}" aria-pressed="${String(fz.art === val)}">${lab}</button>`).join('')}</div></div>
           <div class="w-q half"><label class="w-lbl" for="${fid(k + '.marke')}">Marke</label><input class="input" id="${fid(k + '.marke')}" data-k="${esc(k)}.marke" value="${esc(fz.marke ?? '')}" placeholder="z. B. VW" autocomplete="off" spellcheck="false" maxlength="40"></div>
           <div class="w-q half"><label class="w-lbl" for="${fid(k + '.modell')}">Modell</label><input class="input" id="${fid(k + '.modell')}" data-k="${esc(k)}.modell" value="${esc(fz.modell ?? '')}" placeholder="z. B. Golf" autocomplete="off" spellcheck="false" maxlength="40"></div>
@@ -155,7 +156,12 @@
       case 'parts': return partsHtml(f, k, Array.isArray(v) ? v : []);
       case 'list': {
         const items = Array.isArray(v) ? v : [];
-        return `<div class="w-q full">${L()}${items.map((it, i) => `<div class="w-sub w-item-card"><div class="w-sub-h">${esc(f.item || 'Eintrag')} ${i + 1}<span class="grow"></span><button type="button" class="link danger" data-list-del="${esc(k)}" data-i="${i}">Entfernen</button></div><div class="w-grid">${f.sub.map(sf => fieldHtml(sf, d, `${k}.${i}`)).join('')}</div></div>`).join('')}${items.length < (f.max || 8) ? `<button type="button" class="btn btn-ghost btn-sm" data-list-add="${esc(k)}">+ ${esc(f.item || 'Eintrag')} hinzufügen</button>` : ''}${!items.length ? `<p class="w-hint">Keine ${esc(f.l || 'Einträge')} erfasst – im Bericht steht dann „konnten nicht festgestellt werden“.</p>` : ''}</div>`;
+        // min1: die erste Karte steht sofort da – Tippen legt den Eintrag an, kein „Hinzufügen“ nötig
+        const rows = items.length ? items : (f.min1 ? [{}] : []);
+        const head = (it, i) => (typeof f.item === 'function' ? f.item(it || {}, i) : `${f.item || 'Eintrag'} ${i + 1}`);
+        const cards = rows.map((it, i) => `<div class="w-sub w-item-card"><div class="w-sub-h"><b>${esc(head(it, i))}</b><span class="grow"></span>${items.length ? `<button type="button" class="link danger" data-list-del="${esc(k)}" data-i="${i}">Entfernen</button>` : ''}</div><div class="w-grid">${f.sub.filter(sf => !sf.when || sf.when(d, it || {})).map(sf => fieldHtml(sf, d, `${k}.${i}`)).join('')}</div></div>`).join('');
+        const add = rows.length < (f.max || 8) ? `<button type="button" class="btn btn-ghost btn-sm" data-list-add="${esc(k)}"${f.min1 ? ' data-min1="1"' : ''}>+ ${esc(f.add || (f.item && typeof f.item === 'string' ? f.item + ' hinzufügen' : 'Eintrag hinzufügen'))}</button>` : '';
+        return `<div class="w-q full">${L()}${cards}${add}${!rows.length ? `<p class="w-hint">Noch keine ${esc(R(f.l, d) || 'Einträge')} erfasst.</p>` : ''}</div>`;
       }
       default: return '';
     }
@@ -238,7 +244,7 @@
         <div class="w-top-t"><span class="spaced">${esc(m.short)} · ${esc(st.phase)} ${posInPhase}/${stepsInPhase.length}</span><div class="w-title">${esc(d.title || m.name)}</div></div>
         <button type="button" class="btn btn-ghost btn-sm" data-w="overview">Übersicht</button>
       </div>
-      <div class="w-rail" aria-hidden="true">${phases.map((p, i) => `<span class="w-rail-p${i < phaseIdx ? ' done' : i === phaseIdx ? ' on' : ''}" title="${esc(p)}"><i></i><b>${esc(p)}</b></span>`).join('')}</div>
+      <nav class="w-rail" aria-label="Phasen">${phases.map((p, i) => `<button type="button" class="w-rail-p${i < phaseIdx ? ' done' : i === phaseIdx ? ' on' : ''}" data-jump="${steps.findIndex(s => s.phase === p)}" title="${esc(p)}"${i === phaseIdx ? ' aria-current="step"' : ''}><i></i><b>${esc(p)}</b></button>`).join('')}</nav>
       <div class="w-prog"><i style="transform:scaleX(${((U.step + 1) / steps.length).toFixed(3)})"></i></div>
       <div class="w-step" data-step="${esc(st.id)}">
         <h2 class="w-h">${esc(R(st.title, d.data))}</h2>
@@ -250,7 +256,7 @@
         <button type="button" class="btn btn-ghost" data-w="prev" ${U.step === 0 ? 'disabled' : ''}>Zurück</button>
         <span class="w-nav-i mono">${U.step + 1} / ${steps.length}</span>
         <span class="grow"></span>
-        ${U.step < steps.length - 1 ? `<button type="button" class="btn btn-ghost btn-sm" data-w="skip">Überspringen</button><button type="button" class="btn btn-accent" data-w="next">Weiter</button>` : `<button type="button" class="btn btn-accent" data-w="finish">Bericht erstellen</button>`}
+        ${U.step < steps.length - 1 ? `<button type="button" class="btn btn-accent" data-w="next">Weiter</button>` : `<button type="button" class="btn btn-accent" data-w="finish">Bericht erstellen</button>`}
       </div>`;
     remember();
     layoutSentences();
@@ -262,8 +268,8 @@
     return `<div class="w-intro">
       <span class="spaced">Schriftliche Arbeiten</span>
       <h2 class="w-intro-h">Aufnehmen, ohne zu tippen.</h2>
-      <p class="w-intro-p">Fragen beantworten – Ja/Nein, antippen, Zahlen – und am Ende steht ein vollständiger Verkehrsunfallbefundbericht in sauberer Satzführung. Alles bleibt verschlüsselt in deinem Tresor; jeder Schritt wird sofort gesichert, du kannst jederzeit unterbrechen.</p>
-      <div class="w-mods">${mods.map(m => `<button type="button" class="w-mod" data-w="new" data-mod="${esc(m.id)}"><span class="w-mod-tile">${esc(m.kurz)}</span><span><b>${esc(m.name)}</b><small>${m.steps.length} Schritte · Befundbericht, Kurzsachverhalt, Fahndungstext, offene Punkte</small></span></button>`).join('')}</div>
+      <p class="w-intro-p">Fragen beantworten – Ja/Nein, antippen, Zahlen – und am Ende steht ein vollständiger Verkehrsunfallbefundbericht in sauberer Satzführung. Es erscheinen nur Fragen, die zu deinem Fall passen; jede lässt sich überspringen. Alles bleibt verschlüsselt in deinem Tresor; jeder Schritt wird sofort gesichert, du kannst jederzeit unterbrechen.</p>
+      <div class="w-mods">${mods.map(m => `<button type="button" class="w-mod" data-w="new" data-mod="${esc(m.id)}"><span class="w-mod-tile">${esc(m.kurz)}</span><span><b>${esc(m.name)}</b><small>${new Set(m.steps.map(s => s.phase)).size} Phasen, nur passende Fragen · Befundbericht nach Anlage 6, Kurzsachverhalt, Fahndungstext, offene Punkte</small></span></button>`).join('')}</div>
       <p class="w-hint">Tastatur: <b class="kbd">N</b> neuer Vorgang · <b class="kbd">S</b> Bereich wechseln (<b class="kbd">6</b>) · <b class="kbd">⌘/Strg ⏎</b> weiter</p>
     </div>`;
   }
@@ -276,8 +282,8 @@
     const tabs = [['bericht', 'Befundbericht'], ['kurz', 'Kurzsachverhalt'], ...(fah ? [['fahndung', 'Fahndung']] : []), ['offen', `Offene Punkte${offen.length ? ' · ' + offen.length : ''}`], ['pers', 'Personalien']];
     if (!tabs.some(t => t[0] === U.tab)) U.tab = 'bericht';
     let body = '';
-    if (U.tab === 'bericht') body = `<div class="w-report">${sec.map(([n, t, txt]) => txt == null ? `<h3 class="w-rh">${n} ${esc(t)}</h3>` : `<div class="w-rs"><h4 class="w-rsh">${n} ${esc(t)}<button type="button" class="link" data-edit="${esc(stepForSection(m, n, d.data))}">Bearbeiten</button></h4><div class="w-rb${/\[[^\]]+\]/.test(txt) ? ' has-ph' : ''}">${esc(txt).replace(/\[([^\]]+)\]/g, '<mark>[$1]</mark>')}</div></div>`).join('')}</div>`;
-    else if (U.tab === 'kurz') body = `<div class="w-report"><p class="w-hint">Für die Kurzbeschreibung im Vorgang und die Unfallmitteilung. Vor dem Nachsenden der Unfallmitteilung ist der Kurzsachverhalt aus der ViVA-Kurzbeschreibung zu löschen (DA 1.1).</p><div class="w-rb">${esc(m.kurzText(d.data)).replace(/\[([^\]]+)\]/g, '<mark>[$1]</mark>')}</div></div>`;
+    if (U.tab === 'bericht') body = `<div class="w-report">${sec.map(([n, t, txt, sid]) => txt == null ? `<h3 class="w-rh">${n} ${esc(t)}</h3>` : `<div class="w-rs"><h4 class="w-rsh">${n} ${esc(t)}<button type="button" class="link" data-edit="${esc(stepForSection(m, sid, d.data))}">Bearbeiten</button></h4><div class="w-rb${/\[[^\]]+\]/.test(txt) ? ' has-ph' : ''}">${reportHtml(txt)}</div></div>`).join('')}</div>`;
+    else if (U.tab === 'kurz') body = `<div class="w-report"><p class="w-hint">Für die Kurzbeschreibung im Vorgang und die Unfallmitteilung. Vor dem Nachsenden der Unfallmitteilung ist der Kurzsachverhalt aus der ViVA-Kurzbeschreibung zu löschen (DA 1.1).</p><div class="w-rb">${reportHtml(m.kurzText(d.data))}</div></div>`;
     else if (U.tab === 'fahndung') body = `<div class="w-report"><p class="w-hint">Für die Leitstelle / Funkfahndung – kurz und sendefähig.</p><div class="w-rb">${esc(fah)}</div></div>`;
     else if (U.tab === 'offen') body = `<div class="w-report">${offen.length ? `<ul class="w-offen">${offen.map((o, i) => `<li><label class="check-line"><input type="checkbox" data-offen="${i}"> <span>${esc(o)}</span></label></li>`).join('')}</ul><p class="w-hint">Angehakte Punkte landen als Todos im Planner.</p><button type="button" class="btn btn-ghost btn-sm" data-w="todos">Ausgewählte als Todos anlegen</button>` : '<div class="empty w-empty"><h3>Nichts offen</h3><p>Alle Pflichtpunkte aus Erlass und Dienstanweisung sind abgedeckt.</p></div>'}</div>`;
     else body = `<div class="w-report"><p class="w-hint">Gesondert vom Befundbericht – Telefonnummern nur auf dem Original (DA 1.1). Nicht in den Berichtstext kopieren.</p><div class="w-rb mono-sm">${esc(m.personalien(d.data))}</div></div>`;
@@ -288,7 +294,7 @@
         <div class="w-top-t"><span class="spaced">${esc(m.short)} · ${d.status === 'fertig' ? 'Fertig' : 'Entwurf'}</span><div class="w-title">${esc(d.title || m.name)}</div></div>
         <button type="button" class="btn btn-ghost btn-sm" data-w="edit">Bearbeiten</button>
       </div>
-      ${phCount ? `<div class="w-warn">${phCount} ${phCount === 1 ? 'Platzhalter' : 'Platzhalter'} in eckigen Klammern – vor dem Kopieren ergänzen oder den Schritt nachtragen.</div>` : ''}
+      ${phCount ? `<div class="w-warn">${phCount} ${phCount === 1 ? 'Angabe fehlt' : 'Angaben fehlen'} (in eckigen Klammern markiert) – über „Bearbeiten“ am Abschnitt direkt nachtragen.</div>` : ''}
       <div class="w-tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" class="fchip" data-tab="${k}" aria-selected="${String(U.tab === k)}">${esc(l)}</button>`).join('')}</div>
       ${body}
       <div class="w-nav">
@@ -299,12 +305,16 @@
         <button type="button" class="btn btn-light" data-w="copy">Kopieren</button>
       </div>`;
   }
-  function stepForSection(m, n, data) {
-    const map = { '1.1': 'allg1', '1.2': 'allg2', '1.3': 'allg3', '2.1': 'ort', '2.2': 'spuren', '2.3': 'fz02', '2.4': 'fz01', '2.5': 'taeter', '3.1': 'subj', '3.2': 'subj', '3.3': 'subj', '4': 'bewertung', '5.1': 'massnahmen', '5.2': 'massnahmen', '6': 'massnahmen' };
-    const g = map[n]; const steps = visibleSteps(m, data);
-    const i = steps.findIndex(s => s.gen === g);
-    return i < 0 ? 0 : i;
+  function stepForSection(m, id, data) {
+    const steps = visibleSteps(m, data);
+    const i = steps.findIndex(s => s.id === id);
+    if (i >= 0) return i;
+    const all = m.steps.findIndex(s => s.id === id);
+    const j = all < 0 ? -1 : steps.findIndex(s => m.steps.indexOf(s) >= all);
+    return j < 0 ? 0 : j;
   }
+  /** Berichtstext → HTML: Platzhalter markieren, Zwischenzeilen (Fahrzeug UB 01, UB 02, Z 01) hervorheben. */
+  const reportHtml = t => esc(t).replace(/^(Fahrzeug UB \d{2}|UB \d{2}|Z \d{2})$/gm, '<b class="w-rlab">$1</b>').replace(/\[([^\]]+)\]/g, '<mark>[$1]</mark>');
   function currentText(d, m) {
     if (U.tab === 'kurz') return m.kurzText(d.data);
     if (U.tab === 'fahndung') return m.fahndung(d.data);
@@ -335,6 +345,13 @@
     d.step = Math.max(d.step || 0, U.step);
     persist(false);
     renderMain(); window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  /** Fehlen wichtige Angaben, kurz erwähnen – weiter geht es trotzdem (im Bericht stehen dann Platzhalter). */
+  function hintMissing() {
+    const d = doc(); if (!d) return;
+    const st = visibleSteps(mod(d), d.data)[U.step]; if (!st) return;
+    const miss = st.fields.filter(f => f.req && f.k && (!f.when || f.when(d.data)) && !answered(getP(d.data, f.k))).map(f => R(f.l, d.data));
+    if (miss.length) W().toast(`Noch offen: ${miss.join(', ')} – im Bericht als [Platzhalter] markiert.`);
   }
   function finish() {
     const d = doc(); if (!d) return;
@@ -451,7 +468,7 @@
     const m = mod(d); const steps = visibleSteps(m, d.data);
     const host = $('#wMain');
     host.innerHTML = `<div class="w-top"><button type="button" class="icon-btn sm w-back" data-w="resume" aria-label="Zurück"><svg class="i" viewBox="0 0 24 24"><path d="M14.5 6l-6 6 6 6"/></svg></button><div class="w-top-t"><span class="spaced">Übersicht</span><div class="w-title">${esc(d.title || m.name)}</div></div><button type="button" class="btn btn-ghost btn-sm" data-w="finish">Bericht</button></div>
-      <ol class="w-ov">${steps.map((s, i) => { const answered = s.fields.filter(f => f.k && !(f.when && !f.when(d.data))).filter(f => { const v = getP(d.data, f.k); return Array.isArray(v) ? v.length : (v && typeof v === 'object') ? Object.keys(v).length : has(v); }).length; const total = s.fields.filter(f => f.k && !(f.when && !f.when(d.data))).length; return `<li><button type="button" class="w-ov-i${i === U.step ? ' on' : ''}" data-jump="${i}"><span class="w-ov-n mono">${i + 1}</span><span class="w-ov-t"><b>${esc(R(s.title, d.data))}</b><small>${esc(s.phase)}</small></span><span class="pill ${answered === total && total ? 'pill-lime' : answered ? 'pill-accent-soft' : 'pill-quiet'}">${answered}/${total}</span></button></li>`; }).join('')}</ol>`;
+      <ol class="w-ov">${steps.map((s, i) => { const ph = i === 0 || steps[i - 1].phase !== s.phase ? `<li class="w-ov-ph">${esc(s.phase)}</li>` : ''; const answered = s.fields.filter(f => f.k && !(f.when && !f.when(d.data))).filter(f => { const v = getP(d.data, f.k); return Array.isArray(v) ? v.length : (v && typeof v === 'object') ? Object.keys(v).length : has(v); }).length; const total = s.fields.filter(f => f.k && !(f.when && !f.when(d.data))).length; return `${ph}<li><button type="button" class="w-ov-i${i === U.step ? ' on' : ''}" data-jump="${i}"><span class="w-ov-n mono">${i + 1}</span><span class="w-ov-t"><b>${esc(R(s.title, d.data))}</b>${s.lead ? `<small>${esc(R(s.lead, d.data))}</small>` : ''}</span><span class="pill ${answered === total && total ? 'pill-lime' : answered ? 'pill-accent-soft' : 'pill-quiet'}">${answered}/${total}</span></button></li>`; }).join('')}</ol>`;
     window.scrollTo({ top: 0 });
   }
 
@@ -467,7 +484,7 @@
         if (a === 'new') newDoc(b.dataset.mod || 'vuf');
         else if (a === 'list') { U.view = 'list'; U.id = null; renderMain(); renderList(); }
         else if (a === 'prev') go(-1);
-        else if (a === 'next' || a === 'skip') go(1);
+        else if (a === 'next') { hintMissing(); go(1); }
         else if (a === 'finish') finish();
         else if (a === 'edit') { const d = doc(); if (d) { U.view = 'wizard'; U.step = 0; renderMain(); } }
         else if (a === 'resume') renderMain();
@@ -506,8 +523,8 @@
       if (b.dataset.part) { const d = doc(); if (!d) return; const k = b.dataset.part, a = Array.isArray(getP(d.data, k)) ? getP(d.data, k).slice() : []; const i = a.findIndex(p => p && p.name === b.dataset.v); if (i >= 0) a.splice(i, 1); else a.push({ name: b.dataset.v, alt: 'nein' }); setP(d.data, k, a.length ? a : undefined); persist(false); renderMain(); if (i < 0) setTimeout(() => { const c = $(`#wpart-${a.length - 1}`); if (c) c.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 30); return; }
       if (b.dataset.partDel) { const d = doc(); if (!d) return; const a = getP(d.data, b.dataset.partDel).slice(); a.splice(Number(b.dataset.i), 1); setP(d.data, b.dataset.partDel, a.length ? a : undefined); persist(false); renderMain(); return; }
       if (b.dataset.partCopy) { const d = doc(); if (!d) return; const a = getP(d.data, b.dataset.partCopy); const i = Number(b.dataset.i); a[i] = { ...JSON.parse(JSON.stringify(a[i - 1])), name: a[i].name }; persist(false); renderMain(); return; }
-      if (b.dataset.listAdd) { const d = doc(); if (!d) return; const a = Array.isArray(getP(d.data, b.dataset.listAdd)) ? getP(d.data, b.dataset.listAdd).slice() : []; a.push({}); setP(d.data, b.dataset.listAdd, a); persist(false); renderMain(); return; }
-      if (b.dataset.listDel) { const d = doc(); if (!d) return; const a = getP(d.data, b.dataset.listDel).slice(); a.splice(Number(b.dataset.i), 1); setP(d.data, b.dataset.listDel, a.length ? a : undefined); persist(false); renderMain(); return; }
+      if (b.dataset.listAdd) { const d = doc(); if (!d) return; const a = Array.isArray(getP(d.data, b.dataset.listAdd)) ? getP(d.data, b.dataset.listAdd).slice() : []; if (!a.length && b.dataset.min1) a.push({}); a.push({}); setP(d.data, b.dataset.listAdd, a); persist(false); renderMain(); const cs = $$('#wFields .w-item-card'); if (cs.length) cs[cs.length - 1].scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
+      if (b.dataset.listDel) { const d = doc(); if (!d) return; const cur = getP(d.data, b.dataset.listDel); if (!Array.isArray(cur)) return; const a = cur.slice(); a.splice(Number(b.dataset.i), 1); setP(d.data, b.dataset.listDel, a.length ? a : undefined); persist(false); renderMain(); return; }
       if (b.dataset.crewAdd) { const d = doc(); if (!d) return; const a = Array.isArray(getP(d.data, b.dataset.crewAdd)) ? getP(d.data, b.dataset.crewAdd).slice() : [{}]; a.push({}); setP(d.data, b.dataset.crewAdd, a); persist(false); renderMain(); return; }
       if (b.dataset.crewDel != null) { const d = doc(); if (!d) return; const a = (getP(d.data, 'einsatz.kraefte') || []).slice(); a.splice(Number(b.dataset.crewDel), 1); setP(d.data, 'einsatz.kraefte', a.length ? a : undefined); persist(false); renderMain(); return; }
     });

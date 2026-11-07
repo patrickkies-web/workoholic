@@ -21,17 +21,17 @@ Stand: November 2026 · Dateien: `js/vuf.js` (Fragen + Text), `js/writer.js` (As
 
 ## 2 · Ablauf am Einsatzort (Kurzfassung für die Praxis)
 
-1. **Anfahrt** – auf flüchtende Fahrzeuge achten; Eintreffsituation fotografieren, bevor etwas verändert wird.
-2. **Geschädigten sprechen** – Zeitraum, Abstellort, wer abgestellt hat, beladen/besetzt, wie aufmerksam geworden, Altschäden? (Fragebogen Anlage 2; Zettel suchen).
-3. **Fahrzeug UB 02** – jedes beschädigte Teil einzeln: Art, Verlauf, Anstoßhöhe **über der Fahrbahn** mit Maßstab, Fremdlack (Farbe!), Fremdmaterial, frisch/alt.
-4. **Spuren sichern** – Spurfix an den markanten Berührungspunkten (nummerieren, beschreiben, fotografieren), Fremdlack **gesondert** durch Schneiden/Ausheben, Eigenlackprobe, Fremdteile einsammeln.
-5. **Unfallort** – Fahrbahn/Umfeld absuchen (Splitter, Teile, Rangierspuren), sonstige Gegenstände (Poller, Zaun) prüfen, Kameras im Umfeld, Nachbarfahrzeuge mit passenden Schäden.
-6. **Hinweise auf den Verursacher** – Fahrzeug, Kennzeichen auch als Fragment, Insassen, Verhalten (angehalten? ausgestiegen? aufgefordert? Zettel?), Fluchtrichtung → **sofort** Fahndung, Halterabfrage, Halteranschrift.
-7. **Zeugen** – Personalien aller Zeugen, Standort/Entfernung/Sicht, Knallzeugen kennzeichnen, Belehrung dokumentieren, Erreichbarkeit.
-8. **Maßnahmen** – Unfallmitteilung vor Ort (sonst nachsenden + vermerken), Lichtbilder/-mappe, Skizze, Asservate ins AMS, Anschlussermittlungen vermerken.
+1. **Einsatz** – Meldeweg, Mitteiler, gemeldeter Sachverhalt; auf der Anfahrt auf flüchtende Fahrzeuge achten.
+2. **Geschädigte Person** – zuerst klären, ob sie erreicht wurde (vor Ort, auf der Wache, telefonisch, gar nicht). Dann Personalien, Stellung zum Fahrzeug, Abstell- und Feststellungszeit, wie aufmerksam geworden, Altschäden (Fragebogen Anlage 2). Nicht erreicht → Halterdaten eintragen, Benachrichtigung festhalten.
+3. **Unfallort** – Eintreffsituation fotografieren, bevor etwas verändert wird; Örtlichkeit, Verkehrsregelung, Verhältnisse.
+4. **Schaden** – Fahrzeug UB 02 bzw. Sache; jedes beschädigte Teil einzeln: Art, Verlauf, Anstoßhöhe **über der Fahrbahn** mit Maßstab, Fremdlack (Farbe!), Fremdmaterial, frisch/alt. Weitere beschädigte Fahrzeuge oder Sachen desselben Verursachers als UB 03 ff.
+5. **Spuren sichern** – Spurfix an den markanten Berührungspunkten (nummerieren, beschreiben, fotografieren), Fremdlack **gesondert** durch Schneiden/Ausheben, Eigenlackprobe, Fremdteile; Fahrbahn und Umfeld absuchen.
+6. **Zeugen und Umfeld** – Personalien aller Zeugen, Wahrnehmung (gesehen, nur gehört, nachträglich), Standort/Entfernung/Sicht, Fotos/Videos der Zeugen, Erreichbarkeit; Kameras im Umfeld, aktive Zeugensuche, Angaben Dritter.
+7. **Verursacher** – aus Zeugen und Spuren ergeben sich die Hinweise: Fahrzeug, Kennzeichen auch als Fragment, Insassen, Verhalten → **sofort** Fahndung, Halterabfrage, Halteranschrift. Ist die Person ermittelt (auch durch Selbstmeldung): Belehrung, Einlassung, Verkehrstüchtigkeit, Führerschein, ggf. Blutprobe und Sicherheitsleistung.
+8. **Maßnahmen** – Unfallmitteilung vor Ort (sonst nachsenden + vermerken), Lichtbilder/-mappe, Skizze, Anzeige, Asservate ins AMS, Benachrichtigungen.
 9. **Bewertung** – Spurenbild deuten (Höhe, Verlauf → Rangieren/Vorbeifahrt/Tür/Auffahren), Übereinstimmung mit Aussagen, Widersprüche, Manipulationsverdacht.
 
-Der Assistent folgt genau dieser Reihenfolge in acht Phasen: **Einsatz → Unfallort → Geschädigtes Fahrzeug → Spuren → Verursacher → Personen → Maßnahmen → Bewertung**. Vorweg stehen die vier Weichen-Fragen („Worum geht es?“) und gleich danach die Personalien der geschädigten Person, damit alle Satzvorschläge zum Geschlecht passen.
+Der Assistent folgt genau dieser Reihenfolge in neun Phasen: **Einsatz → Geschädigte → Unfallort → Schaden → Spuren → Zeugen → Verursacher → Maßnahmen → Bewertung**. Vorweg stehen die Weichen-Fragen („Worum geht es?“). Die geschädigte Person kommt bewusst früh, weil ihr Geschlecht alle späteren Satzanfänge bestimmt und weil sich aus dem Kontakt ergibt, welche Fragen überhaupt gestellt werden können. Zeugen stehen vor dem Verursacher, weil die Hinweise meist aus ihren Angaben stammen – im Verursacher-Schritt fragt der Assistent deshalb noch einmal nach („Du hast Zeugen erfasst – haben sich daraus Hinweise ergeben?“).
 
 ---
 
@@ -60,17 +60,20 @@ Der Assistent folgt genau dieser Reihenfolge in acht Phasen: **Einsatz → Unfal
 - **„Worum geht es?“** als erster Schritt mit vier Antworten (Ort, was beschädigt, Hinweise auf den Verursacher ja/nein, Aufnahme vor Ort oder auf der Wache). Danach kennt der Assistent den Weg, und die Schrittzahl stimmt von Anfang an.
 - Jede Frage hat einen Punkt: grau = offen, grün = beantwortet. Nach einer Antwort springt die Ansicht zur nächsten offenen Frage und hebt sie kurz hervor. Sind alle beantwortet, leuchtet „Weiter“ auf.
 - **Wiederverwendung:** „↺ Wie zuletzt: POK Müller · PKin Schmidt (Stf 21/03)“ übernimmt Kräfte und Rufname des letzten Vorgangs, „↺ 48565 Steinfurt“ PLZ und Ort. Die Belehrenden werden aus den eingetragenen Kräften angetippt.
-- `Enter` springt ins nächste Feld, Tippen auf den Satzbaustein setzt den Cursor ans Ende. Auf dem Handy blendet sich während der Aufnahme das Dock aus, und unten liegen nur noch Zurück, Überspringen und Weiter.
+- `Enter` springt ins nächste Feld, Tippen auf den Satzbaustein setzt den Cursor ans Ende. Auf dem Handy blendet sich während der Aufnahme das Dock aus, und unten liegen nur noch Zurück und Weiter.
+- **Phasenleiste zum Antippen**: Jede Phase oben springt zu ihrem ersten Schritt; die aktuelle Phase bekommt mehr Platz.
+- **Listen ohne Umweg**: Bei „Gibt es Zeugen? Ja“ steht die erste Zeugenkarte sofort da – Tippen legt den Eintrag an. Die Karte heißt „Zeugin Z 01 · Roth“ und zeigt nur die Felder, die zur Wahrnehmung passen (bei „nur nachträgliche Feststellung“ entfallen Standort, Entfernung, Sicht und Wiedererkennen).
+- **Pflichtangaben** (Straße, Ort, Unfallzeit, Kontakt zur geschädigten Person …) blockieren nie: Bei „Weiter“ erscheint nur kurz „Noch offen: Straße, Ort – im Bericht als [Platzhalter] markiert“.
 
 **Weiterhin:**
 
-- **Ein Thema pro Schritt**, Überschrift als Frage. 30 Schritte, davon viele bedingt – typisch bleiben 20–25 übrig (ohne Hinweise auf den Verursacher weniger).
+- **Ein Thema pro Schritt**, Überschrift als Frage. 31 Schritte in neun Phasen, davon viele bedingt – typisch bleiben 20–27 übrig (ohne Hinweise auf den Verursacher deutlich weniger).
 - **Antippen statt Tippen**: Ja/Nein als große Segmente, Auswahl als Chips, Zahlen mit ±-Stepper und Schnellwerten (z. B. 30/50/70/100 km/h, 500/1.000/1.500 €), Datum/Uhrzeit mit „Heute/Gestern/Jetzt“.
 - **Bedingte Fragen** erscheinen erst, wenn sie Sinn ergeben (Straße ↔ Parkplatz, geparkt ↔ fahrend, Hinweise ja/nein, Fahrer ermittelt …).
 - **Karosserie-Picker**: Front/Seite/Heck als Raster, pro gewähltem Teil ein Detail-Block, „wie vorheriges Teil“ zum Kopieren.
 - **Live-Vorschau** „So steht es im Bericht“ unter jedem Schritt – man sieht sofort, was aus den Antworten wird.
 - **Überspringen** ist immer erlaubt; fehlende Pflichtangaben erscheinen im Text als `[Platzhalter]` und werden im Ergebnis gezählt und markiert.
-- **Übersicht** zeigt alle Schritte mit Füllstand zum direkten Springen; „Bearbeiten“ an jedem Berichtsabschnitt springt zum passenden Schritt.
+- **Übersicht** zeigt alle Schritte nach Phasen gegliedert mit Füllstand zum direkten Springen; „Bearbeiten“ an jedem Berichtsabschnitt springt zum passenden Schritt.
 - **Autosave**: jede Antwort wird sofort verschlüsselt gespeichert; nach Auto-Sperre geht es an derselben Stelle weiter.
 - **Keine Netzverbindungen**: keine Adress-Vorschläge aus dem Internet, keine Karten, kein Tracking – die Content-Security-Policy der App erlaubt nur `api.github.com` für den eigenen Tresor-Sync.
 - Tastatur: `N` neuer Vorgang, `S` Bereich wechseln, `⌘/Strg + ⏎` weiter.
@@ -81,53 +84,73 @@ Der Assistent folgt genau dieser Reihenfolge in acht Phasen: **Einsatz → Unfal
 
 | Phase | Schritt | Erfasst (Auszug) |
 | --- | --- | --- |
-| Einsatz | Einsatzübernahme | Datum, Uhrzeit, Meldeweg (Leitstelle/Telefon/Wache/Streife/Online), Mitteiler, Aufnahmeort, Unfallstelle nachträglich aufgesucht |
+| Einsatz | Worum geht es? | Straße/Parkplatz/Parkhaus/sonstige Fläche, Fahrzeug oder Sache, geparkt/fahrend, Hinweise ja/nein, Aufnahme vor Ort oder auf der Wache |
+| | Einsatzübernahme & Erkenntnislage | Datum, Uhrzeit, Meldeweg, Mitteiler, gemeldeter Sachverhalt, Feststellungen auf der Anfahrt, Unfallstelle nachträglich aufgesucht |
 | | Eingesetzte Kräfte | Rufname, Dienstgrad + Name (bis 6), Eintreffzeit |
-| | Erkenntnislage | Gemeldeter Sachverhalt, Feststellungen auf der Anfahrt |
-| Unfallort | Unfallzeit | Zeitpunkt / Zeitraum (von–bis) / unbekannt |
-| | Unfallörtlichkeit | Art (Straße, Parkplatz, Parkhaus, sonstige), Adresse, Lage, Straßenart, Zugehörigkeit, öffentlich zugänglich?, genaue Lage, Sicherheit der Ortsangabe |
+| Geschädigte | Geschädigte Person (UB 02) | **Kontakt** (vor Ort / Wache / telefonisch / nicht erreicht), Personalien bzw. Halterdaten, Stellung zum Fahrzeug oder zur Sache, Halter/Eigentümer, Benachrichtigung bei Nichterreichen |
+| | Unfallzeit | Zeitraum mit „Abgestellt am / Schaden bemerkt am“ (geparkt), Zeitpunkt oder unbekannt |
+| | Angaben der geschädigten Person | nur wenn erreicht: Belehrung, wie aufmerksam geworden, Aufenthaltsort, Sichtkontakt, Textbaustein oder eigene Schilderung, Zwischenkontrolle, Ergänzung, Schadensschätzung, Altschäden, Fragebogen (ausgefüllt / ausgehändigt / nicht verwendet) |
+| Unfallort | Eintreffsituation | Standorte/Personen, Veränderungen, Übersichtsfotos |
+| | Unfallörtlichkeit | Adresse, Lage, Straßenart, Zugehörigkeit, öffentlich zugänglich?, genaue Lage, Sicherheit der Ortsangabe |
 | | Straße & Verkehrsregelung | Tempo + Grundlage, Fahrstreifen, Trennung, Parkordnung, Verlauf, Höhenprofil, Besonderheiten, Verkehrsaufkommen |
 | | Fahrbahn, Licht & Wetter | Belag, Zustand, Licht, Beleuchtung, Witterung, Sicht, Sichtbehinderung |
-| | Eintreffsituation | Standorte/Personen, Veränderungen, Übersichtsfotos |
-| Geschädigtes Fahrzeug | Was wurde beschädigt? | Fahrzeug (Art, Marke, Modell, Farbe, Kennzeichen) oder Sache; geparkt/fahrend |
-| | Abgestellt / Fahrvorgang | Einparkrichtung, Parkposition, Fahrbahnseite, abgestellt von, beladen · oder Vorgang, Richtung, Tempo |
+| Schaden | Beschädigtes Fahrzeug / Sache | Art, Marke, Modell, Farbe, Kennzeichen · oder Beschreibung der Sache |
+| | Abgestellt / Fahrvorgang | Parkposition, Einparkrichtung, Fahrbahnseite, abgestellt von (auch „unbekannt“), beladen · oder Vorgang, Richtung, Tempo |
 | | Schadensbild | Teile-Picker; je Teil: Art (10 Typen + frei), Verlauf, Höhe von–bis, Fremdlack + Farbe, Fremdmaterial, Altschaden, Ergänzung |
-| | Schadenshöhe & Verbleib | Schätzung, verdeckte Schäden, fahrbereit, Verbleib, Altschäden |
-| Spuren | Spurensicherung am Fahrzeug | Spurfix (Anzahl, Dokumentation), Lackprobe (Schneiden/Abnehmen), Eigenlack, Fremdteile (+ Sicherstellung), Fotos mit Maßstab, Mikroskop |
+| | Schadenshöhe & Verbleib | Schätzung (Hinweis: ab ca. 1.300 € bedeutend), verdeckte Schäden, fahrbereit, Verbleib, Altschäden, **weitere Schäden?** |
+| | Weitere Schäden | je Eintrag (UB 03 ff.): Fahrzeug oder Sache, Halter/Eigentümer, Beschädigungen, Schadenshöhe, Benachrichtigung |
+| Spuren | Spurensicherung am Fahrzeug | Spurfix (Anzahl, Dokumentation), Lackprobe, Eigenlack, Fremdteile (+ Sicherstellung), Fotos mit Maßstab, Mikroskop |
 | | Spuren am Unfallort | Fahrbahnspuren (Arten, Lage, Sicherung), sonstige Gegenstände |
-| Verursacher | Hinweise | ja/nein, Quellen |
+| Zeugen | Zeugen | Gibt es Zeugen?; je Zeuge: Personalien, Mitteiler/in?, Wahrnehmung, Standort, Entfernung, Sicht, Belehrung, Angaben, Wiedererkennen, **Fotos/Videos** (gesichert?), Erreichbarkeit |
+| | Umfeld | Kameraüberwachung (Ergebnis, Ansprechpartner), aktive Zeugensuche (Art, Ergebnis), Angaben Dritter |
+| Verursacher | Hinweise auf den Verursacher | ja/nein (Nachfrage nach den Zeugen), Quellen inkl. **Selbstmeldung** |
 | | Verursacherfahrzeug | Art, Marke, Farbe, Kennzeichen (Fragment, Ausland), Besonderheiten, Fluchtrichtung |
-| | Personen & Verhalten | Anzahl, Fahrer/in, Beschreibung, Wiedererkennen, angehalten, ausgestiegen, Wartezeit, aufgefordert, Zettel, Geräusch, Tempo, Alkohol |
-| | Sofortmaßnahmen | Fahndung (Art), Halterabfrage (Ergebnis), Halteranschrift, Fahrzeug angetroffen, Schadensbild korrespondiert, Fahrer ermittelt |
-| | Beschuldigte Person | Personalien, Halter, Fahrerlaubnis, Belehrung, Einlassung |
+| | Personen & Verhalten | Anzahl, am Steuer, Beschreibung, Wiedererkennen, angehalten, ausgestiegen, Wartezeit, aufgefordert, Zettel, Geräusch, Tempo, Alkohol |
+| | Sofortmaßnahmen & Ermittlungen | Fahndung, Halterabfrage, Halteranschrift, **Person ermittelt – wie?** (Halteranschrift, Selbstmeldung mit Zeitpunkt und Ort, Zeuge, Video), Fahrzeug angetroffen, Schadensbild passt |
+| | Beschuldigte Person (UB 01) | Personalien, Halter, Dolmetscher, Belehrung, Einlassung |
+| | Verkehrstüchtigkeit & Führerschein | Führerschein (vorgelegt / nicht mitgeführt / keine Fahrerlaubnis), Alkohol-/Drogenanzeichen, Atemalkoholtest (Wert in ‰, Uhrzeit, verweigert), Blutprobe (angeordnet durch, Uhrzeit), Weiterfahrt untersagt, Führerschein sichergestellt/beschlagnahmt, Wohnsitz im Ausland → Sicherheitsleistung |
 | | Schadensbild UB 01 | Teile-Picker, Spurfix, Lackprobe, Lichtbilder |
-| Personen | Geschädigte Person | Personalien, Stellung zum Fahrzeug, Firma/Halter, anwesend |
-| | Angaben | Belehrung, wie aufmerksam geworden, Standort, Sichtkontakt, Vorlage (abgestellt / beobachtet / frei), Zwischenzeit, Schadenssumme, Altschäden, Fragebogen |
-| | Zeugen | je Zeuge: Personalien, Wahrnehmung (Sicht/Knall/nachträglich), Standort, Entfernung, Sicht, Belehrung, Angaben, Wiedererkennen, Erreichbarkeit |
-| | Dritte | Angaben Dritter |
-| Maßnahmen | Dokumente & Dokumentation | Unfallmitteilung (vor Ort/nachgesandt/digital/keine), Lichtbilder + Mappe, Skizze, Anzeige, Aktenzeichen |
-| | Ermittlungsansätze | Kamera (Ergebnis), Zeugensuche (Art, Ergebnis), Asservate, weitere Maßnahmen, Sonstiges, Einsatzende |
-| Bewertung | Deutung & Hergang | Spurenbild spricht für …, Übereinstimmung, eigener Hergang, Widersprüche, Manipulationsverdacht, Klarnamen an/aus |
+| Maßnahmen | Unfallmitteilung & Dokumentation | Unfallmitteilung (bei Nichterreichen nur nachsenden/digital), Lichtbilder + Mappe, Skizze, Anzeige, Aktenzeichen |
+| | Asservate & weitere Veranlassungen | Asservate (Vorschlag aus den Spuren), Absicherung, Eigentumssicherung, VK, StA, Straßenbaulastträger, Straßenverkehrsbehörde, Anschlussermittlungen, Sonstiges, Einsatzende |
+| Bewertung | Deutung & Hergang | Spurenbild spricht für …, Übereinstimmung, eigener Hergang (Vorschlag als Platzhalter), Widersprüche, Manipulationsverdacht, Klarnamen an/aus |
+
+**Vorbereitet auf Sonderfälle:** geschädigte Person nicht erreicht · nur telefonisch erreicht · Sache statt Fahrzeug (Eigentümer/zuständige Stelle) · Fahrzeug von anderer Person abgestellt · Unfall im fließenden Verkehr · mehrere Geschädigte · Knallzeugen und nachträgliche Feststellungen · Zeugenfotos · Kennzeichenfragment und ausländisches Kennzeichen · Halterabfrage passt nicht zur Beschreibung · Selbstmeldung (tätige Reue nach § 142 Abs. 4 StGB – mit Hinweis, wann sie ausscheidet) · Alkohol/Drogen mit Atemalkoholtest und Blutprobe · keine Fahrerlaubnis (§ 21 StVG) · Führerschein sichergestellt oder beschlagnahmt (DA 2.2) · bedeutender Schaden (§ 69 Abs. 2 Nr. 3 StGB) · Wohnsitz im Ausland (Sicherheitsleistung § 132 StPO, Dolmetscher) · Fläche nicht öffentlich zugänglich · Manipulationsverdacht.
 
 ---
 
 ## 5 · Textausgabe
 
-**Verkehrsunfallbefundbericht** nach Anlage 6:
-1 Allgemeines (1.1 Einsatzübernahme · 1.2 Erkenntnislage · 1.3 Eintreffsituation) · 2 Objektiver Befund (2.1 Unfallort · 2.2 Spuren Fahrbahn/sonstige Gegenstände · 2.3 Fahrzeug UB 02 · 2.4 Fahrzeug UB 01, falls angetroffen · 2.5 Hinweise auf den Verursacher) · 3 Subjektiver Befund (3.1 Beteiligte · 3.2 Zeugen · 3.3 Dritte) · 4 Zusammenfassung und eigene Schlussfolgerungen · 5 Maßnahmen (5.1 · 5.2) · 6 Sonstiges.
+**Verkehrsunfallbefundbericht** exakt nach Anlage 6:
 
-Zusätzlich: **Kurzsachverhalt** (Kurzbeschreibung/Unfallmitteilung), **Fahndungstext** (nur bei Hinweisen), **Offene Punkte** (Checkliste aus Erlass/DA, direkt als Todos in den Planner übernehmbar), **Personalien** gesondert (Telefon nur auf dem Original).
+| Abschnitt | Inhalt |
+| --- | --- |
+| 1.1 / 1.2 / 1.3 | Einsatzübernahme (bei eigener Feststellung: „… wurden während des Streifendienstes … aufmerksam“), Erkenntnislage im Telegrammstil mit Mitteiler (auch „Zeugin (Z 01)“), Eintreffsituation |
+| 2.1 | Unfallort, Verkehrsregelung, Fahrbahn/Licht/Witterung |
+| 2.2 | Spuren auf der Fahrbahn bzw. Verkehrsfläche |
+| 2.3 | **Fahrzeug UB 01** (angetroffen mit Schadensbild oder „entfernte sich … nicht in Augenschein genommen“), **Fahrzeug UB 02**, **Fahrzeug UB 03** ff. |
+| 2.4 | Spuren an Personen: niemand verletzt; bei ermittelter Person Verkehrstüchtigkeit (Anzeichen, Atemalkoholtest), Führerschein |
+| 2.5 | Beschädigte Sache, weitere beschädigte Sachen, Spuren an sonstigen Gegenständen |
+| 3.1 | **UB 01** (Selbstmeldung oder Ermittlung, Belehrung, Einlassung bzw. „unbekannt“), dann **UB 02** (Kontakt, Stellung, Belehrung, Schilderung) |
+| 3.2 / 3.3 | Zeugen einzeln mit Z-Nummer (Knallzeuge/-zeugin kenntlich), Angaben Dritter |
+| 4.1 | Hinweise auf den Verursacher (Quellen, Fahrzeug, Insassen, Verhalten), Deutung des Spurenbilds, Korrespondenz mit UB 01, Manipulation |
+| 4.2 / 4.3 | Vermutlicher Hergang mit Formulierungshilfe des Erlasses, Widersprüche |
+| 5.1 / 5.2 / 5.3 | Gefahrenabwehrende/strafprozessuale Maßnahmen (Absicherung, Fahndung, Halteranschrift, Kamera, Zeugensuche, Asservate, Blutprobe, Führerschein, Weiterfahrt, Sicherheitsleistung, Anzeige) · Benachrichtigungen (Geschädigte, UB 03 ff., VK, StA) · weitere Veranlassungen (Straßenbaulastträger, Straßenverkehrsbehörde, Anschlussermittlungen) |
+| 6.1 / 6.2 / 6.3 | Verweise (Unfallmitteilung, Lichtbilder/-mappe, Skizze, Fragebogen, Videos, Zeugenaufnahmen, Ermittlungsbericht, Vermerk) · eingesetzte Kräfte mit Rufname · Ende der Maßnahmen am Unfallort |
+
+Zusätzlich: **Kurzsachverhalt** (Kurzbeschreibung/Unfallmitteilung), **Fahndungstext** (nur bei Hinweisen, mit unbestimmtem Artikel: „Gesucht wird ein Pkw …“), **Offene Punkte** (Checkliste aus Erlass/DA, direkt als Todos in den Planner übernehmbar), **Personalien** gesondert (Telefon nur auf dem Original). In der Ansicht sind die Zwischenzeilen (Fahrzeug UB 01, UB 02, Z 01) fett, fehlende Angaben gelb markiert.
 
 ### Regeln der Satzführung
 
-- **Rolle + Geschlecht** steuern alle Formen: „der Geschädigte / dem Geschädigten / er / sein“, „die Zeugin / der Zeugin / sie / ihr“, divers über „die geschädigte Person“. Täterverhalten passt sich an („Die Fahrerin hielt … bevor sie …“).
+- **Rolle + Geschlecht** steuern alle Formen: „der Geschädigte / dem Geschädigten / er / sein“, „die Zeugin / der Zeugin / sie / ihr“, divers über „die geschädigte Person“. Täterverhalten passt sich an („Die Fahrzeugführerin hielt … an und entfernte sich dann“); ist das Geschlecht unklar, heißt es „die fahrzeugführende Person“.
 - **Klarnamen aus** (Standard, DA 1.2): Rollen mit Ordnungsnummer („Der Geschädigte (UB 02)“, „Die Zeugin (Z 01)“). **Klarnamen an**: „Die Geschädigte (Frau Anna Beispiel, UB 02)“ bei der ersten Nennung.
-- **Zeit**: Zeitpunkt „am 07.11.2026 gegen 13:30 Uhr“; Zeitraum gleicher Tag „am … in der Zeit zwischen … und …“, über Nacht „im Zeitraum vom …, … Uhr, bis zum …, … Uhr“; unbekannt „zu einem nicht näher bekannten Zeitpunkt“.
-- **Fahrzeuge** mit Genus und Kasus: „der Pkw / das Kraftrad / der Anhänger“, „den auf dem Kundenparkplatz … abgestellten Pkw der Geschädigten“, Kennzeichen mit Fragment-Hinweis.
-- **Fahrzeugteile** mit richtigem Artikel: „Am Kotflügel vorne links …“, „An der Vordertür links …“; Singular/Plural je Schadensart („befand sich eine Delle“, „befanden sich Kratzspuren mit Lackabrieb sowie eine Delle“).
-- **Zählwörter**: „eine Spurensicherungsfolie … liegt“ / „zwei Spurensicherungsfolien … liegen“, „einen Fahrstreifen“ / „zwei Fahrstreifen“.
+- **Zeit**: Zeitpunkt „am 07.11.2026 gegen 13:30 Uhr“; Zeitraum gleicher Tag „am … in der Zeit zwischen … und …“, über Nacht „im Zeitraum vom …, … Uhr, bis zum …, … Uhr“; unbekannt „zu einem nicht näher bekannten Zeitpunkt“. Bei der Rückkehr am selben Tag steht nur die Uhrzeit („Bei ihrer Rückkehr gegen 10:20 Uhr …“).
+- **Ort**: „am rechten Fahrbahnrand der Bahnhofstraße in Höhe der Hausnummer 12 in Steinfurt“; Parkplätze als Apposition mit schließendem Komma („auf dem Parkplatz des REWE-Marktes, Bahnhofstraße 12 in Steinfurt, abgestellten Pkw“).
+- **Fahrzeuge** mit Genus, Kasus und Artikel: „der Pkw / das Kraftrad“, „den … abgestellten Pkw“ / „das … abgestellte Kraftrad“; bekannte Fahrzeuge bestimmt, gesuchte unbestimmt („um einen Pkw Skoda …“); Kennzeichenfragment als „…, unvollständig“.
+- **Fahrzeugteile** mit richtigem Artikel und eigenem Satzteil für den Verlauf: „An der Vordertür links befanden sich Kratzspuren mit Lackabrieb in einer Höhe von 45 bis 60 cm über der Fahrbahnoberfläche; die Spuren verliefen horizontal.“
+- **Indirekte Rede** in allen Schilderungen; wer abgestellt hat, bestimmt den Satz („Sein Kraftrad sei von einer anderen Person … abgestellt worden“).
+- **Zählwörter**: „eine Spurensicherungsfolie … liegt“ / „zwei Spurensicherungsfolien … liegen“, „wurde eine Funkfahndung“ / „wurden eine Nahbereichsfahndung und eine Funkfahndung … eingeleitet“.
 - **Nur was beantwortet ist, wird geschrieben**; Verneinungen werden ausformuliert („Fremdteile wurden nicht aufgefunden“), Nicht-Beantwortetes entfällt oder wird als `[Platzhalter]` markiert.
-- **Bewertung** leitet sich aus dem Spurenbild ab (Anstoßhöhe von–bis, Verlauf, Fremdlackfarbe → Verursacherfahrzeug) und nutzt die Formulierungshilfen des Erlasses.
+- **Bewertung** leitet sich aus dem Spurenbild ab („Die Anstoßhöhe der Beschädigung (Heckklappe) von 70 bis 85 cm und ihr diagonaler Verlauf sprechen für …“) und nutzt die Formulierungshilfen des Erlasses.
 - **Verhältnisse** werden immer „zum Zeitpunkt der Unfallaufnahme“ beschrieben – bei Zeiträumen ist die Lage zur Unfallzeit nicht bekannt.
 
 ---
