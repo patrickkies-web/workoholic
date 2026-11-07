@@ -11,6 +11,9 @@
   const W = () => window.WBridge;
   const MODULES = {};
   if (window.WVUF) MODULES[window.WVUF.id] = window.WVUF;
+  if (window.WVermisst) MODULES[window.WVermisst.id] = window.WVermisst;
+  /** Beschriftungen je Modul (m.labels), sonst die der Verkehrsunfallflucht. */
+  const lab = (m, k, def) => (m && m.labels && m.labels[k]) || def;
 
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -212,7 +215,7 @@
     const q = (($('#search') || {}).value || '').trim().toLocaleLowerCase('de');
     const rows = docs.slice().sort((a, b) => (b.u || b.updatedAt || 0) - (a.u || a.updatedAt || 0)).filter(d => !q || (d.title + ' ' + (mod(d) ? mod(d).subtitle(d.data) : '')).toLocaleLowerCase('de').includes(q));
     $('#wCount').textContent = docs.length;
-    if (!rows.length) { host.innerHTML = `<div class="empty w-empty"><h3>${docs.length ? 'Nichts gefunden' : 'Noch kein Vorgang'}</h3><p>${docs.length ? 'Suche anpassen.' : 'Ein Vorgang führt dich Schritt für Schritt durch die Aufnahme – alles wird verschlüsselt gespeichert, du kannst jederzeit unterbrechen.'}</p>${docs.length ? '' : '<div class="row"><button type="button" class="btn btn-accent btn-sm" data-w="new">Neue Verkehrsunfallflucht</button></div>'}</div>`; return; }
+    if (!rows.length) { host.innerHTML = `<div class="empty w-empty"><h3>${docs.length ? 'Nichts gefunden' : 'Noch kein Vorgang'}</h3><p>${docs.length ? 'Suche anpassen.' : 'Ein Vorgang führt dich Schritt für Schritt durch die Aufnahme – alles wird verschlüsselt gespeichert, du kannst jederzeit unterbrechen.'}</p>${docs.length ? '' : `<div class="row">${Object.values(MODULES).map((m, i) => `<button type="button" class="btn ${i ? 'btn-ghost' : 'btn-accent'} btn-sm" data-w="new" data-mod="${esc(m.id)}">${esc(lab(m, 'newBtn', 'Neue ' + m.name.replace(/ ohne Personenschaden$/, '')))}</button>`).join('')}</div>`}</div>`; return; }
     host.innerHTML = `<ul class="w-docs">${rows.map(d => {
       const m = mod(d); const total = m ? visibleSteps(m, d.data).length : 1;
       const pct = d.status === 'fertig' ? 100 : Math.round(Math.min(d.step, total) / total * 100);
@@ -268,8 +271,8 @@
     return `<div class="w-intro">
       <span class="spaced">Schriftliche Arbeiten</span>
       <h2 class="w-intro-h">Aufnehmen, ohne zu tippen.</h2>
-      <p class="w-intro-p">Fragen beantworten – Ja/Nein, antippen, Zahlen – und am Ende steht ein vollständiger Verkehrsunfallbefundbericht in sauberer Satzführung. Es erscheinen nur Fragen, die zu deinem Fall passen; jede lässt sich überspringen. Alles bleibt verschlüsselt in deinem Tresor; jeder Schritt wird sofort gesichert, du kannst jederzeit unterbrechen.</p>
-      <div class="w-mods">${mods.map(m => `<button type="button" class="w-mod" data-w="new" data-mod="${esc(m.id)}"><span class="w-mod-tile">${esc(m.kurz)}</span><span><b>${esc(m.name)}</b><small>${new Set(m.steps.map(s => s.phase)).size} Phasen, nur passende Fragen · Befundbericht nach Anlage 6, Kurzsachverhalt, Fahndungstext, offene Punkte</small></span></button>`).join('')}</div>
+      <p class="w-intro-p">Fragen beantworten – Ja/Nein, antippen, Zahlen – und am Ende steht ein fertiger Text in sauberer Satzführung, bei der Verkehrsunfallflucht der vollständige Befundbericht. Es erscheinen nur Fragen, die zu deinem Fall passen; jede lässt sich überspringen. Alles bleibt verschlüsselt in deinem Tresor; jeder Schritt wird sofort gesichert, du kannst jederzeit unterbrechen.</p>
+      <div class="w-mods">${mods.map(m => `<button type="button" class="w-mod" data-w="new" data-mod="${esc(m.id)}"><span class="w-mod-tile">${esc(m.kurz)}</span><span><b>${esc(m.name)}</b><small>${new Set(m.steps.map(s => s.phase)).size} Phasen, nur passende Fragen · ${esc(m.desc || 'Befundbericht nach Anlage 6, Kurzsachverhalt, Fahndungstext, offene Punkte')}</small></span></button>`).join('')}</div>
       <p class="w-hint">Tastatur: <b class="kbd">N</b> neuer Vorgang · <b class="kbd">S</b> Bereich wechseln (<b class="kbd">6</b>) · <b class="kbd">⌘/Strg ⏎</b> weiter</p>
     </div>`;
   }
@@ -279,14 +282,14 @@
     const sec = m.text(d.data);
     const offen = m.offen(d.data);
     const fah = m.fahndung(d.data);
-    const tabs = [['bericht', 'Befundbericht'], ['kurz', 'Kurzsachverhalt'], ...(fah ? [['fahndung', 'Fahndung']] : []), ['offen', `Offene Punkte${offen.length ? ' · ' + offen.length : ''}`], ['pers', 'Personalien']];
+    const tabs = [['bericht', lab(m, 'bericht', 'Befundbericht')], ['kurz', 'Kurzsachverhalt'], ...(fah ? [['fahndung', 'Fahndung']] : []), ['offen', `Offene Punkte${offen.length ? ' · ' + offen.length : ''}`], ['pers', 'Personalien']];
     if (!tabs.some(t => t[0] === U.tab)) U.tab = 'bericht';
     let body = '';
     if (U.tab === 'bericht') body = `<div class="w-report">${sec.map(([n, t, txt, sid]) => txt == null ? `<h3 class="w-rh">${n} ${esc(t)}</h3>` : `<div class="w-rs"><h4 class="w-rsh">${n} ${esc(t)}<button type="button" class="link" data-edit="${esc(stepForSection(m, sid, d.data))}">Bearbeiten</button></h4><div class="w-rb${/\[[^\]]+\]/.test(txt) ? ' has-ph' : ''}">${reportHtml(txt)}</div></div>`).join('')}</div>`;
-    else if (U.tab === 'kurz') body = `<div class="w-report"><p class="w-hint">Für die Kurzbeschreibung im Vorgang und die Unfallmitteilung. Vor dem Nachsenden der Unfallmitteilung ist der Kurzsachverhalt aus der ViVA-Kurzbeschreibung zu löschen (DA 1.1).</p><div class="w-rb">${reportHtml(m.kurzText(d.data))}</div></div>`;
-    else if (U.tab === 'fahndung') body = `<div class="w-report"><p class="w-hint">Für die Leitstelle / Funkfahndung – kurz und sendefähig.</p><div class="w-rb">${esc(fah)}</div></div>`;
-    else if (U.tab === 'offen') body = `<div class="w-report">${offen.length ? `<ul class="w-offen">${offen.map((o, i) => `<li><label class="check-line"><input type="checkbox" data-offen="${i}"> <span>${esc(o)}</span></label></li>`).join('')}</ul><p class="w-hint">Angehakte Punkte landen als Todos im Planner.</p><button type="button" class="btn btn-ghost btn-sm" data-w="todos">Ausgewählte als Todos anlegen</button>` : '<div class="empty w-empty"><h3>Nichts offen</h3><p>Alle Pflichtpunkte aus Erlass und Dienstanweisung sind abgedeckt.</p></div>'}</div>`;
-    else body = `<div class="w-report"><p class="w-hint">Gesondert vom Befundbericht – Telefonnummern nur auf dem Original (DA 1.1). Nicht in den Berichtstext kopieren.</p><div class="w-rb mono-sm">${esc(m.personalien(d.data))}</div></div>`;
+    else if (U.tab === 'kurz') body = `<div class="w-report"><p class="w-hint">${esc(lab(m, 'kurzHint', 'Für die Kurzbeschreibung im Vorgang und die Unfallmitteilung. Vor dem Nachsenden der Unfallmitteilung ist der Kurzsachverhalt aus der ViVA-Kurzbeschreibung zu löschen (DA 1.1).'))}</p><div class="w-rb">${reportHtml(m.kurzText(d.data))}</div></div>`;
+    else if (U.tab === 'fahndung') body = `<div class="w-report"><p class="w-hint">${esc(lab(m, 'fahndungHint', 'Für die Leitstelle / Funkfahndung – kurz und sendefähig.'))}</p><div class="w-rb">${esc(fah)}</div></div>`;
+    else if (U.tab === 'offen') body = `<div class="w-report">${offen.length ? `<ul class="w-offen">${offen.map((o, i) => `<li><label class="check-line"><input type="checkbox" data-offen="${i}"> <span>${esc(o)}</span></label></li>`).join('')}</ul><p class="w-hint">Angehakte Punkte landen als Todos im Planner.</p><button type="button" class="btn btn-ghost btn-sm" data-w="todos">Ausgewählte als Todos anlegen</button>` : `<div class="empty w-empty"><h3>Nichts offen</h3><p>${esc(lab(m, 'offenEmpty', 'Alle Pflichtpunkte aus Erlass und Dienstanweisung sind abgedeckt.'))}</p></div>`}</div>`;
+    else body = `<div class="w-report"><p class="w-hint">${esc(lab(m, 'persHint', 'Gesondert vom Befundbericht – Telefonnummern nur auf dem Original (DA 1.1). Nicht in den Berichtstext kopieren.'))}</p><div class="w-rb mono-sm">${esc(m.personalien(d.data))}</div></div>`;
     const phCount = sec.reduce((n, s) => n + (s[2] ? (s[2].match(/\[[^\]]+\]/g) || []).length : 0), 0);
     return `
       <div class="w-top">
@@ -330,13 +333,19 @@
     renderMain(); renderList();
     window.scrollTo({ top: 0 });
   }
-  function newDoc(type = 'vuf') {
+  /** Neuer Vorgang. Ohne Typ und mit mehreren Modulen: erst die Auswahl zeigen. `preset` füllt Daten vor (z. B. Besatzung aus der laufenden Schicht). */
+  function newDoc(type, preset) {
     if (!W() || !W().unlocked()) return;
+    if (!type && Object.keys(MODULES).length > 1) { U.view = 'list'; U.id = null; renderMain(); renderList(); window.scrollTo({ top: 0 }); return; }
     const m = MODULES[type] || Object.values(MODULES)[0]; if (!m) return;
-    const d = W().add({ type: m.id, title: m.name, status: 'entwurf', step: 0, data: { einsatz: { datum: todayKey(0), zeit: nowHM() } } });
+    const pre = preset && typeof preset === 'object' ? preset : {};
+    const data = { ...pre, einsatz: { datum: todayKey(0), zeit: nowHM(), ...(pre.einsatz || {}) } };
+    for (const k of Object.keys(data.einsatz)) if (data.einsatz[k] == null || data.einsatz[k] === '' || (Array.isArray(data.einsatz[k]) && !data.einsatz[k].length)) delete data.einsatz[k];
+    const d = W().add({ type: m.id, title: m.name, status: 'entwurf', step: 0, data });
     if (!d) { W().toast('Vorgang konnte nicht angelegt werden.'); return; }
     open(d.id, 'wizard');
     setTimeout(() => { const f = $('#wFields input, #wFields button'); if (f && !W().mobile()) f.focus(); }, 60);
+    return d;
   }
   function go(delta) {
     const d = doc(); if (!d) return;
@@ -481,7 +490,7 @@
       const b = e.target.closest('button, [data-edit]'); if (!b) return;
       if (b.dataset.w) {
         const a = b.dataset.w;
-        if (a === 'new') newDoc(b.dataset.mod || 'vuf');
+        if (a === 'new') newDoc(b.dataset.mod);
         else if (a === 'list') { U.view = 'list'; U.id = null; renderMain(); renderList(); }
         else if (a === 'prev') go(-1);
         else if (a === 'next') { hintMissing(); go(1); }

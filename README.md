@@ -69,7 +69,8 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
   - *Schnellstmöglich*
   - *Wiederkehrend* (täglich, werktags, wöchentlich, monatlich)
 - Status: offen, in Arbeit, wartet auf Rückmeldung.
-- Schnellerfassung: `@Sabine Zahlen schicken !` legt eine dringende Anfrage von Sabine an. `#aufgabe` / `#todo` / `#buchung` wählt die Art, `⇧ Enter` öffnet die Details.
+- **Wichtig:** Haken im Eintrag oder `*` in der Schnellerfassung. Wichtige Einträge stehen im Planner ganz oben (Gruppe „Wichtig“, älteste zuerst) und tragen einen ★.
+- Schnellerfassung: `@Sabine Zahlen schicken !` legt eine dringende Anfrage von Sabine an. `#aufgabe` / `#todo` / `#buchung` wählt die Art, `*` markiert als wichtig, `⇧ Enter` öffnet die Details.
 
 **Überblick**
 - Planner nach Dringlichkeit gruppiert.
@@ -77,15 +78,24 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 - Filter, Suche, Kollegen-Avatare und Kalender mit Fristen.
 
 **Dienste & Überstunden**
-- **Eindongeln** (Tippen, Ziehen oder Taste `D`) beginnt einen Dienst: Vorlage aus dem Katalog antippen, Beginn ist jetzt, das geplante Ende kommt aus der Vorlage. Ein vorab eingetragener Dienst startet direkt.
+- **Eindongeln** (Tippen, Ziehen oder Taste `D`) öffnet *Dienst beginnen*: Schicht aus dem Katalog wählen (ein vorab eingetragener Dienst ist schon vorgewählt), dazu, **mit wem** du unterwegs bist – Kolleginnen und Kollegen aus dem Team antippen oder neu eintragen (landen automatisch im Team), „Wie zuletzt“ übernimmt die letzte Besatzung – und optional das **Einsatzmittel** (Funkrufname). Die Vorschau zeigt die Routinen dieser Schicht und die Zahl offener To-dos. Beginn ist jetzt, das geplante Ende kommt aus der Vorlage; *Andere Zeiten …* erlaubt freie Zeiten und behält die Besatzung.
+- **Schichtbriefing:** Nach dem Bestätigen fliegen alle offenen To-dos ein – wichtige ganz oben, dann die ältesten zuerst –, dazu die Termine in der Schichtzeit, Einsätze früherer Schichten ohne Abschluss und die Routinen der Schicht. Antippen öffnet den Eintrag.
 - Beginn und geplantes Ende lassen sich jederzeit über den Stift ändern, auch während des Dienstes.
 - **Länger gemacht:** zwischendurch oder danach per `+15 Min` / `−15` eintragen. Wer nach dem geplanten Ende **ausdongelt**, wird gefragt, ob die Mehrzeit als Überstunden zählt (auf 15 Minuten gerundet).
 - Ausdongeln vergessen? Die App fragt, ob das geplante Ende oder „jetzt“ gilt.
+- Beim Ausdongeln nennt die App, was in der Schicht noch offen ist: laufende Einsätze (werden mit dem Dienstende beendet), Einsätze ohne Abschluss und nicht abgeschlossene Routinen.
 - **Überstunden-Konto:** Woche, Monat, Jahr und Gesamt, dazu die letzten Dienste mit Überstunden.
 - **Dienste eintragen** für jeden Tag, auch im Voraus (Nachtdienste enden automatisch am Folgetag). Überschneidungen werden abgefangen; Pausen werden nach Arbeitszeitgesetz geprüft.
 - **Dienste-Katalog:** Schichtbezeichnung, Beginn, Ende, Pause und Farbe frei änderbar. Vorlagen lassen sich anlegen und löschen, und der Katalog wird zwischen deinen Geräten synchronisiert.
 - Wochenchart mit Diensten, Überstunden (gestapelt) und geplanten Diensten; im Kalender sind geplante Dienste markiert.
 - CSV-Export aller Dienste mit Pause, Arbeitszeit und Überstunden.
+
+**Schicht & Einsätze (Bereich *Heute*)**
+- Die **Schichtkarte** oben zeigt die laufende Schicht mit Besatzung und Einsatzmittel, ihre Einsätze und Routinen. Ein Tag in der Woche antippen zeigt die Schicht dieses Tages.
+- **+ Einsatz** (oder Taste `E`) legt den nächsten Einsatz an (E1, E2 …, Beginn jetzt): Stichwort per Chip, Ort, Beginn/Ende (Nachtdienste über Mitternacht), Notizen.
+- **Abschluss:** Freitext („Lage beruhigt, Platzverweis“) oder Haken *Keine Maßnahmen, keine schriftlichen Arbeiten*. Sonst **Maßnahmen als To-dos** – sie hängen am Einsatz, erscheinen gleichzeitig im Planner (mit Einsatz-Pille) und lassen sich als wichtig markieren. Erledigt man sie im Planner, gilt der Einsatz als abgeschlossen.
+- **Schriftliche Arbeit** direkt aus dem Einsatz starten (Verkehrsunfallflucht, Vermisste Person): Datum, Uhrzeit, Rufname und Besatzung sind vorbelegt; ein verknüpftes To-do erledigt sich, sobald der Vorgang als fertig markiert ist.
+- **Routinen je Schicht:** Im Routinen-Editor an Schicht-Vorlagen und/oder Einsatzmittel binden („Fahrzeugcheck“ nur für `Stf 21/03`, „Schichtübergabe“ nur für Früh- und Spätdienst). Gebundene Routinen erscheinen in Vorschau, Briefing und Schichtkarte mit Fortschritt je Schicht.
 
 **Stunden für Kollegen buchen**
 - Eintragsart *Stunden buchen*: Kollegin/Kollege, Datum des Dienstes, Dienst (aus dem Katalog) und Stunden in 15-Minuten-Schritten.
@@ -126,7 +136,7 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 - **Keine Rechtsberatung.** Nicht abgebildet sind u. a. Altbesitz (§ 58), Melde- und Anzeigepflichten im Detail, Sportschützen- und Sammlerregeln sowie der Inhalt einzelner Landesverordnungen und Allgemeinverfügungen.
 
 **Schreiben (Schriftliche Arbeiten)**
-- **Vorgang anlegen** → Modul wählen. Bisher: **Verkehrsunfallflucht ohne Personenschaden**. Der Assistent beginnt mit „Worum geht es?“ (Weichen-Fragen) und führt dann in neun Phasen durch die Aufnahme: Einsatz → Geschädigte → Unfallort → Schaden → Spuren → Zeugen → Verursacher → Maßnahmen → Bewertung. Es erscheinen nur Fragen, die zum Fall passen – auch für Sonderfälle wie „geschädigte Person nicht erreicht“, weitere Geschädigte, Selbstmeldung, Alkohol, Führerscheinmaßnahmen oder Wohnsitz im Ausland.
+- **Vorgang anlegen** → Modul wählen: **Verkehrsunfallflucht ohne Personenschaden** oder **Vermisste Person** (siehe unten). Der Assistent beginnt mit „Worum geht es?“ (Weichen-Fragen) und führt dann in neun Phasen durch die Aufnahme: Einsatz → Geschädigte → Unfallort → Schaden → Spuren → Zeugen → Verursacher → Maßnahmen → Bewertung. Es erscheinen nur Fragen, die zum Fall passen – auch für Sonderfälle wie „geschädigte Person nicht erreicht“, weitere Geschädigte, Selbstmeldung, Alkohol, Führerscheinmaßnahmen oder Wohnsitz im Ausland.
 - **Satzbausteine:** Jedes Textfeld zeigt den festen Satzanfang aus dem Bericht und ein graues Beispiel, wie es grammatisch weitergeht („Die Unfallstelle befindet sich *in der zweiten Parkreihe …*“). Satzanfänge und Beispiele passen sich an Geschlecht und Rolle an; bei Ich-Form oder fehlender indirekter Rede gibt es einen Hinweis.
 - Nach jeder Antwort springt die Ansicht zur nächsten offenen Frage; Kräfte, Rufname und Ort lassen sich aus dem letzten Vorgang übernehmen. Die Phasenleiste oben ist antippbar, Listen (Zeugen, weitere Schäden) zeigen die erste Karte sofort, und fehlende Pflichtangaben werden bei „Weiter“ nur kurz genannt, nie blockiert.
 - Fragen per Ja/Nein, Chips, Zahlen mit ±, Schnellwerten („Jetzt“, „Heute“, 50 km/h, 1.500 €); Karosserie-Picker für das Schadensbild; Personen- und Zeugenblöcke.
@@ -134,8 +144,9 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 - Ergebnis: **Verkehrsunfallbefundbericht** exakt nach Anlage 6 des Erlasses (1.1 Einsatzübernahme … 6.3 Einsatzende, mit Fahrzeug UB 01/UB 02/UB 03 ff. in 2.3 und UB 01 vor UB 02 in 3.1) mit passender Satzführung (Rolle, Geschlecht, Ein-/Mehrzahl, Zeitpunkt/Zeitraum, indirekte Rede), dazu **Kurzsachverhalt**, **Fahndungstext**, **Offene Punkte** (als Todos in den Planner übernehmbar) und ein gesonderter **Personalienblock**.
 - Kopieren in die Zwischenablage oder als `.txt` speichern (mit Warnung – Klartext). Platzhalter in `[eckigen Klammern]` zeigen, was noch fehlt.
 - Konzept, Rechtsgrundlagen und Fragenkatalog: [`docs/VUF-MASTERPLAN.md`](docs/VUF-MASTERPLAN.md).
+- **Vermisste Person** (aus dem VUF-Assistenten übernommen): Anzeigenerstatter und Meldung, Personalien der vermissten Person, letzte Sichtung mit Richtung und Fortbewegung (zu Fuß inkl. Mobilität), Zugriff auf Pkw und andere Fahrzeuge (Beschreibung, Kennzeichen, noch vor Ort?), Krankheiten, Medikamente (lebenswichtig, heute eingenommen?), Suizidalität, Erscheinungsbild (Statur, Größe, Haarfarbe/-länge, Auffälligkeiten, Bekleidung), Handy, bekannte Aufenthaltsorte, Anlaufadressen, Fotos (Teamwire), früheres Vermisstsein, Vergleichsmaterial für den Mantrailer. Ergebnis: **Übersicht** im Format des VUF-Assistenten, **Kurzsachverhalt**, **Personenbeschreibung für die Fahndung**, **offene Punkte** (nur Lücken und Gefahrenhinweise wie Minderjährigkeit, lebenswichtige Medikamente, aktuelle Suizidäußerungen) und **Personalien**.
 
-**Tastatur:** `N` neu (je nach Bereich) · `/` suchen · `1`–`6` Bereiche · `S` schreiben · `D` dongeln · `L` sperren · `Strg/⌘ + Enter` speichern bzw. weiter
+**Tastatur:** `N` neu (je nach Bereich) · `/` suchen · `1`–`6` Bereiche · `S` schreiben · `D` dongeln · `E` Einsatz · `L` sperren · `Strg/⌘ + Enter` speichern bzw. weiter
 
 **Backups:** *⋯ → Verschlüsseltes Backup* speichert eine `.vault`-Datei. Einspielen geht per Zusammenführen oder Ersetzen.
 
@@ -153,9 +164,10 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 | --- | --- |
 | `index.html` | Oberfläche, Styles, Content-Security-Policy |
 | `js/vault.js` | Verschlüsselung, Schlüsselverwaltung, GitHub-Speicher |
-| `js/app.js` | App-Logik (Planner, Dienste, Termine, Routinen, Team, Ablage, WaffG-Prüfstand), Sync und Zusammenführen, Sperre |
+| `js/app.js` | App-Logik (Planner, Dienste, Schicht & Einsätze, Termine, Routinen, Team, Ablage, WaffG-Prüfstand), Sync und Zusammenführen, Sperre |
 | `js/writer.js` | Bereich „Schreiben“: Vorgangsliste, Aufnahme-Assistent, Berichtsansicht |
 | `js/vuf.js` | Modul Verkehrsunfallflucht: Fragenkatalog und Textgenerator |
+| `js/vermisst.js` | Modul Vermisste Person: Fragenkatalog, Übersicht, Kurzsachverhalt, Fahndung, offene Punkte |
 | `docs/VUF-MASTERPLAN.md` | Masterplan: Grundlagen, Ablauf, Fragen, Satzführung, Sicherheit, Ausbau |
 | `vendor/hash-wasm/` | Argon2id (hash-wasm 4.12.0, MIT), unverändert aus npm |
 | `fonts/` | Inter Tight & Geist Mono (SIL Open Font License) |

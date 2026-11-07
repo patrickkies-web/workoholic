@@ -1159,6 +1159,131 @@ body[data-area=schreiben] .pane-schreiben{display:grid}
   dialog.dlg.sheet-dlg .sheet{opacity:0}
   dialog.dlg.sheet-dlg.open .sheet{opacity:1}
 }
+/* Schicht: Einsätze & Routinen */
+.op-card{position:relative;padding:18px 18px 12px;overflow:hidden}
+.op-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--c);opacity:.9}
+.op-card.is-live{border-color:rgba(236,217,111,.18)}
+.op-head{display:flex;align-items:flex-start;gap:14px}
+.op-id{flex:1;min-width:0}
+.op-meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;margin-top:8px;font-size:12.5px;color:var(--text-2)}
+.op-crew{display:inline-flex;align-items:center;gap:6px;min-width:0}
+.op-crew>span:last-child{min-width:0}
+.op-av{display:inline-grid;place-items:center;width:24px;height:24px;flex:none;margin-right:-10px;border-radius:50%;border:1.5px solid #19191b;background:linear-gradient(160deg,hsl(var(--h) 24% 38%),hsl(var(--h) 18% 22%));color:#f4efe9;font-size:9.5px;font-weight:600}
+.op-avs{display:inline-flex;flex:none;padding-right:10px}
+.op-unit{height:22px}
+.op-plus{flex:none;display:inline-flex;align-items:center;gap:8px;height:52px;padding:0 20px 0 16px;border-radius:999px;background:var(--accent);color:var(--accent-ink);font-weight:600;font-size:14.5px;box-shadow:0 10px 30px -10px rgba(236,217,111,.55);transition:transform .14s var(--ease-out),background-color .15s ease}
+.op-plus svg.i{width:20px;height:20px;stroke-width:2.2}
+.op-plus:active{transform:scale(.96)}
+@media (hover:hover) and (pointer:fine){.op-plus:hover{background:#f3e386}}
+.op-stats{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:14px;font-size:12px;color:var(--text-3)}
+.op-stats:empty{display:none}
+.op-stats b{color:var(--text);font-weight:500}
+.op-stats i{font-style:normal;opacity:.5}
+.op-list{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.op-row{display:flex;align-items:center;gap:12px;width:100%;min-height:52px;padding:8px 14px 8px 10px;border-radius:16px;background:rgba(255,255,255,.04);border:1px solid var(--line);text-align:left;transition:background-color .15s ease,transform .14s var(--ease-out)}
+.op-row:active{transform:scale(.99)}
+@media (hover:hover) and (pointer:fine){.op-row:hover{background:rgba(255,255,255,.07)}}
+.op-n{flex:none;display:grid;place-items:center;min-width:36px;height:28px;padding:0 6px;border-radius:9px;background:rgba(255,255,255,.07);font-size:11.5px;color:var(--text-2)}
+.op-row[data-st=run] .op-n{background:var(--accent-soft);color:var(--accent)}
+.op-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.op-t{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.op-s{font-size:11.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.op-st,.op-st-inline{flex:none;display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--text-3)}
+.op-row[data-st=run] .op-st,.op-st-inline[data-st=run]{color:var(--accent)}
+.op-row[data-st=todo] .op-st,.op-st-inline[data-st=todo]{color:var(--coral)}
+.op-row[data-st=done] .op-st,.op-st-inline[data-st=done]{color:var(--lime)}
+.op-row[data-st=missing] .op-st,.op-st-inline[data-st=missing]{color:var(--text-2)}
+.op-empty{padding:12px 4px 4px;font-size:12.5px;color:var(--text-3);line-height:1.5}
+.op-rt .f-label{margin-top:16px}
+.op-rt-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px}
+.op-rt-row{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:8px 12px;border-radius:14px;background:rgba(255,255,255,.035);border:1px solid var(--line);text-align:left;transition:background-color .15s ease}
+.op-rt-row.done{opacity:.62}
+.op-rt-row.run{border-color:rgba(198,220,122,.3)}
+.op-rt-dot{display:inline-block;width:8px;height:8px;flex:none;border-radius:50%;background:var(--rc,var(--lime))}
+.op-rt-n{flex:1;min-width:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.op-rt-p{flex:none;display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--text-3)}
+.op-rt-p svg.i{width:12px;height:12px}
+.op-foot{display:flex;justify-content:flex-end;margin-top:8px}
+/* Dienstbeginn */
+.tpl-btn[aria-pressed=true]{background:rgba(236,217,111,.08);border-color:rgba(236,217,111,.45)}
+.tpl-btn[aria-pressed=true] .tpl-name::after{content:" ✓";color:var(--accent)}
+.st-crew{display:flex;flex-wrap:wrap;gap:6px}
+.st-crew-chip{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px 0 6px;border-style:solid}
+.st-crew-chip .op-av{margin-right:0;border-color:transparent}
+.st-last{margin:0 0 8px;height:auto;min-height:32px;padding:6px 12px;line-height:1.35;text-align:left}
+.st-hint{margin-top:0}
+.st-more{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:12.5px}
+.st-add{display:flex;gap:8px;margin-top:10px}
+.st-add .input{flex:1;min-width:0}
+.st-units,.op-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.st-units:empty{display:none}
+.st-preview .f-label{margin-top:20px}
+.st-rts{display:flex;flex-wrap:wrap;gap:6px}
+.st-rts .pill{gap:7px}
+/* Einsatz-Sheet */
+.op-row2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,220px);gap:12px}
+.op-times{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.op-close{margin-top:18px;padding:2px 14px 14px;border-radius:18px;background:rgba(255,255,255,.03);border:1px solid var(--line)}
+.op-close>.f-label:first-child{margin-top:12px}
+.op-none{margin:0 0 10px}
+.op-todos{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.op-todos:empty{display:none}
+.op-todo{display:flex;align-items:center;gap:8px;min-height:44px;padding:4px 4px 4px 6px;border-radius:12px;background:rgba(0,0,0,.18)}
+.op-todo-t{flex:1;min-width:0;padding:6px 4px;text-align:left;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.op-todo.done .op-todo-t{color:var(--text-3);text-decoration:line-through}
+.op-imp{display:grid;place-items:center;width:36px;height:36px;flex:none;border-radius:50%;color:var(--text-3);font-size:15px;transition:color .15s ease,background-color .15s ease}
+.op-imp[aria-pressed=true]{color:var(--accent);background:var(--accent-soft)}
+.op-imp.big{width:42px;height:42px;border:1px solid var(--line);background:rgba(255,255,255,.04)}
+.op-todo-add{display:flex;gap:8px;margin-top:8px}
+.op-todo-add .input{flex:1;min-width:0}
+.op-docs .f-label{margin-top:16px}
+.op-doclist{margin-top:0;margin-bottom:8px}
+.op-doc{gap:8px;height:auto;min-height:36px;padding:6px 8px 6px 6px;max-width:100%;text-align:left}
+.op-doc .pill{flex:none}
+.op-doc-k{display:inline-grid;place-items:center;min-width:28px;height:24px;padding:0 5px;border-radius:7px;background:rgba(255,255,255,.08);font-size:10.5px;font-weight:600;letter-spacing:.04em}
+/* Planner: wichtig & Einsatz */
+.imp-star{display:inline-block;margin-right:6px;color:var(--accent);font-size:.9em}
+.item.imp{border-color:rgba(236,217,111,.2)}
+.op-pill{cursor:pointer;height:24px}
+@media (hover:hover) and (pointer:fine){.op-pill:hover{border-color:var(--line-2);color:var(--text)}}
+.c-imp{margin:12px 0 4px}
+/* Schichtbriefing */
+dialog.brief-dlg{width:min(560px,calc(100vw - 24px));margin:auto}
+dialog.brief-dlg::backdrop{background:rgba(5,5,6,.72);-webkit-backdrop-filter:blur(14px) saturate(120%);backdrop-filter:blur(14px) saturate(120%)}
+.brief{display:flex;flex-direction:column;max-height:calc(var(--vvh,100dvh) - 32px);border-radius:30px;background:linear-gradient(180deg,#232325,#151517);border:1px solid var(--line-2);box-shadow:0 50px 120px rgba(0,0,0,.75);overflow:hidden;opacity:0;transform:translateY(12px) scale(.98);transition:opacity .28s var(--ease-out),transform .34s var(--ease-out)}
+dialog.brief-dlg.open .brief{opacity:1;transform:none}
+.brief-head{padding:22px 22px 16px;border-bottom:1px solid var(--line);background:radial-gradient(120% 140% at 0% 0%,rgba(236,217,111,.12),transparent 55%)}
+.brief-h{margin-top:6px;font-size:34px;font-weight:300;letter-spacing:-.03em;line-height:1.05}
+.brief-meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;margin-top:10px;font-size:12.5px;color:var(--text-2)}
+.brief-body{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:6px 16px 10px}
+.br-sec{display:block;margin:14px 6px 8px;font-size:10px;font-weight:500;letter-spacing:.2em;text-transform:uppercase;color:var(--text-3)}
+.br-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.br-row{display:flex;align-items:center;gap:12px;padding:9px 12px 9px 9px;border-radius:18px;background:rgba(255,255,255,.04);border:1px solid var(--line);cursor:pointer}
+.br-row.imp{background:rgba(236,217,111,.06);border-color:rgba(236,217,111,.24)}
+.br-row .tile{width:40px;height:40px;border-radius:12px}
+.br-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.br-t{font-size:14px;line-height:1.3;overflow-wrap:anywhere}
+.br-s{font-size:11.5px;color:var(--text-3)}
+.br-row .pill{flex:none}
+.br-op .op-n{height:40px;min-width:40px;border-radius:12px}
+.op-count{height:22px;padding:0 8px;font-size:11px}
+.br-more{margin:8px 6px 0;font-size:12px;color:var(--text-3)}
+.br-empty{display:flex;flex-direction:column;gap:4px;margin:14px 6px;padding:16px;border-radius:18px;background:rgba(198,220,122,.06);border:1px solid rgba(198,220,122,.2);font-size:13px;color:var(--text-2)}
+.br-empty b{font-weight:500;color:var(--lime)}
+.br-rts{padding:0 6px 4px}
+.brief-foot{display:flex;justify-content:flex-end;padding:12px 16px calc(14px + var(--sab));border-top:1px solid var(--line)}
+.brief-foot .btn{min-width:160px;height:48px}
+@media (max-width:760px){
+  .op-card{padding:16px 14px 10px}
+  .op-plus{height:48px;padding:0 16px 0 12px}
+  .op-row2{grid-template-columns:1fr}
+  .op-rt-list{grid-template-columns:1fr}
+  dialog.brief-dlg{width:100%;max-width:100%;margin:auto 0 0}
+  .brief{border-radius:28px 28px 0 0;max-height:calc(var(--vvh,100dvh) - var(--sat) - 8px)}
+  .brief-foot .btn{flex:1}
+}
+@media (max-width:380px){.op-head{flex-wrap:wrap}.op-plus{width:100%;justify-content:center}}
+@media (prefers-reduced-motion:reduce){.brief{transform:none!important}}
 </style>
 </head>
 <body data-tab="aufgaben" data-area="heute" class="locked">
@@ -1351,6 +1476,16 @@ body[data-area=schreiben] .pane-schreiben{display:grid}
 
     <!-- MAIN -->
     <section class="col col-main">
+      <article class="card op-card pane-aufgaben" id="opCard" style="--o:1" aria-labelledby="opH" hidden>
+        <div class="op-head">
+          <div class="op-id"><span class="spaced" id="opKicker">Schicht läuft</span><h2 class="card-title" id="opH">Schicht</h2><div class="op-meta" id="opMeta"></div></div>
+          <button type="button" class="op-plus" id="opAdd" aria-label="Einsatz hinzufügen"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Einsatz</span></button>
+        </div>
+        <div class="op-stats" id="opStats"></div>
+        <ul class="op-list" id="opList"></ul>
+        <div class="op-rt" id="opRt" hidden><span class="f-label">Routinen in dieser Schicht</span><ul class="op-rt-list" id="opRtList"></ul></div>
+        <div class="op-foot"><button type="button" class="link" id="opEditCrew">Besetzung ändern</button></div>
+      </article>
       <article class="card planner pane-aufgaben" style="--o:2" aria-label="Planner">
         <div class="hero">
           <div class="hero-pills"><span class="pill pill-glass" id="heroDate">–</span><span class="pill pill-glass"><i class="live"></i><span id="heroClock">Ausgedongelt</span></span></div>
@@ -1369,7 +1504,7 @@ body[data-area=schreiben] .pane-schreiben{display:grid}
             <input id="quickInput" spellcheck="false" autocomplete="off" placeholder="Schnell erfassen … z. B. @Sabine Zahlen schicken !" enterkeyhint="done">
             <button class="quick-go" type="submit" aria-label="Hinzufügen"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
           </form>
-          <p class="quick-hint"><b>@Name</b> → Anfrage von Name · <b>!</b> → schnellstmöglich · <b>#aufgabe</b> / <b>#todo</b> · <b>⇧ Enter</b> → mit Details</p>
+          <p class="quick-hint"><b>@Name</b> → Anfrage von Name · <b>!</b> → schnellstmöglich · <b>*</b> → wichtig · <b>#aufgabe</b> / <b>#todo</b> · <b>⇧ Enter</b> → mit Details</p>
           <div class="filters" id="filters" role="tablist" aria-label="Filter nach Art"></div>
           <div class="active-filter" id="activeFilter"></div>
           <div id="list"></div>
@@ -1495,6 +1630,7 @@ body[data-area=schreiben] .pane-schreiben{display:grid}
     <div class="sheet-head"><h3 id="cHeading">Neuer Eintrag</h3><button type="button" class="icon-btn sm" data-close aria-label="Schließen"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <label class="sr" for="cTitle">Titel</label>
     <input class="c-title" id="cTitle" placeholder="Was steht an?" maxlength="300" enterkeyhint="done" spellcheck="false" autocomplete="off">
+    <label class="check-line c-imp"><input type="checkbox" id="cImp"> <span><b>Wichtig</b> – frühzeitig erledigen, steht im Planner ganz oben</span></label>
 
     <span class="f-label" id="lblKind">Art</span>
     <div class="seg" data-seg="kind" role="group" aria-labelledby="lblKind">
@@ -1613,6 +1749,11 @@ body[data-area=schreiben] .pane-schreiben{display:grid}
     <input class="c-title" id="reName" placeholder="z. B. Schichtübergabe" maxlength="60" autocomplete="off" spellcheck="false">
     <span class="f-label" id="reRhLbl">Rhythmus</span>
     <div class="seg" id="reRhythm" role="group" aria-labelledby="reRhLbl"></div>
+    <span class="f-label">Gehört zu diesen Schichten <span class="f-count">optional</span></span>
+    <div class="seg re-tpls" id="reTpls" role="group" aria-label="Schichten"></div>
+    <label class="f-label" for="reUnits">… und zu diesen Einsatzmitteln <span class="f-count">optional, mit Komma</span></label>
+    <input class="input" id="reUnits" placeholder="z. B. Stf 21/03, Krad 2" maxlength="200" spellcheck="false">
+    <p class="hint re-bind-hint">Gebundene Routinen erscheinen in der laufenden Schicht und im Briefing zum Dienstbeginn.</p>
     <span class="f-label" id="reColLbl">Farbe</span>
     <div class="colors" id="reColors" role="radiogroup" aria-labelledby="reColLbl"></div>
     <label class="f-label" for="reSteps">Schritte – eine Zeile pro Schritt <span class="f-count" id="reCount"></span></label>
@@ -1724,16 +1865,70 @@ body[data-area=schreiben] .pane-schreiben{display:grid}
 
 <!-- Dienst beginnen -->
 <dialog class="dlg sheet-dlg" id="startDlg" aria-labelledby="stH">
-  <div class="sheet">
-    <div class="sheet-head"><h3 id="stH">Dienst beginnen</h3><button type="button" class="icon-btn sm" data-close aria-label="Schließen"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
-    <p class="ask-p">Welchen Dienst trittst du an? Beginn ist jetzt (<b id="stNow">--:--</b>). Das geplante Ende kommt aus dem Katalog und lässt sich danach anpassen.</p>
-    <div class="tpl-grid" id="startTpls"></div>
+  <form class="sheet" id="stForm" novalidate autocomplete="off">
+    <div class="sheet-head"><h3 id="stH">Dienst beginnen</h3><button type="button" class="icon-btn sm" data-close aria-label="Schließen"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <p class="ask-p" id="stLead"></p>
+    <div id="stTplBox"><span class="f-label">Schicht</span><div class="tpl-grid" id="startTpls"></div>
+      <div class="st-more"><button type="button" class="link" id="startCustom">Andere Zeiten …</button><span class="dim" aria-hidden="true">·</span><button type="button" class="link" id="startCatalog">Katalog bearbeiten</button></div></div>
+    <span class="f-label" id="stCrewL">Mit wem bist du unterwegs?</span>
+    <button type="button" class="chip w-recent st-last" id="stLast" hidden></button>
+    <div class="st-crew" id="stCrew" role="group" aria-labelledby="stCrewL"></div>
+    <div class="st-add"><label class="sr" for="stNewName">Weitere Person</label><input class="input" id="stNewName" list="stNames" placeholder="Name eintragen – neu oder aus dem Team" maxlength="80" spellcheck="false" enterkeyhint="done"><datalist id="stNames"></datalist><button type="button" class="btn btn-ghost" id="stAddName">Dazu</button></div>
+    <label class="f-label" for="stUnit">Einsatzmittel / Funkrufname <span class="f-count">optional</span></label>
+    <input class="input" id="stUnit" placeholder="z. B. Stf 21/03" maxlength="40" spellcheck="false" enterkeyhint="done">
+    <div class="st-units" id="stUnitChips"></div>
+    <div class="st-preview" id="stPreview"></div>
     <div class="sheet-foot">
-      <button type="button" class="btn btn-ghost btn-sm" id="startCustom">Andere Zeiten …</button>
-      <button type="button" class="btn btn-ghost btn-sm" id="startCatalog">Katalog</button>
       <span class="grow"></span>
       <button type="button" class="btn btn-ghost" data-close>Abbrechen</button>
+      <button type="submit" class="btn btn-accent" id="stGo">Dienst beginnen</button>
     </div>
+  </form>
+</dialog>
+
+<!-- Einsatz -->
+<dialog class="dlg sheet-dlg" id="opDlg" aria-labelledby="opDH">
+  <form class="sheet" id="opForm" novalidate autocomplete="off">
+    <div class="sheet-head"><h3 id="opDH">Einsatz</h3><button type="button" class="icon-btn sm" data-close aria-label="Schließen"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <p class="ask-p" id="opDMeta"></p>
+    <label class="f-label" for="opTitle">Stichwort</label>
+    <input class="input" id="opTitle" maxlength="80" placeholder="z. B. Ruhestörung" spellcheck="false" enterkeyhint="next">
+    <div class="op-chips" id="opTitleChips"></div>
+    <div class="op-row2">
+      <div><label class="f-label" for="opPlace">Ort</label><input class="input" id="opPlace" maxlength="120" placeholder="Straße, Objekt" spellcheck="false"></div>
+      <div class="op-times"><div><label class="f-label" for="opStart">Beginn</label><input class="input mono" type="time" id="opStart"></div><div><label class="f-label" for="opEnd">Ende</label><input class="input mono" type="time" id="opEnd"></div></div>
+    </div>
+    <label class="f-label" for="opNote">Notizen</label>
+    <textarea class="input" id="opNote" rows="2" placeholder="Beteiligte, Lage, Besonderheiten" spellcheck="false"></textarea>
+    <div class="op-close">
+      <span class="f-label">Abschluss</span>
+      <label class="check-line op-none"><input type="checkbox" id="opNone"> <span>Keine Maßnahmen, keine schriftlichen Arbeiten</span></label>
+      <label class="sr" for="opOutcome">Ergebnis</label>
+      <textarea class="input" id="opOutcome" rows="2" placeholder="Ergebnis – z. B. Lage beruhigt, Platzverweis ausgesprochen" spellcheck="false"></textarea>
+      <div id="opMeasures">
+        <span class="f-label">Maßnahmen als To-dos <span class="f-count">erscheinen auch im Planner</span></span>
+        <ul class="op-todos" id="opTodos"></ul>
+        <div class="op-todo-add"><label class="sr" for="opTodoIn">Maßnahme</label><input class="input" id="opTodoIn" maxlength="300" placeholder="Maßnahme, z. B. Anzeige schreiben" spellcheck="false" enterkeyhint="done"><button type="button" class="op-imp big" id="opTodoImp" aria-pressed="false" aria-label="Als wichtig markieren">★</button><button type="button" class="btn btn-ghost" id="opTodoAdd">Dazu</button></div>
+        <div class="op-chips" id="opTodoChips"></div>
+        <div class="op-docs" id="opDocs" hidden><span class="f-label">Schriftliche Arbeit</span><div class="op-chips op-doclist" id="opDocList" hidden></div><div class="op-chips"><button type="button" class="chip" data-doc="vuf" data-name="Verkehrsunfallflucht">+ Verkehrsunfallflucht</button><button type="button" class="chip" data-doc="vermisst" data-name="Vermisste Person">+ Vermisste Person</button></div></div>
+      </div>
+    </div>
+    <div class="sheet-foot">
+      <button type="button" class="btn btn-ghost btn-danger btn-sm" id="opDelete">Löschen</button>
+      <button type="button" class="btn btn-ghost btn-sm" id="opReopen" hidden>Wieder öffnen</button>
+      <span class="grow"></span>
+      <button type="button" class="btn btn-ghost" data-close>Schließen</button>
+      <button type="submit" class="btn btn-accent" id="opDone">Einsatz beenden</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Schichtbriefing -->
+<dialog class="dlg brief-dlg" id="briefDlg" aria-labelledby="brH">
+  <div class="brief">
+    <div class="brief-head"><span class="spaced" id="brKick">Schicht beginnt</span><h2 class="brief-h" id="brH">Schicht</h2><div class="brief-meta" id="brMeta"></div></div>
+    <div class="brief-body" id="brBody"></div>
+    <div class="brief-foot"><button type="button" class="btn btn-accent" id="brGo" data-close>Los geht’s</button></div>
   </div>
 </dialog>
 
@@ -1850,6 +2045,7 @@ body[data-area=schreiben] .pane-schreiben{display:grid}
 <script src="js/vault.js"></script>
 <script src="js/app.js"></script>
 <script src="js/vuf.js"></script>
+<script src="js/vermisst.js"></script>
 <script src="js/writer.js"></script>
 </body>
 </html>
