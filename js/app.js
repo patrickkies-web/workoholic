@@ -103,7 +103,7 @@ const defaultTpls = () => [
   { id: 'tpl-nacht', name: 'Nachtdienst', start: '22:00', end: '06:00', breakMin: 45, color: 'blau', u: 1 },
   { id: 'tpl-tag', name: 'Tagdienst', start: '08:00', end: '16:30', breakMin: 30, color: 'lime', u: 1 }
 ];
-const blank = () => ({ v: 3, items: [], shifts: [], tpls: defaultTpls(), del: {}, settings: { targetMin: 480, name: '', u: 0 } });
+const blank = () => ({ v: 4, items: [], shifts: [], tpls: defaultTpls(), docs: [], del: {}, settings: { targetMin: 480, name: '', u: 0 } });
 const num = v => (typeof v === 'number' && Number.isFinite(v)) ? v : null;
 const isKey = k => typeof k === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(k);
 const isHM = t => typeof t === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(t);
@@ -163,6 +163,38 @@ function normTpl(x) {
   if (!x || !isHM(x.start) || !isHM(x.end)) return null;
   return { id: String(x.id || uid()), name: String(x.name || '').slice(0, 40).trim() || 'Dienst', start: x.start, end: x.end, breakMin: clamp(Math.round(Number(x.breakMin) || 0), 0, 240), color: COLORS[x.color] ? x.color : 'lime', u: num(x.u) || 1 };
 }
+/**
+ * Schriftliche Arbeiten (Vorgänge). `data` ist das Antwortobjekt des jeweiligen Moduls und wird
+ * in kanonischer Schlüsselreihenfolge gehalten, damit alle Geräte bitgleich übereinstimmen.
+ * Die Inhalte liegen – wie alles andere – nur verschlüsselt im Tresor.
+ */
+const DOC_MAX = 200000; // Zeichen JSON je Vorgang
+function canon(v, depth = 0) {
+  if (depth > 6) return null;
+  if (Array.isArray(v)) return v.slice(0, 200).map(x => canon(x, depth + 1));
+  if (v && typeof v === 'object') { const o = {}; for (const k of Object.keys(v).sort()) { if (/^[\w.-]{1,40}$/.test(k)) o[k] = canon(v[k], depth + 1); } return o; }
+  if (typeof v === 'string') return v.slice(0, 20000);
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  if (typeof v === 'boolean' || v === null) return v;
+  return null;
+}
+function normDoc(x) {
+  if (!x || typeof x !== 'object' || !x.id) return null;
+  const now = Date.now();
+  const d = {
+    id: String(x.id).slice(0, 40),
+    type: String(x.type || '').slice(0, 24),
+    title: String(x.title || '').slice(0, 120),
+    status: x.status === 'fertig' ? 'fertig' : 'entwurf',
+    step: Math.max(0, Math.round(Number(x.step) || 0)),
+    data: canon(x.data && typeof x.data === 'object' ? x.data : {}),
+    createdAt: num(x.createdAt) || now,
+    updatedAt: num(x.updatedAt) || now
+  };
+  if (!d.type) return null;
+  if (JSON.stringify(d.data).length > DOC_MAX) return null;
+  return d;
+}
 /** Alte Stempel (+15-Nachträge) werden zu Diensten – deterministisch, damit alle Geräte dasselbe erzeugen. */
 function migrateStamps(s) {
   const out = [], byDay = {};
@@ -217,10 +249,18 @@ function normalize(s) {
     for (const x of s.tpls) { const tp = normTpl(x); if (!tp) continue; const c = t.get(tp.id); if (!c || tp.u > c.u) t.set(tp.id, tp); }
     b.tpls = [...t.values()];
   } else if (ver >= 3) b.tpls = [];
+  const docs = new Map();
+  for (const x of (Array.isArray(s.docs) ? s.docs : [])) {
+    const d = normDoc(x); if (!d) continue;
+    const c = docs.get(d.id);
+    if (!c || d.updatedAt > c.updatedAt || (d.updatedAt === c.updatedAt && JSON.stringify(d) > JSON.stringify(c))) docs.set(d.id, d);
+  }
+  b.docs = [...docs.values()].sort((a, c) => a.createdAt - c.createdAt || cmp(a.id, c.id));
   const cutoff = Date.now() - 120 * DAY;
   const del = s.del && typeof s.del === 'object' ? s.del : {};
   Object.keys(del).sort().forEach(k => { const v = num(del[k]); if (v && v > cutoff) b.del[k] = v; });
   b.shifts = b.shifts.filter(x => !(b.del[x.id] >= x.u));
+  b.docs = b.docs.filter(x => !(b.del[x.id] >= x.updatedAt));
   b.tpls = b.tpls.filter(x => !(b.del[x.id] >= x.u)).sort((a, c) => cmp(a.start, c.start) || cmp(a.name, c.name) || cmp(a.id, c.id));
   const se = s.settings || {};
   const t = Number(se.targetMin);
@@ -249,8 +289,9 @@ function merge(a, b) {
   const items = pick([...a.items, ...b.items], 'updatedAt');
   const shifts = pick([...a.shifts, ...b.shifts], 'u');
   const tpls = pick([...a.tpls, ...b.tpls], 'u');
+  const docs = pick([...(a.docs || []), ...(b.docs || [])], 'updatedAt');
   const settings = (b.settings.u || 0) > (a.settings.u || 0) ? b.settings : a.settings;
-  return normalize({ v: 3, items, shifts, tpls, del, settings });
+  return normalize({ v: 4, items, shifts, tpls, docs, del, settings });
 }
 
 let state = blank();
@@ -306,11 +347,11 @@ const touch = it => { it.updatedAt = Date.now(); };
 function applyState(raw) {
   const next = normalize(raw), now = Date.now();
   const keep = new Set();
-  for (const [g, key] of [['items', 'updatedAt'], ['shifts', 'u'], ['tpls', 'u']]) {
+  for (const [g, key] of [['items', 'updatedAt'], ['shifts', 'u'], ['tpls', 'u'], ['docs', 'updatedAt']]) {
     const cur = new Map(state[g].map(x => [x.id, JSON.stringify(x)]));
     for (const x of next[g]) { if (cur.get(x.id) !== JSON.stringify(x)) x[key] = now; delete next.del[x.id]; keep.add(x.id); }
   }
-  for (const g of ['items', 'shifts', 'tpls']) for (const x of state[g]) if (!keep.has(x.id)) next.del[x.id] = now;
+  for (const g of ['items', 'shifts', 'tpls', 'docs']) for (const x of state[g]) if (!keep.has(x.id)) next.del[x.id] = now;
   for (const k in state.del) if (!keep.has(k)) next.del[k] = Math.max(next.del[k] || 0, state.del[k]);
   const plain = s => JSON.stringify({ ...s, u: 0 });
   if (plain(next.settings) !== plain(state.settings)) next.settings.u = now; else next.settings.u = state.settings.u;
@@ -1015,6 +1056,7 @@ function renderAll() {
   renderFocus(now);
   renderOvertime(now);
   renderSyncUi();
+  if (window.WWriter) WWriter.render();
 }
 
 /* ======================= Dialog helpers ======================= */
@@ -1515,7 +1557,7 @@ const searchBox = $('#searchBox'), searchInput = $('#search');
 let qTimer;
 searchInput.addEventListener('input', () => {
   clearTimeout(qTimer);
-  qTimer = setTimeout(() => { ui.q = searchInput.value.trim(); if (ui.q && mobileMQ.matches) setTab('aufgaben'); renderPlanner(); }, 90);
+  qTimer = setTimeout(() => { ui.q = searchInput.value.trim(); if (ui.q && mobileMQ.matches && document.body.dataset.view !== 'schreiben') setTab('aufgaben'); renderPlanner(); }, 90);
 });
 searchInput.addEventListener('keydown', e => { if (e.key === 'Escape') { searchInput.value = ''; ui.q = ''; renderPlanner(); searchInput.blur(); } });
 searchBox.addEventListener('click', () => { if (mobileMQ.matches) { searchBox.classList.add('expanded'); searchInput.focus(); } });
@@ -1549,18 +1591,25 @@ $('#wkChart').addEventListener('pointerleave', () => $('#wkTip')?.classList.remo
 $('#wkChart').addEventListener('focusin', e => { const c = e.target.closest('.wk-col'); if (c) showTip(c); });
 $('#wkChart').addEventListener('focusout', () => $('#wkTip')?.classList.remove('show'));
 
-$('#newBtn').addEventListener('click', () => openComposer());
+const newAction = () => { if (document.body.dataset.view === 'schreiben' && window.WWriter) WWriter.newDoc(); else openComposer(); };
+$('#newBtn').addEventListener('click', newAction);
 $('#newBtn2').addEventListener('click', () => openComposer());
-$('#dockAdd').addEventListener('click', () => openComposer());
+$('#dockAdd').addEventListener('click', newAction);
 
-/* ======================= Tabs (mobile) ======================= */
+/* ======================= Tabs & Ansichten ======================= */
+/* Ansicht „board“ (Planner + Zeit, mobil als zwei Tabs) oder „schreiben“ (Schriftliche Arbeiten). */
 function setTab(t) {
+  const view = t === 'schreiben' ? 'schreiben' : 'board';
   document.body.dataset.tab = t;
+  document.body.dataset.view = view;
   $$('.dock-btn[data-tab]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tab === t)));
+  $$('.view-btn[data-view]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === view)));
   try { sessionStorage.setItem('workoholic:tab', t); } catch (e) {}
+  if (view === 'schreiben' && window.WWriter) WWriter.render();
 }
 $$('.dock-btn[data-tab]').forEach(b => b.addEventListener('click', () => { setTab(b.dataset.tab); scrollTo({ top: 0 }); }));
-try { const t = sessionStorage.getItem('workoholic:tab'); if (t === 'zeit' || t === 'aufgaben') setTab(t); } catch (e) {}
+$$('.view-btn[data-view]').forEach(b => b.addEventListener('click', () => { setTab(b.dataset.view === 'schreiben' ? 'schreiben' : 'aufgaben'); }));
+try { const t = sessionStorage.getItem('workoholic:tab'); if (t === 'zeit' || t === 'aufgaben' || t === 'schreiben') setTab(t); } catch (e) {}
 
 /* ======================= Menu ======================= */
 const menu = $('#menu'), menuBtn = $('#menuBtn');
@@ -1621,7 +1670,7 @@ menu.addEventListener('click', async e => {
   }
   else if (a === 'demo') loadDemo();
   else if (a === 'wipe') {
-    const r = await ask({ title: 'Alles löschen?', text: 'Entfernt alle Einträge und Dienste – auch auf allen synchronisierten Geräten. Dienste-Katalog, Tresor und Passwort bleiben bestehen.', buttons: [{ label: 'Abbrechen', value: null }, { label: 'Alles löschen', value: 'ok', cls: 'btn-ghost btn-danger', submit: true }] });
+    const r = await ask({ title: 'Alles löschen?', text: 'Entfernt alle Einträge, Dienste und schriftlichen Vorgänge – auch auf allen synchronisierten Geräten. Dienste-Katalog, Tresor und Passwort bleiben bestehen.', buttons: [{ label: 'Abbrechen', value: null }, { label: 'Alles löschen', value: 'ok', cls: 'btn-ghost btn-danger', submit: true }] });
     if (!r) return;
     const snap = snapshot(); applyState({ ...blank(), tpls: state.tpls, settings: state.settings }); toast('Alles gelöscht', { undo: snap });
   }
@@ -1644,7 +1693,7 @@ $('#importFile').addEventListener('change', async e => {
     else throw new Error('format');
   } catch (er) { toast(er.code === 'wrong-password' ? 'Falsches Passwort für dieses Backup.' : 'Datei ist kein gültiges Workoholic-Backup.'); return; }
   const next = normalize(data);
-  const r = await ask({ title: 'Backup einspielen', text: `Das Backup enthält ${next.items.length} Einträge und ${next.shifts.length} Dienste. Zusammenführen behält alles Neuere; Ersetzen setzt den Stand exakt auf das Backup.`, buttons: [{ label: 'Abbrechen', value: null }, { label: 'Ersetzen', value: 'replace', cls: 'btn-ghost btn-danger' }, { label: 'Zusammenführen', value: 'merge', cls: 'btn-accent', submit: true }] });
+  const r = await ask({ title: 'Backup einspielen', text: `Das Backup enthält ${next.items.length} Einträge, ${next.shifts.length} Dienste und ${next.docs.length} schriftliche Vorgänge. Zusammenführen behält alles Neuere; Ersetzen setzt den Stand exakt auf das Backup.`, buttons: [{ label: 'Abbrechen', value: null }, { label: 'Ersetzen', value: 'replace', cls: 'btn-ghost btn-danger' }, { label: 'Zusammenführen', value: 'merge', cls: 'btn-accent', submit: true }] });
   if (!r) return;
   const snap = snapshot();
   if (r.value === 'replace') applyState(next);
@@ -2153,7 +2202,8 @@ document.addEventListener('keydown', e => {
   if ($('dialog[open]')) return;
   if (e.key === 'Escape') { closeMenu(); return; }
   const k = e.key.toLowerCase();
-  if (k === 'n') { e.preventDefault(); openComposer(); }
+  if (k === 'n') { e.preventDefault(); if (document.body.dataset.view === 'schreiben' && window.WWriter) WWriter.newDoc(); else openComposer(); }
+  else if (k === 's') { e.preventDefault(); setTab(document.body.dataset.view === 'schreiben' ? 'aufgaben' : 'schreiben'); }
   else if (e.key === '/') { e.preventDefault(); if (mobileMQ.matches) searchBox.classList.add('expanded'); searchInput.focus(); }
   else if (k === 'd' && !e.repeat) { e.preventDefault(); dongleAction(); }
   else if (k === 'l') { e.preventDefault(); lock('manual'); }
@@ -2193,6 +2243,25 @@ document.addEventListener('visibilitychange', () => {
     if (f && mobileMQ.matches) setTimeout(() => { upd(); f.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 320);
   });
 })();
+
+/* ======================= Brücke für Bereiche (Schriftliche Arbeiten) ======================= */
+/* Bewusst schmal: Zugriff nur auf die Vorgänge, nie auf Schlüssel oder Umschlag. Ohne entsperrten Tresor liefert alles null/false. */
+window.WBridge = Object.freeze({
+  unlocked: () => !!S,
+  docs: () => (S ? state.docs : null),
+  find: id => (S ? state.docs.find(d => d.id === id) || null : null),
+  add(doc) { if (!S) return null; const d = normDoc({ ...doc, id: doc.id || uid() }); if (!d) return null; delete state.del[d.id]; state.docs.push(d); save(); return d; },
+  /** Änderungen am Vorgang: Zeitstempel setzen, verschlüsselt speichern, Sync anstoßen. renderAll nur bei Bedarf. */
+  touch(doc, full = false) { if (!S || !doc) return; doc.updatedAt = Date.now(); if (full) commit(); else save(); },
+  remove(id) { if (!S) return null; const d = state.docs.find(x => x.id === id); if (!d) return null; const snap = snapshot(); state.docs = state.docs.filter(x => x.id !== id); state.del[id] = Date.now(); commit(); return snap; },
+  snapshot: () => (S ? snapshot() : null),
+  restore: snap => { if (S && snap) restore(snap); },
+  name: () => (S ? state.settings.name : ''),
+  /** Offenen Punkt als Todo in den Planner übernehmen (z. B. „Lichtbildmappe fertigen“). */
+  addTodo(title, notes = '') { if (!S || !String(title || '').trim()) return null; const it = normItem({ id: uid(), title: String(title).trim(), notes: String(notes || ''), kind: 'todo', mode: 'einmalig' }); state.items.push(it); commit(); return it; },
+  toast, ask, openDlg, closeDlg, download, esc, uid, hm, pad, mobile: () => mobileMQ.matches,
+  bump
+});
 
 /* ======================= Start ======================= */
 function boot() {

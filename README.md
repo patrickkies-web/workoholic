@@ -1,6 +1,6 @@
 # Workoholic
 
-Arbeitsseite für Anfragen von Kollegen, eigene Todos und Aufgaben, mit Stempeluhr zum **Eindongeln / Ausdongeln**.
+Arbeitsseite für Anfragen von Kollegen, eigene Todos und Aufgaben, mit Stempeluhr zum **Eindongeln / Ausdongeln** – und dem Bereich **Schriftliche Arbeiten** zum Aufnehmen von Vorgängen per Antippen (derzeit: Verkehrsunfallflucht ohne Personenschaden).
 Alle Daten sind **Ende-zu-Ende verschlüsselt**. Synchronisiert wird über ein eigenes privates GitHub-Repo, das nur Chiffretext enthält.
 
 ---
@@ -33,7 +33,7 @@ Keine Software schützt gegen alles. Diese Punkte liegen bei dir:
 1. **Master-Passwort:** Nimm ein langes, das du nirgends sonst verwendest, am besten einen Satz aus mehreren Wörtern. Die App lässt nichts unter 12 Zeichen und keine schwachen Muster zu.
 2. **GitHub-Account mit Zwei-Faktor-Anmeldung (Passkey oder Authenticator) absichern – Pflicht!** Wer deinen GitHub-Account übernimmt, könnte den App-Code verändern und dein Passwort beim nächsten Entsperren abgreifen.
 3. **Gerät:** Gegen Schadsoftware, Keylogger oder jemanden, der an deinem *entsperrten* Gerät sitzt, hilft keine Verschlüsselung. Halte Betriebssystem und Browser aktuell.
-4. **CSV-Export** der Arbeitszeiten ist absichtlich Klartext (für Excel). Die App warnt vorher.
+4. **CSV-Export** der Arbeitszeiten und **Textexport** eines Vorgangs sind absichtlich Klartext. Die App warnt vorher.
 5. **Passwort und Wiederherstellungsschlüssel verloren = Daten verloren.** Das ist der Preis echter Ende-zu-Ende-Verschlüsselung: Niemand hat einen Generalschlüssel.
 
 ---
@@ -92,7 +92,15 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 - Landet als Todo im Planner (Filter „Buchungen“) und wird abgehakt, sobald du die Stunden im System eingetragen hast.
 - Schnellzugriff: Knopf *Stunden für Kollegen merken* im Überstunden-Konto.
 
-**Tastatur:** `N` neu · `/` suchen · `D` dongeln · `L` sperren · `Strg/⌘ + Enter` speichern
+**Schriftliche Arbeiten** (Umschalter oben bzw. Stift im Dock)
+- **Vorgang anlegen** → Modul wählen. Bisher: **Verkehrsunfallflucht ohne Personenschaden** (29 Schritte in 8 Phasen, viele davon nur bei Bedarf).
+- Fragen per Ja/Nein, Chips, Zahlen mit ±, Schnellwerten („Jetzt“, „Heute“, 50 km/h, 1.500 €); Karosserie-Picker für das Schadensbild; Personen- und Zeugenblöcke.
+- Unter jedem Schritt die Live-Vorschau „So steht es im Bericht“; jede Antwort wird sofort verschlüsselt gespeichert – unterbrechen und später weitermachen ist jederzeit möglich (auch nach Auto-Sperre).
+- Ergebnis: **Verkehrsunfallbefundbericht** nach Erlass-Gliederung (1 Allgemeines … 6 Sonstiges) mit passender Satzführung (Rolle, Geschlecht, Ein-/Mehrzahl, Zeitpunkt/Zeitraum), dazu **Kurzsachverhalt**, **Fahndungstext**, **Offene Punkte** (als Todos in den Planner übernehmbar) und ein gesonderter **Personalienblock**.
+- Kopieren in die Zwischenablage oder als `.txt` speichern (mit Warnung – Klartext). Platzhalter in `[eckigen Klammern]` zeigen, was noch fehlt.
+- Konzept, Rechtsgrundlagen und Fragenkatalog: [`docs/VUF-MASTERPLAN.md`](docs/VUF-MASTERPLAN.md).
+
+**Tastatur:** `N` neu · `/` suchen · `D` dongeln · `S` schreiben · `L` sperren · `Strg/⌘ + Enter` speichern bzw. weiter
 
 **Backups:** *⋯ → Verschlüsseltes Backup* speichert eine `.vault`-Datei. Einspielen geht per Zusammenführen oder Ersetzen.
 
@@ -102,7 +110,10 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 | --- | --- |
 | `index.html` | Oberfläche, Styles, Content-Security-Policy |
 | `js/vault.js` | Verschlüsselung, Schlüsselverwaltung, GitHub-Speicher |
-| `js/app.js` | App-Logik, Sync und Zusammenführen, Sperre |
+| `js/app.js` | App-Logik, Sync und Zusammenführen, Sperre, Brücke `WBridge` für Bereiche |
+| `js/writer.js` | Bereich „Schriftliche Arbeiten“: Vorgangsliste, Aufnahme-Assistent, Berichtsansicht |
+| `js/vuf.js` | Modul Verkehrsunfallflucht: Fragenkatalog und Textgenerator |
+| `docs/VUF-MASTERPLAN.md` | Masterplan: Grundlagen, Ablauf, Fragen, Satzführung, Sicherheit, Ausbau |
 | `vendor/hash-wasm/` | Argon2id (hash-wasm 4.12.0, MIT), unverändert aus npm |
 | `fonts/` | Inter Tight & Geist Mono (SIL Open Font License) |
 | `assets/`, `icons/`, `manifest.webmanifest` | Bild, App-Icons, Home-Bildschirm |

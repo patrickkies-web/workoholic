@@ -1,7 +1,7 @@
 {
   "name": "Workoholic",
   "short_name": "Workoholic",
-  "description": "Anfragen, Todos, Aufgaben und Stempeluhr – Ende-zu-Ende verschlüsselt.",
+  "description": "Anfragen, Todos, Aufgaben, Stempeluhr und schriftliche Arbeiten – Ende-zu-Ende verschlüsselt.",
   "lang": "de",
   "start_url": "./",
   "scope": "./",
