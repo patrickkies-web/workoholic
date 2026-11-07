@@ -8,13 +8,23 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="description" content="Workoholic – Anfragen, Todos, Aufgaben und Stempeluhr an einem Ort.">
+<meta name="description" content="Workoholic – Anfragen, Todos, Aufgaben und Stempeluhr. Ende-zu-Ende verschlüsselt.">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src https://api.github.com; manifest-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
 <title>Workoholic</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='11' fill='%23ebe7dc'/%3E%3Cg transform='rotate(-38 20 20)'%3E%3Crect x='8' y='15' width='24' height='10' rx='5' fill='%230d0d0e'/%3E%3Ccircle cx='13' cy='20' r='2.2' fill='%23ebe7dc'/%3E%3C/g%3E%3C/svg%3E">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@200;300;400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
 <style>
+/* Schriften lokal – keine Anfragen an fremde Server */
+@font-face{font-family:"Inter Tight";font-style:normal;font-weight:200;font-display:swap;src:url("fonts/inter-tight-latin-200-normal.woff2") format("woff2")}
+@font-face{font-family:"Inter Tight";font-style:normal;font-weight:300;font-display:swap;src:url("fonts/inter-tight-latin-300-normal.woff2") format("woff2")}
+@font-face{font-family:"Inter Tight";font-style:normal;font-weight:400;font-display:swap;src:url("fonts/inter-tight-latin-400-normal.woff2") format("woff2")}
+@font-face{font-family:"Inter Tight";font-style:normal;font-weight:500;font-display:swap;src:url("fonts/inter-tight-latin-500-normal.woff2") format("woff2")}
+@font-face{font-family:"Inter Tight";font-style:normal;font-weight:600;font-display:swap;src:url("fonts/inter-tight-latin-600-normal.woff2") format("woff2")}
+@font-face{font-family:"Geist Mono";font-style:normal;font-weight:400;font-display:swap;src:url("fonts/geist-mono-latin-400-normal.woff2") format("woff2")}
+@font-face{font-family:"Geist Mono";font-style:normal;font-weight:500;font-display:swap;src:url("fonts/geist-mono-latin-500-normal.woff2") format("woff2")}
 :root{
   color-scheme:dark;
   --bg:#0a0a0b;
@@ -401,6 +411,78 @@ textarea.input{height:auto;min-height:84px;padding:12px 14px;resize:vertical;lin
 /* ---------- Dock (mobile) ---------- */
 .dock{display:none}
 
+/* ---------- Tresor: Sperre & Einrichtung ---------- */
+.gate{display:none}
+.locked .app,.locked .dock{display:none}
+.locked .gate{display:grid}
+.gate{position:fixed;inset:0;z-index:150;place-items:center;padding:24px 16px calc(24px + env(safe-area-inset-bottom));overflow:auto;background:linear-gradient(180deg,rgba(10,10,11,.74),rgba(10,10,11,.95)),#151310 url("assets/hero.jpg") center/cover no-repeat}
+.gate-card{width:min(440px,100%);border-radius:32px;padding:26px;background:linear-gradient(180deg,rgba(34,34,36,.82),rgba(20,20,21,.9));border:1px solid var(--line-2);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px);box-shadow:0 40px 100px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.06)}
+.gate-top{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:26px}
+.gate-top .brand-logo{width:44px;height:44px}
+.gate-clock{flex:none;font-size:46px}
+.gate-h{font-size:32px;font-weight:400;letter-spacing:-.025em;line-height:1.1;margin-top:10px}
+.gate-p,.gate-msg{margin-top:10px;font-size:13.5px;color:var(--text-2);line-height:1.55}
+.gate-note{margin-top:12px;padding:10px 12px;border-radius:12px;background:var(--accent-soft);color:var(--accent);font-size:12.5px;line-height:1.5}
+.gate-input{height:50px;font-size:15px;margin-top:12px;border-radius:16px}
+.gate .f-label{margin-top:14px}
+.gate .f-label+.gate-input{margin-top:0}
+.gate-btn{width:100%;height:50px;margin-top:16px;font-size:14.5px}
+.gate-btn:disabled,.btn:disabled{opacity:.55;cursor:default;transform:none}
+.gate-err{min-height:18px;margin-top:8px;font-size:12.5px;color:var(--coral);line-height:1.45}
+.gate-links{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;margin-top:12px}
+.gate-foot{margin-top:22px;display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text-3);letter-spacing:.02em}
+.gate-foot svg.i{width:15px;height:15px;color:var(--lime)}
+.meter{height:4px;border-radius:2px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:10px}
+.meter i{display:block;height:100%;transform-origin:left;transform:scaleX(0);background:var(--coral);transition:transform .25s var(--ease-out),background-color .2s ease}
+.meter i[data-level="2"]{background:var(--accent)}
+.meter i[data-level="3"],.meter i[data-level="4"]{background:var(--lime)}
+.meter-lbl{margin-top:6px;font-size:11.5px;color:var(--text-3);min-height:16px}
+.rk{margin-top:16px;padding:16px;border-radius:16px;background:#0c0c0d;border:1px dashed rgba(236,217,111,.45);font:500 15px/1.75 var(--mono);color:var(--accent);letter-spacing:.04em;text-align:center;word-break:break-all;-webkit-user-select:all;user-select:all}
+.rk-row{display:flex;justify-content:flex-end;margin-top:8px}
+.check-line{display:flex;gap:10px;align-items:flex-start;margin-top:16px;font-size:13px;color:var(--text-2);cursor:pointer;line-height:1.45}
+.check-line input{width:18px;height:18px;accent-color:var(--accent);margin:1px 0 0;flex:none}
+details.adv{margin-top:12px}
+details.adv summary{cursor:pointer;font-size:12px;color:var(--text-3);list-style:none;display:inline-flex;align-items:center;gap:6px}
+details.adv summary::-webkit-details-marker{display:none}
+details.adv summary::before{content:"+";font:500 13px var(--mono)}
+details.adv[open] summary::before{content:"–"}
+
+/* ---------- Sync-Status & Sperre ---------- */
+.sync-pill{position:relative;display:inline-flex;align-items:center;gap:8px;height:40px;padding:0 14px 0 12px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--text-2);font-size:12.5px;white-space:nowrap;transition:transform .16s var(--ease-out),background-color .15s ease,color .15s ease,border-color .15s ease}
+.sync-pill:active{transform:scale(.97)}
+.sync-pill svg.i{width:16px;height:16px;color:var(--lime)}
+.sdot{width:7px;height:7px;border-radius:50%;background:#5a5a5c;flex:none}
+.sync-pill[data-s=ok] .sdot{background:var(--lime);box-shadow:0 0 8px rgba(198,220,122,.6)}
+.sync-pill[data-s=busy] .sdot{background:var(--accent);animation:pulse 1.2s ease-in-out infinite}
+.sync-pill[data-s=error]{color:var(--coral);border-color:rgba(240,135,106,.35)}
+.sync-pill[data-s=error] .sdot{background:var(--coral)}
+@media (hover:hover) and (pointer:fine){.sync-pill:hover{background:rgba(255,255,255,.09);color:var(--text)}}
+.sec-hero{display:flex;gap:14px;align-items:center;padding:14px 16px;border-radius:18px;background:linear-gradient(135deg,rgba(198,220,122,.13),rgba(198,220,122,.03));border:1px solid rgba(198,220,122,.22)}
+.sec-hero svg.i{width:26px;height:26px;color:var(--lime)}
+.sec-hero b{display:block;font-weight:500;font-size:14px}
+.sec-hero span{display:block;margin-top:2px;font-size:12px;color:var(--text-2);line-height:1.45}
+.sec{margin-top:20px;padding-top:18px;border-top:1px solid var(--line)}
+.sec h4{margin:0;font-size:14px;font-weight:500}
+.sec .f-label{margin-top:12px}
+.sec-status{font-size:12.5px;color:var(--text-2);padding:9px 12px;border-radius:12px;background:rgba(255,255,255,.04);margin:10px 0 2px;line-height:1.45}
+.sec-status[data-s=ok]{color:var(--lime)}
+.sec-status[data-s=error]{color:var(--coral);background:var(--coral-soft)}
+.sec-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.sec-err{color:var(--coral);font-size:12.5px;margin-top:8px;line-height:1.45}
+.sec-err:empty{display:none}
+.sec .input+.input{margin-top:8px}
+.hint a{color:var(--accent)}
+.ask-p{font-size:13.5px;color:var(--text-2);line-height:1.55;margin-top:2px}
+#askPw{margin-top:14px}
+@media (max-width:760px){
+  .topbar{gap:8px}
+  .sync-pill{width:40px;padding:0;justify-content:center;flex:none}
+  .sync-pill #syncLbl{display:none}
+  .sync-pill .sdot{position:absolute;top:7px;right:7px}
+  .gate-card{padding:22px;border-radius:28px}
+  .gate-h{font-size:28px}
+}
+
 /* ---------- Responsive ---------- */
 @media (max-width:1239px){
   .grid{grid-template-columns:340px minmax(0,1fr);grid-template-areas:"left main" "right main"}
@@ -450,8 +532,98 @@ textarea.input{height:auto;min-height:84px;padding:12px 14px;resize:vertical;lin
 }
 </style>
 </head>
-<body data-tab="aufgaben">
+<body data-tab="aufgaben" class="locked">
 <div class="backdrop" aria-hidden="true"></div>
+
+<div class="gate" id="gate" aria-labelledby="gateTitle">
+  <div class="gate-card">
+    <div class="gate-top"><svg class="brand-logo" viewBox="0 0 40 40" aria-hidden="true"><defs><linearGradient id="lg2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f3f0e8"/><stop offset="1" stop-color="#cbc7bb"/></linearGradient></defs><rect width="40" height="40" rx="11" fill="url(#lg2)"/><g transform="rotate(-38 20 20)"><rect x="8" y="15" width="24" height="10" rx="5" fill="#0d0d0e"/><circle cx="13" cy="20" r="2.2" fill="#e9e6db"/></g></svg><div class="digits gate-clock" id="gateClock" aria-hidden="true">00:00</div></div>
+
+    <form data-gate="lock" id="gLock" novalidate hidden>
+      <span class="spaced">Tresor gesperrt</span>
+      <h1 class="gate-h" id="gateTitle">Willkommen zurück.</h1>
+      <p class="gate-msg" id="gLockMsg">Gib dein Master-Passwort ein. Entschlüsselt wird ausschließlich auf diesem Gerät.</p>
+      <input class="sr" type="text" name="username" autocomplete="username" value="Workoholic-Tresor" tabindex="-1" aria-hidden="true">
+      <label class="sr" for="gLockPw">Master-Passwort</label>
+      <input class="input gate-input" id="gLockPw" type="password" autocomplete="current-password" placeholder="Master-Passwort" enterkeyhint="go">
+      <p class="gate-err" role="alert"></p>
+      <button class="btn btn-accent gate-btn" type="submit">Entsperren</button>
+      <div class="gate-links"><button type="button" class="link" data-goto="recover">Passwort vergessen?</button><button type="button" class="link" data-goto="forget">Tresor von diesem Gerät entfernen</button></div>
+    </form>
+
+    <form data-gate="setup" id="gSetup" novalidate hidden>
+      <span class="spaced">Ersteinrichtung</span>
+      <h1 class="gate-h">Dein Tresor.</h1>
+      <p class="gate-p">Alles wird auf diesem Gerät mit AES-256 verschlüsselt, bevor es gespeichert oder synchronisiert wird. Den Schlüssel kennt nur dein Master-Passwort – nicht GitHub, nicht der Browser-Hersteller, niemand sonst.</p>
+      <p class="gate-note" id="gLegacy" hidden>Deine bisherigen Einträge werden verschlüsselt übernommen und unverschlüsselt gelöscht.</p>
+      <input class="sr" type="text" name="username" autocomplete="username" value="Workoholic-Tresor" tabindex="-1" aria-hidden="true">
+      <label class="f-label" for="gsPw1">Master-Passwort</label>
+      <input class="input gate-input" id="gsPw1" type="password" autocomplete="new-password" placeholder="Mindestens 12 Zeichen – gern ein ganzer Satz">
+      <div class="meter" aria-hidden="true"><i id="gsMeter"></i></div><p class="meter-lbl" id="gsMeterLbl" aria-live="polite"></p>
+      <label class="sr" for="gsPw2">Master-Passwort wiederholen</label>
+      <input class="input gate-input" id="gsPw2" type="password" autocomplete="new-password" placeholder="Wiederholen">
+      <p class="gate-err" role="alert"></p>
+      <button class="btn btn-accent gate-btn" type="submit">Tresor anlegen</button>
+      <div class="gate-links"><button type="button" class="link" data-goto="connect">Ich habe schon einen Tresor auf einem anderen Gerät →</button></div>
+    </form>
+
+    <div data-gate="rkshow" hidden>
+      <span class="spaced">Wichtig · nur einmal sichtbar</span>
+      <h1 class="gate-h">Wiederherstellungs&shy;schlüssel</h1>
+      <p class="gate-p">Vergisst du dein Master-Passwort, ist das der einzige Weg zurück – niemand kann dir sonst helfen. Schreib ihn auf Papier oder leg ihn in deinen Passwort-Manager.</p>
+      <div class="rk" id="gRk"></div>
+      <div class="rk-row"><button type="button" class="btn btn-ghost btn-sm" id="gRkCopy">Kopieren</button></div>
+      <label class="check-line"><input type="checkbox" id="gRkOk"> Ich habe den Schlüssel sicher aufbewahrt.</label>
+      <button class="btn btn-accent gate-btn" type="button" id="gRkGo" disabled>Weiter</button>
+    </div>
+
+    <form data-gate="connect" id="gConnect" novalidate hidden>
+      <span class="spaced">Gerät verbinden</span>
+      <h1 class="gate-h">Tresor holen.</h1>
+      <p class="gate-p">Lädt deinen verschlüsselten Tresor aus deinem privaten GitHub-Repo und entschlüsselt ihn hier mit deinem Master-Passwort.</p>
+      <label class="f-label" for="gcRepo">Privates Repo</label>
+      <input class="input gate-input" id="gcRepo" placeholder="besitzer/workoholic-tresor" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <label class="f-label" for="gcToken">GitHub-Token</label>
+      <input class="input gate-input" id="gcToken" type="password" placeholder="github_pat_…" autocomplete="off">
+      <details class="adv"><summary>Branch &amp; Datei</summary>
+        <div class="row2"><div><label class="f-label" for="gcBranch">Branch</label><input class="input" id="gcBranch" placeholder="Standard" autocomplete="off" autocapitalize="off"></div><div><label class="f-label" for="gcPath">Datei</label><input class="input" id="gcPath" placeholder="workoholic.vault" autocomplete="off" autocapitalize="off"></div></div>
+      </details>
+      <input class="sr" type="text" name="username" autocomplete="username" value="Workoholic-Tresor" tabindex="-1" aria-hidden="true">
+      <label class="f-label" for="gcPw">Master-Passwort</label>
+      <input class="input gate-input" id="gcPw" type="password" autocomplete="current-password" placeholder="Master-Passwort">
+      <p class="gate-err" role="alert"></p>
+      <button class="btn btn-accent gate-btn" type="submit">Verbinden &amp; entsperren</button>
+      <div class="gate-links"><button type="button" class="link" data-goto="setup">← Neuen Tresor anlegen</button></div>
+    </form>
+
+    <form data-gate="recover" id="gRecover" novalidate hidden>
+      <span class="spaced">Wiederherstellung</span>
+      <h1 class="gate-h">Neues Passwort.</h1>
+      <p class="gate-p">Mit deinem Wiederherstellungsschlüssel setzt du ein neues Master-Passwort. Deine Daten bleiben unverändert.</p>
+      <label class="f-label" for="grKey">Wiederherstellungsschlüssel</label>
+      <input class="input gate-input mono" id="grKey" placeholder="XXXX-XXXX-XXXX-…" autocomplete="off" autocapitalize="characters" spellcheck="false">
+      <input class="sr" type="text" name="username" autocomplete="username" value="Workoholic-Tresor" tabindex="-1" aria-hidden="true">
+      <label class="f-label" for="grPw1">Neues Master-Passwort</label>
+      <input class="input gate-input" id="grPw1" type="password" autocomplete="new-password" placeholder="Mindestens 12 Zeichen">
+      <div class="meter" aria-hidden="true"><i id="grMeter"></i></div><p class="meter-lbl" id="grMeterLbl" aria-live="polite"></p>
+      <label class="sr" for="grPw2">Wiederholen</label>
+      <input class="input gate-input" id="grPw2" type="password" autocomplete="new-password" placeholder="Wiederholen">
+      <p class="gate-err" role="alert"></p>
+      <button class="btn btn-accent gate-btn" type="submit">Passwort setzen &amp; entsperren</button>
+      <div class="gate-links"><button type="button" class="link" data-goto="lock">← Zurück</button></div>
+    </form>
+
+    <div data-gate="forget" hidden>
+      <span class="spaced">Gerät zurücksetzen</span>
+      <h1 class="gate-h">Tresor entfernen?</h1>
+      <p class="gate-p">Löscht den verschlüsselten Tresor von diesem Gerät. Ist er mit GitHub synchronisiert, bleibt er dort erhalten und du verbindest dich einfach neu. Ohne Sync oder Backup sind die Daten danach weg.</p>
+      <button class="btn btn-ghost btn-danger gate-btn" type="button" id="gForgetGo">Von diesem Gerät entfernen</button>
+      <div class="gate-links"><button type="button" class="link" data-goto="lock">← Abbrechen</button></div>
+    </div>
+
+    <p class="gate-foot"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5.5c0 4.3-2.9 8-7 9.5-4.1-1.5-7-5.2-7-9.5V6z"/><path d="M9 12l2 2 4-4"/></svg>Ende-zu-Ende verschlüsselt · AES-256-GCM · Argon2id</p>
+  </div>
+</div>
 
 <div class="app">
   <header class="topbar">
@@ -462,24 +634,29 @@ textarea.input{height:auto;min-height:84px;padding:12px 14px;resize:vertical;lin
     <div class="grow"></div>
     <label class="search" id="searchBox" aria-label="Suchen">
       <svg class="i" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>
-      <input id="search" type="search" placeholder="Suchen in Titel, Notizen, Personen …" autocomplete="off" enterkeyhint="search">
+      <input id="search" type="search" spellcheck="false" placeholder="Suchen in Titel, Notizen, Personen …" autocomplete="off" enterkeyhint="search">
       <span class="kbd">/</span>
     </label>
     <button class="btn btn-accent" id="newBtn" type="button"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Neu</button>
+    <button class="sync-pill" id="syncPill" type="button" data-s="off" aria-label="Sicherheit und Synchronisierung"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5.5c0 4.3-2.9 8-7 9.5-4.1-1.5-7-5.2-7-9.5V6z"/><path d="M9 12l2 2 4-4"/></svg><span id="syncLbl">Nur lokal</span><i class="sdot" aria-hidden="true"></i></button>
+    <button class="icon-btn" id="lockBtn" type="button" aria-label="Jetzt sperren (L)" title="Jetzt sperren (L)"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></svg></button>
     <div class="menu-wrap">
       <button class="icon-btn" id="menuBtn" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="menu" aria-label="Einstellungen und Daten"><svg class="i" viewBox="0 0 24 24"><circle cx="5.5" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.3" fill="currentColor" stroke="none"/></svg></button>
       <div class="menu" id="menu" role="menu">
-        <div class="menu-field"><label for="setName">Dein Name</label><input class="input" id="setName" placeholder="optional" maxlength="40" autocomplete="given-name"></div>
+        <div class="menu-field"><label for="setName">Dein Name</label><input class="input" id="setName" placeholder="optional" maxlength="40" autocomplete="off" spellcheck="false"></div>
         <div class="menu-field"><label for="setTarget">Tagessoll (Std)</label><input class="input" id="setTarget" type="number" min="0" max="24" step="0.25" inputmode="decimal"></div>
         <div class="menu-sep"></div>
+        <button class="menu-item" role="menuitem" data-menu="security"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5.5c0 4.3-2.9 8-7 9.5-4.1-1.5-7-5.2-7-9.5V6z"/><path d="M9 12l2 2 4-4"/></svg>Sicherheit &amp; Sync …</button>
+        <button class="menu-item" role="menuitem" data-menu="lock"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></svg>Jetzt sperren</button>
+        <div class="menu-sep"></div>
+        <button class="menu-item" role="menuitem" data-menu="export"><svg class="i" viewBox="0 0 24 24"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>Verschlüsseltes Backup</button>
+        <button class="menu-item" role="menuitem" data-menu="import"><svg class="i" viewBox="0 0 24 24"><path d="M12 20V9M7 13.5l5-5 5 5M5 4h14"/></svg>Backup einspielen …</button>
         <button class="menu-item" role="menuitem" data-menu="csv"><svg class="i" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M4 10h16M10 10v10"/></svg>Arbeitszeiten als CSV</button>
-        <button class="menu-item" role="menuitem" data-menu="export"><svg class="i" viewBox="0 0 24 24"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>Backup exportieren</button>
-        <button class="menu-item" role="menuitem" data-menu="import"><svg class="i" viewBox="0 0 24 24"><path d="M12 20V9M7 13.5l5-5 5 5M5 4h14"/></svg>Backup importieren …</button>
         <button class="menu-item" role="menuitem" data-menu="cleardone"><svg class="i" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Erledigte entfernen</button>
         <button class="menu-item" role="menuitem" data-menu="demo"><svg class="i" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></svg>Beispieldaten laden</button>
         <div class="menu-sep"></div>
         <button class="menu-item danger" role="menuitem" data-menu="wipe"><svg class="i" viewBox="0 0 24 24"><path d="M4.5 7h15M10 11v6M14 11v6M6.5 7l1 12.5a1.5 1.5 0 0 0 1.5 1.4h6a1.5 1.5 0 0 0 1.5-1.4l1-12.5M9.5 7V4.5h5V7"/></svg>Alles löschen …</button>
-        <div class="menu-foot">Tastatur: <b>N</b> neu · <b>/</b> suchen · <b>D</b> dongeln<br>Daten bleiben lokal in diesem Browser.</div>
+        <div class="menu-foot">Tastatur: <b>N</b> neu · <b>/</b> suchen · <b>D</b> dongeln · <b>L</b> sperren<br>Ende-zu-Ende verschlüsselt (AES-256 · Argon2id).</div>
       </div>
     </div>
   </header>
@@ -545,7 +722,7 @@ textarea.input{height:auto;min-height:84px;padding:12px 14px;resize:vertical;lin
           <form class="quick" id="quick" autocomplete="off">
             <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1-4L16 5a2.1 2.1 0 0 1 3 3L8 19z"/></svg>
             <label class="sr" for="quickInput">Schnell erfassen</label>
-            <input id="quickInput" placeholder="Schnell erfassen … z. B. @Sabine Zahlen schicken !" enterkeyhint="done">
+            <input id="quickInput" spellcheck="false" autocomplete="off" placeholder="Schnell erfassen … z. B. @Sabine Zahlen schicken !" enterkeyhint="done">
             <button class="quick-go" type="submit" aria-label="Hinzufügen"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
           </form>
           <p class="quick-hint"><b>@Name</b> → Anfrage von Name · <b>!</b> → schnellstmöglich · <b>#aufgabe</b> / <b>#todo</b> · <b>⇧ Enter</b> → mit Details</p>
@@ -600,7 +777,7 @@ textarea.input{height:auto;min-height:84px;padding:12px 14px;resize:vertical;lin
   <form class="sheet" id="cForm" autocomplete="off" novalidate>
     <div class="sheet-head"><h3 id="cHeading">Neuer Eintrag</h3><button type="button" class="icon-btn sm" data-close aria-label="Schließen"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <label class="sr" for="cTitle">Titel</label>
-    <input class="c-title" id="cTitle" placeholder="Was steht an?" maxlength="300" enterkeyhint="done">
+    <input class="c-title" id="cTitle" placeholder="Was steht an?" maxlength="300" enterkeyhint="done" spellcheck="false" autocomplete="off">
 
     <span class="f-label" id="lblKind">Art</span>
     <div class="seg" data-seg="kind" role="group" aria-labelledby="lblKind">
@@ -611,7 +788,7 @@ textarea.input{height:auto;min-height:84px;padding:12px 14px;resize:vertical;lin
 
     <div id="fromRow">
       <label class="f-label" for="cFrom" id="lblFrom">Von wem?</label>
-      <input class="input" id="cFrom" list="people" placeholder="Name der Kollegin / des Kollegen" maxlength="60">
+      <input class="input" id="cFrom" list="people" spellcheck="false" autocomplete="off" placeholder="Name der Kollegin / des Kollegen" maxlength="60">
       <datalist id="people"></datalist>
     </div>
 
@@ -659,7 +836,7 @@ textarea.input{height:auto;min-height:84px;padding:12px 14px;resize:vertical;lin
     </div>
 
     <label class="f-label" for="cNotes">Notizen</label>
-    <textarea class="input" id="cNotes" placeholder="Details, Links, Ansprechpartner …"></textarea>
+    <textarea class="input" id="cNotes" spellcheck="false" autocomplete="off" placeholder="Details, Links, Ansprechpartner …"></textarea>
     <p class="sheet-stats" id="cStats" hidden></p>
 
     <div class="sheet-foot">
@@ -691,1216 +868,89 @@ textarea.input{height:auto;min-height:84px;padding:12px 14px;resize:vertical;lin
   </form>
 </dialog>
 
-<input type="file" id="importFile" accept="application/json,.json" hidden>
-
-<script>
-(() => {
-'use strict';
-
-/* ======================= Helpers ======================= */
-const MIN = 6e4, HOUR = 36e5, DAY = 864e5;
-const KEY = 'workoholic:v1';
-const $ = (s, r = document) => r.querySelector(s);
-const $$ = (s, r = document) => [...r.querySelectorAll(s)];
-const pad = n => String(n).padStart(2, '0');
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
-const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
-const mobileMQ = matchMedia('(max-width: 760px)');
-
-const WD = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
-const WDL = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
-const MON = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
-const MONL = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
-
-const sod = t => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
-const addDays = (t, n) => { const d = new Date(t); d.setDate(d.getDate() + n); return d.getTime(); };
-const eod = t => addDays(sod(t), 1);
-const dayKey = t => { const d = new Date(t); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
-const fromKey = k => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d).getTime(); };
-const weekStart = t => { const d = new Date(sod(t)); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.getTime(); };
-const isoWeek = t => { const d = new Date(sod(t)); d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7)); const w1 = new Date(d.getFullYear(), 0, 4); return 1 + Math.round(((d - w1) / DAY - 3 + ((w1.getDay() + 6) % 7)) / 7); };
-const hm = t => { const d = new Date(t); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
-const dur = ms => { const m = Math.floor(Math.max(0, ms) / MIN); return `${Math.floor(m / 60)}:${pad(m % 60)}`; };
-const durWords = min => {
-  if (min >= 480 && min % 480 === 0) return `${min / 480} ${min === 480 ? 'Tag' : 'Tage'}`;
-  if (min < 60) return `${min} Min`;
-  const h = Math.floor(min / 60), m = min % 60;
-  return m ? `${h} Std ${m} Min` : `${h} Std`;
-};
-const dateShort = t => { const d = new Date(t); return `${WD[d.getDay()]} ${d.getDate()}.${d.getMonth() + 1}.`; };
-const dueLabel = t => {
-  const diffDays = Math.round((sod(t) - sod(Date.now())) / DAY);
-  const time = hm(t);
-  if (diffDays === 0) return `heute, ${time}`;
-  if (diffDays === 1) return `morgen, ${time}`;
-  if (diffDays === -1) return `gestern, ${time}`;
-  if (diffDays > 1 && diffDays < 7) return `${WD[new Date(t).getDay()]}, ${time}`;
-  return `${dateShort(t)}, ${time}`;
-};
-const rel = ms => {
-  const m = Math.round(ms / MIN);
-  if (m < 1) return 'jetzt';
-  if (m < 60) return `${m} Min`;
-  const h = Math.floor(m / 60), mm = m % 60;
-  if (h < 6) return mm ? `${h} Std ${mm} Min` : `${h} Std`;
-  if (h < 48) return `${h} Std`;
-  const d = Math.floor(h / 24), hh = h % 24;
-  if (d < 7) return hh ? `${d} T ${hh} Std` : `${d} T`;
-  return `${d} Tage`;
-};
-const toLocalInput = t => { if (t == null) return ''; const d = new Date(t); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
-const parseLocal = v => { const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(v || ''); return m ? new Date(+m[1], m[2] - 1, +m[3], +m[4], +m[5]).getTime() : null; };
-const at = (dayOffset, h, m = 0) => { const d = new Date(); d.setDate(d.getDate() + dayOffset); d.setHours(h, m, 0, 0); return d.getTime(); };
-const nextWeekday = (wd, h) => { const d = new Date(); let add = (wd - d.getDay() + 7) % 7; if (add === 0 && d.getHours() >= h) add = 7; d.setDate(d.getDate() + add); d.setHours(h, 0, 0, 0); return d.getTime(); };
-const defaultDue = () => new Date().getHours() < 16 ? at(0, 17) : at(1, 12);
-const initials = name => { const w = String(name).trim().split(/\s+/).filter(Boolean); if (!w.length) return '?'; if (w.length === 1) return w[0].slice(0, 2).replace(/^./, c => c.toUpperCase()); return (w[0][0] + w[1][0]).toUpperCase(); };
-const firstLine = s => String(s).split('\n')[0].slice(0, 80);
-const norm = s => String(s || '').toLocaleLowerCase('de').normalize('NFD').replace(/[̀-ͯ]/g, '');
-
-const ICONS = {
-  plus: '<path d="M12 5v14M5 12h14"/>',
-  check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
-  play: '<path d="M8 5.5v13l11-6.5z" fill="currentColor" stroke="none"/>',
-  pause: '<path d="M8.5 5.5v13M15.5 5.5v13" stroke-width="3"/>',
-  user: '<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c1.2-3.6 4-5.5 7-5.5s5.8 1.9 7 5.5"/>',
-  todo: '<circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.2l2.4 2.4 4.6-4.8"/>',
-  brief: '<rect x="3.5" y="7" width="17" height="12.5" rx="2.5"/><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7M3.5 12.5h17"/>',
-  bolt: '<path d="M13 3L5 13.5h6L10.5 21 19 10h-6z"/>',
-  flag: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',
-  repeat: '<path d="M17 3l3 3-3 3"/><path d="M4 11V9a3 3 0 0 1 3-3h13"/><path d="M7 21l-3-3 3-3"/><path d="M20 13v2a3 3 0 0 1-3 3H4"/>',
-  hour: '<path d="M7 3.5h10M7 20.5h10M8 3.5v2.5c0 2.2 4 4 4 6s-4 3.8-4 6v2.5M16 3.5v2.5c0 2.2-4 4-4 6s4 3.8 4 6v2.5"/>',
-  edit: '<path d="M4 20l1-4L16 5a2.1 2.1 0 0 1 3 3L8 19z"/>',
-  x: '<path d="M6 6l12 12M18 6L6 18"/>',
-  chev: '<path d="M9.5 6l6 6-6 6"/>',
-  clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>'
-};
-const ico = n => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
-
-const KINDS = {
-  anfrage: { label: 'Anfrage', plural: 'Anfragen', icon: 'user' },
-  todo: { label: 'Todo', plural: 'Todos', icon: 'todo' },
-  aufgabe: { label: 'Aufgabe', plural: 'Aufgaben', icon: 'brief' }
-};
-const MODES = { einmalig: 'Einmalig', deadline: 'Ultimatum', dauer: 'Dauer', asap: 'Schnellstmöglich', repeat: 'Wiederkehrend' };
-const STATUS = { offen: 'Offen', inarbeit: 'In Arbeit', wartet: 'Wartet' };
-const REPEATS = { daily: 'täglich', weekdays: 'werktags', weekly: 'wöchentlich', monthly: 'monatlich' };
-
-/* ======================= State ======================= */
-const blank = () => ({ v: 1, items: [], stamps: [], settings: { targetMin: 480, name: '' } });
-const num = v => (typeof v === 'number' && Number.isFinite(v)) ? v : null;
-
-function normItem(x) {
-  const now = Date.now();
-  const it = {
-    id: String(x.id || uid()),
-    title: String(x.title || '').slice(0, 300),
-    notes: String(x.notes || '').slice(0, 5000),
-    kind: KINDS[x.kind] ? x.kind : 'todo',
-    from: String(x.from || '').slice(0, 60),
-    mode: MODES[x.mode] ? x.mode : 'einmalig',
-    due: num(x.due),
-    durMin: num(x.durMin) && x.durMin > 0 ? Math.round(x.durMin) : null,
-    spentMs: num(x.spentMs) || 0,
-    timerStart: num(x.timerStart),
-    repeat: REPEATS[x.repeat] ? x.repeat : null,
-    repDay: num(x.repDay),
-    status: STATUS[x.status] ? x.status : 'offen',
-    done: !!x.done,
-    doneAt: num(x.doneAt),
-    doneCount: num(x.doneCount) || 0,
-    lastDone: num(x.lastDone),
-    createdAt: num(x.createdAt) || now,
-    updatedAt: num(x.updatedAt) || now
-  };
-  if (it.mode === 'repeat' && !it.repeat) it.repeat = 'daily';
-  if ((it.mode === 'deadline' || it.mode === 'repeat') && it.due == null) it.mode = 'einmalig';
-  if (it.mode === 'asap' || it.mode === 'einmalig') it.due = null;
-  if (it.mode !== 'repeat') { it.repeat = null; it.repDay = null; }
-  return it;
-}
-
-function normalize(s) {
-  const b = blank();
-  if (!s || typeof s !== 'object') return b;
-  b.items = (Array.isArray(s.items) ? s.items : []).filter(x => x && x.title).map(normItem);
-  b.stamps = (Array.isArray(s.stamps) ? s.stamps : [])
-    .filter(x => x && num(x.in) != null)
-    .map(x => ({ id: String(x.id || uid()), in: x.in, out: num(x.out) }))
-    .filter(x => x.out == null || x.out > x.in)
-    .sort((a, c) => a.in - c.in);
-  // only the latest stamp may be open
-  b.stamps.forEach((st, i) => { if (st.out == null && i < b.stamps.length - 1) st.out = b.stamps[i + 1].in; });
-  const se = s.settings || {};
-  b.settings.targetMin = clamp(Math.round(Number(se.targetMin)) || 0, 0, 24 * 60);
-  if (!Number.isFinite(Number(se.targetMin))) b.settings.targetMin = 480;
-  b.settings.name = String(se.name || '').slice(0, 40);
-  return b;
-}
-
-function load() {
-  try { return normalize(JSON.parse(localStorage.getItem(KEY) || 'null')); }
-  catch (e) { return blank(); }
-}
-let state = load();
-let saveTimer = null;
-function flush() {
-  if (!saveTimer) return;
-  clearTimeout(saveTimer); saveTimer = null;
-  try { localStorage.setItem(KEY, JSON.stringify(state)); }
-  catch (e) { toast('Speichern nicht möglich – Browser-Speicher gesperrt oder voll.'); }
-}
-const save = () => { clearTimeout(saveTimer); saveTimer = setTimeout(flush, 120); };
-addEventListener('pagehide', flush);
-document.addEventListener('visibilitychange', () => { if (document.hidden) flush(); });
-addEventListener('storage', e => { if (e.key === KEY) { state = load(); renderAll(); } });
-const commit = () => { save(); renderAll(); };
-const snapshot = () => JSON.stringify(state);
-const restore = snap => { state = normalize(JSON.parse(snap)); commit(); };
-const find = id => state.items.find(i => i.id === id);
-
-/* ======================= UI state ======================= */
-const ui = { kind: 'alle', q: '', day: null, person: null, selDay: null, calMonth: null, openDone: false };
-
-/* ======================= Time tracking ======================= */
-const openStamp = () => { const l = state.stamps[state.stamps.length - 1]; return l && l.out == null ? l : null; };
-function workedIn(a, b, now = Date.now()) {
-  let s = 0;
-  for (const st of state.stamps) {
-    const x = Math.max(st.in, a), y = Math.min(st.out ?? now, b);
-    if (y > x) s += y - x;
-  }
-  return s;
-}
-function dayInfo(t, now = Date.now()) {
-  const a = sod(t), b = eod(t);
-  const sts = state.stamps.filter(st => (st.out ?? now) > a && st.in < b);
-  const worked = workedIn(a, b, now);
-  let pause = 0;
-  if (sts.length) {
-    const first = Math.max(sts[0].in, a);
-    const lastEnd = Math.min(sts[sts.length - 1].out ?? now, b);
-    pause = Math.max(0, (lastEnd - first) - worked);
-  }
-  return { a, b, sts, worked, pause };
-}
-const requiredPause = ms => ms > 9 * HOUR ? 45 * MIN : ms > 6 * HOUR ? 30 * MIN : 0;
-
-function stopTimers(now) {
-  for (const i of state.items) if (i.timerStart) { i.spentMs += now - i.timerStart; i.timerStart = null; }
-}
-const spentOf = (it, now = Date.now()) => it.spentMs + (it.timerStart ? now - it.timerStart : 0);
-
-function toggleClock() {
-  const now = Date.now(), snap = snapshot(), open = openStamp();
-  if (open) {
-    open.out = now;
-    const running = state.items.some(i => i.timerStart);
-    stopTimers(now);
-    commit();
-    const long = now - open.in > 14 * HOUR;
-    toast(long ? `Ausgedongelt – Session lief ${dur(now - open.in)} h. Bitte prüfen.` : `Ausgedongelt · ${dur(now - open.in)} h${running ? ' · Timer gestoppt' : ''}`,
-      long ? { action: { label: 'Korrigieren', fn: () => openStampEditor(open.id) } } : { undo: snap });
-  } else {
-    state.stamps.push({ id: uid(), in: now, out: null });
-    commit();
-    toast(`Eingedongelt um ${hm(now)}`, { undo: snap });
-  }
-  if (navigator.vibrate) navigator.vibrate(12);
-}
-
-/* ======================= Items ======================= */
-const dueOf = it => (it.mode === 'deadline' || it.mode === 'repeat' || it.mode === 'dauer') ? it.due : null;
-
-function nextOcc(t, rep, repDay) {
-  const d = new Date(t);
-  if (rep === 'daily') d.setDate(d.getDate() + 1);
-  else if (rep === 'weekdays') { do { d.setDate(d.getDate() + 1); } while (d.getDay() === 0 || d.getDay() === 6); }
-  else if (rep === 'weekly') d.setDate(d.getDate() + 7);
-  else if (rep === 'monthly') {
-    const want = repDay || d.getDate();
-    d.setDate(1); d.setMonth(d.getMonth() + 1);
-    d.setDate(Math.min(want, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
-  } else d.setDate(d.getDate() + 1);
-  return d.getTime();
-}
-
-function rank(it, now) {
-  // [tier, value] – lower = more urgent
-  if (it.mode === 'asap') return [0, it.createdAt];
-  if (it.timerStart) return [1, 0];
-  const d = dueOf(it);
-  if (d != null && d < eod(now)) return [2, d];
-  if (it.status === 'inarbeit') return [3, it.createdAt];
-  if (d != null) return [4, d];
-  if (it.status === 'wartet') return [6, it.createdAt];
-  return [5, it.createdAt];
-}
-const byRank = now => (a, b) => { const x = rank(a, now), y = rank(b, now); return x[0] - y[0] || x[1] - y[1]; };
-
-function groupOf(it, now) {
-  if (it.done) return 'done';
-  if (it.mode === 'asap') return 'asap';
-  const d = dueOf(it);
-  if (d != null) { if (d < now) return 'overdue'; if (d < eod(now)) return 'today'; return 'soon'; }
-  return 'open';
-}
-const GROUPS = [['asap', 'Schnellstmöglich'], ['overdue', 'Überfällig'], ['today', 'Heute'], ['soon', 'Demnächst'], ['open', 'Ohne Termin'], ['done', 'Erledigt']];
-
-function completeItem(id) {
-  const it = find(id); if (!it) return;
-  const snap = snapshot(), now = Date.now();
-  if (it.timerStart) { it.spentMs += now - it.timerStart; it.timerStart = null; }
-  if (it.mode === 'repeat' && !it.done) {
-    let n = nextOcc(it.due, it.repeat, it.repDay);
-    while (n <= now) n = nextOcc(n, it.repeat, it.repDay);
-    it.due = n; it.doneCount++; it.lastDone = now; it.status = 'offen'; it.spentMs = 0; it.updatedAt = now;
-    commit(); toast(`Erledigt · wieder fällig ${dueLabel(n)}`, { undo: snap });
-    return;
-  }
-  it.done = !it.done; it.doneAt = it.done ? now : null; it.updatedAt = now;
-  if (it.done) it.status = 'offen';
-  commit();
-  toast(it.done ? `Erledigt: ${it.title}` : 'Wieder offen', { undo: snap });
-}
-function completeWithFeedback(id, btn) {
-  const row = btn && btn.closest('.item');
-  const it = find(id);
-  if (!row || !it || it.done || reduceMotion.matches) return completeItem(id);
-  btn.classList.add('on'); row.classList.add('completing');
-  setTimeout(() => completeItem(id), 260);
-}
-function toggleTimer(id) {
-  const it = find(id); if (!it) return;
-  const now = Date.now();
-  if (it.timerStart) { it.spentMs += now - it.timerStart; it.timerStart = null; commit(); return; }
-  stopTimers(now);
-  it.timerStart = now;
-  if (it.status === 'offen') it.status = 'inarbeit';
-  commit();
-  if (!openStamp()) toast('Timer läuft – du bist aber nicht eingedongelt.', { action: { label: 'Eindongeln', fn: toggleClock } });
-}
-function removeItem(id) {
-  const snap = snapshot();
-  state.items = state.items.filter(i => i.id !== id);
-  commit(); toast('Eintrag gelöscht', { undo: snap });
-}
-
-/* ======================= Toasts ======================= */
-function toast(msg, opt = {}) {
-  const host = $('#toasts');
-  const el = document.createElement('div');
-  el.className = 'toast'; el.setAttribute('role', 'status');
-  const span = document.createElement('span'); span.textContent = msg; el.append(span);
-  let timer;
-  const close = () => { clearTimeout(timer); el.classList.add('out'); setTimeout(() => el.remove(), 170); };
-  if (opt.undo) { const b = document.createElement('button'); b.type = 'button'; b.textContent = 'Rückgängig'; b.onclick = () => { restore(opt.undo); close(); }; el.append(b); }
-  if (opt.action) { const b = document.createElement('button'); b.type = 'button'; b.textContent = opt.action.label; b.onclick = () => { close(); opt.action.fn(); }; el.append(b); }
-  host.append(el);
-  const all = $$('.toast:not(.out)', host); if (all.length > 3) all[0].remove();
-  const ms = opt.ms || (opt.undo || opt.action ? 5200 : 2800);
-  timer = setTimeout(close, ms);
-  el.addEventListener('pointerenter', () => clearTimeout(timer));
-  el.addEventListener('pointerleave', () => { timer = setTimeout(close, 1800); });
-}
-
-/* ======================= Orb (particle sphere) ======================= */
-function createOrb(canvas) {
-  const ctx = canvas.getContext('2d');
-  const N = 900, pts = [];
-  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  for (let i = 0; i < N; i++) {
-    const y = 1 - (i / (N - 1)) * 2, r = Math.sqrt(1 - y * y), th = i * 2.399963229728653, rr = .8 + rnd() * .2;
-    pts.push({ x: Math.cos(th) * r * rr, y: y * rr, z: Math.sin(th) * r * rr, s: rnd(), tw: rnd() * 6.283 });
-  }
-  let W = 0, H = 0, rot = .6, speed = .05, target = .05, active = false, raf = 0, last = 0, onScreen = true;
-  function draw(t) {
-    if (!W || !H) return;
-    ctx.clearRect(0, 0, W, H);
-    const R = Math.min(W, H) * .37 * (active ? 1 + Math.sin(t / 900) * .012 : 1);
-    const cx = W / 2, cy = H / 2 + 6, cr = Math.cos(rot), sr = Math.sin(rot), ct = Math.cos(.38), st = Math.sin(.38);
-    for (const p of pts) {
-      const x = p.x * cr + p.z * sr, z = -p.x * sr + p.z * cr;
-      const y2 = p.y * ct - z * st, z2 = p.y * st + z * ct;
-      const depth = (z2 + 1) / 2;
-      const tw = active ? .62 + .38 * Math.sin(t / 650 + p.tw) : .85;
-      const a = (.1 + depth * .78) * tw * (active ? 1 : .62);
-      const size = (.55 + p.s * 1.15) * (.55 + depth * .65);
-      ctx.fillStyle = active && p.s > .94 ? `rgba(198,220,122,${a})` : `rgba(240,238,230,${a})`;
-      ctx.fillRect(cx + x * R - size / 2, cy + y2 * R - size / 2, size, size);
-    }
-  }
-  function loop(t) {
-    const dt = last ? Math.min(.05, (t - last) / 1000) : 0; last = t;
-    speed += (target - speed) * .035; rot += speed * dt;
-    draw(t); raf = requestAnimationFrame(loop);
-  }
-  const canRun = () => !reduceMotion.matches && !document.hidden && onScreen && W > 0;
-  function start() { if (raf || !canRun()) { draw(performance.now()); return; } last = 0; raf = requestAnimationFrame(loop); }
-  function stop() { cancelAnimationFrame(raf); raf = 0; }
-  function resize() {
-    const r = canvas.getBoundingClientRect(), dpr = Math.min(2, devicePixelRatio || 1);
-    W = r.width; H = r.height;
-    canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    if (W) start(); else stop();
-    draw(performance.now());
-  }
-  new ResizeObserver(resize).observe(canvas);
-  new IntersectionObserver(es => { onScreen = es[0].isIntersecting; onScreen ? start() : stop(); }).observe(canvas);
-  document.addEventListener('visibilitychange', () => document.hidden ? stop() : start());
-  reduceMotion.addEventListener?.('change', () => { stop(); start(); });
-  return { setActive(v) { if (v === active) return; active = v; target = v ? .3 : .05; if (!raf) draw(performance.now()); } };
-}
-const orb = createOrb($('#orb'));
-
-/* ======================= Render: time ======================= */
-function renderTime(now = Date.now()) {
-  const open = openStamp();
-  document.body.classList.toggle('is-in', !!open);
-  orb.setActive(!!open);
-
-  const dg = $('#dongle');
-  if (!dongle.busy) {
-    dg.dataset.state = open ? 'in' : 'out';
-    $('#dongleLabel').textContent = open ? 'Ausdongeln' : 'Eindongeln';
-    dg.setAttribute('aria-label', open ? `Ausdongeln (eingedongelt seit ${hm(open.in)})` : 'Eindongeln');
-  }
-  $('#dongleHint').textContent = open ? `seit ${hm(open.in)}` : (mobileMQ.matches ? 'tippen' : 'tippen oder ziehen');
-  $('#dockDongleLbl').textContent = open ? 'Ausdongeln' : 'Eindongeln';
-  const ts = $('#timeState');
-  ts.textContent = open ? 'Eingedongelt' : 'Ausgedongelt';
-  ts.className = 'pill ' + (open ? 'pill-accent-soft' : 'pill-quiet');
-  $('#ampmIn').classList.toggle('on', !!open);
-  $('#ampmOut').classList.toggle('on', !open);
-
-  renderWave(now);
-  updateLive(now);
-  renderStamps(now);
-}
-
-function updateLive(now = Date.now()) {
-  const open = openStamp();
-  const di = dayInfo(now, now);
-  const target = state.settings.targetMin * MIN;
-  const pct = target ? Math.round(di.worked / target * 100) : 0;
-  $('#workedBig').textContent = dur(di.worked);
-  $('#workedSub').textContent = target ? `von ${dur(target)} h Soll` : 'kein Tagessoll';
-  $('#orbPct').textContent = `${pct}%`;
-  $('#orbBar').style.transform = `scaleY(${target ? clamp(di.worked / target, 0, 1) : 0})`;
-  $('#capTime').textContent = open ? dur(now - open.in).padStart(5, '0') : '--:--';
-  $('#heroClock').textContent = open ? `Im Dienst · ${dur(now - open.in)}` : 'Ausgedongelt';
-
-  const st = $('#orbStatus');
-  st.classList.remove('warn');
-  if (open && open.in < sod(now)) { st.textContent = 'Seit gestern eingedongelt? Stempel prüfen.'; st.classList.add('warn'); }
-  else if (open) st.textContent = `Eingedongelt seit ${hm(open.in)} …`;
-  else if (di.sts.length) st.textContent = `Ausgedongelt um ${hm(di.sts[di.sts.length - 1].out)}`;
-  else st.textContent = 'Bereit zum Eindongeln …';
-
-  // pause & end prediction
-  $('#stPause').textContent = dur(di.pause);
-  const remaining = target - di.worked;
-  const lbl = $('#stEndLbl'), val = $('#stEnd');
-  val.title = '';
-  if (!target) { lbl.textContent = 'Soll'; val.textContent = '–'; }
-  else if (remaining <= 0) { lbl.textContent = 'Überstunden'; val.textContent = '+' + dur(-remaining); }
-  else if (open) {
-    const missing = Math.max(0, requiredPause(target) - di.pause);
-    lbl.textContent = 'Feierabend ~';
-    val.textContent = hm(now + remaining + missing);
-    val.title = missing ? `inkl. ${dur(missing)} h noch fälliger Pause (ArbZG)` : '';
-  } else if (di.sts.length) { lbl.textContent = 'Noch offen'; val.textContent = dur(remaining); }
-  else { lbl.textContent = 'Tagessoll'; val.textContent = dur(target); }
-
-  const ws = weekStart(now);
-  $('#stWeek').textContent = dur(workedIn(ws, addDays(ws, 7), now));
-
-  // Arbeitszeitgesetz hints
-  const law = $('#lawHint');
-  let msg = '';
-  if (di.worked > 10 * HOUR) msg = 'Über 10 Std heute – die gesetzliche Höchstarbeitszeit ist erreicht.';
-  else if (di.worked > 6 * HOUR && di.pause < requiredPause(di.worked)) msg = `Pause-Hinweis: Nach ${di.worked > 9 * HOUR ? '9 Std stehen 45' : '6 Std stehen 30'} Min Pause an – bisher ${dur(di.pause)} h.`;
-  law.hidden = !msg; law.textContent = msg;
-
-  // focus countdown + running item timers
-  const fb = $('#fBig');
-  if (fb && focusId) { const it = find(focusId); if (it) { const b = focusBig(it, now); fb.textContent = b.t; fb.className = 'f-big ' + (b.cls || ''); } }
-  for (const it of state.items) {
-    if (!it.timerStart) continue;
-    const s = spentOf(it, now);
-    $$(`[data-spent="${it.id}"]`).forEach(el => el.textContent = dur(s));
-    if (it.durMin) $$(`[data-bar="${it.id}"]`).forEach(el => el.style.transform = `scaleX(${clamp(s / (it.durMin * MIN), 0, 1)})`);
-  }
-}
-
-function renderWave(now) {
-  const di = dayInfo(now, now);
-  const today = sod(now);
-  let start = today + 7 * HOUR, end = today + 19 * HOUR;
-  if (di.sts.length) {
-    start = Math.min(start, Math.max(today, di.sts[0].in));
-    end = Math.max(end, Math.min(eod(now), di.sts[di.sts.length - 1].out ?? now));
-  }
-  start = start - (start - today) % HOUR;
-  end = Math.min(eod(now), end + (HOUR - (end - today) % HOUR) % HOUR);
-  const slot = 10 * MIN, n = Math.round((end - start) / slot);
-  let html = '';
-  for (let i = 0; i < n; i++) {
-    const a = start + i * slot, b = a + slot;
-    const frac = workedIn(a, Math.min(b, now), now) / slot;
-    const isNow = now >= a && now < b;
-    if (frac > 0.02) {
-      const r = Math.abs(Math.sin(i * 12.9898 + 4.1) * 43758.5453) % 1;
-      const h = Math.round((24 + r * 76) * Math.min(1, .35 + frac));
-      html += `<i class="on${isNow ? ' now' : ''}" style="height:${h}%"></i>`;
-    } else html += `<i${isNow ? ' class="now"' : ''}></i>`;
-  }
-  $('#waveBars').innerHTML = html;
-  const open = openStamp();
-  $('#waveStatus').textContent = open ? `Eingedongelt · ${hm(open.in)}` : di.sts.length ? `Heute ${dur(di.worked)} h` : 'Noch nicht eingedongelt';
-  $('#waveRange').textContent = `${pad(new Date(start).getHours())}–${pad(new Date(end).getHours() || 24)} Uhr`;
-}
-
-function renderStamps(now) {
-  const key = ui.selDay || dayKey(now);
-  const t = fromKey(key);
-  const isToday = key === dayKey(now);
-  const di = dayInfo(t, now);
-  $('#stampsTitle').textContent = `Stempel · ${isToday ? 'Heute' : dateShort(t)}${di.sts.length ? ` · ${dur(di.worked)} h` : ''}`;
-  $('#stampsToday').hidden = isToday;
-  const list = $('#stampList');
-  if (!di.sts.length) { list.innerHTML = `<li class="stamp-empty">${isToday ? 'Noch nicht eingedongelt.' : 'Keine Stempel an diesem Tag.'}</li>`; return; }
-  list.innerHTML = di.sts.map(st => {
-    const prev = st.in < di.a ? ' <span class="dim">(Vortag)</span>' : '';
-    const out = st.out == null ? `<span class="run"><i class="pulse"></i>läuft</span>` : `<span class="mono">${hm(st.out)}</span>`;
-    return `<li class="stamp"><span class="mono">${hm(st.in)}</span>${prev}<span class="arrow">→</span>${out}<span class="grow"></span><span class="mono dim">${dur((st.out ?? now) - st.in)}</span><button class="icon-btn sm" type="button" data-stamp="${st.id}" aria-label="Stempel ${hm(st.in)} bearbeiten">${ico('edit')}</button></li>`;
-  }).join('');
-}
-
-/* ======================= Render: clock ======================= */
-let lastMinute = -1;
-function renderClock(now) {
-  const d = new Date(now);
-  $('#digits').textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-/* ======================= Render: week ======================= */
-function renderWeek(now = Date.now()) {
-  const ws = weekStart(now), target = state.settings.targetMin * MIN;
-  const days = [];
-  for (let i = 0; i < 7; i++) { const a = addDays(ws, i); days.push({ a, key: dayKey(a), worked: workedIn(a, addDays(a, 1), now), future: a > now }); }
-  const total = days.reduce((s, d) => s + d.worked, 0);
-  const workedDays = days.filter(d => d.worked > 5 * MIN);
-  const avg = workedDays.length ? total / workedDays.length : 0;
-  const pws = addDays(ws, -7);
-  let ptot = 0, pdays = 0;
-  for (let i = 0; i < 7; i++) { const a = addDays(pws, i); const w = workedIn(a, addDays(a, 1), now); if (w > 5 * MIN) { ptot += w; pdays++; } }
-  const pavg = pdays ? ptot / pdays : 0;
-
-  $('#wkKw').textContent = `KW ${isoWeek(now)}`;
-  $('#wkTotal').textContent = dur(total);
-  $('#wkAvg').textContent = `Ø ${dur(avg)} h / Arbeitstag`;
-  $('#wkTarget').textContent = dur(target * 5);
-  const delta = $('#wkDelta');
-  if (pavg && avg) { const p = Math.round((avg / pavg - 1) * 100); delta.hidden = false; delta.className = `pill mono ${p >= 0 ? 'pill-lime' : 'pill-quiet'}`; delta.textContent = `${p >= 0 ? '+' : '−'}${Math.abs(p)}% Ø`; delta.title = `Durchschnitt pro Arbeitstag ggü. Vorwoche (${dur(pavg)} h)`; }
-  else delta.hidden = true;
-
-  const maxV = Math.max(target * 1.25, ...days.map(d => d.worked * 1.08), 4 * HOUR);
-  const sel = ui.selDay || dayKey(now), todayKey = dayKey(now);
-  const cols = days.map(d => {
-    const dt = new Date(d.a);
-    const h = d.worked / maxV * 100;
-    const tip = `${WD[dt.getDay()]} ${dt.getDate()}.${dt.getMonth() + 1}. · ${d.future ? 'kommt noch' : dur(d.worked) + ' h'}`;
-    return `<button type="button" class="wk-col${d.future ? ' future' : ''}${d.key === todayKey ? ' today' : ''}${d.key === sel ? ' sel' : ''}" data-day="${d.key}" data-tip="${esc(tip)}" aria-label="${esc(tip)}">
-      <span class="bar${d.worked < MIN ? ' zero' : ''}" style="height:${h.toFixed(2)}%"></span><span class="lbl">${WD[dt.getDay()]}</span></button>`;
-  }).join('');
-  $('#wkChart').innerHTML = `<div class="wk-plot">${target ? `<div class="wk-target" style="bottom:${(target / maxV * 100).toFixed(2)}%"><span>Soll ${dur(target)}</span></div>` : ''}<div class="wk-cols">${cols}</div></div><div class="wk-tip" id="wkTip"></div>`;
-}
-
-/* ======================= Render: calendar ======================= */
-function renderCal(now = Date.now()) {
-  if (ui.calMonth == null) { const d = new Date(now); ui.calMonth = new Date(d.getFullYear(), d.getMonth(), 1).getTime(); }
-  const m0 = new Date(ui.calMonth), y = m0.getFullYear(), mo = m0.getMonth();
-  const today = new Date(now);
-  const isCur = y === today.getFullYear() && mo === today.getMonth();
-  $('#calDay').textContent = pad(today.getDate());
-  $('#calMon').textContent = isCur ? MON[mo].toUpperCase() : `${MON[mo].toUpperCase()} ${String(y).slice(2)}`;
-  const nDays = new Date(y, mo + 1, 0).getDate(), offset = (m0.getDay() + 6) % 7;
-  const dues = {};
-  for (const it of state.items) { if (it.done) continue; const d = dueOf(it); if (d != null) { const k = dayKey(d); (dues[k] = dues[k] || []).push(it.title); } }
-  const todayStart = sod(now);
-  let html = '';
-  for (let i = 0; i < offset; i++) html += '<span></span>';
-  for (let d = 1; d <= nDays; d++) {
-    const t = new Date(y, mo, d).getTime(), k = dayKey(t);
-    const worked = t <= now ? workedIn(t, addDays(t, 1), now) : 0;
-    const cls = ['cd'];
-    if (t < todayStart) cls.push('past'); else if (t > todayStart) cls.push('future');
-    if (worked > 5 * MIN) cls.push('worked');
-    if (dues[k]) cls.push('due');
-    if (t === todayStart) cls.push('today');
-    if (ui.day === k) cls.push('sel');
-    const parts = [`${WDL[new Date(t).getDay()]}, ${d}. ${MONL[mo]}`];
-    if (dues[k]) parts.push(`${dues[k].length} ${dues[k].length === 1 ? 'Frist' : 'Fristen'}: ${dues[k].slice(0, 3).join(', ')}${dues[k].length > 3 ? ' …' : ''}`);
-    if (worked > MIN) parts.push(`${dur(worked)} h gearbeitet`);
-    const label = esc(parts.join(' · '));
-    html += `<button type="button" class="${cls.join(' ')}" data-cal="${k}" title="${label}" aria-label="${label}" aria-pressed="${ui.day === k}"></button>`;
-  }
-  $('#calGrid').innerHTML = html;
-}
-
-/* ======================= Render: hero ======================= */
-function renderHero(now = Date.now()) {
-  const d = new Date(now), h = d.getHours();
-  const greet = h < 5 ? 'Gute Nacht' : h < 11 ? 'Guten Morgen' : h < 14 ? 'Mahlzeit' : h < 18 ? 'Guten Tag' : 'Guten Abend';
-  const name = state.settings.name.trim();
-  $('#heroGreet').textContent = name ? `${greet}, ${name}` : greet;
-  $('#heroDate').textContent = `${WD[d.getDay()]}, ${d.getDate()}. ${MON[d.getMonth()]}`;
-  const open = state.items.filter(i => !i.done);
-  const n = open.length;
-  $('#heroSub').textContent = n === 0 ? 'Alles erledigt.' : `${n} ${n === 1 ? 'Punkt' : 'Punkte'} offen`;
-  const today = sod(now);
-  const doneToday = state.items.filter(i => i.done && i.doneAt >= today).length + state.items.filter(i => i.mode === 'repeat' && i.lastDone >= today).length;
-  const newToday = state.items.filter(i => i.createdAt >= today).length;
-  const req = open.filter(i => i.kind === 'anfrage').length;
-  const overdue = open.filter(i => { const x = dueOf(i); return x != null && x < now; }).length;
-  const parts = [`<span><b>${doneToday}</b> heute erledigt</span>`, `<span><b>${newToday}</b> neu</span>`, `<span><b>${req}</b> ${req === 1 ? 'Anfrage' : 'Anfragen'} offen</span>`];
-  if (overdue) parts.push(`<span class="warn"><b>${overdue}</b> überfällig</span>`);
-  $('#heroMeta').innerHTML = parts.join('<span class="sep">•</span>');
-
-  // people with open requests
-  const people = {};
-  for (const it of open) if (it.from) people[it.from] = (people[it.from] || 0) + 1;
-  const top = Object.entries(people).sort((a, b) => b[1] - a[1]).slice(0, mobileMQ.matches ? 3 : 4);
-  $('#heroSide').innerHTML = `<button type="button" class="hs-btn" data-hs="new" aria-label="Neue Anfrage">${ico('plus')}</button>` +
-    (top.length ? `<span class="hs-lbl">VON</span>` : '') +
-    top.map(([p, c]) => `<button type="button" class="hs-btn hs-av" data-hs-name="${esc(p)}" aria-pressed="${ui.person === p}" title="${esc(p)} · ${c} offen" aria-label="Nur Einträge von ${esc(p)} zeigen (${c} offen)">${esc(initials(p))}</button>`).join('');
-
-  // document title badge
-  const urgent = open.filter(i => i.mode === 'asap').length + overdue;
-  document.title = urgent ? `(${urgent}) Workoholic` : 'Workoholic';
-}
-
-/* ======================= Render: planner ======================= */
-function matches(it) {
-  if (ui.kind !== 'alle' && it.kind !== ui.kind) return false;
-  if (ui.person && it.from !== ui.person) return false;
-  if (ui.day) { const d = dueOf(it); if (d == null || dayKey(d) !== ui.day) return false; }
-  if (ui.q) { const q = norm(ui.q); if (!norm(`${it.title} ${it.notes} ${it.from}`).includes(q)) return false; }
-  return true;
-}
-
-function urgencyPill(it, now) {
-  if (it.done) return it.doneAt ? `<span class="pill pill-quiet">${ico('check')}${sod(it.doneAt) === sod(now) ? 'heute ' + hm(it.doneAt) : dateShort(it.doneAt)}</span>` : '';
-  if (it.mode === 'asap') return `<span class="pill pill-accent"><i class="pulse"></i>Sofort</span>`;
-  if (it.mode === 'dauer') {
-    const s = spentOf(it, now), tot = (it.durMin || 0) * MIN, over = tot && s > tot;
-    return `<span class="pill pill-dur${over ? ' over' : ''}"><span class="mono" data-spent="${it.id}">${dur(s)}</span>${tot ? `<span class="mono">/ ${dur(tot)}</span><span class="mini"><i data-bar="${it.id}" style="transform:scaleX(${clamp(tot ? s / tot : 0, 0, 1)})"></i></span>` : ''}</span>`;
-  }
-  const d = dueOf(it);
-  if (d == null) return '';
-  const diff = d - now;
-  const icon = it.mode === 'repeat' ? ico('repeat') : '';
-  if (diff < 0) return `<span class="pill pill-coral">${icon || ico('flag')}${-diff < MIN ? 'jetzt fällig' : 'überfällig · ' + rel(-diff)}</span>`;
-  const cls = diff < 4 * HOUR ? 'pill-accent' : diff < DAY ? 'pill-accent-soft' : 'pill-quiet';
-  return `<span class="pill ${cls}">${icon}noch ${rel(diff)}</span>`;
-}
-
-function itemRow(it, now) {
-  const k = KINDS[it.kind];
-  const tile = it.from ? `<span class="tile t-${it.kind}" aria-hidden="true">${esc(initials(it.from))}</span>` : `<span class="tile t-${it.kind}" aria-hidden="true">${ico(k.icon)}</span>`;
-  const sub = [];
-  if (it.kind === 'anfrage') sub.push(it.from ? `Anfrage von ${esc(it.from)}` : 'Anfrage');
-  else if (it.kind === 'aufgabe') sub.push(it.from ? `Aufgabe · ${esc(it.from)}` : 'Aufgabe');
-  else sub.push(it.from ? `Todo · ${esc(it.from)}` : 'Todo');
-  const d = dueOf(it);
-  if (it.mode === 'repeat') sub.push(`${REPEATS[it.repeat]}${it.done ? '' : ' · ' + dueLabel(d)}`);
-  else if (d != null && !it.done) sub.push(dueLabel(d));
-  if (it.mode === 'dauer' && it.durMin && !it.done) sub.push(`${durWords(it.durMin)} Aufwand`);
-  if (it.notes) sub.push(esc(firstLine(it.notes)));
-
-  const pills = [];
-  if (!it.done && it.status === 'inarbeit') pills.push('<span class="pill pill-glass">in Arbeit</span>');
-  if (!it.done && it.status === 'wartet') pills.push('<span class="pill pill-outline">wartet</span>');
-  pills.push(urgencyPill(it, now));
-  if (it.mode === 'dauer' && !it.done) pills.push(`<button type="button" class="tbtn${it.timerStart ? ' on' : ''}" data-act="timer" aria-label="${it.timerStart ? 'Timer pausieren' : 'Timer starten'}">${ico(it.timerStart ? 'pause' : 'play')}</button>`);
-
-  const diff = d != null ? d - now : null;
-  const cls = ['item'];
-  if (it.done) cls.push('done');
-  else if (it.mode === 'asap' || it.timerStart) cls.push('hot');
-  else if (diff != null && diff < 0) cls.push('late');
-  return `<li class="${cls.join(' ')}" data-id="${it.id}" tabindex="0" aria-label="${esc(it.title)} – ${esc(k.label)}${it.done ? ', erledigt' : ''}">
-    ${tile}
-    <div class="main"><div class="title">${esc(it.title)}</div><div class="sub">${sub.join(' · ')}</div></div>
-    <div class="pills">${pills.join('')}</div>
-    <button type="button" class="check${it.done ? ' on' : ''}" data-act="done" aria-label="${it.done ? 'Wieder öffnen' : 'Als erledigt markieren'}">${ico('check')}</button>
-  </li>`;
-}
-
-function renderFilters() {
-  const open = state.items.filter(i => !i.done);
-  const count = k => k === 'alle' ? open.length : open.filter(i => i.kind === k).length;
-  $('#filters').innerHTML = [['alle', 'Alle'], ['anfrage', 'Anfragen'], ['todo', 'Todos'], ['aufgabe', 'Aufgaben']]
-    .map(([k, l]) => `<button type="button" role="tab" class="fchip" data-kind="${k}" aria-selected="${ui.kind === k}">${l}<span class="n">${count(k)}</span></button>`).join('');
-  $('#openCount').textContent = open.length;
-  const af = [];
-  if (ui.day) { const t = fromKey(ui.day); af.push(`<button type="button" class="af" data-clear="day">Fällig ${dateShort(t)} ${ico('x')}</button>`); }
-  if (ui.person) af.push(`<button type="button" class="af" data-clear="person">Von ${esc(ui.person)} ${ico('x')}</button>`);
-  if (ui.q) af.push(`<button type="button" class="af" data-clear="q">„${esc(ui.q)}“ ${ico('x')}</button>`);
-  $('#activeFilter').innerHTML = af.join('');
-}
-
-function renderPlanner(now = Date.now()) {
-  renderFilters();
-  const list = $('#list');
-  if (!state.items.length) {
-    list.innerHTML = `<div class="empty"><h3>Noch nichts erfasst.</h3><p>Leg die erste Anfrage, dein erstes Todo oder eine Aufgabe an – oder schau dir an, wie es mit Beispielen aussieht.</p><div class="row"><button type="button" class="btn btn-accent" data-empty="new">${ico('plus')}Erster Eintrag</button><button type="button" class="btn btn-ghost" data-empty="demo">Beispieldaten ansehen</button></div></div>`;
-    return;
-  }
-  const items = state.items.filter(matches);
-  const groups = {};
-  for (const it of items) (groups[groupOf(it, now)] = groups[groupOf(it, now)] || []).push(it);
-  let html = '';
-  for (const [g, label] of GROUPS) {
-    const arr = groups[g]; if (!arr || !arr.length) continue;
-    if (g === 'done') {
-      arr.sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
-      const shown = arr.slice(0, 40);
-      html += `<section class="group" data-g="done"><button type="button" class="group-h" data-act="toggle-done" aria-expanded="${ui.openDone}">${ico('chev')}${label}<sup>${arr.length}</sup></button>${ui.openDone ? `<ul class="items">${shown.map(i => itemRow(i, now)).join('')}</ul>` : ''}</section>`;
-      continue;
-    }
-    arr.sort(byRank(now));
-    html += `<section class="group" data-g="${g}"><h3 class="group-h">${label}<sup>${arr.length}</sup></h3><ul class="items">${arr.map(i => itemRow(i, now)).join('')}</ul></section>`;
-  }
-  if (!html) html = `<div class="empty"><h3>Nichts gefunden.</h3><p>Kein Eintrag passt zu den aktuellen Filtern.</p><div class="row"><button type="button" class="btn btn-ghost" data-empty="reset">Filter zurücksetzen</button></div></div>`;
-  list.innerHTML = html;
-}
-
-/* ======================= Render: focus ======================= */
-let focusId = null;
-function focusBig(it, now) {
-  if (it.mode === 'asap') return { t: 'JETZT', l: 'schnellstmöglich erledigen', cls: 'accent' };
-  if (it.mode === 'dauer' && (it.timerStart || it.spentMs || dueOf(it) == null)) {
-    const s = spentOf(it, now), tot = (it.durMin || 0) * MIN;
-    return { t: dur(s), l: tot ? `von ${dur(tot)} h investiert` : 'investiert', cls: tot && s > tot ? 'coral' : '' };
-  }
-  const d = dueOf(it);
-  if (d != null) {
-    const diff = d - now, a = Math.abs(diff);
-    if (a < 100 * HOUR) {
-      const h = Math.floor(a / HOUR), m = Math.floor(a % HOUR / MIN), s = Math.floor(a % MIN / 1000);
-      return { t: `${diff < 0 ? '−' : ''}${pad(h)}:${pad(m)}:${pad(s)}`, l: diff < 0 ? `überfällig seit ${dueLabel(d)}` : `bis ${dueLabel(d)}`, cls: diff < 0 ? 'coral' : diff < 4 * HOUR ? 'accent' : '' };
-    }
-    return { t: `${Math.floor(a / DAY)} Tage`, l: `bis ${dueLabel(d)}`, cls: '' };
-  }
-  const age = now - it.createdAt;
-  return { t: age < DAY ? dur(age) : `${Math.floor(age / DAY)} T`, l: 'offen seit Erfassung', cls: '' };
-}
-function renderFocus(now = Date.now()) {
-  const open = state.items.filter(i => !i.done).sort(byRank(now));
-  const it = open[0];
-  focusId = it ? it.id : null;
-  const body = $('#focusBody');
-  if (!it) {
-    $('#fKind').innerHTML = '';
-    body.innerHTML = `<div class="f-title">Nichts Dringendes.</div><div class="f-sub">Alles abgearbeitet – Zeit für einen Kaffee.</div><div class="f-big">00:00:00</div><div class="f-lbl">keine offene Frist</div>`;
-    return;
-  }
-  const b = focusBig(it, now);
-  $('#fKind').innerHTML = `<span class="pill ${it.mode === 'asap' ? 'pill-accent' : 'pill-quiet'}">${ico(KINDS[it.kind].icon)}${KINDS[it.kind].label}</span>`;
-  const sub = [it.from ? `von ${esc(it.from)}` : '', MODES[it.mode], it.status !== 'offen' ? STATUS[it.status] : ''].filter(Boolean).join(' · ');
-  const timerBtn = it.mode === 'dauer' ? `<button type="button" class="btn btn-ghost" data-focus="timer">${ico(it.timerStart ? 'pause' : 'play')}${it.timerStart ? 'Pause' : 'Start'}</button>` : `<button type="button" class="btn btn-ghost" data-focus="edit">${ico('edit')}Öffnen</button>`;
-  body.innerHTML = `<div class="f-title">${esc(it.title)}</div><div class="f-sub">${sub}</div>
-    <div class="f-big ${b.cls}" id="fBig">${b.t}</div><div class="f-lbl">${b.l}</div>
-    <div class="f-actions">${timerBtn}<button type="button" class="btn btn-accent" data-focus="done">${ico('check')}Erledigt</button></div>`;
-}
-
-function renderAll() {
-  const now = Date.now();
-  renderClock(now);
-  renderTime(now);
-  renderWeek(now);
-  renderCal(now);
-  renderHero(now);
-  renderPlanner(now);
-  renderFocus(now);
-}
-
-/* ======================= Dialog helpers ======================= */
-function openDlg(d) {
-  if (d.open) return;
-  d.showModal();
-  requestAnimationFrame(() => requestAnimationFrame(() => d.classList.add('open')));
-}
-function closeDlg(d) {
-  if (!d.open || d.dataset.closing) return;
-  d.classList.remove('open');
-  if (reduceMotion.matches) { d.close(); return; }
-  d.dataset.closing = '1';
-  setTimeout(() => { delete d.dataset.closing; d.close(); }, mobileMQ.matches ? 300 : 190);
-}
-$$('dialog.dlg').forEach(d => {
-  d.addEventListener('cancel', e => { e.preventDefault(); closeDlg(d); });
-  d.addEventListener('click', e => { if (e.target === d || e.target.closest('[data-close]')) closeDlg(d); });
-});
-
-/* ======================= Composer ======================= */
-const C = { id: null, kind: 'todo', mode: 'einmalig', status: 'offen', repeat: 'daily' };
-const DUE_CHIPS = [
-  ['In 1 Std', () => { const t = Date.now() + HOUR; return t - t % (5 * MIN); }],
-  ['Heute 17:00', () => at(0, 17)],
-  ['Morgen 10:00', () => at(1, 10)],
-  ['Freitag 16:00', () => nextWeekday(5, 16)],
-  ['In 1 Woche', () => at(7, 12)]
-];
-const DUR_CHIPS = [15, 30, 60, 120, 240, 480];
-$('#dueChips').innerHTML = DUE_CHIPS.map((c, i) => `<button type="button" class="chip" data-due="${i}">${c[0]}</button>`).join('');
-$('#durChips').innerHTML = DUR_CHIPS.map(m => `<button type="button" class="chip" data-dur="${m}">${durWords(m)}</button>`).join('');
-
-function setSeg(name, v) {
-  C[name] = v;
-  $$(`[data-seg="${name}"] button`).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === v)));
-}
-function syncComposer() {
-  const showFrom = C.kind !== 'todo';
-  $('#fromRow').hidden = !showFrom;
-  $('#lblFrom').textContent = C.kind === 'anfrage' ? 'Von wem?' : 'Von / für wen (optional)';
-  $$('[data-panel]').forEach(p => p.hidden = p.dataset.panel !== C.mode);
-  if (C.mode === 'deadline' && !$('#cDue').value) $('#cDue').value = toLocalInput(defaultDue());
-  if (C.mode === 'repeat' && !$('#cRep').value) $('#cRep').value = toLocalInput(defaultDue());
-  const dv = Number($('#cDur').value);
-  $$('#durChips .chip').forEach(c => c.setAttribute('aria-pressed', String(Number(c.dataset.dur) === dv)));
-  const due = parseLocal($('#cDue').value);
-  $$('#dueChips .chip').forEach((c, i) => c.setAttribute('aria-pressed', String(due != null && DUE_CHIPS[i][1]() === due)));
-}
-function openComposer(item, preset = {}) {
-  closeMenu();
-  const it = item || {};
-  C.id = item ? item.id : null;
-  $('#cHeading').textContent = item ? 'Bearbeiten' : 'Neuer Eintrag';
-  $('#cTitle').value = preset.title ?? it.title ?? '';
-  $('#cTitle').classList.remove('err');
-  $('#cFrom').value = preset.from ?? it.from ?? '';
-  $('#cNotes').value = it.notes || '';
-  setSeg('kind', preset.kind || it.kind || (ui.kind !== 'alle' ? ui.kind : 'todo'));
-  setSeg('mode', preset.mode || it.mode || 'einmalig');
-  setSeg('status', it.status || 'offen');
-  setSeg('repeat', it.repeat || 'daily');
-  $('#cDue').value = it.mode === 'deadline' ? toLocalInput(it.due) : '';
-  $('#cDue2').value = it.mode === 'dauer' ? toLocalInput(it.due) : '';
-  $('#cRep').value = it.mode === 'repeat' ? toLocalInput(it.due) : '';
-  $('#cDur').value = it.durMin || '';
-  $('#cDelete').hidden = !item;
-  const stats = $('#cStats');
-  if (item) {
-    const bits = [`Erfasst ${dateShort(it.createdAt)} ${hm(it.createdAt)}`];
-    if (it.spentMs || it.timerStart) bits.push(`${dur(spentOf(it))} h investiert`);
-    if (it.doneCount) bits.push(`${it.doneCount}× erledigt`);
-    if (it.done && it.doneAt) bits.push(`erledigt ${dateShort(it.doneAt)} ${hm(it.doneAt)}`);
-    stats.textContent = bits.join(' · '); stats.hidden = false;
-  } else stats.hidden = true;
-  // people suggestions
-  const people = [...new Set(state.items.map(i => i.from).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de'));
-  $('#people').innerHTML = people.map(p => `<option value="${esc(p)}"></option>`).join('');
-  syncComposer();
-  openDlg($('#composer'));
-  if (!mobileMQ.matches || !item) setTimeout(() => { const t = $('#cTitle'); t.focus(); t.setSelectionRange(t.value.length, t.value.length); }, 40);
-}
-$$('#composer [data-seg] button').forEach(b => b.addEventListener('click', () => { setSeg(b.parentElement.dataset.seg, b.dataset.v); syncComposer(); }));
-$('#dueChips').addEventListener('click', e => { const c = e.target.closest('[data-due]'); if (!c) return; $('#cDue').value = toLocalInput(DUE_CHIPS[+c.dataset.due][1]()); syncComposer(); });
-$('#durChips').addEventListener('click', e => { const c = e.target.closest('[data-dur]'); if (!c) return; $('#cDur').value = c.dataset.dur; syncComposer(); });
-$('#cDur').addEventListener('input', syncComposer);
-$('#cDue').addEventListener('input', syncComposer);
-$('#cForm').addEventListener('submit', e => { e.preventDefault(); saveComposer(); });
-$('#cForm').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); saveComposer(); } });
-$('#cDelete').addEventListener('click', () => { const id = C.id; closeDlg($('#composer')); if (id) removeItem(id); });
-
-function saveComposer() {
-  const title = $('#cTitle').value.trim();
-  const fail = el => { el.classList.add('err'); el.focus(); setTimeout(() => el.classList.remove('err'), 1400); };
-  if (!title) return fail($('#cTitle'));
-  const now = Date.now();
-  const data = { title, notes: $('#cNotes').value.trim(), kind: C.kind, from: C.kind === 'todo' ? '' : $('#cFrom').value.trim(), mode: C.mode, status: C.status, due: null, durMin: null, repeat: null, repDay: null };
-  if (C.mode === 'deadline') { const t = parseLocal($('#cDue').value); if (t == null) return fail($('#cDue')); data.due = t; }
-  if (C.mode === 'dauer') {
-    const m = Math.round(Number($('#cDur').value));
-    data.durMin = m > 0 ? m : null;
-    data.due = parseLocal($('#cDue2').value);
-  }
-  if (C.mode === 'repeat') { const t = parseLocal($('#cRep').value); if (t == null) return fail($('#cRep')); data.repeat = C.repeat; data.due = t; data.repDay = new Date(t).getDate(); }
-  if (C.id) {
-    const it = find(C.id);
-    if (it) {
-      if (data.mode !== 'dauer' && it.timerStart) { it.spentMs += now - it.timerStart; it.timerStart = null; }
-      Object.assign(it, normItem({ ...it, ...data, updatedAt: now }));
-    }
-    toast('Gespeichert');
-  } else {
-    state.items.push(normItem({ id: uid(), ...data, createdAt: now, updatedAt: now }));
-    toast(`${KINDS[data.kind].label} angelegt${data.from && data.kind === 'anfrage' ? ' · von ' + data.from : ''}`);
-  }
-  closeDlg($('#composer'));
-  commit();
-}
-
-/* ======================= Stamp editor ======================= */
-let editStampId = null;
-function openStampEditor(id) {
-  editStampId = id || null;
-  const st = id ? state.stamps.find(s => s.id === id) : null;
-  const base = st ? st.in : (ui.selDay ? fromKey(ui.selDay) + 8 * HOUR : Date.now());
-  $('#sHeading').textContent = st ? 'Stempel bearbeiten' : 'Stempel nachtragen';
-  $('#sDate').value = dayKey(base);
-  $('#sIn').value = st ? hm(st.in) : (ui.selDay ? '08:00' : hm(Date.now() - HOUR));
-  $('#sOut').value = st ? (st.out != null ? hm(st.out) : '') : (ui.selDay ? '16:30' : hm(Date.now()));
-  $('#sDelete').hidden = !st;
-  openDlg($('#stampDlg'));
-}
-$('#sForm').addEventListener('submit', e => {
-  e.preventDefault();
-  const date = $('#sDate').value, tin = $('#sIn').value, tout = $('#sOut').value;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}/.test(tin)) { toast('Bitte Datum und Beginn angeben.'); return; }
-  const inT = parseLocal(`${date}T${tin}`);
-  let outT = tout ? parseLocal(`${date}T${tout}`) : null;
-  if (outT != null && outT <= inT) outT = addDays(outT, 1);
-  const now = Date.now();
-  if (inT > now) { toast('Beginn liegt in der Zukunft.'); return; }
-  if (outT != null && outT > now + MIN) { toast('Ende liegt in der Zukunft.'); return; }
-  const others = state.stamps.filter(s => s.id !== editStampId);
-  if (outT == null && others.some(s => s.out == null)) { toast('Es läuft schon eine Session – bitte ein Ende angeben.'); return; }
-  if (outT == null && others.some(s => s.in > inT)) { toast('Eine offene Session muss die letzte sein – bitte Ende angeben.'); return; }
-  const clash = others.find(s => inT < (s.out ?? now) && (outT ?? now) > s.in);
-  if (clash) { toast(`Überschneidet sich mit ${hm(clash.in)}–${clash.out ? hm(clash.out) : 'läuft'}.`); return; }
-  const snap = snapshot();
-  if (editStampId) { const st = state.stamps.find(s => s.id === editStampId); st.in = inT; st.out = outT; }
-  else state.stamps.push({ id: uid(), in: inT, out: outT });
-  state.stamps.sort((a, b) => a.in - b.in);
-  closeDlg($('#stampDlg'));
-  commit();
-  toast(editStampId ? 'Stempel geändert' : 'Stempel nachgetragen', { undo: snap });
-});
-$('#sDelete').addEventListener('click', () => {
-  if (!editStampId) return;
-  const snap = snapshot();
-  state.stamps = state.stamps.filter(s => s.id !== editStampId);
-  closeDlg($('#stampDlg')); commit(); toast('Stempel gelöscht', { undo: snap });
-});
-$('#stampList').addEventListener('click', e => { const b = e.target.closest('[data-stamp]'); if (b) openStampEditor(b.dataset.stamp); });
-$('#addStamp').addEventListener('click', () => openStampEditor(null));
-$('#stampsToday').addEventListener('click', () => { ui.selDay = null; renderTime(); renderWeek(); });
-
-/* ======================= Dongle slider ======================= */
-const dongle = { busy: false, drag: null, suppress: false };
-(() => {
-  const el = $('#dongle'), knob = $('#dongleKnob');
-  const max = () => el.clientWidth - knob.offsetWidth - 10;
-  const reset = (animate = true) => { knob.style.transition = animate ? '' : 'none'; knob.style.transform = ''; };
-  function finish(fromX) {
-    if (dongle.busy) return;
-    if (reduceMotion.matches) { reset(false); toggleClock(); return; }
-    dongle.busy = true;
-    const m = max();
-    knob.style.transition = 'none';
-    const a = knob.animate([{ transform: `translateX(${fromX}px)` }, { transform: `translateX(${m}px)` }], { duration: Math.max(110, 260 * (1 - fromX / m)), easing: 'cubic-bezier(.23,1,.32,1)', fill: 'forwards' });
-    a.onfinish = () => {
-      toggleClock();
-      a.cancel(); knob.style.transform = '';
-      dongle.busy = false;
-      renderTime();
-      knob.animate([{ opacity: 0, filter: 'blur(4px)', transform: 'translateX(-8px)' }, { opacity: 1, filter: 'blur(0)', transform: 'none' }], { duration: 260, easing: 'cubic-bezier(.23,1,.32,1)' });
-      requestAnimationFrame(() => { knob.style.transition = ''; });
-    };
-  }
-  knob.addEventListener('pointerdown', e => {
-    if (dongle.busy || dongle.drag || e.button !== 0) return;
-    dongle.drag = { x0: e.clientX, t0: performance.now(), dx: 0, moved: false, id: e.pointerId };
-    knob.setPointerCapture(e.pointerId);
-    knob.style.transition = 'none';
-  });
-  knob.addEventListener('pointermove', e => {
-    const d = dongle.drag; if (!d || e.pointerId !== d.id) return;
-    let dx = e.clientX - d.x0;
-    if (Math.abs(dx) > 6) d.moved = true;
-    const m = max();
-    if (dx < 0) dx *= .2; else if (dx > m) dx = m + (dx - m) * .2;
-    d.dx = dx;
-    knob.style.transform = `translateX(${dx}px)`;
-  });
-  const end = cancel => e => {
-    const d = dongle.drag; if (!d || e.pointerId !== d.id) return;
-    dongle.drag = null;
-    if (!d.moved) { reset(false); return; } // plain click -> handled by click event
-    dongle.suppress = true; setTimeout(() => { dongle.suppress = false; }, 50);
-    const m = max(), v = d.dx / Math.max(1, performance.now() - d.t0);
-    if (!cancel && (d.dx > m * .55 || v > .6)) finish(clamp(d.dx, 0, m));
-    else { knob.style.transition = ''; knob.style.transform = ''; }
-  };
-  knob.addEventListener('pointerup', end(false));
-  knob.addEventListener('pointercancel', end(true));
-  el.addEventListener('click', e => {
-    if (dongle.suppress || dongle.busy) return;
-    if (e.detail === 0) { toggleClock(); return; } // keyboard: no animation
-    finish(0);
-  });
-})();
-$('#dockDongle').addEventListener('click', toggleClock);
-
-/* ======================= Planner events ======================= */
-$('#list').addEventListener('click', e => {
-  const act = e.target.closest('[data-act]');
-  if (act) {
-    if (act.dataset.act === 'toggle-done') { ui.openDone = !ui.openDone; renderPlanner(); return; }
-    const id = act.closest('[data-id]')?.dataset.id; if (!id) return;
-    if (act.dataset.act === 'done') completeWithFeedback(id, act);
-    else if (act.dataset.act === 'timer') toggleTimer(id);
-    return;
-  }
-  const emptyBtn = e.target.closest('[data-empty]');
-  if (emptyBtn) {
-    const a = emptyBtn.dataset.empty;
-    if (a === 'new') openComposer();
-    else if (a === 'demo') loadDemo();
-    else if (a === 'reset') { ui.kind = 'alle'; ui.q = ''; ui.day = null; ui.person = null; $('#search').value = ''; renderAll(); }
-    return;
-  }
-  const row = e.target.closest('.item');
-  if (row) openComposer(find(row.dataset.id));
-});
-$('#list').addEventListener('keydown', e => {
-  if (e.key !== 'Enter' || e.target.closest('button')) return;
-  const row = e.target.closest('.item'); if (row) { e.preventDefault(); openComposer(find(row.dataset.id)); }
-});
-$('#filters').addEventListener('click', e => { const b = e.target.closest('[data-kind]'); if (!b) return; ui.kind = b.dataset.kind; renderPlanner(); });
-$('#activeFilter').addEventListener('click', e => {
-  const b = e.target.closest('[data-clear]'); if (!b) return;
-  const k = b.dataset.clear;
-  if (k === 'q') { ui.q = ''; $('#search').value = ''; } else ui[k] = null;
-  renderAll();
-});
-$('#heroSide').addEventListener('click', e => {
-  const b = e.target.closest('button'); if (!b) return;
-  if (b.dataset.hs === 'new') { openComposer(null, { kind: 'anfrage' }); return; }
-  const p = b.dataset.hsName; ui.person = ui.person === p ? null : p; renderAll();
-});
-$('#focusBody').addEventListener('click', e => {
-  const b = e.target.closest('[data-focus]'); if (!b || !focusId) return;
-  const a = b.dataset.focus;
-  if (a === 'done') completeItem(focusId);
-  else if (a === 'timer') toggleTimer(focusId);
-  else if (a === 'edit') openComposer(find(focusId));
-});
-
-// quick add
-function parseQuick(raw) {
-  let s = ` ${raw} `, kind = null, from = '', asap = false;
-  s = s.replace(/\s#(anfrage|todo|aufgabe)(?=\s)/i, (_, k) => { kind = k.toLowerCase(); return ' '; });
-  s = s.replace(/\s@([\p{L}][\p{L}\p{N}._-]*)/u, (_, n) => { from = n.replace(/[._]+/g, ' ').trim(); return ' '; });
-  if (/\s!+(?=\s)/.test(s) || /!\s*$/.test(s)) { asap = true; s = s.replace(/\s!+(?=\s)/g, ' ').replace(/!+\s*$/, ' '); }
-  const title = s.replace(/\s+/g, ' ').trim();
-  if (!kind) kind = from ? 'anfrage' : (ui.kind !== 'alle' ? ui.kind : 'todo');
-  return { title, kind, from, mode: asap ? 'asap' : 'einmalig' };
-}
-$('#quickInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter' && e.shiftKey) {
-    e.preventDefault();
-    const p = parseQuick(e.target.value);
-    e.target.value = '';
-    openComposer(null, p);
-  }
-});
-$('#quick').addEventListener('submit', e => {
-  e.preventDefault();
-  const inp = $('#quickInput'), raw = inp.value.trim();
-  if (!raw) { inp.focus(); return; }
-  const p = parseQuick(raw);
-  if (!p.title) { inp.focus(); return; }
-  const now = Date.now();
-  state.items.push(normItem({ id: uid(), ...p, createdAt: now, updatedAt: now }));
-  inp.value = '';
-  commit();
-  toast(`${KINDS[p.kind].label} angelegt${p.from ? ' · von ' + p.from : ''}${p.mode === 'asap' ? ' · sofort' : ''}`);
-});
-
-// search
-const searchBox = $('#searchBox'), searchInput = $('#search');
-let qTimer;
-searchInput.addEventListener('input', () => {
-  clearTimeout(qTimer);
-  qTimer = setTimeout(() => { ui.q = searchInput.value.trim(); if (ui.q && mobileMQ.matches) setTab('aufgaben'); renderPlanner(); }, 90);
-});
-searchInput.addEventListener('keydown', e => { if (e.key === 'Escape') { searchInput.value = ''; ui.q = ''; renderPlanner(); searchInput.blur(); } });
-searchBox.addEventListener('click', () => { if (mobileMQ.matches) { searchBox.classList.add('expanded'); searchInput.focus(); } });
-searchInput.addEventListener('blur', () => { if (!searchInput.value) searchBox.classList.remove('expanded'); });
-
-// calendar & week
-$('#calGrid').addEventListener('click', e => {
-  const b = e.target.closest('[data-cal]'); if (!b) return;
-  ui.day = ui.day === b.dataset.cal ? null : b.dataset.cal;
-  renderCal(); renderPlanner();
-  if (ui.day) { const n = state.items.filter(matches).length; if (!n) toast(`Keine Fristen am ${dateShort(fromKey(ui.day))}.`); }
-});
-$('#calPrev').addEventListener('click', () => { const d = new Date(ui.calMonth); d.setMonth(d.getMonth() - 1); ui.calMonth = d.getTime(); renderCal(); });
-$('#calNext').addEventListener('click', () => { const d = new Date(ui.calMonth); d.setMonth(d.getMonth() + 1); ui.calMonth = d.getTime(); renderCal(); });
-$('#wkChart').addEventListener('click', e => {
-  const b = e.target.closest('[data-day]'); if (!b) return;
-  ui.selDay = b.dataset.day === dayKey(Date.now()) ? null : b.dataset.day;
-  renderWeek(); renderStamps(Date.now());
-  showTip(b);
-});
-function showTip(col) {
-  const tip = $('#wkTip'); if (!tip || !col) return;
-  const r = col.getBoundingClientRect(), pr = $('#wkChart').getBoundingClientRect();
-  const bar = col.querySelector('.bar').getBoundingClientRect();
-  tip.textContent = col.dataset.tip;
-  tip.style.left = `${clamp(r.left + r.width / 2 - pr.left, 50, pr.width - 50)}px`;
-  tip.style.top = `${bar.top - pr.top - 6}px`;
-  tip.classList.add('show');
-}
-$('#wkChart').addEventListener('pointerover', e => { const c = e.target.closest('.wk-col'); if (c && e.pointerType === 'mouse') showTip(c); });
-$('#wkChart').addEventListener('pointerleave', () => $('#wkTip')?.classList.remove('show'));
-$('#wkChart').addEventListener('focusin', e => { const c = e.target.closest('.wk-col'); if (c) showTip(c); });
-$('#wkChart').addEventListener('focusout', () => $('#wkTip')?.classList.remove('show'));
-
-// new buttons
-$('#newBtn').addEventListener('click', () => openComposer());
-$('#newBtn2').addEventListener('click', () => openComposer());
-$('#dockAdd').addEventListener('click', () => openComposer());
-
-/* ======================= Tabs (mobile) ======================= */
-function setTab(t) {
-  document.body.dataset.tab = t;
-  $$('.dock-btn[data-tab]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tab === t)));
-  try { sessionStorage.setItem('workoholic:tab', t); } catch (e) {}
-}
-$$('.dock-btn[data-tab]').forEach(b => b.addEventListener('click', () => { setTab(b.dataset.tab); scrollTo({ top: 0 }); }));
-try { const t = sessionStorage.getItem('workoholic:tab'); if (t === 'zeit' || t === 'aufgaben') setTab(t); } catch (e) {}
-
-/* ======================= Menu ======================= */
-const menu = $('#menu'), menuBtn = $('#menuBtn');
-function openMenu() {
-  $('#setName').value = state.settings.name;
-  $('#setTarget').value = +(state.settings.targetMin / 60).toFixed(2);
-  menu.classList.add('open'); menuBtn.setAttribute('aria-expanded', 'true');
-}
-function closeMenu() { menu.classList.remove('open'); menuBtn.setAttribute('aria-expanded', 'false'); }
-menuBtn.addEventListener('click', e => { e.stopPropagation(); menu.classList.contains('open') ? closeMenu() : openMenu(); });
-document.addEventListener('click', e => { if (!e.target.closest('.menu-wrap')) closeMenu(); });
-$('#setName').addEventListener('input', e => { state.settings.name = e.target.value.slice(0, 40); save(); renderHero(); });
-$('#setTarget').addEventListener('change', e => {
-  const h = Number(String(e.target.value).replace(',', '.'));
-  if (!Number.isFinite(h) || h < 0 || h > 24) { e.target.value = +(state.settings.targetMin / 60).toFixed(2); return; }
-  state.settings.targetMin = Math.round(h * 60); commit();
-});
-function download(name, text, type) {
-  const blob = new Blob([text], { type });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob); a.download = name;
-  document.body.append(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-}
-menu.addEventListener('click', e => {
-  const b = e.target.closest('[data-menu]'); if (!b) return;
-  const a = b.dataset.menu, stamp = dayKey(Date.now());
-  closeMenu();
-  if (a === 'export') { download(`workoholic-backup-${stamp}.json`, JSON.stringify(state, null, 2), 'application/json'); toast('Backup gespeichert'); }
-  else if (a === 'import') $('#importFile').click();
-  else if (a === 'csv') {
-    const rows = [['Datum', 'Wochentag', 'Eingedongelt', 'Ausgedongelt', 'Dauer (h:mm)', 'Dauer (Std dezimal)']];
-    for (const st of state.stamps) {
-      const end = st.out ?? Date.now();
-      rows.push([new Date(st.in).toLocaleDateString('de-DE'), WDL[new Date(st.in).getDay()], hm(st.in), st.out ? hm(st.out) : 'läuft', dur(end - st.in), ((end - st.in) / HOUR).toFixed(2).replace('.', ',')]);
-    }
-    download(`workoholic-arbeitszeiten-${stamp}.csv`, '﻿' + rows.map(r => r.join(';')).join('\r\n'), 'text/csv;charset=utf-8');
-    toast(`${state.stamps.length} Stempel exportiert`);
-  }
-  else if (a === 'cleardone') {
-    const n = state.items.filter(i => i.done).length;
-    if (!n) { toast('Keine erledigten Einträge.'); return; }
-    const snap = snapshot(); state.items = state.items.filter(i => !i.done); commit(); toast(`${n} erledigte entfernt`, { undo: snap });
-  }
-  else if (a === 'demo') loadDemo();
-  else if (a === 'wipe') {
-    if (!confirm('Wirklich alle Einträge, Stempel und Einstellungen löschen?')) return;
-    const snap = snapshot(); state = blank(); commit(); toast('Alles gelöscht', { undo: snap });
-  }
-});
-$('#importFile').addEventListener('change', async e => {
-  const f = e.target.files[0]; e.target.value = '';
-  if (!f) return;
-  try {
-    const data = JSON.parse(await f.text());
-    if (!data || !Array.isArray(data.items) || !Array.isArray(data.stamps)) throw new Error('format');
-    const next = normalize(data);
-    if (!confirm(`Backup mit ${next.items.length} Einträgen und ${next.stamps.length} Stempeln laden? Aktuelle Daten werden ersetzt.`)) return;
-    const snap = snapshot(); state = next; commit(); toast('Backup geladen', { undo: snap });
-  } catch (err) { toast('Datei ist kein gültiges Workoholic-Backup.'); }
-});
-
-/* ======================= Demo data ======================= */
-function loadDemo() {
-  if ((state.items.length || state.stamps.length) && !confirm('Beispieldaten ersetzen deine aktuellen Daten. Fortfahren?')) return;
-  const snap = snapshot(), now = Date.now(), today = sod(now);
-  const T = (dOff, h, m = 0) => { const d = new Date(today); d.setDate(d.getDate() + dOff); d.setHours(h, m, 0, 0); return d.getTime(); };
-  const mk = (o) => normItem({ id: uid(), createdAt: now - (o.age || 0) * HOUR, updatedAt: now, ...o });
-  const fri = (() => { let off = (5 - new Date(now).getDay() + 7) % 7; if (off === 0) off = 7; return off; })();
-  const items = [
-    mk({ title: 'Kurzer Blick auf den Vertragsentwurf', kind: 'anfrage', from: 'Jonas Weber', mode: 'asap', age: 1, notes: 'Klausel 4.2 – Haftung' }),
-    mk({ title: 'Zahlen für die Q4-Präsentation', kind: 'anfrage', from: 'Sabine Krüger', mode: 'deadline', due: Math.max(now + 2.4 * HOUR, T(0, 16)), status: 'inarbeit', age: 20 }),
-    mk({ title: 'Zugang zum Projektlaufwerk', kind: 'anfrage', from: 'Mehmet Yilmaz', mode: 'einmalig', status: 'wartet', age: 50, notes: 'Ticket bei der IT ist offen' }),
-    mk({ title: 'Feedback zum Onboarding-Konzept', kind: 'anfrage', from: 'Sabine Krüger', mode: 'deadline', due: T(fri, 12), age: 30 }),
-    mk({ title: 'Quartalsbericht · Kapitel 3', kind: 'aufgabe', from: 'Lena Hoffmann', mode: 'dauer', durMin: 240, spentMs: 95 * MIN, due: T(fri, 15), age: 70 }),
-    mk({ title: 'Kundentermin Müller GmbH vorbereiten', kind: 'aufgabe', mode: 'deadline', due: T(1, 10), age: 26 }),
-    mk({ title: 'Reisekostenabrechnung einreichen', kind: 'todo', mode: 'deadline', due: T(-1, 17), age: 96 }),
-    mk({ title: 'Postfach auf Inbox Zero', kind: 'todo', mode: 'repeat', repeat: 'weekdays', due: T(0, 17, 30), age: 300 }),
-    mk({ title: 'Wochenplanung', kind: 'todo', mode: 'repeat', repeat: 'weekly', due: T(fri, 14), age: 400 }),
-    mk({ title: 'Ideen fürs Team-Event sammeln', kind: 'todo', mode: 'einmalig', age: 120 }),
-    mk({ title: 'Urlaubsantrag stellen', kind: 'todo', mode: 'einmalig', done: true, doneAt: now - 1.5 * HOUR, age: 48 }),
-    mk({ title: 'Rückruf Herr Schneider', kind: 'anfrage', from: 'Empfang', mode: 'asap', done: true, doneAt: now - 3 * HOUR, age: 5 })
-  ];
-  const stamps = [];
-  let seed = 3; const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  for (let i = 13; i >= 1; i--) {
-    const d = new Date(T(-i, 0)); if (d.getDay() === 0 || d.getDay() === 6) continue;
-    const a = T(-i, 7, 35 + Math.round(r() * 30)), b = T(-i, 12, Math.round(r() * 20)), c = b + (30 + Math.round(r() * 20)) * MIN, e = T(-i, 16, 10 + Math.round(r() * 70));
-    stamps.push({ id: uid(), in: a, out: b }, { id: uid(), in: c, out: e });
-  }
-  const s1 = T(0, 7, 42), s1e = T(0, 12, 4), s2 = T(0, 12, 38);
-  if (now > s2 + 5 * MIN) stamps.push({ id: uid(), in: s1, out: s1e }, { id: uid(), in: s2, out: null });
-  else if (now > s1 + 5 * MIN) stamps.push({ id: uid(), in: s1, out: null });
-  state = normalize({ items, stamps, settings: { ...state.settings } });
-  commit();
-  toast('Beispieldaten geladen', { undo: snap });
-}
-
-/* ======================= Keyboard ======================= */
-document.addEventListener('keydown', e => {
-  if (e.metaKey || e.ctrlKey || e.altKey) return;
-  if (e.target.closest('input, textarea, select, [contenteditable="true"]')) return;
-  if ($('dialog[open]')) return;
-  if (e.key === 'Escape') { closeMenu(); return; }
-  const k = e.key.toLowerCase();
-  if (k === 'n') { e.preventDefault(); openComposer(); }
-  else if (e.key === '/') { e.preventDefault(); if (mobileMQ.matches) searchBox.classList.add('expanded'); searchInput.focus(); }
-  else if (k === 'd' && !e.repeat) { e.preventDefault(); toggleClock(); }
-});
-
-/* ======================= Tick ======================= */
-function tick() {
-  const now = Date.now(), minute = Math.floor(now / MIN);
-  if (minute !== lastMinute) { lastMinute = minute; renderAll(); }
-  else updateLive(now);
-}
-const setPlaceholders = () => { $('#quickInput').placeholder = mobileMQ.matches ? 'Schnell erfassen … @Name, !' : 'Schnell erfassen … z. B. @Sabine Zahlen schicken !'; };
-setPlaceholders();
-mobileMQ.addEventListener?.('change', () => { setPlaceholders(); renderHero(); renderTime(); });
-renderAll();
-lastMinute = Math.floor(Date.now() / MIN);
-setInterval(tick, 1000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { lastMinute = -1; tick(); } });
-})();
-</script>
+<!-- Sicherheit & Sync -->
+<dialog class="dlg sheet-dlg" id="secDlg" aria-labelledby="secH">
+  <div class="sheet">
+    <div class="sheet-head"><h3 id="secH">Sicherheit &amp; Sync</h3><button type="button" class="icon-btn sm" data-close aria-label="Schließen"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div class="sec-hero"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5.5c0 4.3-2.9 8-7 9.5-4.1-1.5-7-5.2-7-9.5V6z"/><path d="M9 12l2 2 4-4"/></svg><div><b>Ende-zu-Ende verschlüsselt</b><span>AES-256-GCM · Schlüssel per Argon2id (64 MiB) aus deinem Master-Passwort · Klartext verlässt nie dein Gerät.</span></div></div>
+
+    <section class="sec">
+      <h4>Synchronisierung über GitHub</h4>
+      <p class="sec-status" id="secSync" data-s="off"></p>
+      <form id="ghForm" novalidate>
+        <label class="f-label" for="ghRepo">Privates Repo nur für den Tresor</label>
+        <input class="input" id="ghRepo" placeholder="besitzer/workoholic-tresor" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <label class="f-label" for="ghToken">Token (fine-grained, nur dieses Repo)</label>
+        <input class="input" id="ghToken" type="password" placeholder="github_pat_…" autocomplete="off">
+        <details class="adv"><summary>Branch &amp; Datei</summary>
+          <div class="row2"><div><label class="f-label" for="ghBranch">Branch</label><input class="input" id="ghBranch" placeholder="Standard" autocomplete="off" autocapitalize="off"></div><div><label class="f-label" for="ghPath">Datei</label><input class="input" id="ghPath" placeholder="workoholic.vault" autocomplete="off" autocapitalize="off"></div></div>
+        </details>
+        <p class="sec-err" id="secErr" role="alert"></p>
+        <div class="sec-actions">
+          <button type="submit" class="btn btn-accent btn-sm" id="ghSave">Verbinden</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="ghNow" hidden>Jetzt synchronisieren</button>
+          <button type="button" class="btn btn-ghost btn-sm btn-danger" id="ghOverwrite" hidden>Entfernten Tresor überschreiben</button>
+          <button type="button" class="btn btn-ghost btn-sm btn-danger" id="ghOff" hidden>Trennen</button>
+        </div>
+        <p class="hint">Token anlegen: GitHub → Settings → Developer settings → Fine-grained tokens → „Only select repositories“: nur das Tresor-Repo → Repository permissions → <b>Contents: Read and write</b>. <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener noreferrer">Token erstellen ↗</a></p>
+      </form>
+    </section>
+
+    <section class="sec">
+      <h4>Automatisch sperren nach</h4>
+      <div class="seg" id="autoLock" role="group" aria-label="Automatisch sperren nach" style="margin-top:12px">
+        <button type="button" data-v="5">5 Min</button><button type="button" data-v="15">15 Min</button><button type="button" data-v="30">30 Min</button><button type="button" data-v="60">60 Min</button>
+      </div>
+    </section>
+
+    <section class="sec">
+      <h4>Master-Passwort ändern</h4>
+      <form id="pwForm" novalidate>
+        <input class="sr" type="text" name="username" autocomplete="username" value="Workoholic-Tresor" tabindex="-1" aria-hidden="true">
+        <label class="f-label" for="pwCur">Aktuelles Passwort</label>
+        <input class="input" id="pwCur" type="password" autocomplete="current-password">
+        <label class="f-label" for="pwNew">Neues Passwort</label>
+        <input class="input" id="pwNew" type="password" autocomplete="new-password" placeholder="Mindestens 12 Zeichen">
+        <div class="meter" aria-hidden="true"><i id="pwMeter"></i></div><p class="meter-lbl" id="pwMeterLbl" aria-live="polite"></p>
+        <label class="sr" for="pwNew2">Neues Passwort wiederholen</label>
+        <input class="input" id="pwNew2" type="password" autocomplete="new-password" placeholder="Wiederholen">
+        <p class="sec-err" id="pwErr" role="alert"></p>
+        <div class="sec-actions"><button type="submit" class="btn btn-ghost btn-sm" id="pwSave">Passwort ändern</button></div>
+      </form>
+    </section>
+
+    <section class="sec">
+      <h4>Wiederherstellungsschlüssel</h4>
+      <p class="hint">Erzeugt einen neuen Schlüssel – der alte wird sofort ungültig.</p>
+      <form id="rkForm" novalidate>
+        <input class="sr" type="text" name="username" autocomplete="username" value="Workoholic-Tresor" tabindex="-1" aria-hidden="true">
+        <label class="f-label" for="rkCur">Aktuelles Passwort</label>
+        <input class="input" id="rkCur" type="password" autocomplete="current-password">
+        <p class="sec-err" id="rkErr" role="alert"></p>
+        <div class="sec-actions"><button type="submit" class="btn btn-ghost btn-sm" id="rkSave">Neuen Schlüssel erzeugen</button></div>
+      </form>
+      <div id="rkOut" hidden><div class="rk" id="rkOutKey"></div><div class="rk-row"><button type="button" class="btn btn-ghost btn-sm" id="rkOutCopy">Kopieren</button></div></div>
+    </section>
+
+    <div class="sheet-foot"><button type="button" class="btn btn-light" id="secLock"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></svg>Jetzt sperren</button><span class="grow"></span><button type="button" class="btn btn-ghost" data-close>Fertig</button></div>
+  </div>
+</dialog>
+
+<!-- Rückfrage -->
+<dialog class="dlg" id="askDlg" aria-labelledby="askH">
+  <form class="sheet sheet-sm" id="askForm" novalidate>
+    <div class="sheet-head"><h3 id="askH"></h3></div>
+    <p class="ask-p" id="askP"></p>
+    <label class="sr" for="askPw">Passwort</label>
+    <input class="input" id="askPw" type="password" autocomplete="off" hidden>
+    <div class="sheet-foot" id="askBtns"></div>
+  </form>
+</dialog>
+
+<input type="file" id="importFile" accept=".vault,.json,application/json,application/octet-stream" hidden>
+
+<script src="vendor/hash-wasm/argon2.umd.min.js"></script>
+<script src="js/vault.js"></script>
+<script src="js/app.js"></script>
 </body>
 </html>
