@@ -55,10 +55,12 @@
     {
       id: 'meldung', phase: 'Meldung', title: 'Anzeigenerstatter', lead: 'Wer meldet die Person als vermisst – und wie ist sie oder er erreichbar?', gen: ['1'],
       fields: [
+        { t: 'head', text: 'Meldung' },
         { k: 'einsatz.datum', t: 'date', l: 'Meldung am', w: 'half', q: 'heute' },
         { k: 'einsatz.zeit', t: 'time', l: 'um', w: 'half', q: 'jetzt' },
         { k: 'melder', t: 'person', l: 'Anzeigenerstatter/in', fields: ['geschlecht', 'nachname', 'vorname', 'geb', 'tel'] },
         { k: 'melder.rolle', t: 'text', l: 'Rolle zur vermissten Person', pre: 'Verhältnis:', ph: 'z. B. Mutter, Ehemann, Freund', sugg: [['Mutter', 'Mutter'], ['Vater', 'Vater'], ['Ehepartner/in', 'Ehepartner/in'], ['Lebensgefährte/in', 'Lebensgefährte/in'], ['Kind', 'Kind'], ['Betreuer/in', 'Betreuer/in'], ['Einrichtung', 'Einrichtung'], ['Freund/in', 'Freund/in']] },
+        { t: 'head', text: 'Aufnahme', h: 'Rufname und Kräfte' },
         { k: 'einsatz.rufname', t: 'text', l: 'Rufname / Einsatzmittel', ph: 'z. B. Stf 21/03', w: 'half', recent: true },
         { k: 'einsatz.kraefte', t: 'crew', l: 'Aufnehmende Beamtinnen und Beamte', grade: GRADE, max: 6 }
       ]
@@ -73,8 +75,10 @@
     {
       id: 'sichtung', phase: 'Sichtung', title: 'Letzte Sichtung', lead: 'Wann und wo wurde die Person zuletzt gesehen, und wie ist sie unterwegs?', gen: ['3'],
       fields: [
+        { t: 'head', text: 'Wann?' },
         { k: 'sicht.datum', t: 'date', l: 'Zuletzt gesehen – Datum', w: 'half', q: 'heute', req: true },
         { k: 'sicht.zeit', t: 'time', l: 'Uhrzeit', w: 'half', req: true },
+        { t: 'head', text: 'Wohin und wie?' },
         { k: 'sicht.richtung', t: 'text', l: 'Entfernte sich in Richtung', ph: 'z. B. Innenstadt / Bahnhof' },
         { k: 'sicht.fort', t: 'choice', l: 'Fortbewegung (womit?)', o: FORT },
         { k: 'sicht.zuFuss', t: 'choice', l: 'Zu Fuß – Mobilität?', o: opts(['gut zu Fuß', 'normal', 'nicht gut zu Fuß']), when: d => get(d, 'sicht.fort') === 'zu Fuß' }
@@ -83,10 +87,12 @@
     {
       id: 'fahrzeuge', phase: 'Sichtung', title: 'Zugriff auf Fahrzeuge', lead: 'Kann die Person mit einem Fahrzeug unterwegs sein?', gen: ['3'],
       fields: [
+        { t: 'head', text: 'Pkw' },
         { k: 'pkw.zugriff', t: 'yn', l: 'Zugriff auf einen Pkw?', o: JN },
         { k: 'pkw.beschr', t: 'text', l: 'Pkw-Beschreibung', ph: 'z. B. VW Golf, schwarz', w: 'half', when: d => get(d, 'pkw.zugriff') === 'ja' },
         { k: 'pkw.kz', t: 'text', l: 'Kennzeichen', ph: 'z. B. ST-AB 123', w: 'half', when: d => get(d, 'pkw.zugriff') === 'ja' },
         { k: 'pkw.vorOrt', t: 'yn', l: 'Fahrzeug noch vor Ort?', o: JNU, when: d => get(d, 'pkw.zugriff') === 'ja' },
+        { t: 'head', text: 'Andere Fahrzeuge', h: 'Motorrad, Fahrrad, Firmenwagen …' },
         { k: 'fz.zugriff', t: 'yn', l: 'Zugriff auf andere Fahrzeuge?', o: JN },
         { k: 'fz.beschr', t: 'text', l: 'Beschreibung', ph: 'z. B. Motorrad, rot', w: 'half', when: d => get(d, 'fz.zugriff') === 'ja' },
         { k: 'fz.kz', t: 'text', l: 'Kennzeichen', ph: 'z. B. ST-CD 456', w: 'half', when: d => get(d, 'fz.zugriff') === 'ja' },
@@ -96,8 +102,10 @@
     {
       id: 'gesundheit', phase: 'Gesundheit', title: 'Krankheiten & Medikamente', lead: 'Ist die Person auf Hilfe oder Medikamente angewiesen?', gen: ['4'],
       fields: [
+        { t: 'head', text: 'Krankheiten' },
         { k: 'ges.krank', t: 'yn', l: 'Krankheiten bekannt?', o: JNU },
         { k: 'ges.krankWelche', t: 'text', l: 'Welche Krankheiten?', ph: 'z. B. Diabetes, Epilepsie, Demenz', when: d => get(d, 'ges.krank') === 'ja' },
+        { t: 'head', text: 'Medikamente' },
         { k: 'ges.med', t: 'yn', l: 'Auf Medikamente angewiesen?', o: JNU },
         { k: 'ges.medLeben', t: 'yn', l: 'Sind diese lebenswichtig?', o: JN, when: d => get(d, 'ges.med') === 'ja' },
         { k: 'ges.medWelche', t: 'text', l: 'Welche Medikamente?', ph: 'z. B. Insulin, Marcumar', when: d => get(d, 'ges.med') === 'ja' },
@@ -107,6 +115,7 @@
     {
       id: 'suizid', phase: 'Gesundheit', title: 'Suizidalität', lead: 'Gab es Äußerungen, die auf eine Eigengefährdung hindeuten?', gen: ['4'],
       fields: [
+        { t: 'head', text: 'Äußerungen' },
         { k: 'suizid.ja', t: 'yn', l: 'Suizidale Gedanken geäußert?', o: JN },
         { k: 'suizid.wann', t: 'text', l: 'Wann geäußert?', ph: 'z. B. vor 2 Wochen', w: 'half', when: d => get(d, 'suizid.ja') === 'ja' },
         { k: 'suizid.art', t: 'text', l: 'Welche Äußerungen / Art?', ph: 'kurze Beschreibung', w: 'half', when: d => get(d, 'suizid.ja') === 'ja' },
@@ -118,19 +127,24 @@
     {
       id: 'aussehen', phase: 'Erscheinungsbild', title: 'Erscheinungsbild', lead: 'Daraus entsteht die Personenbeschreibung für die Fahndung.', gen: ['5'],
       fields: [
+        { t: 'head', text: 'Körper' },
         { k: 'aus.statur', t: 'choice', l: 'Statur', o: opts(STATUR) },
         { k: 'aus.groesse', t: 'number', l: 'Größe', unit: 'cm', step: 1, min: 40, max: 230, q: [160, 170, 180, 190] },
+        { t: 'head', text: 'Haare' },
         { k: 'aus.haarfarbe', t: 'choice', l: 'Haarfarbe', o: opts(HAARFARBE) },
         { k: 'aus.haarlaenge', t: 'choice', l: 'Haarlänge', o: opts(HAARLAENGE), when: d => get(d, 'aus.haarfarbe') !== 'kein Haar / Glatze' },
-        { k: 'aus.auffaellig', t: 'area', rows: 2, l: 'Auffälligkeiten (Narben, Gesichtsbehaarung, Brille …)', ph: 'freie Beschreibung' },
-        { k: 'aus.bekleidung', t: 'area', rows: 2, l: 'Bekleidung', ph: 'z. B. dunkelblaue Jeans, rote Regenjacke, weiße Turnschuhe' }
+        { t: 'head', text: 'Kleidung & Merkmale' },
+        { k: 'aus.bekleidung', t: 'area', rows: 2, l: 'Bekleidung', ph: 'z. B. dunkelblaue Jeans, rote Regenjacke, weiße Turnschuhe' },
+        { k: 'aus.auffaellig', t: 'area', rows: 2, l: 'Auffälligkeiten (Narben, Gesichtsbehaarung, Brille …)', ph: 'freie Beschreibung' }
       ]
     },
     {
       id: 'umfeld', phase: 'Umfeld', title: 'Umfeld & Kontakt', lead: 'Wo könnte die Person sein, und wie ist sie erreichbar?', gen: ['6'],
       fields: [
+        { t: 'head', text: 'Erreichbarkeit' },
         { k: 'umf.handy', t: 'yn', l: 'Handy mitgeführt?', o: JN },
         { k: 'umf.handyNr', t: 'text', l: 'Telefonnummer', ph: 'z. B. 0151 …', inputmode: 'tel', when: d => get(d, 'umf.handy') === 'ja' },
+        { t: 'head', text: 'Orte & Kontakte', h: 'wo die Person sein könnte' },
         { k: 'umf.orte', t: 'list', l: 'Bekannte Aufenthaltsorte', item: 'Aufenthaltsort', add: 'Aufenthaltsort hinzufügen', max: 10, sub: [{ k: 't', t: 'text', l: 'Ort (Stichpunkt)', ph: 'z. B. Stammkneipe „…“' }] },
         { k: 'umf.freunde', t: 'list', l: 'Freunde als Anlaufadressen', item: 'Anlaufadresse', add: 'Anlaufadresse hinzufügen', max: 10, sub: [{ k: 't', t: 'text', l: 'Name / Anschrift', ph: 'Name, Straße Nr., Ort' }] }
       ]
@@ -138,10 +152,13 @@
     {
       id: 'sonstiges', phase: 'Umfeld', title: 'Sonstiges', lead: 'Lichtbild, Vorgeschichte und Material für Suchmaßnahmen.', gen: ['6'],
       fields: [
+        { t: 'head', text: 'Lichtbild' },
         { k: 'umf.fotos', t: 'yn', l: 'Fotos verfügbar?', o: JN },
         { t: 'info', when: d => get(d, 'umf.fotos') === 'ja', text: 'Fotos bitte in Teamwire einstellen (wird im Text vermerkt).' },
+        { t: 'head', text: 'Vorgeschichte' },
         { k: 'umf.bereits', t: 'yn', l: 'Schon einmal vermisst gewesen?', o: JN },
         { k: 'umf.bereitsWo', t: 'text', l: 'Wo damals angetroffen?', ph: 'z. B. bei Freunden in …', when: d => get(d, 'umf.bereits') === 'ja' },
+        { t: 'head', text: 'Suche' },
         { k: 'umf.vergleich', t: 'yn', l: 'Vergleichsmaterial für Suchmaßnahmen (Mantrailer) verfügbar?', o: JN }
       ]
     }

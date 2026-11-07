@@ -96,6 +96,8 @@
     const L = forId => label(f, forId, d, item);
     switch (f.t) {
       case 'info': return `<div class="w-q full"><div class="w-info">${esc(R(f.text, d, item))}</div></div>`;
+      /* Zwischentitel: gliedert einen Schritt in Abschnitte (keine Antwort, kein Datenfeld) */
+      case 'head': return `<div class="w-q full w-head"><span class="w-head-t">${esc(R(f.text, d, item))}</span>${f.h ? `<span class="w-head-h">${esc(R(f.h, d, item))}</span>` : ''}</div>`;
       case 'yn': {
         const o = Array.isArray(R(f.o, d, item)) ? R(f.o, d, item) : [['ja', 'Ja'], ['nein', 'Nein']];
         return `${Q}${L()}<div class="w-seg" role="group" aria-label="${esc(R(f.l, d, item) || '')}">${o.map(([val, lab]) => `<button type="button" class="w-opt${val === 'ja' ? ' yes' : val === 'nein' ? ' no' : ''}" data-set="${esc(k)}" data-v="${esc(val)}" aria-pressed="${String(v === val)}">${esc(lab)}</button>`).join('')}</div></div>`;

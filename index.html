@@ -949,6 +949,10 @@ body[data-area=schreiben] .pane-schreiben{display:grid}
 .w-top-t .spaced{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .w-title{font-size:18px;font-weight:400;letter-spacing:-.01em;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .w-back{display:none}
+.w-head{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px;margin-top:10px;padding-top:18px;border-top:1px solid var(--line)}
+.w-grid > .w-head:first-child{margin-top:0;padding-top:4px;border-top:0}
+.w-head-t{font-size:15px;font-weight:600;letter-spacing:-.01em;color:var(--text)}
+.w-head-h{font-size:12px;color:var(--text-3)}
 .w-rail{display:flex;gap:6px;margin:4px 0 10px;overflow:hidden}
 .w-rail-p{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px;padding:6px 0;margin:-6px 0;background:none;border:0;color:inherit;font:inherit;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .w-rail-p.on{flex:2.4}
@@ -1215,17 +1219,48 @@ body[data-area=schreiben] .pane-schreiben{display:grid}
 .st-more{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:12.5px}
 .st-add{display:flex;gap:8px;margin-top:10px}
 .st-add .input{flex:1;min-width:0}
-.st-units,.op-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.st-units{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .st-units:empty{display:none}
 .st-preview .f-label{margin-top:20px}
 .st-rts{display:flex;flex-wrap:wrap;gap:6px}
 .st-rts .pill{gap:7px}
+/* Abschnitte in Sheets (Dienstbeginn, Einsatz): nummeriert, nur sichtbare zählen */
+.secs{counter-reset:sec}
+.sec{margin-top:12px;padding:2px 16px 16px;border-radius:20px;background:rgba(255,255,255,.028);border:1px solid var(--line)}
+.sec[hidden]{display:none}
+.sec-h{display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px;margin:14px 0 4px;font-size:14px;font-weight:600;letter-spacing:-.005em;color:var(--text)}
+.sec-h .f-count{font-weight:400}
+.sec-n{display:inline-grid;place-items:center;width:22px;height:22px;flex:none;border-radius:50%;background:rgba(255,255,255,.08);font-size:11px;font-weight:600;color:var(--text-2);transition:background-color .2s ease,color .2s ease}
+.sec-n::before{counter-increment:sec;content:counter(sec)}
+.sec.is-done .sec-n{background:var(--accent-soft);color:var(--accent)}
+.sec-h + .f-label{margin-top:8px}
+.sec > .tpl-grid{margin-top:10px}
+.sugg{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.sugg:empty{display:none}
+.sugg .chip.more{border-style:dashed;color:var(--text-3)}
 /* Einsatz-Sheet */
-.op-row2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,220px);gap:12px}
 .op-times{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.op-close{margin-top:18px;padding:2px 14px 14px;border-radius:18px;background:rgba(255,255,255,.03);border:1px solid var(--line)}
-.op-close>.f-label:first-child{margin-top:12px}
-.op-none{margin:0 0 10px}
+.op-mode{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.op-mode button{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-height:64px;padding:11px 14px;border-radius:16px;background:rgba(255,255,255,.04);border:1px solid var(--line);text-align:left;transition:background-color .15s ease,border-color .15s ease,transform .14s var(--ease-out)}
+.op-mode button:active{transform:scale(.98)}
+.op-mode b{font-size:14px;font-weight:500;color:var(--text)}
+.op-mode small{font-size:11.5px;line-height:1.3;color:var(--text-3)}
+.op-mode [aria-checked=true]{background:rgba(236,217,111,.08);border-color:rgba(236,217,111,.45)}
+.op-mode [aria-checked=true] b::after{content:" ✓";color:var(--accent)}
+.op-mode button:disabled{opacity:.45;cursor:not-allowed}
+@media (hover:hover) and (pointer:fine){.op-mode button:not(:disabled):hover{background:rgba(255,255,255,.07)}}
+.op-mass{margin-top:4px}
+.op-docrows{display:flex;flex-direction:column;gap:6px}
+.op-docrows[hidden]{display:none}
+#opDocList:not([hidden]){margin-bottom:6px}
+.op-docrow{display:flex;align-items:center;gap:12px;width:100%;min-height:54px;padding:8px 14px 8px 8px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid var(--line);text-align:left;transition:background-color .15s ease,transform .14s var(--ease-out)}
+.op-docrow:active{transform:scale(.99)}
+@media (hover:hover) and (pointer:fine){.op-docrow:hover{background:rgba(255,255,255,.07)}}
+.op-docrow > svg.i{width:18px;height:18px;flex:none;color:var(--text-3)}
+.op-docrow .pill{flex:none}
+.op-docrow-m{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.op-docrow-m b{font-size:13.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.op-docrow-m small{font-size:11.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .op-todos{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
 .op-todos:empty{display:none}
 .op-todo{display:flex;align-items:center;gap:8px;min-height:44px;padding:4px 4px 4px 6px;border-radius:12px;background:rgba(0,0,0,.18)}
@@ -1236,11 +1271,8 @@ body[data-area=schreiben] .pane-schreiben{display:grid}
 .op-imp.big{width:42px;height:42px;border:1px solid var(--line);background:rgba(255,255,255,.04)}
 .op-todo-add{display:flex;gap:8px;margin-top:8px}
 .op-todo-add .input{flex:1;min-width:0}
-.op-docs .f-label{margin-top:16px}
-.op-doclist{margin-top:0;margin-bottom:8px}
-.op-doc{gap:8px;height:auto;min-height:36px;padding:6px 8px 6px 6px;max-width:100%;text-align:left}
-.op-doc .pill{flex:none}
-.op-doc-k{display:inline-grid;place-items:center;min-width:28px;height:24px;padding:0 5px;border-radius:7px;background:rgba(255,255,255,.08);font-size:10.5px;font-weight:600;letter-spacing:.04em}
+.op-docs .f-label{margin-top:18px}
+.op-doc-k{display:inline-grid;place-items:center;flex:none;min-width:38px;height:36px;padding:0 6px;border-radius:10px;background:rgba(255,255,255,.08);font-size:10.5px;font-weight:600;letter-spacing:.04em}
 /* Planner: wichtig & Einsatz */
 .imp-star{display:inline-block;margin-right:6px;color:var(--accent);font-size:.9em}
 .item.imp{border-color:rgba(236,217,111,.2)}
@@ -1276,7 +1308,6 @@ dialog.brief-dlg.open .brief{opacity:1;transform:none}
 @media (max-width:760px){
   .op-card{padding:16px 14px 10px}
   .op-plus{height:48px;padding:0 16px 0 12px}
-  .op-row2{grid-template-columns:1fr}
   .op-rt-list{grid-template-columns:1fr}
   dialog.brief-dlg{width:100%;max-width:100%;margin:auto 0 0}
   .brief{border-radius:28px 28px 0 0;max-height:calc(var(--vvh,100dvh) - var(--sat) - 8px)}
@@ -1865,18 +1896,26 @@ dialog.brief-dlg.open .brief{opacity:1;transform:none}
 
 <!-- Dienst beginnen -->
 <dialog class="dlg sheet-dlg" id="startDlg" aria-labelledby="stH">
-  <form class="sheet" id="stForm" novalidate autocomplete="off">
+  <form class="sheet secs" id="stForm" novalidate autocomplete="off">
     <div class="sheet-head"><h3 id="stH">Dienst beginnen</h3><button type="button" class="icon-btn sm" data-close aria-label="Schließen"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <p class="ask-p" id="stLead"></p>
-    <div id="stTplBox"><span class="f-label">Schicht</span><div class="tpl-grid" id="startTpls"></div>
-      <div class="st-more"><button type="button" class="link" id="startCustom">Andere Zeiten …</button><span class="dim" aria-hidden="true">·</span><button type="button" class="link" id="startCatalog">Katalog bearbeiten</button></div></div>
-    <span class="f-label" id="stCrewL">Mit wem bist du unterwegs?</span>
-    <button type="button" class="chip w-recent st-last" id="stLast" hidden></button>
-    <div class="st-crew" id="stCrew" role="group" aria-labelledby="stCrewL"></div>
-    <div class="st-add"><label class="sr" for="stNewName">Weitere Person</label><input class="input" id="stNewName" list="stNames" placeholder="Name eintragen – neu oder aus dem Team" maxlength="80" spellcheck="false" enterkeyhint="done"><datalist id="stNames"></datalist><button type="button" class="btn btn-ghost" id="stAddName">Dazu</button></div>
-    <label class="f-label" for="stUnit">Einsatzmittel / Funkrufname <span class="f-count">optional</span></label>
-    <input class="input" id="stUnit" placeholder="z. B. Stf 21/03" maxlength="40" spellcheck="false" enterkeyhint="done">
-    <div class="st-units" id="stUnitChips"></div>
+    <section class="sec" id="stTplBox" aria-labelledby="stTplH">
+      <h4 class="sec-h" id="stTplH"><span class="sec-n" aria-hidden="true"></span>Schicht</h4>
+      <div class="tpl-grid" id="startTpls"></div>
+      <div class="st-more"><button type="button" class="link" id="startCustom">Andere Zeiten …</button><span class="dim" aria-hidden="true">·</span><button type="button" class="link" id="startCatalog">Katalog bearbeiten</button></div>
+    </section>
+    <section class="sec" aria-labelledby="stCrewL">
+      <h4 class="sec-h" id="stCrewL"><span class="sec-n" aria-hidden="true"></span>Besatzung <span class="f-count">mit wem bist du unterwegs?</span></h4>
+      <button type="button" class="chip w-recent st-last" id="stLast" hidden></button>
+      <div class="st-crew" id="stCrew" role="group" aria-labelledby="stCrewL"></div>
+      <div class="st-add"><label class="sr" for="stNewName">Weitere Person</label><input class="input" id="stNewName" list="stNames" placeholder="Name eintragen – neu oder aus dem Team" maxlength="80" spellcheck="false" enterkeyhint="done"><datalist id="stNames"></datalist><button type="button" class="btn btn-ghost" id="stAddName">Dazu</button></div>
+    </section>
+    <section class="sec" aria-labelledby="stUnitH">
+      <h4 class="sec-h" id="stUnitH"><span class="sec-n" aria-hidden="true"></span>Einsatzmittel <span class="f-count">optional</span></h4>
+      <label class="sr" for="stUnit">Einsatzmittel / Funkrufname</label>
+      <input class="input" id="stUnit" placeholder="Funkrufname, z. B. Stf 21/03" maxlength="40" spellcheck="false" enterkeyhint="done">
+      <div class="st-units" id="stUnitChips"></div>
+    </section>
     <div class="st-preview" id="stPreview"></div>
     <div class="sheet-foot">
       <span class="grow"></span>
@@ -1888,31 +1927,47 @@ dialog.brief-dlg.open .brief{opacity:1;transform:none}
 
 <!-- Einsatz -->
 <dialog class="dlg sheet-dlg" id="opDlg" aria-labelledby="opDH">
-  <form class="sheet" id="opForm" novalidate autocomplete="off">
+  <form class="sheet secs" id="opForm" novalidate autocomplete="off">
     <div class="sheet-head"><h3 id="opDH">Einsatz</h3><button type="button" class="icon-btn sm" data-close aria-label="Schließen"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <p class="ask-p" id="opDMeta"></p>
-    <label class="f-label" for="opTitle">Stichwort</label>
-    <input class="input" id="opTitle" maxlength="80" placeholder="z. B. Ruhestörung" spellcheck="false" enterkeyhint="next">
-    <div class="op-chips" id="opTitleChips"></div>
-    <div class="op-row2">
-      <div><label class="f-label" for="opPlace">Ort</label><input class="input" id="opPlace" maxlength="120" placeholder="Straße, Objekt" spellcheck="false"></div>
+    <section class="sec" id="opSecLage" aria-labelledby="opS1">
+      <h4 class="sec-h" id="opS1"><span class="sec-n" aria-hidden="true"></span>Lage</h4>
+      <label class="f-label" for="opTitle">Stichwort</label>
+      <input class="input" id="opTitle" maxlength="80" placeholder="z. B. Ruhestörung" spellcheck="false" enterkeyhint="next">
+      <div class="sugg" id="opTitleChips" role="group" aria-label="Vorschläge für das Stichwort"></div>
+      <label class="f-label" for="opPlace">Ort</label>
+      <input class="input" id="opPlace" maxlength="120" placeholder="Straße, Objekt" spellcheck="false">
+    </section>
+    <section class="sec" id="opSecVerlauf" aria-labelledby="opS2">
+      <h4 class="sec-h" id="opS2"><span class="sec-n" aria-hidden="true"></span>Verlauf</h4>
       <div class="op-times"><div><label class="f-label" for="opStart">Beginn</label><input class="input mono" type="time" id="opStart"></div><div><label class="f-label" for="opEnd">Ende</label><input class="input mono" type="time" id="opEnd"></div></div>
-    </div>
-    <label class="f-label" for="opNote">Notizen</label>
-    <textarea class="input" id="opNote" rows="2" placeholder="Beteiligte, Lage, Besonderheiten" spellcheck="false"></textarea>
-    <div class="op-close">
-      <span class="f-label">Abschluss</span>
-      <label class="check-line op-none"><input type="checkbox" id="opNone"> <span>Keine Maßnahmen, keine schriftlichen Arbeiten</span></label>
-      <label class="sr" for="opOutcome">Ergebnis</label>
-      <textarea class="input" id="opOutcome" rows="2" placeholder="Ergebnis – z. B. Lage beruhigt, Platzverweis ausgesprochen" spellcheck="false"></textarea>
-      <div id="opMeasures">
-        <span class="f-label">Maßnahmen als To-dos <span class="f-count">erscheinen auch im Planner</span></span>
+      <label class="f-label" for="opNote">Notizen</label>
+      <textarea class="input" id="opNote" rows="2" placeholder="Beteiligte, Lage, Besonderheiten" spellcheck="false"></textarea>
+    </section>
+    <section class="sec" id="opSecAbschluss" aria-labelledby="opS3">
+      <h4 class="sec-h" id="opS3"><span class="sec-n" aria-hidden="true"></span>Abschluss</h4>
+      <label class="f-label" for="opOutcome">Ergebnis</label>
+      <textarea class="input" id="opOutcome" rows="2" placeholder="z. B. Lage beruhigt, Platzverweis ausgesprochen" spellcheck="false"></textarea>
+      <span class="f-label" id="opModeL">Folgearbeiten</span>
+      <div class="op-mode" id="opMode" role="radiogroup" aria-labelledby="opModeL">
+        <button type="button" role="radio" data-mode="none" aria-checked="false"><b>Keine Maßnahmen</b><small>und keine schriftlichen Arbeiten</small></button>
+        <button type="button" role="radio" data-mode="mass" aria-checked="false"><b>Maßnahmen</b><small>To-dos, schriftliche Arbeit</small></button>
+      </div>
+      <div class="op-mass" id="opMeasures" hidden>
+        <span class="f-label">To-dos <span class="f-count">stehen auch im Planner</span></span>
         <ul class="op-todos" id="opTodos"></ul>
         <div class="op-todo-add"><label class="sr" for="opTodoIn">Maßnahme</label><input class="input" id="opTodoIn" maxlength="300" placeholder="Maßnahme, z. B. Anzeige schreiben" spellcheck="false" enterkeyhint="done"><button type="button" class="op-imp big" id="opTodoImp" aria-pressed="false" aria-label="Als wichtig markieren">★</button><button type="button" class="btn btn-ghost" id="opTodoAdd">Dazu</button></div>
-        <div class="op-chips" id="opTodoChips"></div>
-        <div class="op-docs" id="opDocs" hidden><span class="f-label">Schriftliche Arbeit</span><div class="op-chips op-doclist" id="opDocList" hidden></div><div class="op-chips"><button type="button" class="chip" data-doc="vuf" data-name="Verkehrsunfallflucht">+ Verkehrsunfallflucht</button><button type="button" class="chip" data-doc="vermisst" data-name="Vermisste Person">+ Vermisste Person</button></div></div>
+        <div class="sugg" id="opTodoChips" role="group" aria-label="Vorschläge für Maßnahmen"></div>
+        <div class="op-docs" id="opDocs" hidden>
+          <span class="f-label">Schriftliche Arbeit</span>
+          <div class="op-docrows" id="opDocList" hidden></div>
+          <div class="op-docrows" id="opDocNew">
+            <button type="button" class="op-docrow" data-doc="vuf" data-name="Verkehrsunfallflucht"><span class="op-doc-k">VUF</span><span class="op-docrow-m"><b>Verkehrsunfallflucht</b><small>Befundbericht nach Anlage 6</small></span><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+            <button type="button" class="op-docrow" data-doc="vermisst" data-name="Vermisste Person"><span class="op-doc-k">VM</span><span class="op-docrow-m"><b>Vermisste Person</b><small>Übersicht, Fahndung, offene Punkte</small></span><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+          </div>
+        </div>
       </div>
-    </div>
+    </section>
     <div class="sheet-foot">
       <button type="button" class="btn btn-ghost btn-danger btn-sm" id="opDelete">Löschen</button>
       <button type="button" class="btn btn-ghost btn-sm" id="opReopen" hidden>Wieder öffnen</button>

@@ -2855,7 +2855,29 @@ function startShiftRoutine(rid, sh) {
 /* ---------- Einsatz ---------- */
 const OP_WORDS = ['Ruhestörung', 'Verkehrsunfall', 'Streitigkeit', 'Diebstahl', 'Körperverletzung', 'Sachbeschädigung', 'Hilfeersuchen', 'Hilflose Person', 'Vermisste Person', 'Verkehrskontrolle', 'Alarmauslösung', 'Gefahrenstelle'];
 const OP_TODO_WORDS = ['Anzeige schreiben', 'Bericht fertigen', 'Vorgang anlegen', 'Lichtbilder sichern', 'Asservate erfassen', 'Zeugen nachvernehmen', 'Mitteilung an Behörde', 'Nachbericht'];
-const OPD = { id: null, imp: false };
+const OPD = { id: null, imp: false, mode: null, moreT: false, moreM: false };
+/** Häufig genutzte Vorschläge zuerst (eigene Einsätze bzw. Maßnahmen), sonst feste Reihenfolge. */
+function rankWords(base, used) {
+  const cnt = new Map();
+  for (const t of used) { const k = norm(t); if (k) cnt.set(k, (cnt.get(k) || 0) + 1); }
+  return base.map((w, i) => ({ w, i, c: cnt.get(norm(w)) || 0 })).sort((a, b) => b.c - a.c || a.i - b.i).map(x => x.w);
+}
+const suggHtml = (words, more, moreKey, show) => {
+  const shown = more ? words : words.slice(0, show), rest = words.length - shown.length;
+  return shown.map(w => `<button type="button" class="chip sm" data-v="${esc(w)}">${moreKey === 'm' ? '+ ' : ''}${esc(w)}</button>`).join('')
+    + (rest > 0 ? `<button type="button" class="chip sm more" data-more="${moreKey}" aria-label="${rest} weitere Vorschläge">Mehr · ${rest}</button>` : '');
+};
+/** Vorschläge im Einsatz: Stichwort nur solange leer bzw. gefiltert beim Tippen; Maßnahmen ohne bereits angelegte. */
+function renderOpSugg() {
+  const o = opById(OPD.id); if (!o) return;
+  const q = norm($('#opTitle').value);
+  const words = rankWords(OP_WORDS, state.ops.filter(x => x.id !== o.id).map(x => x.title));
+  const tList = !q ? words : words.filter(w => norm(w).startsWith(q) && norm(w) !== q);
+  $('#opTitleChips').innerHTML = q ? suggHtml(tList, true, 't', 6) : suggHtml(tList, OPD.moreT, 't', 6);
+  const have = new Set(opTodos(o.id).map(i => norm(i.title)));
+  const mWords = rankWords(OP_TODO_WORDS, state.items.filter(i => i.op).map(i => i.title)).filter(w => !have.has(norm(w)));
+  $('#opTodoChips').innerHTML = suggHtml(mWords, OPD.moreM, 'm', 4);
+}
 let opSaveT = 0;
 function addOp() {
   const sh = liveShift(); if (!S || !sh) return;
@@ -2867,8 +2889,8 @@ function addOp() {
 }
 function openOp(id, opts = {}) {
   const o = opById(id); if (!o || !S) return;
-  OPD.id = id; OPD.imp = false;
-  $('#opTitle').value = o.title; $('#opPlace').value = o.place; $('#opNote').value = o.note; $('#opOutcome').value = o.outcome; $('#opNone').checked = o.none;
+  OPD.id = id; OPD.imp = false; OPD.mode = null; OPD.moreT = false; OPD.moreM = false;
+  $('#opTitle').value = o.title; $('#opPlace').value = o.place; $('#opNote').value = o.note; $('#opOutcome').value = o.outcome;
   $('#opStart').value = hmIn(o.start); $('#opEnd').value = o.end != null ? hmIn(o.end) : '';
   $('#opTodoIn').value = '';
   syncOp();
@@ -2880,15 +2902,23 @@ function syncOp() {
   const sh = state.shifts.find(s => s.id === o.sid), st = opState(o);
   $('#opDH').textContent = `Einsatz ${o.n}${o.title ? ' · ' + o.title : ''}`;
   $('#opDMeta').innerHTML = `${sh ? esc(sh.name) + ' · ' : ''}${dateShort(o.start)} · <span class="mono">${hm(o.start)}${o.end != null ? '–' + hm(o.end) : ''}</span> · <span class="op-st-inline" data-st="${st.k}">${esc(st.l)}</span>`;
-  const t = norm($('#opTitle').value);
-  $$('#opTitleChips .chip').forEach(c => c.setAttribute('aria-pressed', String(norm(c.dataset.v) === t)));
-  $('#opMeasures').hidden = o.none;
   const todos = opTodos(o.id).sort((a, b) => (a.done - b.done) || a.createdAt - b.createdAt);
+  // Abschluss: „keine Maßnahmen“ oder „Maßnahmen“ (sobald To-dos existieren, steht es fest)
+  const mode = o.none ? 'none' : todos.length ? 'mass' : OPD.mode;
+  $$('#opMode [data-mode]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.mode === mode)));
+  const noneBtn = $('#opMode [data-mode="none"]');
+  noneBtn.disabled = todos.length > 0;
+  noneBtn.title = todos.length ? 'Es gibt schon Maßnahmen zu diesem Einsatz' : '';
+  $('#opMeasures').hidden = mode !== 'mass';
+  $('#opSecLage').classList.toggle('is-done', !!o.title.trim());
+  $('#opSecVerlauf').classList.toggle('is-done', o.end != null);
+  $('#opSecAbschluss').classList.toggle('is-done', st.k === 'done');
+  renderOpSugg();
   $('#opTodos').innerHTML = todos.map(i => `<li class="op-todo${i.done ? ' done' : ''}" data-id="${esc(i.id)}"><button type="button" class="check${i.done ? ' on' : ''}" data-opt="done" aria-label="${i.done ? 'Wieder öffnen' : 'Erledigt'}">${ico('check')}</button><button type="button" class="op-todo-t" data-opt="edit">${esc(i.title)}</button><button type="button" class="op-imp" data-opt="imp" aria-pressed="${i.imp}" aria-label="Wichtig">★</button></li>`).join('');
   $('#opTodoImp').setAttribute('aria-pressed', String(OPD.imp));
   $('#opDocs').hidden = !window.WWriter || o.none;
   const docs = [...new Set(todos.filter(i => i.doc).map(i => i.doc))].map(id => state.docs.find(d => d.id === id)).filter(Boolean);
-  $('#opDocList').innerHTML = docs.map(d => `<button type="button" class="chip op-doc" data-open-doc="${esc(d.id)}"><span class="op-doc-k">${esc(d.type === 'vermisst' ? 'VM' : d.type.toUpperCase())}</span>${esc(d.title)}<span class="pill ${d.status === 'fertig' ? 'pill-lime' : 'pill-quiet'}">${d.status === 'fertig' ? 'fertig' : 'Entwurf'}</span></button>`).join('');
+  $('#opDocList').innerHTML = docs.map(d => `<button type="button" class="op-docrow" data-open-doc="${esc(d.id)}"><span class="op-doc-k">${esc(d.type === 'vermisst' ? 'VM' : d.type.toUpperCase())}</span><span class="op-docrow-m"><b>${esc(d.title)}</b><small>Öffnen</small></span><span class="pill ${d.status === 'fertig' ? 'pill-lime' : 'pill-quiet'}">${d.status === 'fertig' ? 'fertig' : 'Entwurf'}</span></button>`).join('');
   $('#opDocList').hidden = !docs.length;
   const ended = o.end != null;
   $('#opDone').textContent = ended ? 'Fertig' : 'Einsatz beenden';
@@ -2907,20 +2937,33 @@ function opTimeFrom(o, hhmm, after) {
 $('#opForm').addEventListener('input', e => {
   const o = opById(OPD.id); if (!o) return;
   const id = e.target.id;
-  if (id === 'opTitle') o.title = e.target.value.slice(0, 80);
+  if (id === 'opTitle') { o.title = e.target.value.slice(0, 80); renderOpSugg(); }
   else if (id === 'opPlace') o.place = e.target.value.slice(0, 120);
   else if (id === 'opNote') o.note = e.target.value.slice(0, 4000);
   else if (id === 'opOutcome') o.outcome = e.target.value.slice(0, 4000);
   else return;
   opDirty();
 });
-$('#opNone').addEventListener('change', e => { const o = opById(OPD.id); if (!o) return; o.none = e.target.checked; opDirty(); syncOp(); });
+$('#opMode').addEventListener('click', e => {
+  const b = e.target.closest('[data-mode]'); const o = opById(OPD.id); if (!b || !o || b.disabled) return;
+  const m = b.dataset.mode;
+  if (m === 'none') { o.none = !o.none; OPD.mode = o.none ? 'none' : null; }
+  else { o.none = false; OPD.mode = OPD.mode === 'mass' && !opTodos(o.id).length ? null : 'mass'; }
+  opDirty(); syncOp();
+  if (OPD.mode === 'mass' && !mobileMQ.matches) setTimeout(() => $('#opTodoIn').focus(), 40);
+});
 $('#opStart').addEventListener('change', e => { const o = opById(OPD.id); if (!o) return; const t = opTimeFrom(o, e.target.value); if (t == null) return; o.start = t; if (o.end != null && o.end < t) o.end = t; opDirty(); syncOp(); });
 $('#opEnd').addEventListener('change', e => { const o = opById(OPD.id); if (!o) return; const t = e.target.value ? opTimeFrom(o, e.target.value, o.start) : null; o.end = t; opDirty(); syncOp(); });
-$('#opTitleChips').innerHTML = OP_WORDS.map(w => `<button type="button" class="chip sm" data-v="${esc(w)}">${esc(w)}</button>`).join('');
-$('#opTodoChips').innerHTML = OP_TODO_WORDS.map(w => `<button type="button" class="chip sm" data-v="${esc(w)}">+ ${esc(w)}</button>`).join('');
-$('#opTitleChips').addEventListener('click', e => { const c = e.target.closest('[data-v]'); const o = opById(OPD.id); if (!c || !o) return; o.title = c.dataset.v; $('#opTitle').value = o.title; opDirty(); syncOp(); });
-$('#opTodoChips').addEventListener('click', e => { const c = e.target.closest('[data-v]'); if (c) addOpTodo(c.dataset.v); });
+$('#opTitleChips').addEventListener('click', e => {
+  if (e.target.closest('[data-more]')) { OPD.moreT = true; renderOpSugg(); return; }
+  const c = e.target.closest('[data-v]'); const o = opById(OPD.id); if (!c || !o) return;
+  o.title = c.dataset.v; $('#opTitle').value = o.title; opDirty(); syncOp();
+  if (!mobileMQ.matches) $('#opPlace').focus();
+});
+$('#opTodoChips').addEventListener('click', e => {
+  if (e.target.closest('[data-more]')) { OPD.moreM = true; renderOpSugg(); return; }
+  const c = e.target.closest('[data-v]'); if (c) addOpTodo(c.dataset.v);
+});
 $('#opTodoAdd').addEventListener('click', () => { const v = $('#opTodoIn').value; if (!v.trim()) { $('#opTodoIn').focus(); return; } addOpTodo(v); $('#opTodoIn').value = ''; $('#opTodoIn').focus(); });
 $('#opTodoIn').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('#opTodoAdd').click(); } });
 $('#opTodoImp').addEventListener('click', () => { OPD.imp = !OPD.imp; syncOp(); });
@@ -2929,7 +2972,8 @@ function addOpTodo(title, extra = {}) {
   const now = Date.now();
   const it = normItem({ id: uid(), title: String(title).trim().slice(0, 300), notes: `Aus Einsatz ${o.n}${o.title ? ' · ' + o.title : ''} (${dateShort(o.start)} ${hm(o.start)})`, kind: 'aufgabe', mode: 'einmalig', imp: OPD.imp, op: o.id, createdAt: now, updatedAt: now, ...extra });
   state.items.push(it);
-  if (o.none) { o.none = false; $('#opNone').checked = false; }
+  if (o.none) o.none = false;
+  OPD.mode = 'mass';
   o.u = now; OPD.imp = false;
   commit(); syncOp();
   toast(`To-do im Planner: ${it.title}`);
@@ -3033,6 +3077,10 @@ function renderStartSheet() {
   $('#stPreview').innerHTML = ST.edit ? (rts.length ? `<span class="f-label">Routinen in dieser Schicht</span><div class="st-rts">${rts.map(r => `<span class="pill" style="--rc:${COLORS[r.color]}"><i class="op-rt-dot"></i>${esc(r.name)}</span>`).join('')}</div>` : '')
     : `<span class="f-label">Das erwartet dich</span><div class="st-rts">${rts.map(r => `<span class="pill" style="--rc:${COLORS[r.color]}"><i class="op-rt-dot"></i>${esc(r.name)}</span>`).join('')}<span class="pill pill-quiet">${open.length} ${open.length === 1 ? 'offenes To-do' : 'offene To-dos'}${imp ? ` · ${imp} wichtig` : ''}</span></div>`;
   const ready = ST.edit || ST.planned || ST.tpl !== null;
+  // erledigte Abschnitte markieren (Nummer wird gelb)
+  $('#stTplBox').classList.toggle('is-done', !!(ST.planned || ST.tpl !== null));
+  $('#stCrew').closest('.sec').classList.toggle('is-done', ST.crew.length > 0);
+  $('#stUnit').closest('.sec').classList.toggle('is-done', !!u);
   $('#stGo').disabled = !ready;
   $('#stGo').textContent = ST.edit ? 'Speichern' : 'Dienst beginnen';
 }
