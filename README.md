@@ -92,9 +92,39 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 - Landet als Todo im Planner (Filter „Buchungen“) und wird abgehakt, sobald du die Stunden im System eingetragen hast.
 - Schnellzugriff: Knopf *Stunden für Kollegen merken* im Überstunden-Konto.
 
-**Tastatur:** `N` neu · `/` suchen · `D` dongeln · `L` sperren · `Strg/⌘ + Enter` speichern
+**Termine (Bereich *Heute*, Kalender)**
+- Tag im Kalender antippen → *+ Termin*: Titel, Datum, ganztägig oder mit Uhrzeit, Ort, Erinnerung, Notizen.
+- **In meinen Kalender:**
+  - *Apple / Outlook (.ics)* erzeugt eine Standard-Kalenderdatei (RFC 5545) inklusive Erinnerung. Öffnen genügt, dein Kalender übernimmt den Termin.
+  - *Google* und *Outlook.com* öffnen den Termin direkt beim jeweiligen Anbieter. Erst dabei verlässt der Termin dein Gerät.
+- *.ics*-Knopf im Kalender: alle Termine (wahlweise plus geplante Dienste) in einer Datei exportieren.
+
+**Routinen (Schablonen)**
+- Eigene Abläufe mit Schritten (eine Zeile pro Schritt), Farbe und Rhythmus: bei Bedarf, täglich, werktags, wöchentlich oder monatlich.
+- *Starten* öffnet einen Durchlauf zum Abhaken (mit Uhrzeit pro Schritt). Er lässt sich unterbrechen und später fortsetzen; *Abschließen* speichert ihn im Verlauf.
+- Fällige Routinen werden markiert und in der Navigation gezählt.
+
+**Team**
+- Personenbaum: Wer berichtet an wen, beliebig viele Rollen pro Person, optional Kontakt.
+- Notizen je Person mit automatischem Zeitstempel, chronologisch nach Tagen gruppiert (neueste oben). Nachträgliche Änderungen werden als „bearbeitet“ markiert.
+- Offene Anfragen und Stundenbuchungen der Person aus dem Planner erscheinen direkt in ihrem Bereich.
+
+**Ablage (Dateien & Dokumente)**
+- Dateien bis 20 MB werden **auf dem Gerät verschlüsselt** (AES-256-GCM, an die Datei gebunden, auf 16-KB-Blöcke aufgefüllt) und im Browser-Speicher (IndexedDB) abgelegt.
+- Mit Sync landen sie verschlüsselt als `files/<zufällige-ID>` im Tresor-Repo; Dateinamen stehen nur im verschlüsselten Tresor. Andere Geräte laden sie erst beim Öffnen.
+- Vorschau für Bilder, Texte, Audio/Video, dazu Herunterladen, Teilen, Ordner, Notizen und „Nur in der Cloud behalten“ (lokale Kopie löschen).
+
+**Tastatur:** `N` neu (je nach Bereich) · `/` suchen · `1`–`4` Bereiche · `D` dongeln · `L` sperren · `Strg/⌘ + Enter` speichern
 
 **Backups:** *⋯ → Verschlüsseltes Backup* speichert eine `.vault`-Datei. Einspielen geht per Zusammenführen oder Ersetzen.
+
+## Speicherkapazität
+
+| Wo | Wie viel | So beeinflusst du es |
+| --- | --- | --- |
+| **Dateien auf dem Gerät** (IndexedDB) | Vom Browser zugeteilt, abhängig vom freien Speicher: Chrome, Edge und Safari (ab iOS 17) bis rund **60 % des Gerätespeichers**. Der genaue Wert steht live in der Ablage. | Freien Gerätespeicher schaffen; große Dateien „nur in der Cloud behalten“; als App zum Home-Bildschirm hinzufügen und **„Dauerhaft sichern“**, damit der Browser nichts räumt. Safari löscht Daten von Websites sonst nach 7 Tagen ohne Besuch. |
+| **Tresor-Text** (Aufgaben, Dienste, Termine, Notizen) | ca. **5 MB** (Browser-Limit für localStorage), reicht für zehntausende Einträge | Erledigte entfernen; alte Notizen löschen |
+| **Tresor-Repo auf GitHub** (Sync) | GitHub empfiehlt **unter 1 GB** pro Repo, ab 5 GB kommen Hinweise; einzelne Dateien bis 100 MB (die App begrenzt auf **20 MB**) | Dateien löschen: Sie verschwinden über die tägliche Verlaufsbereinigung auch aus dem Repo. Für mehr Platz ein zweites Tresor-Repo nutzen, z. B. pro Jahr. |
 
 ## Dateien
 
@@ -102,7 +132,7 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 | --- | --- |
 | `index.html` | Oberfläche, Styles, Content-Security-Policy |
 | `js/vault.js` | Verschlüsselung, Schlüsselverwaltung, GitHub-Speicher |
-| `js/app.js` | App-Logik, Sync und Zusammenführen, Sperre |
+| `js/app.js` | App-Logik (Planner, Dienste, Termine, Routinen, Team, Ablage), Sync und Zusammenführen, Sperre |
 | `vendor/hash-wasm/` | Argon2id (hash-wasm 4.12.0, MIT), unverändert aus npm |
 | `fonts/` | Inter Tight & Geist Mono (SIL Open Font License) |
 | `assets/`, `icons/`, `manifest.webmanifest` | Bild, App-Icons, Home-Bildschirm |

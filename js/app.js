@@ -80,7 +80,11 @@ const ICONS = {
   edit: '<path d="M4 20l1-4L16 5a2.1 2.1 0 0 1 3 3L8 19z"/>',
   x: '<path d="M6 6l12 12M18 6L6 18"/>',
   chev: '<path d="M9.5 6l6 6-6 6"/>',
-  clockplus: '<circle cx="11" cy="12.5" r="7.5"/><path d="M11 8.5v4l2.6 1.6"/><path d="M19.5 2.5v5M17 5h5"/>'
+  clockplus: '<circle cx="11" cy="12.5" r="7.5"/><path d="M11 8.5v4l2.6 1.6"/><path d="M19.5 2.5v5M17 5h5"/>',
+  file: '<path d="M6 3.5h8l4 4V20.5H6z"/><path d="M14 3.5V8h4"/>',
+  doc: '<path d="M6 3.5h8l4 4V20.5H6z"/><path d="M14 3.5V8h4M9 12h6M9 15.5h6"/>',
+  image: '<rect x="3.5" y="5" width="17" height="14" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="M4 17l5-4.5 4 3.5 3-2.5 4 3.5"/>',
+  upload: '<path d="M12 16V5M7 9.5l5-5 5 5M5 19.5h14"/>'
 };
 const ico = n => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
 
@@ -103,7 +107,10 @@ const defaultTpls = () => [
   { id: 'tpl-nacht', name: 'Nachtdienst', start: '22:00', end: '06:00', breakMin: 45, color: 'blau', u: 1 },
   { id: 'tpl-tag', name: 'Tagdienst', start: '08:00', end: '16:30', breakMin: 30, color: 'lime', u: 1 }
 ];
-const blank = () => ({ v: 3, items: [], shifts: [], tpls: defaultTpls(), del: {}, settings: { targetMin: 480, name: '', u: 0 } });
+const blank = () => ({ v: 3, items: [], shifts: [], tpls: defaultTpls(), appts: [], routines: [], runs: [], people: [], notes: [], files: [], del: {}, settings: { targetMin: 480, name: '', u: 0 } });
+const RHYTHMS = { manual: 'Bei Bedarf', daily: 'Täglich', weekdays: 'Werktags', weekly: 'Wöchentlich', monthly: 'Monatlich' };
+const COLLECTIONS = ['items', 'shifts', 'tpls', 'appts', 'routines', 'runs', 'people', 'notes', 'files'];
+const keyOf = g => g === 'items' ? 'updatedAt' : 'u';
 const num = v => (typeof v === 'number' && Number.isFinite(v)) ? v : null;
 const isKey = k => typeof k === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(k);
 const isHM = t => typeof t === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(t);
@@ -163,6 +170,57 @@ function normTpl(x) {
   if (!x || !isHM(x.start) || !isHM(x.end)) return null;
   return { id: String(x.id || uid()), name: String(x.name || '').slice(0, 40).trim() || 'Dienst', start: x.start, end: x.end, breakMin: clamp(Math.round(Number(x.breakMin) || 0), 0, 240), color: COLORS[x.color] ? x.color : 'lime', u: num(x.u) || 1 };
 }
+const str = (v, n) => String(v ?? '').slice(0, n);
+function normAppt(x) {
+  const start = num(x && x.start);
+  if (start == null || !x.title) return null;
+  let end = num(x.end); if (end == null || end < start) end = start;
+  const al = Number(x.alarm);
+  return { id: String(x.id || uid()), title: str(x.title, 200).trim() || 'Termin', start, end, allDay: !!x.allDay, location: str(x.location, 200), notes: str(x.notes, 4000),
+    alarm: Number.isFinite(al) && al >= 0 ? Math.min(Math.round(al), 7 * 24 * 60) : -1, u: num(x.u) || 1 };
+}
+function normRoutine(x) {
+  if (!x || !x.name) return null;
+  const seen = new Set();
+  const steps = (Array.isArray(x.steps) ? x.steps : []).filter(st => st && st.text).slice(0, 100).map(st => {
+    let id = String(st.id || uid()); if (seen.has(id)) id = uid(); seen.add(id);
+    return { id, text: str(st.text, 300) };
+  });
+  return { id: String(x.id || uid()), name: str(x.name, 60).trim() || 'Routine', color: COLORS[x.color] ? x.color : 'lime', rhythm: RHYTHMS[x.rhythm] ? x.rhythm : 'manual', steps, note: str(x.note, 1000), u: num(x.u) || 1 };
+}
+function normRun(x) {
+  const started = num(x && x.started);
+  if (started == null || !x.rid) return null;
+  const done = {};
+  for (const k of Object.keys(x.done || {}).sort()) { const v = num(x.done[k]); if (v) done[k] = v; }
+  return { id: String(x.id || uid()), rid: String(x.rid), started, done, finished: num(x.finished), u: num(x.u) || 1 };
+}
+function normPerson(x) {
+  if (!x || !x.name) return null;
+  const roles = [];
+  for (const r of (Array.isArray(x.roles) ? x.roles : [])) { const t = str(r, 40).trim(); if (t && !roles.includes(t) && roles.length < 12) roles.push(t); }
+  return { id: String(x.id || uid()), name: str(x.name, 80).trim() || 'Person', roles, parent: x.parent ? String(x.parent) : null, contact: str(x.contact, 200), u: num(x.u) || 1 };
+}
+function normNote(x) {
+  const at = num(x && x.at);
+  if (at == null || !x.pid || !x.text) return null;
+  return { id: String(x.id || uid()), pid: String(x.pid), text: str(x.text, 5000), at, edited: num(x.edited), u: num(x.u) || 1 };
+}
+function normFile(x) {
+  if (!x || !x.name) return null;
+  return { id: String(x.id || uid()), name: str(x.name, 200).trim() || 'Datei', type: str(x.type, 100), size: Math.max(0, Math.round(Number(x.size) || 0)), folder: str(x.folder, 60).trim(), note: str(x.note, 1000), added: num(x.added) || 1, remote: !!x.remote, u: num(x.u) || 1 };
+}
+function normList(arr, fn) {
+  const m = new Map();
+  for (const x of (Array.isArray(arr) ? arr : [])) {
+    const o = x && fn(x); if (!o) continue;
+    const c = m.get(o.id);
+    if (!c || o.u > c.u || (o.u === c.u && JSON.stringify(o) > JSON.stringify(c))) m.set(o.id, o);
+  }
+  return [...m.values()];
+}
+const byName = (a, c) => cmp(a.name.toLowerCase(), c.name.toLowerCase()) || cmp(a.id, c.id);
+
 /** Alte Stempel (+15-Nachträge) werden zu Diensten – deterministisch, damit alle Geräte dasselbe erzeugen. */
 function migrateStamps(s) {
   const out = [], byDay = {};
@@ -221,6 +279,20 @@ function normalize(s) {
   const del = s.del && typeof s.del === 'object' ? s.del : {};
   Object.keys(del).sort().forEach(k => { const v = num(del[k]); if (v && v > cutoff) b.del[k] = v; });
   b.shifts = b.shifts.filter(x => !(b.del[x.id] >= x.u));
+  const live = x => !(b.del[x.id] >= x.u);
+  b.appts = normList(s.appts, normAppt).filter(live).sort((a, c) => a.start - c.start || cmp(a.id, c.id));
+  b.routines = normList(s.routines, normRoutine).filter(live).sort(byName);
+  const rids = new Set(b.routines.map(r => r.id));
+  b.runs = normList(s.runs, normRun).filter(live).filter(r => rids.has(r.rid)).sort((a, c) => a.started - c.started || cmp(a.id, c.id));
+  b.people = normList(s.people, normPerson).filter(live).sort(byName);
+  const pmap = new Map(b.people.map(x => [x.id, x]));
+  for (const x of b.people) if (x.parent && !pmap.has(x.parent)) x.parent = null;
+  for (const x of b.people) { // Zyklen im Baum auflösen (deterministisch)
+    const seen = new Set([x.id]); let q = x.parent;
+    while (q) { if (seen.has(q)) { x.parent = null; break; } seen.add(q); q = (pmap.get(q) || {}).parent || null; }
+  }
+  b.notes = normList(s.notes, normNote).filter(live).filter(n => pmap.has(n.pid)).sort((a, c) => a.at - c.at || cmp(a.id, c.id));
+  b.files = normList(s.files, normFile).filter(live).sort((a, c) => a.added - c.added || cmp(a.id, c.id));
   b.tpls = b.tpls.filter(x => !(b.del[x.id] >= x.u)).sort((a, c) => cmp(a.start, c.start) || cmp(a.name, c.name) || cmp(a.id, c.id));
   const se = s.settings || {};
   const t = Number(se.targetMin);
@@ -246,11 +318,10 @@ function merge(a, b) {
     }
     return out;
   };
-  const items = pick([...a.items, ...b.items], 'updatedAt');
-  const shifts = pick([...a.shifts, ...b.shifts], 'u');
-  const tpls = pick([...a.tpls, ...b.tpls], 'u');
-  const settings = (b.settings.u || 0) > (a.settings.u || 0) ? b.settings : a.settings;
-  return normalize({ v: 3, items, shifts, tpls, del, settings });
+  const out = { v: 3, del };
+  for (const g of COLLECTIONS) out[g] = pick([...(a[g] || []), ...(b[g] || [])], keyOf(g));
+  out.settings = (b.settings.u || 0) > (a.settings.u || 0) ? b.settings : a.settings;
+  return normalize(out);
 }
 
 let state = blank();
@@ -301,16 +372,19 @@ const commit = () => { save(); renderAll(); };
 const snapshot = () => JSON.stringify(state);
 const find = id => state.items.find(i => i.id === id);
 const touch = it => { it.updatedAt = Date.now(); };
+/** Löschmarke, die garantiert jünger ist als die Version, die dieses Gerät gesehen hat (robust gegen abweichende Uhren). */
+const tombTs = rec => Math.max(Date.now(), ((rec && (rec.updatedAt || rec.u)) || 0) + 1);
 
 /** Ersetzt den Stand (Rückgängig, Import, Demo, Löschen) so, dass die Sync-Logik es als neueste Änderung erkennt. */
 function applyState(raw) {
   const next = normalize(raw), now = Date.now();
   const keep = new Set();
-  for (const [g, key] of [['items', 'updatedAt'], ['shifts', 'u'], ['tpls', 'u']]) {
+  for (const g of COLLECTIONS) {
+    const key = keyOf(g);
     const cur = new Map(state[g].map(x => [x.id, JSON.stringify(x)]));
     for (const x of next[g]) { if (cur.get(x.id) !== JSON.stringify(x)) x[key] = now; delete next.del[x.id]; keep.add(x.id); }
   }
-  for (const g of ['items', 'shifts', 'tpls']) for (const x of state[g]) if (!keep.has(x.id)) next.del[x.id] = now;
+  for (const g of COLLECTIONS) for (const x of state[g]) if (!keep.has(x.id)) next.del[x.id] = Math.max(now, (x[keyOf(g)] || 0) + 1);
   for (const k in state.del) if (!keep.has(k)) next.del[k] = Math.max(next.del[k] || 0, state.del[k]);
   const plain = s => JSON.stringify({ ...s, u: 0 });
   if (plain(next.settings) !== plain(state.settings)) next.settings.u = now; else next.settings.u = state.settings.u;
@@ -532,9 +606,9 @@ function toggleTimer(id) {
   if (!liveShift()) toast('Timer läuft – du bist aber nicht eingedongelt.', { action: { label: 'Eindongeln', fn: dongleAction } });
 }
 function removeItem(id) {
-  const snap = snapshot();
+  const snap = snapshot(), rec = find(id);
   state.items = state.items.filter(i => i.id !== id);
-  state.del[id] = Date.now();
+  state.del[id] = tombTs(rec);
   commit(); toast('Eintrag gelöscht', { undo: snap });
 }
 
@@ -822,9 +896,12 @@ function renderCal(now = Date.now()) {
     if (worked > 5 * MIN) cls.push('worked');
     if (shs.some(x => isPlanned(x, now))) cls.push('plan');
     if (dues[k]) cls.push('due');
+    const aps = apptsOn(k);
+    if (aps.length) cls.push('appt');
     if (t === todayStart) cls.push('today');
     if (ui.day === k) cls.push('sel');
     const parts = [`${WDL[new Date(t).getDay()]}, ${d}. ${MONL[mo]}`];
+    if (aps.length) parts.push(aps.map(x => `${x.allDay ? '' : hm(x.start) + ' '}${x.title}`).join(', '));
     if (shs.length) parts.push(shs.map(x => `${x.name} ${hm(x.start)}–${hm(x.plannedEnd)}${x.extraMin ? ` (+${dur(x.extraMin * MIN)})` : ''}`).join(', '));
     if (dues[k]) parts.push(`${dues[k].length} ${dues[k].length === 1 ? 'Frist' : 'Fristen'}: ${dues[k].slice(0, 3).join(', ')}${dues[k].length > 3 ? ' …' : ''}`);
     if (worked > MIN) parts.push(`${dur(worked)} h gearbeitet`);
@@ -1010,11 +1087,13 @@ function renderAll() {
   renderTime(now);
   renderWeek(now);
   renderCal(now);
+  renderCalAppts(now);
   renderHero(now);
   renderPlanner(now);
   renderFocus(now);
   renderOvertime(now);
   renderSyncUi();
+  renderArea();
 }
 
 /* ======================= Dialog helpers ======================= */
@@ -1282,9 +1361,9 @@ function saveShift() {
 }
 $('#shDelete').addEventListener('click', () => {
   if (!SH.id) return;
-  const snap = snapshot(), id = SH.id;
+  const snap = snapshot(), id = SH.id, rec = state.shifts.find(x => x.id === id);
   state.shifts = state.shifts.filter(x => x.id !== id);
-  state.del[id] = Date.now();
+  state.del[id] = tombTs(rec);
   closeDlg($('#shiftDlg')); commit();
   toast('Dienst gelöscht', { undo: snap });
 });
@@ -1360,7 +1439,7 @@ $('#tpDelete').addEventListener('click', () => {
   if (!TP.id || !S) return;
   const snap = snapshot(), tp = state.tpls.find(t => t.id === TP.id);
   state.tpls = state.tpls.filter(t => t.id !== TP.id);
-  state.del[TP.id] = Date.now();
+  state.del[TP.id] = tombTs(tp);
   commit(); showTplList();
   toast(`Vorlage „${tp ? tp.name : ''}“ gelöscht`, { undo: snap });
 });
@@ -1515,17 +1594,16 @@ const searchBox = $('#searchBox'), searchInput = $('#search');
 let qTimer;
 searchInput.addEventListener('input', () => {
   clearTimeout(qTimer);
-  qTimer = setTimeout(() => { ui.q = searchInput.value.trim(); if (ui.q && mobileMQ.matches) setTab('aufgaben'); renderPlanner(); }, 90);
+  qTimer = setTimeout(() => { ui.q = searchInput.value.trim(); if (ui.q && mobileMQ.matches && document.body.dataset.area === 'heute') setTab('aufgaben'); renderPlanner(); renderArea(); }, 90);
 });
-searchInput.addEventListener('keydown', e => { if (e.key === 'Escape') { searchInput.value = ''; ui.q = ''; renderPlanner(); searchInput.blur(); } });
+searchInput.addEventListener('keydown', e => { if (e.key === 'Escape') { searchInput.value = ''; ui.q = ''; renderPlanner(); renderArea(); searchInput.blur(); } });
 searchBox.addEventListener('click', () => { if (mobileMQ.matches) { searchBox.classList.add('expanded'); searchInput.focus(); } });
 searchInput.addEventListener('blur', () => { if (!searchInput.value) searchBox.classList.remove('expanded'); });
 
 $('#calGrid').addEventListener('click', e => {
   const b = e.target.closest('[data-cal]'); if (!b) return;
   ui.day = ui.day === b.dataset.cal ? null : b.dataset.cal;
-  renderCal(); renderPlanner();
-  if (ui.day) { const n = state.items.filter(matches).length; if (!n) toast(`Keine Fristen am ${dateShort(fromKey(ui.day))}.`); }
+  renderCal(); renderPlanner(); renderCalAppts();
 });
 $('#calPrev').addEventListener('click', () => { const d = new Date(ui.calMonth); d.setMonth(d.getMonth() - 1); ui.calMonth = d.getTime(); renderCal(); });
 $('#calNext').addEventListener('click', () => { const d = new Date(ui.calMonth); d.setMonth(d.getMonth() + 1); ui.calMonth = d.getTime(); renderCal(); });
@@ -1549,9 +1627,9 @@ $('#wkChart').addEventListener('pointerleave', () => $('#wkTip')?.classList.remo
 $('#wkChart').addEventListener('focusin', e => { const c = e.target.closest('.wk-col'); if (c) showTip(c); });
 $('#wkChart').addEventListener('focusout', () => $('#wkTip')?.classList.remove('show'));
 
-$('#newBtn').addEventListener('click', () => openComposer());
+$('#newBtn').addEventListener('click', () => contextNew());
 $('#newBtn2').addEventListener('click', () => openComposer());
-$('#dockAdd').addEventListener('click', () => openComposer());
+$('#dockAdd').addEventListener('click', () => contextNew());
 
 /* ======================= Tabs (mobile) ======================= */
 function setTab(t) {
@@ -1559,7 +1637,7 @@ function setTab(t) {
   $$('.dock-btn[data-tab]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.tab === t)));
   try { sessionStorage.setItem('workoholic:tab', t); } catch (e) {}
 }
-$$('.dock-btn[data-tab]').forEach(b => b.addEventListener('click', () => { setTab(b.dataset.tab); scrollTo({ top: 0 }); }));
+$$('.dock-btn[data-tab]').forEach(b => b.addEventListener('click', () => { setTab(b.dataset.tab); setArea('heute'); }));
 try { const t = sessionStorage.getItem('workoholic:tab'); if (t === 'zeit' || t === 'aufgaben') setTab(t); } catch (e) {}
 
 /* ======================= Menu ======================= */
@@ -1616,14 +1694,14 @@ menu.addEventListener('click', async e => {
     if (!done.length) { toast('Keine erledigten Einträge.'); return; }
     const snap = snapshot(), now = Date.now();
     state.items = state.items.filter(i => !i.done);
-    done.forEach(i => { state.del[i.id] = now; });
+    done.forEach(i => { state.del[i.id] = tombTs(i); });
     commit(); toast(`${done.length} erledigte entfernt`, { undo: snap });
   }
   else if (a === 'demo') loadDemo();
   else if (a === 'wipe') {
-    const r = await ask({ title: 'Alles löschen?', text: 'Entfernt alle Einträge und Dienste – auch auf allen synchronisierten Geräten. Dienste-Katalog, Tresor und Passwort bleiben bestehen.', buttons: [{ label: 'Abbrechen', value: null }, { label: 'Alles löschen', value: 'ok', cls: 'btn-ghost btn-danger', submit: true }] });
+    const r = await ask({ title: 'Alles löschen?', text: 'Entfernt alle Einträge, Dienste, Termine, Team-Notizen und Dateien – auch auf allen synchronisierten Geräten. Dienste-Katalog, Routinen-Vorlagen, Tresor und Passwort bleiben.', buttons: [{ label: 'Abbrechen', value: null }, { label: 'Alles löschen', value: 'ok', cls: 'btn-ghost btn-danger', submit: true }] });
     if (!r) return;
-    const snap = snapshot(); applyState({ ...blank(), tpls: state.tpls, settings: state.settings }); toast('Alles gelöscht', { undo: snap });
+    const snap = snapshot(); applyState({ ...blank(), tpls: state.tpls, routines: state.routines, settings: state.settings }); toast('Alles gelöscht', { undo: snap });
   }
 });
 $('#importFile').addEventListener('change', async e => {
@@ -1654,8 +1732,8 @@ $('#importFile').addEventListener('change', async e => {
 
 /* ======================= Demo data ======================= */
 async function loadDemo() {
-  if (state.items.length || state.shifts.length) {
-    const r = await ask({ title: 'Beispieldaten laden?', text: 'Ersetzt deine aktuellen Einträge und Dienste (auch auf synchronisierten Geräten). Dein Dienste-Katalog bleibt. Du kannst es direkt danach rückgängig machen.', buttons: [{ label: 'Abbrechen', value: null }, { label: 'Ersetzen', value: 'ok', cls: 'btn-accent', submit: true }] });
+  if (state.items.length || state.shifts.length || state.appts.length || state.people.length || state.routines.length) {
+    const r = await ask({ title: 'Beispieldaten laden?', text: 'Ersetzt Einträge, Dienste, Termine, Routinen und Team (auch auf synchronisierten Geräten). Dienste-Katalog und Dateien bleiben. Du kannst es direkt danach rückgängig machen.', buttons: [{ label: 'Abbrechen', value: null }, { label: 'Ersetzen', value: 'ok', cls: 'btn-accent', submit: true }] });
     if (!r) return;
   }
   const snap = snapshot(), now = Date.now(), today = sod(now);
@@ -1698,9 +1776,814 @@ async function loadDemo() {
   }
   add(1, 'tpl-spaet');
   add(2, 'tpl-nacht');
-  applyState({ v: 3, items, shifts, tpls: state.tpls, del: {}, settings: { ...state.settings } });
+  const P = (name, roles, parent) => ({ id: uid(), name, roles, parent, contact: '', u: now });
+  const lena = P('Lena Hoffmann', ['Stationsleitung'], null);
+  const sabine = P('Sabine Krüger', ['Schichtleitung', 'Praxisanleiterin'], lena.id);
+  const jonas = P('Jonas Weber', ['Pflegefachkraft'], sabine.id);
+  const mehmet = P('Mehmet Yilmaz', ['Pflegefachkraft', 'Hygienebeauftragter'], sabine.id);
+  const anna = P('Anna Schulz', ['Auszubildende'], sabine.id);
+  const N = (p, dOff, h, m, text) => ({ id: uid(), pid: p.id, text, at: T(dOff, h, m), u: now });
+  const notes = [
+    N(sabine, -9, 14, 10, 'Jahresgespräch vorbereitet – Wunsch: mehr Praxisanleitung, Fortbildung im Frühjahr.'),
+    N(sabine, -2, 7, 45, 'Hat die Übergabe auf Station 3 übernommen, sehr strukturiert.'),
+    N(mehmet, -1, 21, 50, 'Nachtdienst: Übergabe dauerte 1,5 Std länger – Stunden nachbuchen (siehe Planner).'),
+    N(anna, -5, 11, 30, 'Probezeitgespräch: gute Entwicklung, braucht noch Sicherheit bei der Dokumentation.'),
+    N(jonas, -3, 16, 5, 'Fragt nach Tausch Spätdienst Freitag ↔ Montag.')
+  ];
+  const R = (name, color, rhythm, steps, note) => ({ id: uid(), name, color, rhythm, note: note || '', steps: steps.map(text => ({ id: uid(), text })), u: now });
+  const routines = [
+    R('Schichtübergabe', 'gelb', 'weekdays', ['Übergabeprotokoll lesen', 'Patientenliste & Besonderheiten prüfen', 'Medikamente und BTM gegenzeichnen', 'Offene Anfragen im Planner durchgehen', 'Dienstplan-Änderungen ansprechen'], 'Zu Beginn jedes Dienstes.'),
+    R('Wochenstart', 'lime', 'weekly', ['Dienstplan der Woche prüfen', 'Überstunden der Vorwoche kontrollieren', 'Termine im Kalender abgleichen', 'Team-Infos verschicken']),
+    R('Monatsabschluss', 'blau', 'monthly', ['Arbeitszeiten als CSV exportieren', 'Überstunden mit der Verwaltung abgleichen', 'Stundenbuchungen der Kollegen erledigt?', 'Verschlüsseltes Backup speichern'])
+  ];
+  const runs = [
+    { id: uid(), rid: routines[1].id, started: T(-7, 8), done: Object.fromEntries(routines[1].steps.map((s, i) => [s.id, T(-7, 8, 5 + i * 4)])), finished: T(-7, 8, 25), u: now },
+    { id: uid(), rid: routines[0].id, started: T(0, 6, 5), done: { [routines[0].steps[0].id]: T(0, 6, 8), [routines[0].steps[1].id]: T(0, 6, 15) }, finished: null, u: now }
+  ];
+  const A = (title, dOff, h, m, durMin, location, notesTxt) => ({ id: uid(), title, start: T(dOff, h, m), end: T(dOff, h, m) + durMin * MIN, allDay: false, location: location || '', notes: notesTxt || '', alarm: 15, u: now });
+  const appts = [
+    A('Teambesprechung', 1, 10, 0, 60, 'Besprechungsraum 2', 'Themen: Dienstplan Dezember, Fortbildungen'),
+    A('Jahresgespräch Sabine Krüger', 3, 13, 30, 45, 'Büro Stationsleitung'),
+    A('Zahnarzt', 0, 16, 30, 30, 'Praxis Dr. Berg'),
+    { id: uid(), title: 'Fortbildung Hygiene', start: T(8, 0), end: T(8, 0), allDay: true, location: 'Bildungszentrum', notes: '', alarm: 1440, u: now }
+  ];
+  applyState({ v: 3, items, shifts, tpls: state.tpls, appts, routines, runs, people: [lena, sabine, jonas, mehmet, anna], notes, files: state.files, del: {}, settings: { ...state.settings } });
+
   toast('Beispieldaten geladen', { undo: snap });
 }
+
+/* ======================= Bereiche ======================= */
+const AREAS = ['heute', 'routinen', 'team', 'ablage'];
+function syncDockTabs() {
+  const heute = document.body.dataset.area === 'heute';
+  $$('.dock-btn[data-tab]').forEach(b => b.setAttribute('aria-pressed', String(heute && b.dataset.tab === document.body.dataset.tab)));
+}
+function setArea(a, opts = {}) {
+  if (!AREAS.includes(a)) a = 'heute';
+  document.body.dataset.area = a;
+  $$('#areas [data-area]').forEach(b => b.setAttribute('aria-current', b.dataset.area === a ? 'page' : 'false'));
+  syncDockTabs();
+  try { sessionStorage.setItem('workoholic:area', a); } catch (e) {}
+  if (!opts.keepScroll) scrollTo({ top: 0 });
+  renderArea();
+}
+function renderArea() {
+  if (!S) return;
+  const a = document.body.dataset.area;
+  if (a === 'routinen') renderRoutines();
+  else if (a === 'team') renderTeam();
+  else if (a === 'ablage') renderAblage();
+  const set = (id, n) => { const el = $(id); el.textContent = n || ''; el.hidden = !n; };
+  set('#nRoutinen', state.routines.filter(r => routineDue(r)).length);
+  set('#nTeam', state.people.length);
+  set('#nAblage', state.files.length);
+}
+function contextNew() {
+  const a = document.body.dataset.area;
+  if (a === 'routinen') openRoutineEditor(null);
+  else if (a === 'team') openPersonDialog(null);
+  else if (a === 'ablage') $('#fileInput').click();
+  else openComposer();
+}
+$('#areas').addEventListener('click', e => { const b = e.target.closest('[data-area]'); if (b) setArea(b.dataset.area); });
+
+/* ======================= Termine & Kalender-Export ======================= */
+const ALARMS = [[-1, 'Keine'], [0, 'Zum Beginn'], [15, '15 Min'], [30, '30 Min'], [60, '1 Std'], [1440, '1 Tag']];
+const apptEnd = x => x.allDay ? addDays(sod(x.start), 1) : Math.max(x.end, x.start + MIN);
+const apptsOn = key => { const a = fromKey(key), b = addDays(a, 1); return state.appts.filter(x => x.start < b && apptEnd(x) > a).sort((x, y) => (y.allDay - x.allDay) || x.start - y.start); };
+const apptTime = x => x.allDay ? 'ganztägig' : `${hm(x.start)}–${hm(x.end)}`;
+function renderCalAppts(now = Date.now()) {
+  const key = ui.day || dayKey(now), t = fromKey(key), isToday = key === dayKey(now);
+  const list = apptsOn(key);
+  $('#caTitle').textContent = `Termine · ${isToday ? 'heute' : dateShort(t)}`;
+  $('#caList').innerHTML = list.length
+    ? list.slice(0, 5).map(x => `<li><button type="button" class="ca-row" data-appt="${x.id}"><span class="ca-time mono">${apptTime(x)}</span><span class="ca-title">${esc(x.title)}</span>${x.location ? `<span class="ca-loc">${esc(x.location)}</span>` : ''}</button></li>`).join('') + (list.length > 5 ? `<li class="ca-more">+${list.length - 5} weitere</li>` : '')
+    : '<li class="ca-empty">Keine Termine.</li>';
+}
+
+/* iCalendar (RFC 5545) */
+const te = new TextEncoder();
+const icsEsc = s => String(s || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+const icsUtc = t => new Date(t).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+const icsDay = t => { const d = new Date(t); return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`; };
+function icsFold(line) {
+  const out = []; let cur = '', bytes = 0;
+  for (const ch of line) {
+    const b = te.encode(ch).length;
+    if (bytes + b > 75) { out.push(cur); cur = ' ' + ch; bytes = 1 + b; } else { cur += ch; bytes += b; }
+  }
+  out.push(cur);
+  return out.join('\r\n');
+}
+function buildIcs(events) {
+  const L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Workoholic//Termine//DE', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH'];
+  const stamp = icsUtc(Date.now());
+  for (const ev of events) {
+    L.push('BEGIN:VEVENT', `UID:${ev.uid}`, `DTSTAMP:${stamp}`);
+    if (ev.allDay) L.push(`DTSTART;VALUE=DATE:${icsDay(ev.start)}`, `DTEND;VALUE=DATE:${icsDay(addDays(sod(ev.start), 1))}`);
+    else L.push(`DTSTART:${icsUtc(ev.start)}`, `DTEND:${icsUtc(Math.max(ev.end, ev.start + MIN))}`);
+    L.push(`SUMMARY:${icsEsc(ev.title)}`);
+    if (ev.location) L.push(`LOCATION:${icsEsc(ev.location)}`);
+    if (ev.notes) L.push(`DESCRIPTION:${icsEsc(ev.notes)}`);
+    if (ev.alarm >= 0) L.push('BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${icsEsc(ev.title)}`, `TRIGGER:-PT${ev.alarm}M`, 'END:VALARM');
+    L.push('END:VEVENT');
+  }
+  L.push('END:VCALENDAR');
+  return L.map(icsFold).join('\r\n') + '\r\n';
+}
+const apptEvent = x => ({ uid: `${x.id}@workoholic`, title: x.title, start: x.start, end: x.end, allDay: x.allDay, location: x.location, notes: x.notes, alarm: x.alarm });
+const shiftEvent = sh => ({ uid: `${sh.id}@workoholic-dienst`, title: sh.name, start: sh.start, end: sh.plannedEnd, allDay: false, location: '', notes: `Dienst · Pause ${sh.breakMin} Min`, alarm: -1 });
+const slug = s => String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/ß/g, 'ss').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'termin';
+function exportIcs(events, name) {
+  if (!events.length) { toast('Keine Termine zum Exportieren.'); return; }
+  const ics = buildIcs(events);
+  if (navigator.standalone) { window.open('data:text/calendar;charset=utf-8,' + encodeURIComponent(ics), '_blank'); return; } // iOS-Home-Bildschirm-App
+  download(name, ics, 'text/calendar;charset=utf-8');
+  toast('Kalenderdatei erstellt – öffnen, um sie in deinen Kalender zu übernehmen.');
+}
+function googleUrl(x) {
+  const dates = x.allDay ? `${icsDay(x.start)}/${icsDay(addDays(sod(x.start), 1))}` : `${icsUtc(x.start)}/${icsUtc(Math.max(x.end, x.start + MIN))}`;
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(x.title)}&dates=${dates}&details=${encodeURIComponent(x.notes || '')}&location=${encodeURIComponent(x.location || '')}`;
+}
+function outlookUrl(x) {
+  const iso = t => x.allDay ? dayKey(t) : new Date(t).toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const end = x.allDay ? addDays(sod(x.start), 1) : Math.max(x.end, x.start + MIN);
+  return `https://outlook.live.com/calendar/0/deeplink/compose?path=%2Fcalendar%2Faction%2Fcompose&rru=addevent&subject=${encodeURIComponent(x.title)}&startdt=${encodeURIComponent(iso(x.start))}&enddt=${encodeURIComponent(iso(end))}&allday=${x.allDay}&body=${encodeURIComponent(x.notes || '')}&location=${encodeURIComponent(x.location || '')}`;
+}
+const openExternal = url => window.open(url, '_blank', 'noopener,noreferrer');
+
+const AP = { id: null, alarm: 15 };
+function openApptDialog(x, opts = {}) {
+  if (!S) return;
+  closeMenu();
+  AP.id = x ? x.id : null;
+  AP.alarm = x ? x.alarm : 15;
+  const day = x ? dayKey(x.start) : (opts.date || ui.day || dayKey(Date.now()));
+  $('#apH').textContent = x ? 'Termin bearbeiten' : 'Neuer Termin';
+  $('#apTitle').value = x ? x.title : '';
+  $('#apTitle').classList.remove('err');
+  $('#apDate').value = day;
+  $('#apAllDay').checked = x ? x.allDay : false;
+  let st = '09:00', en = '10:00';
+  if (x && !x.allDay) { st = hm(x.start); en = hm(x.end); }
+  else if (!x && day === dayKey(Date.now())) { const n = new Date(); n.setMinutes(n.getMinutes() < 30 ? 30 : 60, 0, 0); st = hm(n.getTime()); en = hm(n.getTime() + HOUR); }
+  $('#apStart').value = st; $('#apEnd').value = en;
+  $('#apLoc').value = x ? x.location : '';
+  $('#apNotes').value = x ? x.notes : '';
+  $('#apAlarm').innerHTML = ALARMS.map(([v, l]) => `<button type="button" data-v="${v}">${l}</button>`).join('');
+  $('#apDelete').hidden = !x;
+  syncApptDialog();
+  openDlg($('#apptDlg'));
+  if (!x && !mobileMQ.matches) setTimeout(() => $('#apTitle').focus(), 40);
+}
+function syncApptDialog() {
+  $('#apTimes').hidden = $('#apAllDay').checked;
+  $$('#apAlarm button').forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.v) === AP.alarm)));
+}
+function readAppt() {
+  const title = $('#apTitle').value.trim(), date = $('#apDate').value, allDay = $('#apAllDay').checked;
+  if (!title) return { err: '#apTitle' };
+  if (!isKey(date)) return { err: '#apDate' };
+  let start, end;
+  if (allDay) { start = fromKey(date); end = start; }
+  else {
+    const s = $('#apStart').value.slice(0, 5), e = $('#apEnd').value.slice(0, 5);
+    if (!isHM(s)) return { err: '#apStart' };
+    start = parseLocal(`${date}T${s}`);
+    end = isHM(e) ? parseLocal(`${date}T${e}`) : start + HOUR;
+    if (end === start) end = start + HOUR; else if (end < start) end = addDays(end, 1);
+  }
+  return { title, start, end, allDay, location: $('#apLoc').value.trim(), notes: $('#apNotes').value.trim(), alarm: AP.alarm };
+}
+function saveAppt(keepOpen) {
+  if (!S) return null;
+  const d = readAppt();
+  if (d.err) { const el = $(d.err); el.classList.add('err'); el.focus(); setTimeout(() => el.classList.remove('err'), 1400); return null; }
+  const now = Date.now();
+  let x = AP.id ? state.appts.find(a => a.id === AP.id) : null;
+  if (x) Object.assign(x, normAppt({ ...x, ...d, u: now }));
+  else { x = normAppt({ id: uid(), ...d, u: now }); state.appts.push(x); AP.id = x.id; $('#apDelete').hidden = false; $('#apH').textContent = 'Termin bearbeiten'; }
+  commit();
+  const saved = state.appts.find(a => a.id === x.id);
+  if (!keepOpen) {
+    closeDlg($('#apptDlg'));
+    toast(`Termin gespeichert · ${dateShort(saved.start)}`, { action: { label: 'In Kalender', fn: () => exportIcs([apptEvent(saved)], `termin-${dayKey(saved.start)}-${slug(saved.title)}.ics`) } });
+  }
+  return saved;
+}
+$('#apForm').addEventListener('submit', e => { e.preventDefault(); saveAppt(false); });
+$('#apForm').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); saveAppt(false); } });
+$('#apAllDay').addEventListener('change', syncApptDialog);
+$('#apAlarm').addEventListener('click', e => { const b = e.target.closest('[data-v]'); if (b) { AP.alarm = Number(b.dataset.v); syncApptDialog(); } });
+$('#apDelete').addEventListener('click', () => {
+  if (!AP.id) return;
+  const snap = snapshot(), id = AP.id, rec = state.appts.find(a => a.id === id);
+  state.appts = state.appts.filter(a => a.id !== id); state.del[id] = tombTs(rec);
+  closeDlg($('#apptDlg')); commit(); toast('Termin gelöscht', { undo: snap });
+});
+$('#apptDlg').addEventListener('click', e => {
+  const b = e.target.closest('[data-export]'); if (!b) return;
+  const x = saveAppt(true); if (!x) return;
+  if (b.dataset.export === 'ics') exportIcs([apptEvent(x)], `termin-${dayKey(x.start)}-${slug(x.title)}.ics`);
+  else if (b.dataset.export === 'google') openExternal(googleUrl(x));
+  else openExternal(outlookUrl(x));
+});
+$('#caList').addEventListener('click', e => { const b = e.target.closest('[data-appt]'); if (b) openApptDialog(state.appts.find(a => a.id === b.dataset.appt)); });
+$('#caAdd').addEventListener('click', () => openApptDialog(null, { date: ui.day || dayKey(Date.now()) }));
+$('#caExport').addEventListener('click', async () => {
+  if (!S) return;
+  const now = Date.now();
+  const appts = state.appts.filter(x => apptEnd(x) > now - 30 * DAY);
+  const shifts = state.shifts.filter(sh => isPlanned(sh, now));
+  const r = await ask({ title: 'Kalender exportieren', text: `${appts.length} Termine (ab den letzten 30 Tagen)${shifts.length ? ` und ${shifts.length} geplante Dienste` : ''} als .ics-Datei – öffnen, um sie in Apple-, Outlook- oder Google-Kalender zu übernehmen.`,
+    buttons: [{ label: 'Abbrechen', value: null }, ...(shifts.length ? [{ label: 'Termine + Dienste', value: 'both' }] : []), { label: 'Nur Termine', value: 'appts', cls: 'btn-accent', submit: true }] });
+  if (!r) return;
+  const evs = appts.map(apptEvent).concat(r.value === 'both' ? shifts.map(shiftEvent) : []);
+  exportIcs(evs, `workoholic-kalender-${dayKey(now)}.ics`);
+});
+
+/* ======================= Routinen ======================= */
+const runsOf = rid => state.runs.filter(r => r.rid === rid);
+const openRunOf = rid => runsOf(rid).filter(r => !r.finished).sort((a, b) => b.started - a.started)[0] || null;
+const lastFinished = rid => runsOf(rid).filter(r => r.finished).sort((a, b) => b.finished - a.finished)[0] || null;
+function periodStart(rhythm, now) {
+  if (rhythm === 'daily' || rhythm === 'weekdays') return sod(now);
+  if (rhythm === 'weekly') return weekStart(now);
+  if (rhythm === 'monthly') { const d = new Date(now); return new Date(d.getFullYear(), d.getMonth(), 1).getTime(); }
+  return null;
+}
+function routineDue(r, now = Date.now()) {
+  if (!r || r.rhythm === 'manual' || !r.steps.length) return false;
+  if (r.rhythm === 'weekdays') { const wd = new Date(now).getDay(); if (wd === 0 || wd === 6) return false; }
+  const lf = lastFinished(r.id);
+  return !lf || lf.finished < periodStart(r.rhythm, now);
+}
+function renderRoutines(now = Date.now()) {
+  const q = norm(ui.q);
+  const list = state.routines.filter(r => !q || norm(`${r.name} ${r.note} ${r.steps.map(s => s.text).join(' ')}`).includes(q))
+    .sort((a, b) => (routineDue(b, now) - routineDue(a, now)) || (!!openRunOf(b.id) - !!openRunOf(a.id)) || a.name.localeCompare(b.name, 'de'));
+  const dueN = state.routines.filter(r => routineDue(r, now)).length;
+  $('#rtSub').textContent = !state.routines.length ? 'Noch keine Routinen' : dueN ? `${dueN} ${dueN === 1 ? 'Routine' : 'Routinen'} fällig` : 'Alles im Takt';
+  if (!state.routines.length) {
+    $('#rtList').innerHTML = `<div class="empty area-empty"><h3>Deine Schablonen.</h3><p>Lege Abläufe an, die du immer wieder abarbeitest – z. B. Schichtübergabe, Wochenstart oder Monatsabschluss. Starten, abhaken, fertig.</p><div class="row"><button type="button" class="btn btn-accent" data-rt-new>${ico('plus')}Erste Routine</button></div></div>`;
+    return;
+  }
+  if (!list.length) { $('#rtList').innerHTML = `<div class="empty area-empty"><h3>Nichts gefunden.</h3><p>Keine Routine passt zur Suche.</p></div>`; return; }
+  $('#rtList').innerHTML = list.map(r => {
+    const due = routineDue(r, now), run = openRunOf(r.id), lf = lastFinished(r.id);
+    const total = runsOf(r.id).filter(x => x.finished).length;
+    const doneN = run ? r.steps.filter(s => run.done[s.id]).length : 0;
+    return `<article class="rt-card${due ? ' due' : ''}${run ? ' running' : ''}" data-rid="${r.id}" style="--c:${COLORS[r.color]}">
+      <div class="rt-top"><h3 class="rt-name">${esc(r.name)}</h3>${due ? '<span class="pill pill-accent">fällig</span>' : ''}${run ? '<span class="pill pill-lime">läuft</span>' : ''}</div>
+      <p class="rt-meta">${RHYTHMS[r.rhythm]} · ${r.steps.length} ${r.steps.length === 1 ? 'Schritt' : 'Schritte'} · ${lf ? `zuletzt ${dateShort(lf.finished)} ${hm(lf.finished)}` : 'noch nie abgeschlossen'}${total ? ` · ${total}×` : ''}</p>
+      ${r.note ? `<p class="rt-note">${esc(firstLine(r.note))}</p>` : ''}
+      ${run ? `<div class="rt-prog" role="progressbar" aria-valuemin="0" aria-valuemax="${r.steps.length}" aria-valuenow="${doneN}"><i style="transform:scaleX(${r.steps.length ? doneN / r.steps.length : 0})"></i></div><p class="rt-meta">${doneN} von ${r.steps.length} erledigt · gestartet ${hm(run.started)}</p>` : ''}
+      <div class="rt-actions"><button type="button" class="btn ${run || due ? 'btn-accent' : 'btn-light'} btn-sm" data-rt-start>${ico('play')}${run ? 'Fortsetzen' : 'Starten'}</button><button type="button" class="btn btn-ghost btn-sm" data-rt-edit>${ico('edit')}Bearbeiten</button></div>
+    </article>`;
+  }).join('');
+}
+$('#rtList').addEventListener('click', e => {
+  if (e.target.closest('[data-rt-new]')) { openRoutineEditor(null); return; }
+  const card = e.target.closest('[data-rid]'); if (!card) return;
+  if (e.target.closest('[data-rt-edit]')) openRoutineEditor(state.routines.find(r => r.id === card.dataset.rid));
+  else if (e.target.closest('[data-rt-start]')) startRoutine(card.dataset.rid);
+});
+$('#rtNew').addEventListener('click', () => openRoutineEditor(null));
+
+/* ---------- Durchlauf ---------- */
+let curRun = null;
+function startRoutine(rid) {
+  if (!S) return;
+  const r = state.routines.find(x => x.id === rid); if (!r) return;
+  if (!r.steps.length) { toast('Diese Routine hat noch keine Schritte.'); openRoutineEditor(r); return; }
+  let run = openRunOf(rid);
+  if (!run) { const now = Date.now(); run = normRun({ id: uid(), rid, started: now, done: {}, finished: null, u: now }); state.runs.push(run); commit(); }
+  curRun = run.id;
+  renderRunDialog();
+  openDlg($('#runDlg'));
+}
+function renderRunDialog() {
+  const run = state.runs.find(r => r.id === curRun), r = run && state.routines.find(x => x.id === run.rid);
+  if (!run || !r) { if ($('#runDlg').open) closeDlg($('#runDlg')); return; }
+  const n = r.steps.length, done = r.steps.filter(s => run.done[s.id]).length;
+  $('#rnH').textContent = r.name;
+  $('#rnMeta').textContent = `Gestartet ${dateShort(run.started)} um ${hm(run.started)} · ${done} von ${n} erledigt`;
+  $('#rnBar').style.transform = `scaleX(${n ? done / n : 0})`;
+  $('#rnNote').hidden = !r.note; $('#rnNote').textContent = r.note;
+  $('#rnSteps').innerHTML = r.steps.map((s, i) => `<li><button type="button" class="rn-step${run.done[s.id] ? ' on' : ''}" data-step="${s.id}" aria-pressed="${!!run.done[s.id]}"><span class="check${run.done[s.id] ? ' on' : ''}" aria-hidden="true">${ico('check')}</span><span class="rn-n mono">${pad(i + 1)}</span><span class="rn-text">${esc(s.text)}</span>${run.done[s.id] ? `<span class="rn-at mono">${hm(run.done[s.id])}</span>` : ''}</button></li>`).join('');
+  const fin = $('#rnFinish');
+  fin.textContent = done === n ? 'Abschließen' : `Abschließen (${done}/${n})`;
+  fin.className = 'btn ' + (done === n ? 'btn-accent' : 'btn-ghost');
+}
+$('#rnSteps').addEventListener('click', e => {
+  const b = e.target.closest('[data-step]'); if (!b) return;
+  const run = state.runs.find(r => r.id === curRun); if (!run) return;
+  const id = b.dataset.step, now = Date.now();
+  if (run.done[id]) delete run.done[id]; else run.done[id] = now;
+  run.u = now; commit(); renderRunDialog();
+  if (navigator.vibrate && run.done[id]) navigator.vibrate(8);
+});
+$('#rnFinish').addEventListener('click', () => {
+  const run = state.runs.find(r => r.id === curRun), r = run && state.routines.find(x => x.id === run.rid); if (!run || !r) return;
+  const snap = snapshot(), now = Date.now(), done = r.steps.filter(s => run.done[s.id]).length;
+  run.finished = now; run.u = now;
+  closeDlg($('#runDlg')); commit();
+  toast(`${r.name} abgeschlossen · ${done}/${r.steps.length}`, { undo: snap });
+});
+$('#rnDiscard').addEventListener('click', async () => {
+  const run = state.runs.find(r => r.id === curRun); if (!run) return;
+  const a = await ask({ title: 'Durchlauf verwerfen?', text: 'Die Haken dieses Durchlaufs werden gelöscht. Die Routine selbst bleibt.', buttons: [{ label: 'Abbrechen', value: null }, { label: 'Verwerfen', value: 'ok', cls: 'btn-ghost btn-danger', submit: true }] });
+  if (!a) return;
+  const snap = snapshot();
+  state.runs = state.runs.filter(r => r.id !== run.id); state.del[run.id] = tombTs(run);
+  closeDlg($('#runDlg')); commit(); toast('Durchlauf verworfen', { undo: snap });
+});
+
+/* ---------- Routine bearbeiten ---------- */
+const RT = { id: null, color: 'lime', rhythm: 'manual' };
+function openRoutineEditor(r) {
+  if (!S) return;
+  closeMenu();
+  RT.id = r ? r.id : null; RT.color = r ? r.color : 'lime'; RT.rhythm = r ? r.rhythm : 'manual';
+  $('#reH').textContent = r ? 'Routine bearbeiten' : 'Neue Routine';
+  $('#reName').value = r ? r.name : '';
+  $('#reName').classList.remove('err');
+  $('#reSteps').value = r ? r.steps.map(s => s.text).join('\n') : '';
+  $('#reNote').value = r ? r.note : '';
+  renderColors($('#reColors'), RT.color);
+  $('#reRhythm').innerHTML = Object.entries(RHYTHMS).map(([k, l]) => `<button type="button" data-v="${k}">${l}</button>`).join('');
+  $('#reDelete').hidden = !r;
+  const runs = r ? runsOf(r.id).filter(x => x.finished).sort((a, b) => b.finished - a.finished).slice(0, 6) : [];
+  $('#reHist').hidden = !runs.length;
+  $('#reHistList').innerHTML = runs.map(x => `<li><span class="mono">${dateShort(x.finished)} ${hm(x.finished)}</span><span class="dim">${Object.keys(x.done).filter(k => r.steps.some(s => s.id === k)).length}/${r.steps.length} erledigt</span></li>`).join('');
+  syncRoutineEditor();
+  openDlg($('#routineDlg'));
+  if (!r && !mobileMQ.matches) setTimeout(() => $('#reName').focus(), 40);
+}
+function syncRoutineEditor() {
+  pressColors($('#reColors'), RT.color);
+  $$('#reRhythm button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === RT.rhythm)));
+  const n = $('#reSteps').value.split('\n').map(l => l.trim()).filter(Boolean).length;
+  $('#reCount').textContent = `${n} ${n === 1 ? 'Schritt' : 'Schritte'}`;
+}
+$('#reColors').addEventListener('click', e => { const b = e.target.closest('[data-color]'); if (b) { RT.color = b.dataset.color; syncRoutineEditor(); } });
+$('#reRhythm').addEventListener('click', e => { const b = e.target.closest('[data-v]'); if (b) { RT.rhythm = b.dataset.v; syncRoutineEditor(); } });
+$('#reSteps').addEventListener('input', syncRoutineEditor);
+$('#reForm').addEventListener('submit', e => {
+  e.preventDefault();
+  if (!S) return;
+  const name = $('#reName').value.trim();
+  if (!name) { $('#reName').classList.add('err'); $('#reName').focus(); setTimeout(() => $('#reName').classList.remove('err'), 1400); return; }
+  const lines = $('#reSteps').value.split('\n').map(l => l.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '').trim()).filter(Boolean).slice(0, 100);
+  const old = RT.id ? state.routines.find(r => r.id === RT.id) : null;
+  const pool = old ? [...old.steps] : [];
+  const steps = lines.map(text => { const i = pool.findIndex(s => s.text === text); if (i >= 0) return pool.splice(i, 1)[0]; return { id: uid(), text }; });
+  const now = Date.now();
+  const data = { name, color: RT.color, rhythm: RT.rhythm, steps, note: $('#reNote').value.trim(), u: now };
+  if (old) Object.assign(old, normRoutine({ ...old, ...data }));
+  else state.routines.push(normRoutine({ id: uid(), ...data }));
+  closeDlg($('#routineDlg')); commit();
+  toast(old ? 'Routine gespeichert' : `Routine „${name}“ angelegt`);
+});
+$('#reDelete').addEventListener('click', async () => {
+  if (!RT.id) return;
+  const r = state.routines.find(x => x.id === RT.id); if (!r) return;
+  const a = await ask({ title: 'Routine löschen?', text: `„${r.name}“ und ihr Verlauf werden gelöscht.`, buttons: [{ label: 'Abbrechen', value: null }, { label: 'Löschen', value: 'ok', cls: 'btn-ghost btn-danger', submit: true }] });
+  if (!a) return;
+  const snap = snapshot(), now = Date.now();
+  for (const run of runsOf(r.id)) state.del[run.id] = tombTs(run);
+  state.runs = state.runs.filter(x => x.rid !== r.id);
+  state.routines = state.routines.filter(x => x.id !== r.id); state.del[r.id] = tombTs(r);
+  closeDlg($('#routineDlg')); commit(); toast('Routine gelöscht', { undo: snap });
+});
+
+/* ======================= Team ======================= */
+const teamUi = { pid: null, collapsed: new Set(), detail: false };
+const personById = id => state.people.find(p => p.id === id) || null;
+const kidsOf = pid => state.people.filter(p => p.parent === pid).sort((a, b) => a.name.localeCompare(b.name, 'de'));
+const notesOf = pid => state.notes.filter(n => n.pid === pid).sort((a, b) => b.at - a.at || cmp(b.id, a.id));
+function descendants(pid) { const out = new Set(); const walk = id => { for (const k of kidsOf(id)) { out.add(k.id); walk(k.id); } }; walk(pid); return out; }
+const avHue = name => { let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
+const avatar = (p, cls = '') => `<span class="tm-av ${cls}" style="--h:${avHue(p.name)}" aria-hidden="true">${esc(initials(p.name))}</span>`;
+function flatTree() {
+  const out = [];
+  const walk = (p, depth) => { out.push({ p, depth, kids: kidsOf(p.id).length }); if (!teamUi.collapsed.has(p.id)) for (const k of kidsOf(p.id)) walk(k, depth + 1); };
+  for (const root of state.people.filter(p => !p.parent).sort((a, b) => a.name.localeCompare(b.name, 'de'))) walk(root, 0);
+  return out;
+}
+function renderTeam() {
+  const q = norm(ui.q);
+  if (teamUi.pid && !personById(teamUi.pid)) teamUi.pid = null;
+  if (!teamUi.pid && state.people.length && !mobileMQ.matches) teamUi.pid = flatTree()[0].p.id;
+  document.body.classList.toggle('team-detail', !!(teamUi.detail && teamUi.pid));
+  $('#tmSub').textContent = state.people.length ? `${state.people.length} ${state.people.length === 1 ? 'Person' : 'Personen'} · ${state.notes.length} ${state.notes.length === 1 ? 'Notiz' : 'Notizen'}` : 'Noch niemand im Team';
+  let rows;
+  if (q) {
+    rows = state.people.filter(p => norm(`${p.name} ${p.roles.join(' ')} ${p.contact} ${notesOf(p.id).map(n => n.text).join(' ')}`).includes(q))
+      .sort((a, b) => a.name.localeCompare(b.name, 'de')).map(p => ({ p, depth: 0, kids: 0 }));
+  } else rows = flatTree();
+  $('#tmTree').innerHTML = !state.people.length
+    ? `<li class="empty area-empty"><h3>Dein Team.</h3><p>Leg Personen an, gib ihnen Rollen und ordne sie unter. Zu jeder Person sammelst du Notizen mit Datum und Uhrzeit.</p><div class="row"><button type="button" class="btn btn-accent" data-tm-new>${ico('plus')}Erste Person</button></div></li>`
+    : rows.length ? rows.map(({ p, depth, kids }) => `<li class="tm-node${p.id === teamUi.pid ? ' sel' : ''}" style="--d:${depth}">
+        ${kids ? `<button type="button" class="tm-caret" data-toggle="${p.id}" aria-expanded="${!teamUi.collapsed.has(p.id)}" aria-label="${teamUi.collapsed.has(p.id) ? 'Aufklappen' : 'Zuklappen'}">${ico('chev')}</button>` : '<span class="tm-caret-sp"></span>'}
+        <button type="button" class="tm-row" data-pid="${p.id}" aria-current="${p.id === teamUi.pid}">${avatar(p)}<span class="tm-main"><span class="tm-name">${esc(p.name)}</span><span class="tm-roles">${p.roles.length ? p.roles.map(esc).join(' · ') : 'ohne Rolle'}</span></span>${notesOf(p.id).length ? `<span class="tm-count mono">${notesOf(p.id).length}</span>` : ''}</button>
+      </li>`).join('') : '<li class="ca-empty">Niemand passt zur Suche.</li>';
+  renderPersonDetail();
+}
+function renderPersonDetail() {
+  const box = $('#tmDetail'), p = personById(teamUi.pid);
+  if (!p) { box.innerHTML = state.people.length ? '<div class="tm-placeholder">Person auswählen</div>' : ''; return; }
+  const boss = p.parent ? personById(p.parent) : null, kids = kidsOf(p.id), notes = notesOf(p.id);
+  const items = state.items.filter(i => !i.done && i.from && norm(i.from) === norm(p.name));
+  let lastDay = '', tl = '';
+  for (const n of notes) {
+    const dk = dayKey(n.at);
+    if (dk !== lastDay) { const d = new Date(n.at); tl += `<li class="tl-day">${WDL[d.getDay()]}, ${d.getDate()}. ${MONL[d.getMonth()]} ${d.getFullYear()}</li>`; lastDay = dk; }
+    tl += `<li class="tl-note" data-note="${n.id}"><span class="tl-time mono">${hm(n.at)}</span><div class="tl-body"><p class="tl-text">${esc(n.text)}</p>${n.edited ? `<span class="tl-edited">bearbeitet ${dateShort(n.edited)} ${hm(n.edited)}</span>` : ''}</div><span class="tl-act"><button type="button" class="icon-btn sm" data-note-edit aria-label="Notiz bearbeiten">${ico('edit')}</button></span></li>`;
+  }
+  const prev = $('#tmNote'), keep = prev && box.dataset.cur === p.id ? { v: prev.value, f: document.activeElement === prev, s: prev.selectionStart, e: prev.selectionEnd } : null;
+  box.dataset.cur = p.id;
+  box.innerHTML = `
+    <button type="button" class="tm-back link" data-tm-back>← Team</button>
+    <div class="tm-head">${avatar(p, 'big')}<div class="tm-head-main"><h2>${esc(p.name)}</h2>
+      <div class="tm-chips">${p.roles.map(r => `<span class="pill pill-quiet">${esc(r)}</span>`).join('') || '<span class="dim">keine Rolle</span>'}</div></div>
+      <button type="button" class="icon-btn" data-tm-edit aria-label="${esc(p.name)} bearbeiten">${ico('edit')}</button></div>
+    <dl class="tm-facts">
+      <div><dt>Berichtet an</dt><dd>${boss ? `<button type="button" class="link" data-pid="${boss.id}">${esc(boss.name)}</button>` : '—'}</dd></div>
+      <div><dt>Team</dt><dd>${kids.length ? kids.map(k => `<button type="button" class="link" data-pid="${k.id}">${esc(k.name)}</button>`).join(', ') : '—'} <button type="button" class="link add" data-tm-child>+ darunter</button></dd></div>
+      ${p.contact ? `<div><dt>Kontakt</dt><dd>${esc(p.contact)}</dd></div>` : ''}
+    </dl>
+    ${items.length ? `<div class="tm-items"><span class="f-label">Offen im Planner</span>${items.map(i => `<button type="button" class="tm-item" data-item="${i.id}">${ico(KINDS[i.kind].icon)}<span>${esc(i.title)}</span><span class="dim">${KINDS[i.kind].label}</span></button>`).join('')}</div>` : ''}
+    <form class="tm-note-form" id="tmNoteForm"><label class="sr" for="tmNote">Notiz zu ${esc(p.name)}</label>
+      <textarea class="input" id="tmNote" rows="3" placeholder="Notiz zu ${esc(p.name.split(' ')[0])} … (Zeitstempel kommt automatisch)" spellcheck="false" autocomplete="off"></textarea>
+      <div class="tm-note-foot"><span class="dim" id="tmNoteHint">Strg/⌘ + Enter speichert</span><button type="submit" class="btn btn-accent btn-sm">Notiz speichern</button></div></form>
+    <span class="f-label">Verlauf · ${notes.length} ${notes.length === 1 ? 'Notiz' : 'Notizen'}</span>
+    <ul class="timeline">${tl || '<li class="ca-empty">Noch keine Notizen.</li>'}</ul>`;
+  if (keep && keep.v) { const t = $('#tmNote'); t.value = keep.v; if (keep.f) { t.focus(); try { t.setSelectionRange(keep.s, keep.e); } catch (x) {} } }
+}
+$('#tmTree').addEventListener('click', e => {
+  if (e.target.closest('[data-tm-new]')) { openPersonDialog(null); return; }
+  const t = e.target.closest('[data-toggle]');
+  if (t) { const id = t.dataset.toggle; teamUi.collapsed.has(id) ? teamUi.collapsed.delete(id) : teamUi.collapsed.add(id); renderTeam(); return; }
+  const r = e.target.closest('[data-pid]');
+  if (r) { teamUi.pid = r.dataset.pid; teamUi.detail = true; renderTeam(); if (mobileMQ.matches) scrollTo({ top: 0 }); }
+});
+$('#tmDetail').addEventListener('click', e => {
+  if (e.target.closest('[data-tm-back]')) { teamUi.detail = false; renderTeam(); return; }
+  if (e.target.closest('[data-tm-edit]')) { openPersonDialog(personById(teamUi.pid)); return; }
+  if (e.target.closest('[data-tm-child]')) { openPersonDialog(null, { parent: teamUi.pid }); return; }
+  const pl = e.target.closest('[data-pid]'); if (pl) { teamUi.pid = pl.dataset.pid; teamUi.detail = true; renderTeam(); return; }
+  const it = e.target.closest('[data-item]'); if (it) { openComposer(find(it.dataset.item)); return; }
+  const ne = e.target.closest('[data-note-edit]'); if (ne) { openNoteDialog(ne.closest('[data-note]').dataset.note); }
+});
+$('#tmDetail').addEventListener('submit', e => {
+  if (e.target.id !== 'tmNoteForm') return;
+  e.preventDefault(); addNote();
+});
+$('#tmDetail').addEventListener('keydown', e => { if (e.target.id === 'tmNote' && e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); addNote(); } });
+function addNote() {
+  const p = personById(teamUi.pid), ta = $('#tmNote'); if (!p || !ta) return;
+  const text = ta.value.trim(); if (!text) { ta.focus(); return; }
+  const now = Date.now();
+  ta.value = '';
+  state.notes.push(normNote({ id: uid(), pid: p.id, text, at: now, u: now }));
+  commit();
+  toast(`Notiz zu ${p.name} gespeichert · ${hm(now)}`);
+  setTimeout(() => { const t = $('#tmNote'); if (t && !mobileMQ.matches) t.focus(); }, 30);
+}
+$('#tmNew').addEventListener('click', () => openPersonDialog(null));
+
+/* ---------- Notiz bearbeiten ---------- */
+let editNoteId = null;
+function openNoteDialog(id) {
+  const n = state.notes.find(x => x.id === id); if (!n) return;
+  editNoteId = id;
+  const p = personById(n.pid);
+  $('#nnH').textContent = `Notiz · ${p ? p.name : ''}`;
+  $('#nnMeta').textContent = `Erfasst ${WDL[new Date(n.at).getDay()]}, ${dateShort(n.at)} um ${hm(n.at)}${n.edited ? ` · zuletzt bearbeitet ${dateShort(n.edited)} ${hm(n.edited)}` : ''}`;
+  $('#nnText').value = n.text;
+  openDlg($('#noteDlg'));
+}
+$('#nnForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const n = state.notes.find(x => x.id === editNoteId); if (!n) { closeDlg($('#noteDlg')); return; }
+  const text = $('#nnText').value.trim(); if (!text) { $('#nnText').focus(); return; }
+  if (text !== n.text) { const now = Date.now(); n.text = text; n.edited = now; n.u = now; commit(); toast('Notiz aktualisiert'); }
+  closeDlg($('#noteDlg'));
+});
+$('#nnDelete').addEventListener('click', () => {
+  const n = state.notes.find(x => x.id === editNoteId); if (!n) return;
+  const snap = snapshot();
+  state.notes = state.notes.filter(x => x.id !== n.id); state.del[n.id] = tombTs(n);
+  closeDlg($('#noteDlg')); commit(); toast('Notiz gelöscht', { undo: snap });
+});
+
+/* ---------- Person anlegen / bearbeiten ---------- */
+const PD = { id: null, roles: [] };
+function openPersonDialog(p, opts = {}) {
+  if (!S) return;
+  closeMenu();
+  PD.id = p ? p.id : null; PD.roles = p ? [...p.roles] : [];
+  $('#pdH').textContent = p ? 'Person bearbeiten' : 'Neue Person';
+  $('#pdName').value = p ? p.name : '';
+  $('#pdName').classList.remove('err');
+  $('#pdContact').value = p ? p.contact : '';
+  $('#pdRoleIn').value = '';
+  const blocked = p ? descendants(p.id) : new Set();
+  const opts2 = state.people.filter(x => (!p || x.id !== p.id) && !blocked.has(x.id)).sort((a, b) => a.name.localeCompare(b.name, 'de'));
+  const parent = p ? p.parent : (opts.parent || '');
+  $('#pdParent').innerHTML = `<option value="">— niemand (oberste Ebene) —</option>` + opts2.map(x => `<option value="${x.id}"${x.id === parent ? ' selected' : ''}>${esc(x.name)}${x.roles.length ? ' · ' + esc(x.roles[0]) : ''}</option>`).join('');
+  $('#pdDelete').hidden = !p;
+  renderRoleChips();
+  openDlg($('#personDlg'));
+  if (!p && !mobileMQ.matches) setTimeout(() => $('#pdName').focus(), 40);
+}
+function renderRoleChips() {
+  $('#pdRoles').innerHTML = PD.roles.map((r, i) => `<span class="role-chip">${esc(r)}<button type="button" data-role-rm="${i}" aria-label="Rolle ${esc(r)} entfernen">${ico('x')}</button></span>`).join('') || '<span class="dim">Noch keine Rolle</span>';
+  const all = [...new Set(state.people.flatMap(p => p.roles))].filter(r => !PD.roles.includes(r)).sort((a, b) => a.localeCompare(b, 'de'));
+  $('#pdRoleSug').innerHTML = all.map(r => `<button type="button" class="chip" data-role-add="${esc(r)}">+ ${esc(r)}</button>`).join('');
+  $('#pdRoleSug').hidden = !all.length;
+}
+function addRole(text) {
+  for (const part of String(text).split(',')) { const t = part.trim().slice(0, 40); if (t && !PD.roles.includes(t) && PD.roles.length < 12) PD.roles.push(t); }
+  renderRoleChips();
+}
+$('#pdRoleIn').addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addRole(e.target.value); e.target.value = ''; } });
+$('#pdRoleAdd').addEventListener('click', () => { addRole($('#pdRoleIn').value); $('#pdRoleIn').value = ''; $('#pdRoleIn').focus(); });
+$('#personDlg').addEventListener('click', e => {
+  const rm = e.target.closest('[data-role-rm]'); if (rm) { PD.roles.splice(Number(rm.dataset.roleRm), 1); renderRoleChips(); return; }
+  const ad = e.target.closest('[data-role-add]'); if (ad) { addRole(ad.dataset.roleAdd); }
+});
+$('#pdForm').addEventListener('submit', e => {
+  e.preventDefault();
+  if (!S) return;
+  const name = $('#pdName').value.trim();
+  if (!name) { $('#pdName').classList.add('err'); $('#pdName').focus(); setTimeout(() => $('#pdName').classList.remove('err'), 1400); return; }
+  if ($('#pdRoleIn').value.trim()) addRole($('#pdRoleIn').value);
+  const now = Date.now();
+  const data = { name, roles: PD.roles, parent: $('#pdParent').value || null, contact: $('#pdContact').value.trim(), u: now };
+  let id = PD.id;
+  const old = id ? personById(id) : null;
+  if (old) Object.assign(old, normPerson({ ...old, ...data }));
+  else { id = uid(); state.people.push(normPerson({ id, ...data })); }
+  teamUi.pid = id; teamUi.detail = true;
+  closeDlg($('#personDlg')); commit();
+  if (document.body.dataset.area !== 'team') setArea('team');
+  toast(old ? 'Gespeichert' : `${name} hinzugefügt`);
+});
+$('#pdDelete').addEventListener('click', async () => {
+  const p = personById(PD.id); if (!p) return;
+  const nn = notesOf(p.id).length, kk = kidsOf(p.id).length;
+  const a = await ask({ title: `${p.name} entfernen?`, text: `${nn ? `${nn} ${nn === 1 ? 'Notiz wird' : 'Notizen werden'} mitgelöscht. ` : ''}${kk ? `${kk} unterstellte ${kk === 1 ? 'Person rückt' : 'Personen rücken'} eine Ebene hoch.` : ''}`.trim() || 'Die Person wird aus dem Team entfernt.',
+    buttons: [{ label: 'Abbrechen', value: null }, { label: 'Entfernen', value: 'ok', cls: 'btn-ghost btn-danger', submit: true }] });
+  if (!a) return;
+  const snap = snapshot(), now = Date.now();
+  for (const k of kidsOf(p.id)) { k.parent = p.parent; k.u = now; }
+  for (const n of notesOf(p.id)) state.del[n.id] = tombTs(n);
+  state.notes = state.notes.filter(n => n.pid !== p.id);
+  state.people = state.people.filter(x => x.id !== p.id); state.del[p.id] = tombTs(p);
+  teamUi.pid = null; teamUi.detail = false;
+  closeDlg($('#personDlg')); commit(); toast(`${p.name} entfernt`, { undo: snap });
+});
+
+/* ======================= Ablage (verschlüsselte Dateien) ======================= */
+const IDB = (() => {
+  let dbp = null;
+  const open = () => dbp || (dbp = new Promise((res, rej) => {
+    let r;
+    try { r = indexedDB.open('workoholic', 1); } catch (e) { rej(e); return; }
+    r.onupgradeneeded = () => r.result.createObjectStore('blobs');
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  }));
+  const run = async (mode, fn) => {
+    const db = await open();
+    return new Promise((res, rej) => {
+      const t = db.transaction('blobs', mode), req = fn(t.objectStore('blobs'));
+      t.oncomplete = () => res(req ? req.result : undefined);
+      t.onerror = () => rej(t.error); t.onabort = () => rej(t.error);
+    });
+  };
+  return { get: id => run('readonly', s => s.get(id)), put: (id, v) => run('readwrite', s => s.put(v, id)), del: id => run('readwrite', s => s.delete(id)), keys: () => run('readonly', s => s.getAllKeys()), clear: () => run('readwrite', s => s.clear()) };
+})();
+const local = { ids: new Set(), ok: true };
+async function refreshLocal() {
+  try { local.ids = new Set(await IDB.keys()); local.ok = true; }
+  catch (e) { local.ok = false; }
+  if (local.ok && S) for (const id of [...local.ids]) if (!state.files.some(f => f.id === id)) { await IDB.del(id).catch(() => {}); local.ids.delete(id); }
+}
+const fmtBytes = n => n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(n < 10240 ? 1 : 0).replace('.', ',')} KB` : n < 1073741824 ? `${(n / 1048576).toFixed(1).replace('.', ',')} MB` : `${(n / 1073741824).toFixed(2).replace('.', ',')} GB`;
+const encSize = n => Math.ceil((n + 4) / 16384) * 16384 + 28;
+const fileIcon = f => /^image\//.test(f.type) ? 'image' : /pdf|word|document|text|sheet|presentation|rtf/.test(f.type) || /\.(pdf|docx?|xlsx?|pptx?|txt|md|csv|odt)$/i.test(f.name) ? 'doc' : 'file';
+const ab = { folder: '*' };
+
+async function addFiles(list) {
+  if (!S) return;
+  const files = [...(list || [])]; if (!files.length) return;
+  await refreshLocal();
+  if (!local.ok) { toast('Die Dateiablage ist in diesem Browser-Modus nicht verfügbar.'); return; }
+  let added = 0; const tooBig = [];
+  for (const f of files) {
+    if (f.size > V.MAX_FILE) { tooBig.push(f.name); continue; }
+    const id = uid();
+    try {
+      const bytes = new Uint8Array(await f.arrayBuffer());
+      const rec = await V.encryptFile(S.dek, id, bytes);
+      bytes.fill(0);
+      await IDB.put(id, rec);
+    } catch (e) {
+      toast(e && e.name === 'QuotaExceededError' ? 'Gerätespeicher voll – Datei konnte nicht abgelegt werden.' : `„${f.name}“ konnte nicht verschlüsselt werden.`);
+      continue;
+    }
+    local.ids.add(id);
+    const now = Date.now();
+    state.files.push(normFile({ id, name: f.name, type: f.type, size: f.size, folder: ab.folder !== '*' ? ab.folder : '', added: now, remote: false, u: now }));
+    added++;
+  }
+  if (added) { commit(); FileSync.kick(); }
+  toast(`${added} ${added === 1 ? 'Datei' : 'Dateien'} verschlüsselt abgelegt${tooBig.length ? ` · ${tooBig.length} zu groß (max. 20 MB)` : ''}`);
+}
+async function fileBytes(f) {
+  let rec = await IDB.get(f.id).catch(() => null);
+  if (!rec) {
+    if (!f.remote) throw new Error('Diese Datei liegt auf einem anderen Gerät und ist noch nicht hochgeladen.');
+    if (!Sync.cfg()) throw new Error('Die Datei liegt nur im Tresor-Repo – Sync ist auf diesem Gerät nicht eingerichtet.');
+    const r = await Sync.gh().getPath(`files/${f.id}`);
+    if (!r) throw new Error('Datei im Tresor-Repo nicht gefunden.');
+    rec = V.unpackFile(r.text);
+    await IDB.put(f.id, rec).catch(() => {});
+    local.ids.add(f.id);
+  }
+  return V.decryptFile(S.dek, f.id, rec.iv, rec.ct);
+}
+async function removeRemote(id) {
+  if (!Sync.cfg()) return;
+  try { const hit = (await Sync.gh().listDir('files')).find(x => x.name === id); if (hit) await Sync.gh().deletePath(`files/${id}`, hit.sha); } catch (e) { /* Aufräumen holt es nach */ }
+}
+const FileSync = {
+  busy: false, again: false, msg: '', lastGc: 0,
+  kick() { if (this.busy) this.again = true; else this.run(); },
+  async run() {
+    if (!S || !Sync.cfg() || Sync.halted) return;
+    if (this.busy) { this.again = true; return; }
+    this.busy = true; this.msg = '';
+    try {
+      await refreshLocal();
+      const gh = Sync.gh();
+      for (const f of state.files.filter(x => !x.remote && local.ids.has(x.id))) {
+        const rec = await IDB.get(f.id); if (!rec) continue;
+        try { await gh.putPath(`files/${f.id}`, V.packFile(rec.iv, rec.ct), null); }
+        catch (e) { if (e.code !== 'conflict') throw e; }
+        const cur = state.files.find(x => x.id === f.id);
+        if (cur && !cur.remote) { cur.remote = true; cur.u = Date.now(); commit(); }
+      }
+      if (Date.now() - this.lastGc > HOUR) {
+        this.lastGc = Date.now();
+        for (const r of await gh.listDir('files')) if (state.del[r.name] && !state.files.some(f => f.id === r.name)) await gh.deletePath(`files/${r.name}`, r.sha).catch(() => {});
+      }
+    } catch (e) { this.msg = e.code === 'offline' ? 'Offline – Upload wird nachgeholt.' : (e.message || 'Fehler beim Hochladen'); }
+    finally {
+      this.busy = false;
+      if (document.body.dataset.area === 'ablage') renderAblage();
+      if (this.again) { this.again = false; this.run(); }
+    }
+  }
+};
+
+async function renderAblage() {
+  if (!S) return;
+  await refreshLocal();
+  const q = norm(ui.q);
+  const folders = [...new Set(state.files.map(f => f.folder).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de'));
+  if (ab.folder !== '*' && !folders.includes(ab.folder)) ab.folder = '*';
+  $('#flFolders').innerHTML = [['*', 'Alle', state.files.length], ...folders.map(f => [f, f, state.files.filter(x => x.folder === f).length])]
+    .map(([k, l, n]) => `<button type="button" class="fchip" data-folder="${esc(k)}" aria-selected="${ab.folder === k}">${esc(l)}<span class="n">${n}</span></button>`).join('');
+  $('#flFolders').hidden = !folders.length;
+  const list = state.files.filter(f => (ab.folder === '*' || f.folder === ab.folder) && (!q || norm(`${f.name} ${f.folder} ${f.note}`).includes(q))).sort((a, b) => b.added - a.added);
+  $('#flSub').textContent = state.files.length ? `${state.files.length} ${state.files.length === 1 ? 'Datei' : 'Dateien'} · ${fmtBytes(state.files.reduce((s, f) => s + f.size, 0))}` : 'Noch leer';
+  $('#flList').innerHTML = !state.files.length
+    ? `<li class="empty area-empty"><h3>Deine Ablage.</h3><p>Dokumente, Fotos, PDFs – hier abgelegt werden sie auf deinem Gerät verschlüsselt und (mit Sync) verschlüsselt in deinem Tresor-Repo gesichert.</p><div class="row"><button type="button" class="btn btn-accent" data-fl-add>${ico('upload')}Dateien hinzufügen</button></div></li>`
+    : list.length ? list.map(f => {
+        const here = local.ids.has(f.id);
+        const st = here && f.remote ? ['ok', 'Synchron'] : here ? (Sync.cfg() ? ['busy', 'Wird hochgeladen'] : ['local', 'Nur hier']) : f.remote ? ['cloud', 'In der Cloud'] : ['away', 'Anderes Gerät'];
+        return `<li><button type="button" class="fl-row" data-fid="${f.id}"><span class="fl-ic">${ico(fileIcon(f))}</span><span class="fl-main"><span class="fl-name">${esc(f.name)}</span><span class="fl-sub">${fmtBytes(f.size)} · ${dateShort(f.added)}${f.folder ? ' · ' + esc(f.folder) : ''}${f.note ? ' · ' + esc(firstLine(f.note)) : ''}</span></span><span class="fl-state ${st[0]}">${st[1]}</span></button></li>`;
+      }).join('') : '<li class="ca-empty">Keine Datei passt zu Suche oder Ordner.</li>';
+  renderStorage();
+}
+async function renderStorage() {
+  const st = navigator.storage;
+  const est = st && st.estimate ? await st.estimate().catch(() => null) : null;
+  const persisted = st && st.persisted ? await st.persisted().catch(() => false) : false;
+  const vaultB = (localStorage.getItem(LS.vault) || '').length;
+  const localB = state.files.filter(f => local.ids.has(f.id)).reduce((s, f) => s + encSize(f.size), 0);
+  const remoteB = state.files.filter(f => f.remote).reduce((s, f) => s + encSize(f.size), 0) + vaultB;
+  if (est && est.quota) {
+    $('#sgDevVal').textContent = `${fmtBytes(est.usage || 0)} von ${fmtBytes(est.quota)}`;
+    $('#sgDevBar').style.transform = `scaleX(${clamp((est.usage || 0) / est.quota, 0.004, 1)})`;
+  } else { $('#sgDevVal').textContent = 'nicht ermittelbar'; $('#sgDevBar').style.transform = 'scaleX(0)'; }
+  $('#sgDevSub').textContent = `Dateien ${fmtBytes(localB)} · Tresor ${fmtBytes(vaultB)} von ca. 5 MB${local.ok ? '' : ' · Dateiablage hier nicht verfügbar'}`;
+  const pp = $('#sgPersist');
+  pp.textContent = persisted ? 'dauerhaft gesichert' : 'Browser darf räumen';
+  pp.className = 'pill ' + (persisted ? 'pill-lime' : 'pill-coral');
+  $('#sgPersistBtn').hidden = persisted || !(st && st.persist);
+  if (Sync.cfg()) {
+    const c = Sync.cfg();
+    $('#sgRepoVal').textContent = `${fmtBytes(remoteB)} von empfohlenen 1 GB`;
+    $('#sgRepoBar').style.transform = `scaleX(${clamp(remoteB / 1073741824, 0.004, 1)})`;
+    $('#sgRepoSub').textContent = `${c.owner}/${c.repo}${FileSync.busy ? ' · lädt hoch …' : FileSync.msg ? ' · ' + FileSync.msg : ''}`;
+  } else {
+    $('#sgRepoVal').textContent = 'kein Sync';
+    $('#sgRepoBar').style.transform = 'scaleX(0)';
+    $('#sgRepoSub').textContent = 'Dateien liegen nur auf diesem Gerät – Sync unter „Sicherheit & Sync“ einrichten.';
+  }
+}
+$('#flFolders').addEventListener('click', e => { const b = e.target.closest('[data-folder]'); if (b) { ab.folder = b.dataset.folder; renderAblage(); } });
+$('#flList').addEventListener('click', e => {
+  if (e.target.closest('[data-fl-add]')) { $('#fileInput').click(); return; }
+  const r = e.target.closest('[data-fid]'); if (r) openFile(r.dataset.fid);
+});
+$('#flAdd').addEventListener('click', () => $('#fileInput').click());
+$('#fileInput').addEventListener('change', e => { const fl = e.target.files; addFiles(fl).finally(() => { e.target.value = ''; }); });
+$('#sgPersistBtn').addEventListener('click', async () => {
+  const ok = navigator.storage && navigator.storage.persist ? await navigator.storage.persist().catch(() => false) : false;
+  toast(ok ? 'Speicher ist jetzt dauerhaft – der Browser räumt ihn nicht automatisch.' : 'Der Browser hat abgelehnt. Tipp: als App zum Home-Bildschirm hinzufügen und regelmäßig nutzen.');
+  renderStorage();
+});
+(() => {
+  const zone = $('#ablageArea'); let depth = 0;
+  zone.addEventListener('dragenter', e => { if (!S || ![...(e.dataTransfer.types || [])].includes('Files')) return; e.preventDefault(); depth++; zone.classList.add('drop'); });
+  zone.addEventListener('dragover', e => { if ([...(e.dataTransfer.types || [])].includes('Files')) e.preventDefault(); });
+  zone.addEventListener('dragleave', () => { depth = Math.max(0, depth - 1); if (!depth) zone.classList.remove('drop'); });
+  zone.addEventListener('drop', e => { e.preventDefault(); depth = 0; zone.classList.remove('drop'); addFiles(e.dataTransfer.files); });
+})();
+
+/* ---------- Datei öffnen ---------- */
+let curFile = null, fileUrl = null;
+const revokeFile = () => { if (fileUrl) { URL.revokeObjectURL(fileUrl); fileUrl = null; } };
+async function openFile(id) {
+  const f = state.files.find(x => x.id === id); if (!f || !S) return;
+  curFile = id; revokeFile();
+  $('#fdH').textContent = f.name;
+  $('#fdName').value = f.name; $('#fdFolder').value = f.folder; $('#fdNote').value = f.note;
+  $('#fdFolderList').innerHTML = [...new Set(state.files.map(x => x.folder).filter(Boolean))].map(x => `<option value="${esc(x)}"></option>`).join('');
+  $('#fdMeta').textContent = `${fmtBytes(f.size)} · abgelegt ${dateShort(f.added)} ${hm(f.added)}${f.type ? ' · ' + f.type : ''}`;
+  $('#fdCloud').hidden = !(f.remote && local.ids.has(f.id));
+  $('#fdShare').hidden = !(navigator.canShare);
+  $('#fdOpen').hidden = true;
+  $('#fdPreview').innerHTML = '<div class="fd-none">Entschlüssle …</div>';
+  openDlg($('#fileDlg'));
+  try {
+    const bytes = await fileBytes(f);
+    if (curFile !== id) return;
+    fileUrl = URL.createObjectURL(new Blob([bytes], { type: f.type || 'application/octet-stream' }));
+    const t = f.type || '';
+    let html;
+    if (/^image\//.test(t)) html = `<img src="${fileUrl}" alt="${esc(f.name)}">`;
+    else if (/^video\//.test(t)) html = `<video src="${fileUrl}" controls playsinline></video>`;
+    else if (/^audio\//.test(t)) html = `<audio src="${fileUrl}" controls></audio>`;
+    else if (/^text\/|json|xml|csv/.test(t) || /\.(txt|md|csv|json|log)$/i.test(f.name)) html = `<pre class="fd-text">${esc(new TextDecoder().decode(bytes.subarray(0, 200000)))}</pre>`;
+    else { html = `<div class="fd-none">${ico(fileIcon(f))}<span>${t === 'application/pdf' ? 'PDF – zum Ansehen öffnen oder herunterladen.' : 'Keine Vorschau für diesen Dateityp.'}</span></div>`; $('#fdOpen').hidden = false; }
+    $('#fdPreview').innerHTML = html;
+    if (document.body.dataset.area === 'ablage') renderAblage();
+  } catch (e) { if (curFile === id) $('#fdPreview').innerHTML = `<div class="fd-none">${esc(e.message || 'Konnte nicht entschlüsselt werden.')}</div>`; }
+}
+$('#fileDlg').addEventListener('close', () => { revokeFile(); curFile = null; $('#fdPreview').innerHTML = ''; });
+function saveBlobAs(name) { if (!fileUrl) { toast('Datei wird noch entschlüsselt …'); return; } const a = document.createElement('a'); a.href = fileUrl; a.download = name; document.body.append(a); a.click(); a.remove(); }
+$('#fdDownload').addEventListener('click', () => { const f = state.files.find(x => x.id === curFile); if (f) saveBlobAs(f.name); });
+$('#fdOpen').addEventListener('click', () => { if (fileUrl) window.open(fileUrl, '_blank'); });
+$('#fdShare').addEventListener('click', async () => {
+  const f = state.files.find(x => x.id === curFile); if (!f || !fileUrl) return;
+  try {
+    const blob = await (await fetch(fileUrl)).blob();
+    const file = new File([blob], f.name, { type: f.type || 'application/octet-stream' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) await navigator.share({ files: [file], title: f.name });
+    else toast('Teilen wird hier nicht unterstützt – bitte herunterladen.');
+  } catch (e) { if (e && e.name !== 'AbortError') toast('Teilen nicht möglich.'); }
+});
+$('#fdForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const f = state.files.find(x => x.id === curFile); if (!f) return;
+  const name = $('#fdName').value.trim() || f.name, folder = $('#fdFolder').value.trim(), note = $('#fdNote').value.trim();
+  if (name !== f.name || folder !== f.folder || note !== f.note) { Object.assign(f, normFile({ ...f, name, folder, note, u: Date.now() })); commit(); toast('Gespeichert'); }
+  closeDlg($('#fileDlg'));
+});
+$('#fdCloud').addEventListener('click', async () => {
+  const f = state.files.find(x => x.id === curFile); if (!f || !f.remote) return;
+  await IDB.del(f.id).catch(() => {}); local.ids.delete(f.id);
+  closeDlg($('#fileDlg')); toast(`Lokale Kopie entfernt – ${fmtBytes(encSize(f.size))} frei. Beim Öffnen wird sie neu geladen.`);
+  renderAblage();
+});
+$('#fdDelete').addEventListener('click', async () => {
+  const f = state.files.find(x => x.id === curFile); if (!f) return;
+  const a = await ask({ title: 'Datei löschen?', text: `„${f.name}“ wird auf allen Geräten und im Tresor-Repo gelöscht.`, buttons: [{ label: 'Abbrechen', value: null }, { label: 'Löschen', value: 'ok', cls: 'btn-ghost btn-danger', submit: true }] });
+  if (!a) return;
+  state.files = state.files.filter(x => x.id !== f.id); state.del[f.id] = tombTs(f);
+  await IDB.del(f.id).catch(() => {}); local.ids.delete(f.id);
+  closeDlg($('#fileDlg')); commit(); removeRemote(f.id);
+  toast('Datei gelöscht');
+});
+
+try { const a0 = sessionStorage.getItem('workoholic:area'); setArea(AREAS.includes(a0) ? a0 : 'heute', { keepScroll: true }); } catch (e) { setArea('heute', { keepScroll: true }); }
 
 /* ======================= Synchronisierung ======================= */
 const Sync = {
@@ -1730,6 +2613,7 @@ const Sync = {
       this.fails = 0;
       if (S) { S.dev.lastSync = Date.now(); saveDevice(); }
       this.set('ok');
+      FileSync.kick();
     } catch (e) { this.fail(e); }
     finally {
       this.busy = false; this.pushing = false;
@@ -2124,6 +3008,7 @@ $('#gRecover').addEventListener('submit', async e => {
 $('#gForgetGo').addEventListener('click', () => {
   localStorage.removeItem(LS.vault);
   localStorage.removeItem(LS.device);
+  IDB.clear().catch(() => {});
   lockedEnv = null;
   $('#gLegacy').hidden = !localStorage.getItem(LS.legacy);
   showGate('setup');
@@ -2153,7 +3038,8 @@ document.addEventListener('keydown', e => {
   if ($('dialog[open]')) return;
   if (e.key === 'Escape') { closeMenu(); return; }
   const k = e.key.toLowerCase();
-  if (k === 'n') { e.preventDefault(); openComposer(); }
+  if (k === 'n') { e.preventDefault(); contextNew(); }
+  else if (/^[1-4]$/.test(e.key)) { e.preventDefault(); setArea(AREAS[Number(e.key) - 1]); }
   else if (e.key === '/') { e.preventDefault(); if (mobileMQ.matches) searchBox.classList.add('expanded'); searchInput.focus(); }
   else if (k === 'd' && !e.repeat) { e.preventDefault(); dongleAction(); }
   else if (k === 'l') { e.preventDefault(); lock('manual'); }
