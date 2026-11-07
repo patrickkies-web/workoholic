@@ -84,6 +84,30 @@
     try { return JSON.parse(dec.decode(bytes)); } finally { bytes.fill(0); }
   }
 
+  /* ---------- Dateien (binär, auf 16-KB-Blöcke aufgefüllt, an die Datei-ID gebunden) ---------- */
+  const FILE_PAD = 16384;
+  const aadFile = id => `${FORMAT}/v1/file|${id}`;
+  async function encryptFile(dek, id, bytes) {
+    const total = Math.ceil((bytes.length + 4) / FILE_PAD) * FILE_PAD;
+    const buf = new Uint8Array(total);
+    new DataView(buf.buffer).setUint32(0, bytes.length);
+    buf.set(bytes, 4);
+    const iv = rand(12);
+    try {
+      const ct = new Uint8Array(await subtle.encrypt({ name: 'AES-GCM', iv, additionalData: enc.encode(aadFile(id)), tagLength: 128 }, dek, buf));
+      return { iv, ct };
+    } finally { buf.fill(0); }
+  }
+  async function decryptFile(dek, id, iv, ct) {
+    const buf = new Uint8Array(await subtle.decrypt({ name: 'AES-GCM', iv, additionalData: enc.encode(aadFile(id)), tagLength: 128 }, dek, ct));
+    const len = new DataView(buf.buffer).getUint32(0);
+    if (len > buf.length - 4) throw err('bad-file', 'Datei beschädigt.');
+    return buf.slice(4, 4 + len);
+  }
+  /** Für den Versand: IV (12 Byte) + Chiffretext als Base64. */
+  const packFile = (iv, ct) => { const out = new Uint8Array(12 + ct.length); out.set(iv); out.set(ct, 12); return b64(out); };
+  const unpackFile = text => { const u = unb64(text); return { iv: u.slice(0, 12), ct: u.slice(12) }; };
+
   /* ---------- Wiederherstellungsschlüssel (Crockford Base32) ---------- */
   const B32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
   function toB32(u8) {
@@ -245,6 +269,7 @@
       throw err('http', msg);
     }
     const refQ = cfg.branch ? `?ref=${encodeURIComponent(cfg.branch)}` : '';
+    const encPath = p => String(p).split('/').map(encodeURIComponent).join('/');
 
     return {
       async repoInfo() {
@@ -269,6 +294,32 @@
         const j = await req('PUT', `${base}/contents/${path}`, body);
         return j.content.sha;
       },
+      /** Beliebige Datei im Repo (für die Ablage): {sha, text} oder null. */
+      async getPath(p) {
+        let j;
+        try { j = await req('GET', `${base}/contents/${encPath(p)}${refQ}`); }
+        catch (e) { if (e.code === 'notfound') return null; throw e; }
+        if (!j || Array.isArray(j) || j.type !== 'file') return null;
+        let content = j.content;
+        if (!content && j.size) content = (await req('GET', `${base}/git/blobs/${j.sha}`)).content;
+        return { sha: j.sha, text: String(content || '').replace(/\s/g, '') };
+      },
+      async putPath(p, b64text, sha) {
+        const body = { message: 'tresor', content: b64text };
+        if (sha) body.sha = sha;
+        if (cfg.branch) body.branch = cfg.branch;
+        return (await req('PUT', `${base}/contents/${encPath(p)}`, body)).content.sha;
+      },
+      async deletePath(p, sha) {
+        const body = { message: 'tresor', sha };
+        if (cfg.branch) body.branch = cfg.branch;
+        await req('DELETE', `${base}/contents/${encPath(p)}`, body);
+      },
+      /** Inhalt eines Ordners: [{name, sha, size}] (leer, wenn es ihn nicht gibt). */
+      async listDir(p) {
+        try { const j = await req('GET', `${base}/contents/${encPath(p)}${refQ}`); return Array.isArray(j) ? j.map(x => ({ name: x.name, sha: x.sha, size: x.size })) : []; }
+        catch (e) { if (e.code === 'notfound') return []; throw e; }
+      },
       /**
        * Ersetzt den Verlauf des Tresor-Repos durch einen einzigen Commit, damit sich keine
        * alten Chiffretexte ansammeln. Läuft nur, wenn das Repo ausschließlich den Tresor
@@ -283,7 +334,8 @@
         const tree = await req('GET', `${base}/git/trees/${head.tree.sha}`);
         const SAFE = new Set([cfg.path || 'workoholic.vault', 'README.md', '.gitignore', 'LICENSE', '.gitattributes']);
         const mine = tree.tree.find(t => t.path === (cfg.path || 'workoholic.vault'));
-        if (tree.truncated || !mine || mine.sha !== expectedSha || !tree.tree.every(t => t.type === 'blob' && SAFE.has(t.path))) return null;
+        const okEntry = t => (t.type === 'blob' && SAFE.has(t.path)) || (t.type === 'tree' && t.path === 'files');
+        if (tree.truncated || !mine || mine.sha !== expectedSha || !tree.tree.every(okEntry)) return null;
         const blob = await req('POST', `${base}/git/blobs`, { content: btoa(text), encoding: 'base64' });
         const nt = await req('POST', `${base}/git/trees`, { base_tree: head.tree.sha, tree: [{ path: cfg.path || 'workoholic.vault', mode: '100644', type: 'blob', sha: blob.sha }] });
         const commit = await req('POST', `${base}/git/commits`, { message: 'tresor', tree: nt.sha, parents: [] });
@@ -295,5 +347,5 @@
     };
   }
 
-  window.WVault = Object.freeze({ KDF, create, unlock, recover, rekey, verifyKeys, serialize, parse, encryptJson, decryptJson, strength, GitHub });
+  window.WVault = Object.freeze({ KDF, create, unlock, recover, rekey, verifyKeys, serialize, parse, encryptJson, decryptJson, encryptFile, decryptFile, packFile, unpackFile, strength, GitHub, MAX_FILE: 20 * 1024 * 1024 });
 })();

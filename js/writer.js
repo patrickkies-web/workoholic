@@ -154,13 +154,13 @@
     const host = $('#wList'); if (!host) return;
     const docs = (W() && W().docs()) || [];
     const q = (($('#search') || {}).value || '').trim().toLocaleLowerCase('de');
-    const rows = docs.slice().sort((a, b) => b.updatedAt - a.updatedAt).filter(d => !q || (d.title + ' ' + (mod(d) ? mod(d).subtitle(d.data) : '')).toLocaleLowerCase('de').includes(q));
+    const rows = docs.slice().sort((a, b) => (b.u || b.updatedAt || 0) - (a.u || a.updatedAt || 0)).filter(d => !q || (d.title + ' ' + (mod(d) ? mod(d).subtitle(d.data) : '')).toLocaleLowerCase('de').includes(q));
     $('#wCount').textContent = docs.length;
     if (!rows.length) { host.innerHTML = `<div class="empty w-empty"><h3>${docs.length ? 'Nichts gefunden' : 'Noch kein Vorgang'}</h3><p>${docs.length ? 'Suche anpassen.' : 'Ein Vorgang führt dich Schritt für Schritt durch die Aufnahme – alles wird verschlüsselt gespeichert, du kannst jederzeit unterbrechen.'}</p>${docs.length ? '' : '<div class="row"><button type="button" class="btn btn-accent btn-sm" data-w="new">Neue Verkehrsunfallflucht</button></div>'}</div>`; return; }
     host.innerHTML = `<ul class="w-docs">${rows.map(d => {
       const m = mod(d); const total = m ? visibleSteps(m, d.data).length : 1;
       const pct = d.status === 'fertig' ? 100 : Math.round(Math.min(d.step, total) / total * 100);
-      return `<li><button type="button" class="w-doc${d.id === U.id ? ' on' : ''}" data-open="${d.id}"><span class="w-doc-tile${d.status === 'fertig' ? ' done' : ''}">${m ? esc(m.kurz) : '?'}</span><span class="w-doc-main"><span class="w-doc-t">${esc(d.title || (m ? m.name : 'Vorgang'))}</span><span class="w-doc-s">${esc(m ? m.subtitle(d.data) || m.name : d.type)}</span></span><span class="w-doc-side"><span class="pill ${d.status === 'fertig' ? 'pill-lime' : 'pill-quiet'}">${d.status === 'fertig' ? 'Fertig' : pct + ' %'}</span><span class="w-doc-when">${fmtWhen(d.updatedAt)}</span></span></button></li>`;
+      return `<li><button type="button" class="w-doc${d.id === U.id ? ' on' : ''}" data-open="${d.id}"><span class="w-doc-tile${d.status === 'fertig' ? ' done' : ''}">${m ? esc(m.kurz) : '?'}</span><span class="w-doc-main"><span class="w-doc-t">${esc(d.title || (m ? m.name : 'Vorgang'))}</span><span class="w-doc-s">${esc(m ? m.subtitle(d.data) || m.name : d.type)}</span></span><span class="w-doc-side"><span class="pill ${d.status === 'fertig' ? 'pill-lime' : 'pill-quiet'}">${d.status === 'fertig' ? 'Fertig' : pct + ' %'}</span><span class="w-doc-when">${fmtWhen(d.u || d.updatedAt)}</span></span></button></li>`;
     }).join('')}</ul>`;
   }
 
@@ -213,7 +213,7 @@
       <h2 class="w-intro-h">Aufnehmen, ohne zu tippen.</h2>
       <p class="w-intro-p">Fragen beantworten – Ja/Nein, antippen, Zahlen – und am Ende steht ein vollständiger Verkehrsunfallbefundbericht in sauberer Satzführung. Alles bleibt verschlüsselt in deinem Tresor; jeder Schritt wird sofort gesichert, du kannst jederzeit unterbrechen.</p>
       <div class="w-mods">${mods.map(m => `<button type="button" class="w-mod" data-w="new" data-mod="${esc(m.id)}"><span class="w-mod-tile">${esc(m.kurz)}</span><span><b>${esc(m.name)}</b><small>${m.steps.length} Schritte · Befundbericht, Kurzsachverhalt, Fahndungstext, offene Punkte</small></span></button>`).join('')}</div>
-      <p class="w-hint">Tastatur: <b class="kbd">N</b> neuer Vorgang · <b class="kbd">S</b> Bereich wechseln · <b class="kbd">⌘/Strg ⏎</b> weiter</p>
+      <p class="w-hint">Tastatur: <b class="kbd">N</b> neuer Vorgang · <b class="kbd">S</b> Bereich wechseln (<b class="kbd">6</b>) · <b class="kbd">⌘/Strg ⏎</b> weiter</p>
     </div>`;
   }
 
@@ -408,11 +408,11 @@
       if (visibleKeys(s, d.data) !== U.vis) renderMain();
     });
     document.addEventListener('keydown', e => {
-      if (document.body.dataset.view !== 'schreiben' || !W() || !W().unlocked()) return;
+      if (document.body.dataset.area !== 'schreiben' || !W() || !W().unlocked()) return;
       if ($('dialog[open]')) return;
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && U.view === 'wizard') { e.preventDefault(); const d = doc(); if (!d) return; const steps = visibleSteps(mod(d), d.data); if (U.step < steps.length - 1) go(1); else finish(); }
     });
-    const si = $('#search'); if (si) si.addEventListener('input', () => { if (document.body.dataset.view === 'schreiben') renderList(); });
+    const si = $('#search'); if (si) si.addEventListener('input', () => { if (document.body.dataset.area === 'schreiben') renderList(); });
   }
 
   /* ======================= Öffentlich ======================= */

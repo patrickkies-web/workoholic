@@ -1,6 +1,6 @@
 # Workoholic
 
-Arbeitsseite für Anfragen von Kollegen, eigene Todos und Aufgaben, mit Stempeluhr zum **Eindongeln / Ausdongeln** – und dem Bereich **Schriftliche Arbeiten** zum Aufnehmen von Vorgängen per Antippen (derzeit: Verkehrsunfallflucht ohne Personenschaden).
+Arbeitsseite für Anfragen von Kollegen, eigene Todos und Aufgaben, mit Stempeluhr zum **Eindongeln / Ausdongeln**, Terminen, Routinen, Team, Ablage, WaffG-Prüfstand – und dem Bereich **Schreiben** zum Aufnehmen von Vorgängen per Antippen (derzeit: Verkehrsunfallflucht ohne Personenschaden).
 Alle Daten sind **Ende-zu-Ende verschlüsselt**. Synchronisiert wird über ein eigenes privates GitHub-Repo, das nur Chiffretext enthält.
 
 ---
@@ -33,7 +33,7 @@ Keine Software schützt gegen alles. Diese Punkte liegen bei dir:
 1. **Master-Passwort:** Nimm ein langes, das du nirgends sonst verwendest, am besten einen Satz aus mehreren Wörtern. Die App lässt nichts unter 12 Zeichen und keine schwachen Muster zu.
 2. **GitHub-Account mit Zwei-Faktor-Anmeldung (Passkey oder Authenticator) absichern – Pflicht!** Wer deinen GitHub-Account übernimmt, könnte den App-Code verändern und dein Passwort beim nächsten Entsperren abgreifen.
 3. **Gerät:** Gegen Schadsoftware, Keylogger oder jemanden, der an deinem *entsperrten* Gerät sitzt, hilft keine Verschlüsselung. Halte Betriebssystem und Browser aktuell.
-4. **CSV-Export** der Arbeitszeiten und **Textexport** eines Vorgangs sind absichtlich Klartext. Die App warnt vorher.
+4. **CSV-Export** der Arbeitszeiten, **Kalender-Export** und **Textexport** eines Vorgangs sind absichtlich Klartext. Die App warnt vorher.
 5. **Passwort und Wiederherstellungsschlüssel verloren = Daten verloren.** Das ist der Preis echter Ende-zu-Ende-Verschlüsselung: Niemand hat einen Generalschlüssel.
 
 ---
@@ -92,7 +92,35 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 - Landet als Todo im Planner (Filter „Buchungen“) und wird abgehakt, sobald du die Stunden im System eingetragen hast.
 - Schnellzugriff: Knopf *Stunden für Kollegen merken* im Überstunden-Konto.
 
-**Schriftliche Arbeiten** (Umschalter oben bzw. Stift im Dock)
+**Termine (Bereich *Heute*, Kalender)**
+- Tag im Kalender antippen → *+ Termin*: Titel, Datum, ganztägig oder mit Uhrzeit, Ort, Erinnerung, Notizen.
+- **In meinen Kalender:**
+  - *Apple / Outlook (.ics)* erzeugt eine Standard-Kalenderdatei (RFC 5545) inklusive Erinnerung. Öffnen genügt, dein Kalender übernimmt den Termin.
+  - *Google* und *Outlook.com* öffnen den Termin direkt beim jeweiligen Anbieter. Erst dabei verlässt der Termin dein Gerät.
+- *.ics*-Knopf im Kalender: alle Termine (wahlweise plus geplante Dienste) in einer Datei exportieren.
+
+**Routinen (Schablonen)**
+- Eigene Abläufe mit Schritten (eine Zeile pro Schritt), Farbe und Rhythmus: bei Bedarf, täglich, werktags, wöchentlich oder monatlich.
+- *Starten* öffnet einen Durchlauf zum Abhaken (mit Uhrzeit pro Schritt). Er lässt sich unterbrechen und später fortsetzen; *Abschließen* speichert ihn im Verlauf.
+- Fällige Routinen werden markiert und in der Navigation gezählt.
+
+**Team**
+- Personenbaum: Wer berichtet an wen, beliebig viele Rollen pro Person, optional Kontakt.
+- Notizen je Person mit automatischem Zeitstempel, chronologisch nach Tagen gruppiert (neueste oben). Nachträgliche Änderungen werden als „bearbeitet“ markiert.
+- Offene Anfragen und Stundenbuchungen der Person aus dem Planner erscheinen direkt in ihrem Bereich.
+
+**Ablage (Dateien & Dokumente)**
+- Dateien bis 20 MB werden **auf dem Gerät verschlüsselt** (AES-256-GCM, an die Datei gebunden, auf 16-KB-Blöcke aufgefüllt) und im Browser-Speicher (IndexedDB) abgelegt.
+- Mit Sync landen sie verschlüsselt als `files/<zufällige-ID>` im Tresor-Repo; Dateinamen stehen nur im verschlüsselten Tresor. Andere Geräte laden sie erst beim Öffnen.
+- Vorschau für Bilder, Texte, Audio/Video, dazu Herunterladen, Teilen, Ordner, Notizen und „Nur in der Cloud behalten“ (lokale Kopie löschen).
+
+**WaffG-Prüfstand (aus dem VUF-Werkzeugkasten)**
+- Straftat oder Ordnungswidrigkeit? Gegenstand (Messer, Schusswaffe, SRS, Druckluft, Munition, Anscheinswaffe, Kriegswaffe, Hieb-/Stoßwaffen), Handlung, Ort und Umstände antippen. Das Ergebnis erscheint sofort: Einstufung, Vorschrift, Rechtsfolge, Begründung und Prüfpfad.
+- Die Prüflogik ist unverändert aus VUF übernommen (WaffG, Stand Reformen 2024/2025, inklusive der dort eingearbeiteten Rechtsprechung). **Keine Rechtsberatung**, sondern eine Orientierungshilfe.
+- Daraus entsteht ein Text für Anzeige oder Meldung mit Platzhaltern (`[Datum]`, `[Personalien]` …). Du kannst ihn frei bearbeiten, kopieren oder per „Als Aufgabe“ in den Planner legen.
+- „Speichern“ legt die Prüfung mit Zeitstempel und optionalem Aktenzeichen im verschlüsselten Tresor ab (Verlauf, durchsuchbar). Ungespeicherte Eingaben bleiben nur im Arbeitsspeicher und sind nach dem Sperren weg.
+
+**Schreiben (Schriftliche Arbeiten)**
 - **Vorgang anlegen** → Modul wählen. Bisher: **Verkehrsunfallflucht ohne Personenschaden** (29 Schritte in 8 Phasen, viele davon nur bei Bedarf).
 - Fragen per Ja/Nein, Chips, Zahlen mit ±, Schnellwerten („Jetzt“, „Heute“, 50 km/h, 1.500 €); Karosserie-Picker für das Schadensbild; Personen- und Zeugenblöcke.
 - Unter jedem Schritt die Live-Vorschau „So steht es im Bericht“; jede Antwort wird sofort verschlüsselt gespeichert – unterbrechen und später weitermachen ist jederzeit möglich (auch nach Auto-Sperre).
@@ -100,9 +128,17 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 - Kopieren in die Zwischenablage oder als `.txt` speichern (mit Warnung – Klartext). Platzhalter in `[eckigen Klammern]` zeigen, was noch fehlt.
 - Konzept, Rechtsgrundlagen und Fragenkatalog: [`docs/VUF-MASTERPLAN.md`](docs/VUF-MASTERPLAN.md).
 
-**Tastatur:** `N` neu · `/` suchen · `D` dongeln · `S` schreiben · `L` sperren · `Strg/⌘ + Enter` speichern bzw. weiter
+**Tastatur:** `N` neu (je nach Bereich) · `/` suchen · `1`–`6` Bereiche · `S` schreiben · `D` dongeln · `L` sperren · `Strg/⌘ + Enter` speichern bzw. weiter
 
 **Backups:** *⋯ → Verschlüsseltes Backup* speichert eine `.vault`-Datei. Einspielen geht per Zusammenführen oder Ersetzen.
+
+## Speicherkapazität
+
+| Wo | Wie viel | So beeinflusst du es |
+| --- | --- | --- |
+| **Dateien auf dem Gerät** (IndexedDB) | Vom Browser zugeteilt, abhängig vom freien Speicher: Chrome, Edge und Safari (ab iOS 17) bis rund **60 % des Gerätespeichers**. Der genaue Wert steht live in der Ablage. | Freien Gerätespeicher schaffen; große Dateien „nur in der Cloud behalten“; als App zum Home-Bildschirm hinzufügen und **„Dauerhaft sichern“**, damit der Browser nichts räumt. Safari löscht Daten von Websites sonst nach 7 Tagen ohne Besuch. |
+| **Tresor-Text** (Aufgaben, Dienste, Termine, Notizen) | ca. **5 MB** (Browser-Limit für localStorage), reicht für zehntausende Einträge | Erledigte entfernen; alte Notizen löschen |
+| **Tresor-Repo auf GitHub** (Sync) | GitHub empfiehlt **unter 1 GB** pro Repo, ab 5 GB kommen Hinweise; einzelne Dateien bis 100 MB (die App begrenzt auf **20 MB**) | Dateien löschen: Sie verschwinden über die tägliche Verlaufsbereinigung auch aus dem Repo. Für mehr Platz ein zweites Tresor-Repo nutzen, z. B. pro Jahr. |
 
 ## Dateien
 
@@ -110,8 +146,8 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 | --- | --- |
 | `index.html` | Oberfläche, Styles, Content-Security-Policy |
 | `js/vault.js` | Verschlüsselung, Schlüsselverwaltung, GitHub-Speicher |
-| `js/app.js` | App-Logik, Sync und Zusammenführen, Sperre, Brücke `WBridge` für Bereiche |
-| `js/writer.js` | Bereich „Schriftliche Arbeiten“: Vorgangsliste, Aufnahme-Assistent, Berichtsansicht |
+| `js/app.js` | App-Logik (Planner, Dienste, Termine, Routinen, Team, Ablage, WaffG-Prüfstand), Sync und Zusammenführen, Sperre |
+| `js/writer.js` | Bereich „Schreiben“: Vorgangsliste, Aufnahme-Assistent, Berichtsansicht |
 | `js/vuf.js` | Modul Verkehrsunfallflucht: Fragenkatalog und Textgenerator |
 | `docs/VUF-MASTERPLAN.md` | Masterplan: Grundlagen, Ablauf, Fragen, Satzführung, Sicherheit, Ausbau |
 | `vendor/hash-wasm/` | Argon2id (hash-wasm 4.12.0, MIT), unverändert aus npm |
