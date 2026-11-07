@@ -53,39 +53,78 @@
   const FARBEN = ['schwarz', 'weiß', 'silber', 'grau', 'rot', 'blau', 'grün', 'gelb', 'braun', 'beige', 'orange'];
   const ANREDE = [['m', 'Herr'], ['w', 'Frau'], ['d', 'Divers']];
 
-  const label = (f, forId) => (f.l ? `<label class="w-lbl" ${forId ? `for="${forId}"` : ''}>${esc(f.l)}${f.req ? ' <i class="w-req" title="Für den Text wichtig">•</i>' : ''}</label>` : '') + (f.h ? `<p class="w-hint">${esc(f.h)}</p>` : '');
+  /** Feldeigenschaften dürfen Funktionen sein (d = Antworten, item = Listeneintrag) – so passt sich z. B. „Er/Sie habe …“ an. */
+  const R = (x, d, item) => (typeof x === 'function' ? x(d || {}, item) : x);
+  const label = (f, forId, d, item) => { const l = R(f.l, d, item), h = R(f.h, d, item); return (l ? `<label class="w-lbl" ${forId ? `for="${forId}"` : ''}>${esc(l)}${f.req ? ' <i class="w-req" title="Für den Text wichtig">•</i>' : ''}</label>` : '') + (h ? `<p class="w-hint">${esc(h)}</p>` : ''); };
+  const answered = v => (Array.isArray(v) ? v.length > 0 : v && typeof v === 'object' ? Object.keys(v).length > 0 : has(v));
+  /** Werte desselben Feldes aus früheren Vorgängen (neueste zuerst) – zum Antippen statt Tippen. */
+  function recentFrom(keys) {
+    const docs = ((W() && W().docs()) || []).filter(x => x.id !== U.id).sort((a, b) => (b.u || 0) - (a.u || 0));
+    const out = [], seen = new Set();
+    for (const x of docs) {
+      const vals = {}; let ok = true;
+      for (const k of keys) { const v = getP(x.data, k); if (has(v) && typeof v !== 'object') vals[k] = String(v).trim(); }
+      if (!has(vals[keys[keys.length - 1]])) ok = false;
+      const lab = keys.map(k => vals[k]).filter(Boolean).join(' ');
+      if (ok && !seen.has(lab)) { seen.add(lab); out.push({ lab, vals }); }
+      if (out.length >= 3) break;
+    }
+    return out;
+  }
+  const chipRow = (items, cls = '') => (items.length ? `<div class="w-quick ${cls}">${items.join('')}</div>` : '');
+  /** Satzbaustein: fester Satzanfang (grau) + Eingabe, die genau diesen Satz fortsetzt (Beispiel als Platzhalter). */
+  function sentenceHtml(f, k, v, d, item, half, ans) {
+    const pre = R(f.pre, d, item) || '', post = R(f.post, d, item) || '', ph = R(f.ph, d, item) || '';
+    const single = f.t === 'text';
+    const caps = single || (pre && !/:$/.test(pre)) ? 'off' : 'sentences';
+    const sugg = (R(f.sugg, d, item) || []).filter(x => x && has(x[1])).map(([l, val]) => `<button type="button" class="chip sm" data-sugg="${esc(k)}" data-v="${esc(val)}"${f.join ? ` data-join="${esc(f.join)}"` : ''} aria-pressed="${String(v === val)}">${esc(l)}</button>`);
+    const recent = f.recent ? recentFrom(Array.isArray(f.recent) ? f.recent : [k]).map(r => `<button type="button" class="chip sm w-recent" data-multi="${esc(JSON.stringify(r.vals))}">↺ ${esc(r.lab)}</button>`) : [];
+    return `<div class="w-q${half}${ans ? ' ans' : ''}" data-q="${esc(k)}">${label(f, fid(k), d, item)}<div class="w-sent${pre ? '' : ' nopre'}${post ? ' haspost' : ''}">${pre ? `<span class="w-sent-pre" aria-hidden="true">${esc(pre)}</span>` : ''}<textarea class="w-sent-in${single ? '' : ' multi'}" id="${fid(k)}" data-k="${esc(k)}" rows="1" style="--rows:${single ? 1 : (f.rows || 3)}"${single ? ' data-single="1" enterkeyhint="next"' : ''}${f.lint ? ` data-lint="${esc(f.lint)}"` : ''}${pre ? ` data-pre="${esc(pre)}"` : ''} placeholder="${esc(ph)}" aria-label="${esc([R(f.l, d, item), pre].filter(Boolean).join(' – '))}" autocomplete="off" autocapitalize="${caps}" spellcheck="${single ? 'false' : 'true'}" maxlength="${f.max || (single ? 240 : 4000)}">${esc(v ?? '')}</textarea>${post ? `<span class="w-sent-post" aria-hidden="true">… ${esc(post)}</span>` : ''}</div><p class="w-lint" hidden></p>${chipRow(recent.concat(sugg))}</div>`;
+  }
   const fid = k => 'wf-' + k.replace(/[^\w-]/g, '_');
 
   function fieldHtml(f, d, base = '') {
     const k = base ? (f.k ? base + '.' + f.k : base) : f.k;
     const v = k ? getP(d, k) : undefined;
     const half = f.w === 'half' ? ' half' : '';
+    const item = base ? getP(d, base) : undefined;
+    const ans = answered(v);
+    const Q = `<div class="w-q${half}${ans ? ' ans' : ''}" data-q="${esc(k || '')}">`;
+    const L = forId => label(f, forId, d, item);
     switch (f.t) {
       case 'info': return `<div class="w-q full"><div class="w-info">${esc(f.text)}</div></div>`;
       case 'yn': {
         const o = Array.isArray(f.o) ? f.o : [['ja', 'Ja'], ['nein', 'Nein']];
-        return `<div class="w-q${half}">${label(f)}<div class="w-seg" role="group" aria-label="${esc(f.l || '')}">${o.map(([val, lab]) => `<button type="button" class="w-opt${val === 'ja' ? ' yes' : val === 'nein' ? ' no' : ''}" data-set="${esc(k)}" data-v="${esc(val)}" aria-pressed="${String(v === val)}">${esc(lab)}</button>`).join('')}</div></div>`;
+        return `${Q}${L()}<div class="w-seg" role="group" aria-label="${esc(f.l || '')}">${o.map(([val, lab]) => `<button type="button" class="w-opt${val === 'ja' ? ' yes' : val === 'nein' ? ' no' : ''}" data-set="${esc(k)}" data-v="${esc(val)}" aria-pressed="${String(v === val)}">${esc(lab)}</button>`).join('')}</div></div>`;
       }
-      case 'choice': return `<div class="w-q${half}">${label(f)}<div class="w-chips" role="group">${f.o.map(([val, lab]) => `<button type="button" class="chip" data-set="${esc(k)}" data-v="${esc(val)}" aria-pressed="${String(v === val)}">${esc(lab)}</button>`).join('')}</div></div>`;
-      case 'multi': { const a = Array.isArray(v) ? v : []; return `<div class="w-q${half}">${label(f)}<div class="w-chips" role="group">${f.o.map(([val, lab]) => `<button type="button" class="chip" data-toggle="${esc(k)}" data-v="${esc(val)}" aria-pressed="${String(a.includes(val))}">${esc(lab)}</button>`).join('')}</div></div>`; }
-      case 'text': return `<div class="w-q${half}">${label(f, fid(k))}<input class="input" id="${fid(k)}" data-k="${esc(k)}" value="${esc(v ?? '')}" placeholder="${esc(f.ph || '')}" autocomplete="off" spellcheck="false" ${f.inputmode ? `inputmode="${f.inputmode}"` : ''} maxlength="${f.max || 200}"></div>`;
-      case 'area': return `<div class="w-q${half}">${label(f, fid(k))}<textarea class="input" id="${fid(k)}" data-k="${esc(k)}" rows="${f.rows || 3}" placeholder="${esc(f.ph || '')}" spellcheck="true" maxlength="${f.max || 4000}">${esc(v ?? '')}</textarea></div>`;
+      case 'choice': return `${Q}${L()}<div class="w-chips" role="group">${f.o.map(([val, lab]) => `<button type="button" class="chip" data-set="${esc(k)}" data-v="${esc(val)}" aria-pressed="${String(v === val)}">${esc(lab)}</button>`).join('')}</div></div>`;
+      case 'multi': { const a = Array.isArray(v) ? v : []; return `${Q}${L()}<div class="w-chips" role="group">${f.o.map(([val, lab]) => `<button type="button" class="chip" data-toggle="${esc(k)}" data-v="${esc(val)}" aria-pressed="${String(a.includes(val))}">${esc(lab)}</button>`).join('')}</div></div>`; }
+      case 'text': case 'area': {
+        if (f.pre || f.t === 'area') return sentenceHtml(f, k, v, d, item, half, ans);
+        const ph = R(f.ph, d, item) || '';
+        const recent = f.recent ? recentFrom(Array.isArray(f.recent) ? f.recent : [k]).map(r => `<button type="button" class="chip sm w-recent" data-multi="${esc(JSON.stringify(r.vals))}">↺ ${esc(r.lab)}</button>`) : [];
+        return `${Q}${L(fid(k))}<input class="input" id="${fid(k)}" data-k="${esc(k)}" value="${esc(v ?? '')}" placeholder="${esc(ph)}" autocomplete="off" spellcheck="false" enterkeyhint="next" ${f.inputmode ? `inputmode="${f.inputmode}"` : ''} maxlength="${f.max || 200}">${chipRow(recent)}</div>`;
+      }
+      case 'crewpick': {
+        const crew = (getP(d, 'einsatz.kraefte') || []).filter(c => c && has(c.name)).map(c => [c.grad, c.name].filter(Boolean).join(' '));
+        return `${Q}${L(fid(k))}${crew.length ? `<div class="w-chips">${crew.map(c => `<button type="button" class="chip" data-set="${esc(k)}" data-v="${esc(c)}" aria-pressed="${String(v === c)}">${esc(c)}</button>`).join('')}</div>` : ''}<input class="input${crew.length ? ' w-after-chips' : ''}" id="${fid(k)}" data-k="${esc(k)}" value="${esc(crew.includes(v) ? '' : (v ?? ''))}" placeholder="${crew.length ? 'oder andere Person, z. B. PK Weber' : 'z. B. POK Müller'}" autocomplete="off" spellcheck="false" enterkeyhint="next" maxlength="60"></div>`;
+      }
       case 'date': {
         const q = f.q ? `<div class="w-quick">${(f.q === 'heute' ? [['Heute', todayKey(0)], ['Gestern', todayKey(-1)]] : [['Gestern', todayKey(-1)], ['Heute', todayKey(0)]]).map(([l, val]) => `<button type="button" class="chip sm" data-set="${esc(k)}" data-v="${val}" aria-pressed="${String(v === val)}">${l}</button>`).join('')}</div>` : '';
-        return `<div class="w-q${half}">${label(f, fid(k))}<input class="input" type="date" id="${fid(k)}" data-k="${esc(k)}" value="${esc(v ?? '')}">${q}</div>`;
+        return `${Q}${L(fid(k))}<input class="input" type="date" id="${fid(k)}" data-k="${esc(k)}" value="${esc(v ?? '')}">${q}</div>`;
       }
       case 'time': {
         const q = f.q ? `<div class="w-quick"><button type="button" class="chip sm" data-set="${esc(k)}" data-v="__now">Jetzt</button></div>` : '';
-        return `<div class="w-q${half}">${label(f, fid(k))}<input class="input" type="time" id="${fid(k)}" data-k="${esc(k)}" value="${esc(v ?? '')}">${q}</div>`;
+        return `${Q}${L(fid(k))}<input class="input" type="time" id="${fid(k)}" data-k="${esc(k)}" value="${esc(v ?? '')}">${q}</div>`;
       }
       case 'number': case 'euro': {
         const step = f.step || 1, unit = f.t === 'euro' ? '€' : (f.unit || '');
         const q = Array.isArray(f.q) ? `<div class="w-quick">${f.q.map(n => `<button type="button" class="chip sm" data-set="${esc(k)}" data-v="${n}" data-n="1" aria-pressed="${String(Number(v) === n)}">${f.t === 'euro' ? n.toLocaleString('de-DE') + ' €' : n}</button>`).join('')}</div>` : '';
-        return `<div class="w-q${half}">${label(f, fid(k))}<div class="w-num"><button type="button" class="step" data-step="${esc(k)}" data-d="${-step}" aria-label="weniger">−${f.t === 'euro' ? '' : step}</button><input class="input mono" type="number" inputmode="${step % 1 ? 'decimal' : 'numeric'}" id="${fid(k)}" data-k="${esc(k)}" data-num="1" value="${esc(v ?? '')}" ${f.min != null ? `min="${f.min}"` : ''} ${f.max != null ? `max="${f.max}"` : ''} step="${step}" placeholder="–">${unit ? `<span class="w-unit">${unit}</span>` : ''}<button type="button" class="step" data-step="${esc(k)}" data-d="${step}" aria-label="mehr">+${f.t === 'euro' ? '' : step}</button></div>${q}</div>`;
+        return `${Q}${L(fid(k))}<div class="w-num"><button type="button" class="step" data-step="${esc(k)}" data-d="${-step}" aria-label="weniger">−${f.t === 'euro' ? '' : step}</button><input class="input mono" type="number" inputmode="${step % 1 ? 'decimal' : 'numeric'}" id="${fid(k)}" data-k="${esc(k)}" data-num="1" value="${esc(v ?? '')}" ${f.min != null ? `min="${f.min}"` : ''} ${f.max != null ? `max="${f.max}"` : ''} step="${step}" placeholder="–">${unit ? `<span class="w-unit">${unit}</span>` : ''}<button type="button" class="step" data-step="${esc(k)}" data-d="${step}" aria-label="mehr">+${f.t === 'euro' ? '' : step}</button></div>${q}</div>`;
       }
       case 'crew': {
         const rows = Array.isArray(v) && v.length ? v : [{}];
-        return `<div class="w-q full">${label(f)}<div class="w-crew">${rows.map((r, i) => `<div class="w-crew-row"><select class="input w-grad" data-k="${esc(k)}.${i}.grad" aria-label="Dienstgrad">${DGRADE.map(g => `<option value="${g}" ${(r && r.grad) === g ? 'selected' : ''}>${g || 'Dienstgrad'}</option>`).join('')}</select><input class="input" data-k="${esc(k)}.${i}.name" value="${esc(r && r.name || '')}" placeholder="Name" autocomplete="off" spellcheck="false" maxlength="60"><button type="button" class="icon-btn sm" data-crew-del="${i}" aria-label="Entfernen" ${rows.length === 1 ? 'disabled' : ''}><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>`).join('')}</div>${rows.length < (f.max || 6) ? `<button type="button" class="chip" data-crew-add="${esc(k)}">+ Weitere Person</button>` : ''}</div>`;
+        return `<div class="w-q full">${L()}<div class="w-crew">${rows.map((r, i) => `<div class="w-crew-row"><select class="input w-grad" data-k="${esc(k)}.${i}.grad" aria-label="Dienstgrad">${DGRADE.map(g => `<option value="${g}" ${(r && r.grad) === g ? 'selected' : ''}>${g || 'Dienstgrad'}</option>`).join('')}</select><input class="input" data-k="${esc(k)}.${i}.name" value="${esc(r && r.name || '')}" placeholder="Name" autocomplete="off" spellcheck="false" maxlength="60"><button type="button" class="icon-btn sm" data-crew-del="${i}" aria-label="Entfernen" ${rows.length === 1 ? 'disabled' : ''}><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>`).join('')}</div>${rows.length < (f.max || 6) ? `<button type="button" class="chip" data-crew-add="${esc(k)}">+ Weitere Person</button>` : ''}${lastCrew(rows)}</div>`;
       }
       case 'person': {
         const p = (v && typeof v === 'object') ? v : {};
@@ -116,10 +155,21 @@
       case 'parts': return partsHtml(f, k, Array.isArray(v) ? v : []);
       case 'list': {
         const items = Array.isArray(v) ? v : [];
-        return `<div class="w-q full">${label(f)}${items.map((it, i) => `<div class="w-sub w-item-card"><div class="w-sub-h">${esc(f.item || 'Eintrag')} ${i + 1}<span class="grow"></span><button type="button" class="link danger" data-list-del="${esc(k)}" data-i="${i}">Entfernen</button></div><div class="w-grid">${f.sub.map(sf => fieldHtml(sf, d, `${k}.${i}`)).join('')}</div></div>`).join('')}${items.length < (f.max || 8) ? `<button type="button" class="btn btn-ghost btn-sm" data-list-add="${esc(k)}">+ ${esc(f.item || 'Eintrag')} hinzufügen</button>` : ''}${!items.length ? `<p class="w-hint">Keine ${esc(f.l || 'Einträge')} erfasst – im Bericht steht dann „konnten nicht festgestellt werden“.</p>` : ''}</div>`;
+        return `<div class="w-q full">${L()}${items.map((it, i) => `<div class="w-sub w-item-card"><div class="w-sub-h">${esc(f.item || 'Eintrag')} ${i + 1}<span class="grow"></span><button type="button" class="link danger" data-list-del="${esc(k)}" data-i="${i}">Entfernen</button></div><div class="w-grid">${f.sub.map(sf => fieldHtml(sf, d, `${k}.${i}`)).join('')}</div></div>`).join('')}${items.length < (f.max || 8) ? `<button type="button" class="btn btn-ghost btn-sm" data-list-add="${esc(k)}">+ ${esc(f.item || 'Eintrag')} hinzufügen</button>` : ''}${!items.length ? `<p class="w-hint">Keine ${esc(f.l || 'Einträge')} erfasst – im Bericht steht dann „konnten nicht festgestellt werden“.</p>` : ''}</div>`;
       }
       default: return '';
     }
+  }
+
+  /** „Wie beim letzten Vorgang“ – Kräfte und Rufname mit einem Tipp übernehmen. */
+  function lastCrew(rows) {
+    if (rows.some(r => r && has(r.name))) return '';
+    const docs = ((W() && W().docs()) || []).filter(x => x.id !== U.id).sort((a, b) => (b.u || 0) - (a.u || 0));
+    const prev = docs.find(x => (getP(x.data, 'einsatz.kraefte') || []).some(c => c && has(c.name)));
+    if (!prev) return '';
+    const crew = getP(prev.data, 'einsatz.kraefte').filter(c => c && has(c.name)).map(c => ({ grad: c.grad || '', name: c.name }));
+    const vals = { 'einsatz.kraefte': crew }; const ruf = getP(prev.data, 'einsatz.rufname'); if (has(ruf)) vals['einsatz.rufname'] = ruf;
+    return `<button type="button" class="chip w-recent" data-multi="${esc(JSON.stringify(vals))}">↺ Wie zuletzt: ${esc(crew.map(c => [c.grad, c.name].filter(Boolean).join(' ')).join(' · '))}${has(ruf) ? ' (' + esc(ruf) + ')' : ''}</button>`;
   }
 
   /* ---------- Karosserie-Picker ---------- */
@@ -135,7 +185,7 @@
       const arten = Array.isArray(p.arten) ? p.arten : [];
       const mat = Array.isArray(p.material) ? p.material : [];
       return `<div class="w-sub w-part-card" id="wpart-${i}"><div class="w-sub-h"><b>${esc(p.name)}</b><span class="grow"></span>${i > 0 ? `<button type="button" class="link" data-part-copy="${esc(k)}" data-i="${i}">↩ wie ${esc(parts[i - 1].name)}</button>` : ''}<button type="button" class="link danger" data-part-del="${esc(k)}" data-i="${i}">Entfernen</button></div><div class="w-grid">
-        <div class="w-q full"><span class="w-lbl">Art der Beschädigung <i class="w-hint-i">(Mehrfachauswahl)</i></span><div class="w-chips">${Object.entries(SCHADEN).map(([val, s]) => `<button type="button" class="chip" data-toggle="${base}.arten" data-v="${val}" aria-pressed="${String(arten.includes(val))}">${esc(s.label)}</button>`).join('')}</div><input class="input" data-k="${base}.artFrei" value="${esc(p.artFrei ?? '')}" placeholder="Sonstiges …" autocomplete="off" maxlength="120" style="margin-top:8px"></div>
+        <div class="w-q full"><span class="w-lbl">Art der Beschädigung <i class="w-hint-i">(Mehrfachauswahl)</i></span><div class="w-chips">${Object.entries(SCHADEN).map(([val, s]) => `<button type="button" class="chip" data-toggle="${base}.arten" data-v="${val}" aria-pressed="${String(arten.includes(val))}">${esc(s.label)}</button>`).join('')}</div><input class="input" data-k="${base}.artFrei" value="${esc(p.artFrei ?? '')}" placeholder="Weitere Beschädigung mit Artikel, z. B. „eine Lackabplatzung“" enterkeyhint="next" autocomplete="off" maxlength="120" style="margin-top:8px"></div>
         <div class="w-q full"><span class="w-lbl">Verlauf</span><div class="w-chips">${VERLAUF.map(([val, lab]) => `<button type="button" class="chip" data-set="${base}.verlauf" data-v="${val}" aria-pressed="${String(p.verlauf === val)}">${lab}</button>`).join('')}</div></div>
         <div class="w-q half"><label class="w-lbl" for="${fid(base + '.von')}">Anstoßhöhe von (cm)</label><div class="w-num"><button type="button" class="step" data-step="${base}.von" data-d="-5">−5</button><input class="input mono" type="number" inputmode="numeric" id="${fid(base + '.von')}" data-k="${base}.von" data-num="1" value="${esc(p.von ?? '')}" min="0" max="400" placeholder="–"><button type="button" class="step" data-step="${base}.von" data-d="5">+5</button></div></div>
         <div class="w-q half"><label class="w-lbl" for="${fid(base + '.bis')}">bis (cm)</label><div class="w-num"><button type="button" class="step" data-step="${base}.bis" data-d="-5">−5</button><input class="input mono" type="number" inputmode="numeric" id="${fid(base + '.bis')}" data-k="${base}.bis" data-num="1" value="${esc(p.bis ?? '')}" min="0" max="400" placeholder="–"><button type="button" class="step" data-step="${base}.bis" data-d="5">+5</button></div></div>
@@ -143,7 +193,7 @@
         ${p.fremdlack === 'ja' ? `<div class="w-q half"><label class="w-lbl" for="${fid(base + '.farbe')}">Farbe des Fremdlacks</label><input class="input" id="${fid(base + '.farbe')}" data-k="${base}.farbe" value="${esc(p.farbe ?? '')}" placeholder="z. B. rot" autocomplete="off" maxlength="40"><div class="w-quick">${FARBEN.map(c => `<button type="button" class="chip sm" data-set="${base}.farbe" data-v="${c}" aria-pressed="${String(p.farbe === c)}">${c}</button>`).join('')}</div></div>` : '<div class="w-q half"></div>'}
         <div class="w-q full"><span class="w-lbl">Weiteres Fremdmaterial</span><div class="w-chips">${MATERIAL.map(([val, lab]) => `<button type="button" class="chip" data-toggle="${base}.material" data-v="${val}" aria-pressed="${String(mat.includes(val))}">${lab}</button>`).join('')}</div></div>
         <div class="w-q full"><span class="w-lbl">Altschaden?</span><div class="w-seg"><button type="button" class="w-opt" data-set="${base}.alt" data-v="nein" aria-pressed="${String(p.alt === 'nein')}">Nein, frisch</button><button type="button" class="w-opt" data-set="${base}.alt" data-v="moeglich" aria-pressed="${String(p.alt === 'moeglich')}">Unklar</button><button type="button" class="w-opt" data-set="${base}.alt" data-v="ja" aria-pressed="${String(p.alt === 'ja')}">Ja, alt</button></div></div>
-        <div class="w-q full"><label class="w-lbl" for="${fid(base + '.notiz')}">Ergänzung (optional)</label><input class="input" id="${fid(base + '.notiz')}" data-k="${base}.notiz" value="${esc(p.notiz ?? '')}" placeholder="z. B. Verlauf von vorne nach hinten ansteigend" autocomplete="off" maxlength="300"></div>
+        <div class="w-q full"><label class="w-lbl" for="${fid(base + '.notiz')}">Ergänzung (optional)</label><input class="input" id="${fid(base + '.notiz')}" data-k="${base}.notiz" value="${esc(p.notiz ?? '')}" placeholder="Ganzer Satz, z. B. „Der Verlauf steigt nach hinten leicht an.“" enterkeyhint="next" autocomplete="off" maxlength="300"></div>
       </div></div>`;
     }).join('');
     return `<div class="w-q full">${label(f)}<div class="w-karo">${grid}</div>${parts.length ? `<p class="w-hint">${parts.length} ${parts.length === 1 ? 'Teil' : 'Teile'} gewählt – Details unten. Die Anstoßhöhe immer über der Fahrbahnoberfläche messen und mit Maßstab fotografieren.</p>` : '<p class="w-hint">Beschädigte Teile antippen – danach erscheinen die Details je Teil.</p>'}${cards}</div>`;
@@ -178,7 +228,7 @@
     U.step = Math.max(0, Math.min(U.step, steps.length - 1));
     const st = steps[U.step];
     U.vis = visibleKeys(st, d.data);
-    const phases = [...new Set(m.steps.map(s => s.phase))];
+    const phases = [...new Set(steps.map(s => s.phase))];
     const phaseIdx = phases.indexOf(st.phase);
     const stepsInPhase = steps.filter(s => s.phase === st.phase), posInPhase = stepsInPhase.indexOf(st) + 1;
     const prev = $('#wPreview') && $('#wPreview').open;
@@ -191,8 +241,8 @@
       <div class="w-rail" aria-hidden="true">${phases.map((p, i) => `<span class="w-rail-p${i < phaseIdx ? ' done' : i === phaseIdx ? ' on' : ''}" title="${esc(p)}"><i></i><b>${esc(p)}</b></span>`).join('')}</div>
       <div class="w-prog"><i style="transform:scaleX(${((U.step + 1) / steps.length).toFixed(3)})"></i></div>
       <div class="w-step" data-step="${esc(st.id)}">
-        <h2 class="w-h">${esc(st.title)}</h2>
-        ${st.lead ? `<p class="w-lead">${esc(st.lead)}</p>` : ''}
+        <h2 class="w-h">${esc(R(st.title, d.data))}</h2>
+        ${st.lead ? `<p class="w-lead">${esc(R(st.lead, d.data))}</p>` : ''}
         <div class="w-grid" id="wFields">${st.fields.filter(f => !f.when || f.when(d.data)).map(f => fieldHtml(f, d.data)).join('')}</div>
       </div>
       <details class="w-preview" id="wPreview" ${prev ? 'open' : ''}><summary>So steht es im Bericht</summary><pre class="w-pre" id="wPre">${esc(m.preview(st.id, d.data) || '– noch nichts erfasst –')}</pre></details>
@@ -203,6 +253,7 @@
         ${U.step < steps.length - 1 ? `<button type="button" class="btn btn-ghost btn-sm" data-w="skip">Überspringen</button><button type="button" class="btn btn-accent" data-w="next">Weiter</button>` : `<button type="button" class="btn btn-accent" data-w="finish">Bericht erstellen</button>`}
       </div>`;
     remember();
+    layoutSentences();
   }
   const visibleKeys = (st, data) => st.fields.filter(f => !f.when || f.when(data)).map(f => f.k || f.text).join('|');
 
@@ -291,14 +342,67 @@
     U.view = 'result'; U.tab = 'bericht';
     persist(false); renderMain(); window.scrollTo({ top: 0 });
   }
+  /* ---------- Satzbausteine: Satzanfang bündig vor die Eingabe setzen, Höhe mitwachsen lassen ---------- */
+  function grow(ta) {
+    if (!ta) return;
+    ta.style.height = 'auto';
+    let h = ta.scrollHeight;
+    if (!ta.value && ta.placeholder) { ta.value = ta.placeholder; h = Math.max(h, ta.scrollHeight); ta.value = ''; }
+    ta.style.height = h + 'px';
+  }
+  function layoutSentences() {
+    $$('#wMain .w-sent').forEach(box => {
+      const pre = $('.w-sent-pre', box), ta = $('textarea', box); if (!ta) return;
+      if (pre) {
+        box.classList.remove('block'); ta.style.textIndent = '';
+        const pw = pre.getBoundingClientRect().width, tw = ta.clientWidth;
+        if (pw > 0 && tw > 0 && pw <= tw * 0.6) ta.style.textIndent = Math.ceil(pw + 5) + 'px';
+        else box.classList.add('block');
+      }
+      grow(ta);
+      lintField(ta);
+    });
+  }
+  let layoutTimer = 0;
+  addEventListener('resize', () => { clearTimeout(layoutTimer); layoutTimer = setTimeout(layoutSentences, 120); });
+  /** Kleine Grammatik-Hilfe: indirekte Rede, 3. Person, kein doppelter Satzanfang. */
+  function lintText(el) {
+    const raw = String(el.value || '').trim(); if (raw.length < 6) return '';
+    const t = ' ' + raw.toLowerCase().replace(/[„“"()]/g, ' ') + ' ';
+    const pre = (el.dataset.pre || '').toLowerCase().replace(/[:.]$/, '').trim();
+    if (pre) { const w = pre.split(/\s+/).slice(0, 2).join(' '); if (w && raw.toLowerCase().startsWith(w)) return 'Der Satzanfang steht schon da – einfach weiterschreiben.'; }
+    if (el.dataset.lint === 'konj') {
+      const pr = /^(Er|Sie)\b/.test(el.dataset.pre || '') ? el.dataset.pre.split(' ')[0] : 'Er';
+      if (/[\s,.](ich|mich|mir|mein|meine|meinen|meinem|meiner|wir|uns|unser|unsere)[\s,.;:!?]/.test(t)) return `In der 3. Person schreiben: „${pr} habe …“ statt „Ich habe …“.`;
+      if (raw.length > 14 && /\s(ist|hat|war|waren|bin|sind|hatte|hatten|kam|fuhr|sah)[\s,.;:]/.test(t) && !/\s(habe|sei|seien|hätte|hätten|wäre|wären|käme|führe)[\s,.;:]/.test(t)) return 'Indirekte Rede: „sei“ statt „ist/war“, „habe“ statt „hat“, „sei gefahren“ statt „fuhr“.';
+    }
+    if (el.dataset.single && /[.!?]\s+[A-ZÄÖÜ]/.test(raw)) return 'Hier nur diesen einen Satz fortsetzen – Weiteres passt in ein eigenes Feld.';
+    return '';
+  }
+  function lintField(el) {
+    const q = el.closest('.w-q'); const box = q && $('.w-lint', q); if (!box) return;
+    const msg = lintText(el); box.textContent = msg; box.hidden = !msg;
+  }
+  /** Nach einer Antwort sanft zur nächsten offenen Frage führen. */
+  function focusNext(k) {
+    const cur = $(`#wFields [data-q="${CSS.escape(k)}"]`); if (!cur) return;
+    const qs = $$('#wFields > [data-q]'); const i = qs.indexOf(cur); if (i < 0) return;
+    const nxt = qs.slice(i + 1).find(q => !q.classList.contains('ans'));
+    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!nxt) { if (qs.every(q => q.classList.contains('ans'))) { const go = $('.w-nav [data-w=next], .w-nav [data-w=finish]'); if (go) { go.classList.remove('w-go'); void go.offsetWidth; go.classList.add('w-go'); } } return; }
+    const r = nxt.getBoundingClientRect(), vh = window.visualViewport ? visualViewport.height : innerHeight;
+    if (r.top > vh * 0.7 || r.top < 60) nxt.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
+    nxt.classList.remove('w-next'); void nxt.offsetWidth; nxt.classList.add('w-next');
+  }
   function setVal(k, v, rerender = true) {
     const d = doc(); if (!d) return;
     if (v === '__now') v = nowHM();
     if (v === '__true') v = true; else if (v === '__false') v = false;
     const cur = getP(d.data, k);
-    setP(d.data, k, (cur === v && typeof v !== 'boolean') ? '' : v); // zweites Tippen hebt die Auswahl auf
+    const off = cur === v && typeof v !== 'boolean'; // zweites Tippen hebt die Auswahl auf
+    setP(d.data, k, off ? '' : v);
     persist(false);
-    if (rerender) renderMain(); else schedulePreview();
+    if (rerender) { renderMain(); if (!off) focusNext(k); } else schedulePreview();
   }
   function toggleVal(k, v) {
     const d = doc(); if (!d) return;
@@ -347,7 +451,7 @@
     const m = mod(d); const steps = visibleSteps(m, d.data);
     const host = $('#wMain');
     host.innerHTML = `<div class="w-top"><button type="button" class="icon-btn sm w-back" data-w="resume" aria-label="Zurück"><svg class="i" viewBox="0 0 24 24"><path d="M14.5 6l-6 6 6 6"/></svg></button><div class="w-top-t"><span class="spaced">Übersicht</span><div class="w-title">${esc(d.title || m.name)}</div></div><button type="button" class="btn btn-ghost btn-sm" data-w="finish">Bericht</button></div>
-      <ol class="w-ov">${steps.map((s, i) => { const answered = s.fields.filter(f => f.k && !(f.when && !f.when(d.data))).filter(f => { const v = getP(d.data, f.k); return Array.isArray(v) ? v.length : (v && typeof v === 'object') ? Object.keys(v).length : has(v); }).length; const total = s.fields.filter(f => f.k && !(f.when && !f.when(d.data))).length; return `<li><button type="button" class="w-ov-i${i === U.step ? ' on' : ''}" data-jump="${i}"><span class="w-ov-n mono">${i + 1}</span><span class="w-ov-t"><b>${esc(s.title)}</b><small>${esc(s.phase)}</small></span><span class="pill ${answered === total && total ? 'pill-lime' : answered ? 'pill-accent-soft' : 'pill-quiet'}">${answered}/${total}</span></button></li>`; }).join('')}</ol>`;
+      <ol class="w-ov">${steps.map((s, i) => { const answered = s.fields.filter(f => f.k && !(f.when && !f.when(d.data))).filter(f => { const v = getP(d.data, f.k); return Array.isArray(v) ? v.length : (v && typeof v === 'object') ? Object.keys(v).length : has(v); }).length; const total = s.fields.filter(f => f.k && !(f.when && !f.when(d.data))).length; return `<li><button type="button" class="w-ov-i${i === U.step ? ' on' : ''}" data-jump="${i}"><span class="w-ov-n mono">${i + 1}</span><span class="w-ov-t"><b>${esc(R(s.title, d.data))}</b><small>${esc(s.phase)}</small></span><span class="pill ${answered === total && total ? 'pill-lime' : answered ? 'pill-accent-soft' : 'pill-quiet'}">${answered}/${total}</span></button></li>`; }).join('')}</ol>`;
     window.scrollTo({ top: 0 });
   }
 
@@ -355,6 +459,8 @@
   const root = $('#schreiben');
   if (root) {
     root.addEventListener('click', e => {
+      const sb = e.target.closest('.w-sent');
+      if (sb && e.target.tagName !== 'TEXTAREA') { const ta = $('textarea', sb); if (ta) { ta.focus(); const n = ta.value.length; try { ta.setSelectionRange(n, n); } catch (er) { /* egal */ } } return; }
       const b = e.target.closest('button, [data-edit]'); if (!b) return;
       if (b.dataset.w) {
         const a = b.dataset.w;
@@ -377,6 +483,23 @@
       if (b.dataset.jump) { U.step = Number(b.dataset.jump); const d = doc(); if (d) { d.step = Math.max(d.step || 0, U.step); persist(false); } renderMain(); return; }
       if (b.dataset.edit != null) { U.view = 'wizard'; U.step = Number(b.dataset.edit) || 0; renderMain(); window.scrollTo({ top: 0 }); return; }
       if (b.dataset.tab) { U.tab = b.dataset.tab; renderMain(); return; }
+      if (b.dataset.sugg) {
+        const d = doc(); if (!d) return;
+        const k = b.dataset.sugg; let v = b.dataset.v; const cur = String(getP(d.data, k) || '').trim();
+        if (b.dataset.join && cur && cur !== v.trim() && !cur.includes(v.trim())) v = cur.replace(/[\s,;]+$/, '') + b.dataset.join + v;
+        setP(d.data, k, v); persist(false); renderMain();
+        const ta = $(`#wFields [data-k="${CSS.escape(k)}"]`);
+        if (ta && /\s$/.test(v)) { ta.focus(); const n = ta.value.length; try { ta.setSelectionRange(n, n); } catch (er) { /* egal */ } }
+        else focusNext(k);
+        return;
+      }
+      if (b.dataset.multi) {
+        const d = doc(); if (!d) return;
+        let o = {}; try { o = JSON.parse(b.dataset.multi); } catch (er) { return; }
+        for (const [k, v] of Object.entries(o)) setP(d.data, k, JSON.parse(JSON.stringify(v)));
+        persist(false); renderMain(); W().toast('Übernommen');
+        return;
+      }
       if (b.dataset.set) { setVal(b.dataset.set, b.dataset.n ? Number(b.dataset.v) : b.dataset.v); return; }
       if (b.dataset.toggle) { toggleVal(b.dataset.toggle, b.dataset.v); return; }
       if (b.dataset.step) { const d = doc(); if (!d) return; const cur = Number(getP(d.data, b.dataset.step)); const inp = $(`[data-k="${CSS.escape(b.dataset.step)}"]`, root); const min = inp && inp.min !== '' ? Number(inp.min) : 0, max = inp && inp.max !== '' ? Number(inp.max) : Infinity; const v = Math.max(min, Math.min(max, (Number.isFinite(cur) && has(getP(d.data, b.dataset.step)) ? cur : 0) + Number(b.dataset.d))); setP(d.data, b.dataset.step, v); persist(false); if (inp) inp.value = v; schedulePreview(); $$(`[data-set="${CSS.escape(b.dataset.step)}"]`, root).forEach(c => c.setAttribute('aria-pressed', String(Number(c.dataset.v) === v))); return; }
@@ -391,12 +514,26 @@
     root.addEventListener('input', e => {
       const el = e.target; if (!el.dataset || !el.dataset.k) return;
       const d = doc(); if (!d) return;
+      if (el.dataset.single && /\n/.test(el.value)) { const p0 = el.selectionStart; el.value = el.value.replace(/\s*\n\s*/g, ' '); try { el.setSelectionRange(p0, p0); } catch (er) { /* egal */ } }
       let v = el.value;
       if (el.dataset.num) { v = v === '' ? undefined : Number(v); if (v != null && !Number.isFinite(v)) v = undefined; }
+      if (el.classList.contains('w-sent-in')) { grow(el); lintField(el); }
+      const q = el.closest('#wFields > [data-q]'); if (q && q.dataset.q === el.dataset.k) q.classList.toggle('ans', has(v));
       if (el.classList.contains('w-kz')) v = v.toUpperCase();
       setP(d.data, el.dataset.k, v);
       persist(false); schedulePreview();
       if (el.classList.contains('w-kz') && el.value !== v) { const p = el.selectionStart; el.value = v; try { el.setSelectionRange(p, p); } catch (er) { /* egal */ } }
+    });
+    root.addEventListener('keydown', e => {
+      const el = e.target;
+      if (e.key !== 'Enter' || e.shiftKey || e.metaKey || e.ctrlKey || e.altKey || e.isComposing) return;
+      if (!el.closest || !el.closest('#wFields')) return;
+      if (el.tagName === 'TEXTAREA' && !el.dataset.single) return;
+      if (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') return;
+      e.preventDefault();
+      const all = $$('#wFields input, #wFields textarea, #wFields select').filter(x => !x.disabled && x.type !== 'hidden' && x.offsetParent !== null);
+      const nx = all[all.indexOf(el) + 1];
+      if (nx) nx.focus(); else el.blur();
     });
     root.addEventListener('change', e => {
       const el = e.target; if (!el.dataset || !el.dataset.k) return;
@@ -427,6 +564,7 @@
       const typing = document.activeElement && document.activeElement.closest('#wMain');
       if (stable(d.data) !== U.lastJson && !typing) renderMain();
       else if (!$('#wMain .w-top')) renderMain();
+      else requestAnimationFrame(layoutSentences); // nach dem Einblenden neu ausmessen
     },
     newDoc, open
   });

@@ -31,13 +31,40 @@ Stand: November 2026 · Dateien: `js/vuf.js` (Fragen + Text), `js/writer.js` (As
 8. **Maßnahmen** – Unfallmitteilung vor Ort (sonst nachsenden + vermerken), Lichtbilder/-mappe, Skizze, Asservate ins AMS, Anschlussermittlungen vermerken.
 9. **Bewertung** – Spurenbild deuten (Höhe, Verlauf → Rangieren/Vorbeifahrt/Tür/Auffahren), Übereinstimmung mit Aussagen, Widersprüche, Manipulationsverdacht.
 
-Der Assistent folgt genau dieser Reihenfolge in acht Phasen: **Einsatz → Unfallort → Geschädigtes Fahrzeug → Spuren → Verursacher → Personen → Maßnahmen → Bewertung**.
+Der Assistent folgt genau dieser Reihenfolge in acht Phasen: **Einsatz → Unfallort → Geschädigtes Fahrzeug → Spuren → Verursacher → Personen → Maßnahmen → Bewertung**. Vorweg stehen die vier Weichen-Fragen („Worum geht es?“) und gleich danach die Personalien der geschädigten Person, damit alle Satzvorschläge zum Geschlecht passen.
 
 ---
 
 ## 3 · Bedienkonzept (stressfrei aufnehmen)
 
-- **Ein Thema pro Schritt**, Überschrift als Frage. 29 Schritte, davon viele bedingt – typisch bleiben 20–24 übrig (ohne Hinweise auf den Verursacher weniger).
+**Satzbausteine statt leerer Textfelder.** Jedes Freitextfeld zeigt den festen Satzanfang, so wie er im Bericht steht, hellgrau im Feld. Dahinter steht kursiv in Dunkelgrau ein Beispiel, wie der Satz grammatisch weitergeht. Man schreibt nur die Fortsetzung, der Rest kommt vom Bericht:
+
+| Feld | Satzanfang (fest) | Beispiel (grau) |
+| --- | --- | --- |
+| Lage der Unfallstelle | Die Unfallstelle befindet sich | in der zweiten Parkreihe von Norden, Stellplatz 14 |
+| Zugehörigkeit Parkplatz | Bei der Unfallörtlichkeit handelt es sich um den Parkplatz | des REWE-Marktes |
+| Eintreffsituation | Beim Eintreffen um 10:52 Uhr | stand der Pkw unverändert am Abstellort; die Geschädigte wartete vor Ort |
+| Aufenthaltsort Geschädigte/r | Zum Unfallzeitpunkt habe sie sich … befunden. | im Supermarkt |
+| Fluchtrichtung | Das Fahrzeug entfernte sich | in Richtung Innenstadt |
+| Aufforderung zu bleiben | Die Aufforderung erfolgte durch | die Geschädigte |
+| Beschädigte Sache | Bei der beschädigten Sache handelt es sich um | einen Gartenzaun aus Holz |
+| Angaben (indirekte Rede) | Sie gab sinngemäß Folgendes an: | Sie habe an der roten Ampel gewartet, als … |
+
+- Satzanfang und Beispiele passen sich an: an das **Geschlecht** („Er habe …“ / „Sie habe …“, „seiner/ihrer Wohnung“), die **Rolle** („den Geschädigten“ / „die Geschädigte“) und die **Örtlichkeit** (Parkplatz, Parkhaus, sonstige Fläche). Deshalb wird die geschädigte Person gleich zu Beginn erfasst.
+- **Antipp-Vorschläge** unter den Feldern („Keine Feststellungen“, „rechter Fahrbahnrand“, „unsicherer Gang“ + „Alkoholgeruch“ werden mit „und“ verbunden). Endet ein Vorschlag offen („in Richtung “), springt der Cursor direkt dahinter.
+- **Grammatik-Hilfe** beim Tippen: Bei Ich-Form („Ich habe …“) erinnert die App an die 3. Person, bei Indikativ („ist“, „hat“, „fuhr“) an die indirekte Rede. Wer den Satzanfang noch einmal tippt, bekommt den Hinweis „Der Satzanfang steht schon da“.
+- Der Bericht setzt die Eingabe sauber ein: Er schreibt das erste Wort klein, wenn es kein Substantiv ist („In der …“ → „in der …“), entfernt doppelte Schlusspunkte und schließt eigenständige Sätze mit einem Punkt ab.
+- Beim **vermutlichen Hergang** steht der automatisch gebildete Satz als grauer Vorschlag im Feld. Leer lassen übernimmt ihn, „Vorschlag übernehmen und anpassen“ setzt ihn zum Bearbeiten ein.
+
+**Geführter Ablauf.**
+- **„Worum geht es?“** als erster Schritt mit vier Antworten (Ort, was beschädigt, Hinweise auf den Verursacher ja/nein, Aufnahme vor Ort oder auf der Wache). Danach kennt der Assistent den Weg, und die Schrittzahl stimmt von Anfang an.
+- Jede Frage hat einen Punkt: grau = offen, grün = beantwortet. Nach einer Antwort springt die Ansicht zur nächsten offenen Frage und hebt sie kurz hervor. Sind alle beantwortet, leuchtet „Weiter“ auf.
+- **Wiederverwendung:** „↺ Wie zuletzt: POK Müller · PKin Schmidt (Stf 21/03)“ übernimmt Kräfte und Rufname des letzten Vorgangs, „↺ 48565 Steinfurt“ PLZ und Ort. Die Belehrenden werden aus den eingetragenen Kräften angetippt.
+- `Enter` springt ins nächste Feld, Tippen auf den Satzbaustein setzt den Cursor ans Ende. Auf dem Handy blendet sich während der Aufnahme das Dock aus, und unten liegen nur noch Zurück, Überspringen und Weiter.
+
+**Weiterhin:**
+
+- **Ein Thema pro Schritt**, Überschrift als Frage. 30 Schritte, davon viele bedingt – typisch bleiben 20–25 übrig (ohne Hinweise auf den Verursacher weniger).
 - **Antippen statt Tippen**: Ja/Nein als große Segmente, Auswahl als Chips, Zahlen mit ±-Stepper und Schnellwerten (z. B. 30/50/70/100 km/h, 500/1.000/1.500 €), Datum/Uhrzeit mit „Heute/Gestern/Jetzt“.
 - **Bedingte Fragen** erscheinen erst, wenn sie Sinn ergeben (Straße ↔ Parkplatz, geparkt ↔ fahrend, Hinweise ja/nein, Fahrer ermittelt …).
 - **Karosserie-Picker**: Front/Seite/Heck als Raster, pro gewähltem Teil ein Detail-Block, „wie vorheriges Teil“ zum Kopieren.

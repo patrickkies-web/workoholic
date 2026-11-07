@@ -126,7 +126,9 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 - **Keine Rechtsberatung.** Nicht abgebildet sind u. a. Altbesitz (§ 58), Melde- und Anzeigepflichten im Detail, Sportschützen- und Sammlerregeln sowie der Inhalt einzelner Landesverordnungen und Allgemeinverfügungen.
 
 **Schreiben (Schriftliche Arbeiten)**
-- **Vorgang anlegen** → Modul wählen. Bisher: **Verkehrsunfallflucht ohne Personenschaden** (29 Schritte in 8 Phasen, viele davon nur bei Bedarf).
+- **Vorgang anlegen** → Modul wählen. Bisher: **Verkehrsunfallflucht ohne Personenschaden**. Der Assistent beginnt mit „Worum geht es?“ (vier Weichen-Fragen) und fragt danach nur, was zum Fall passt.
+- **Satzbausteine:** Jedes Textfeld zeigt den festen Satzanfang aus dem Bericht und ein graues Beispiel, wie es grammatisch weitergeht („Die Unfallstelle befindet sich *in der zweiten Parkreihe …*“). Satzanfänge und Beispiele passen sich an Geschlecht und Rolle an; bei Ich-Form oder fehlender indirekter Rede gibt es einen Hinweis.
+- Nach jeder Antwort springt die Ansicht zur nächsten offenen Frage; Kräfte, Rufname und Ort lassen sich aus dem letzten Vorgang übernehmen.
 - Fragen per Ja/Nein, Chips, Zahlen mit ±, Schnellwerten („Jetzt“, „Heute“, 50 km/h, 1.500 €); Karosserie-Picker für das Schadensbild; Personen- und Zeugenblöcke.
 - Unter jedem Schritt die Live-Vorschau „So steht es im Bericht“; jede Antwort wird sofort verschlüsselt gespeichert – unterbrechen und später weitermachen ist jederzeit möglich (auch nach Auto-Sperre).
 - Ergebnis: **Verkehrsunfallbefundbericht** nach Erlass-Gliederung (1 Allgemeines … 6 Sonstiges) mit passender Satzführung (Rolle, Geschlecht, Ein-/Mehrzahl, Zeitpunkt/Zeitraum), dazu **Kurzsachverhalt**, **Fahndungstext**, **Offene Punkte** (als Todos in den Planner übernehmbar) und ein gesonderter **Personalienblock**.

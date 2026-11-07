@@ -186,11 +186,31 @@
     if (t.alt === 'ja') out.push('Die Beschädigung wies Korrosion bzw. Verschmutzung im Spurenbild auf, sodass es sich hierbei um einen Altschaden handeln dürfte.');
     else if (t.alt === 'moeglich') out.push('Ob es sich hierbei um einen frischen Schaden oder einen Altschaden handelt, konnte vor Ort nicht abschließend beurteilt werden.');
     else if (t.alt === 'nein') out.push('Die Beschädigung stellte sich als frisch dar (blanke Spuren ohne Korrosion oder Verschmutzung).');
-    if (has(t.notiz)) out.push(endDot(t.notiz));
+    if (has(t.notiz)) out.push(sent(t.notiz));
     return out.join(' ');
   }
 
-  root.WVUF_CORE = { get, str, has, num, cap, low, arr, endDot, quote, numWord, euro, joinList, fmtDate, fmtTime, when, period, PH, person, crewText, vehicle, vehicleG, FZ_ART, KAROSSERIE, SCHADEN, VERLAUF, MATERIAL, partAt, partText };
+  /* ---------- Satzbausteine ----------
+   * slot(): Text, der einen vorgegebenen Satzanfang fortsetzt – ohne Schlusspunkt; das erste Wort wird
+   *         kleingeschrieben, wenn es kein Substantiv/Name ist („In der zweiten Reihe“ → „in der zweiten Reihe“).
+   * sent(): eigenständige Sätze (z. B. Angaben in indirekter Rede) – großer Anfang, Schlusspunkt.
+   */
+  const SMALL = new Set(('in im ins am an ans auf aus bei beim vor vom von neben hinter zwischen gegenüber unter über mit ohne nach zu zum zur durch für gegen um ' +
+    'entlang innerhalb außerhalb unmittelbar direkt ca etwa rund nur lediglich unverändert kurz noch bereits ' +
+    'der die das den dem des ein eine einen einem einer eines kein keine keinen keinem zwei drei vier fünf sechs mehrere einige zahlreiche ' +
+    'er sie es stand standen lag lagen war waren hatte hatten wurde wurden befand befanden hielt hielten wartete warteten saß saßen ' +
+    'ältere älterer älteres älteren frische frischer leichte leichter deutliche deutlicher starke starker starken geringe ' +
+    'schwarze schwarzer schwarzes weiße weißer weißes rote roter rotes blaue blauer blaues graue grauer graues silberne silberner silbernes ' +
+    'grüne grüner gelbe gelber braune brauner beiger orange ihrer ihrem ihren seiner seinem seinen lediglich teilweise').split(' '));
+  function slot(v) {
+    let s = str(v).replace(/\s+/g, ' ').replace(/[\s.;,:]+$/, '');
+    const first = (s.match(/^[^\s.,;:()„"]+/) || [''])[0];
+    if (/^[A-ZÄÖÜ]/.test(first) && SMALL.has(first.toLowerCase())) s = s.charAt(0).toLowerCase() + s.slice(1);
+    return s;
+  }
+  const sent = v => endDot(cap(str(v).replace(/[ \t]+/g, ' ').replace(/\s*\n\s*/g, '\n')));
+
+  root.WVUF_CORE = { get, str, has, num, cap, low, arr, endDot, quote, numWord, euro, joinList, fmtDate, fmtTime, when, period, PH, person, crewText, vehicle, vehicleG, FZ_ART, KAROSSERIE, SCHADEN, VERLAUF, MATERIAL, partAt, partText, slot, sent };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* ======================= Fragenkatalog ======================= */
@@ -208,10 +228,41 @@
   const ermittelt = d => hinweise(d) && get(d, 'taeter.ermittlung.fahrerErmittelt') === 'ja';
   const fzAngetroffen = d => hinweise(d) && get(d, 'taeter.ermittlung.fzAngetroffen') === 'ja';
 
+  const ER = g => (g === 'm' ? 'Er' : g === 'w' || g === 'd' ? 'Sie' : 'Er/Sie');
+  const erL = g => ER(g).toLowerCase();
+  const posse = (g, end) => (g === 'm' ? 'sein' + end : g ? 'ihr' + end : 'sein' + end + '/ihr' + end);
+  const gG = d => get(d, 'gesch.geschlecht');
+  const gB = d => get(d, 'taeter.person.geschlecht');
+  const ZG = it => it && it.p && it.p.geschlecht;
+  const geschNom = d => ({ m: 'der Geschädigte', w: 'die Geschädigte', d: 'die geschädigte Person' }[gG(d)] || 'der Geschädigte');
+  const geschAkk = d => ({ m: 'den Geschädigten', w: 'die Geschädigte', d: 'die geschädigte Person' }[gG(d)] || 'den Geschädigten');
+  const fahrerNom = d => ({ m: 'Der Fahrer', w: 'Die Fahrerin' }[get(d, 'taeter.personen.fahrer')] || 'Die fahrzeugführende Person');
+  function asservatVorschlag(d) {
+    const s = get(d, 'spuren.fz') || {}, t = get(d, 'taeter') || {}, a = [];
+    const n = Number(s.spurfixAnzahl) || 0;
+    if (s.spurfix === 'ja') a.push(n === 1 ? 'eine Spurfix-Folie' : (n ? C.numWord(n, true) + ' ' : '') + 'Spurfix-Folien');
+    if (s.lackprobe === 'ja') a.push('eine Pergamintüte mit Fremdlackanrieb');
+    if (s.eigenlack === 'ja') a.push('eine Vergleichsprobe des Eigenlacks');
+    if (s.fremdteile === 'ja' && s.fremdteileSicher === 'ja') a.push('die aufgefundenen Fremdteile');
+    if (t.spurfix === 'ja') a.push('eine Spurfix-Folie vom Verursacherfahrzeug');
+    if (t.lackprobe === 'ja') a.push('eine Lackprobe des Verursacherfahrzeugs');
+    return C.joinList(a);
+  }
+
   const GRADE = ['PK', 'PKin', 'POK', 'POKin', 'PHK', 'PHKin', 'KA', 'KAin', 'PR', 'PRin', 'EPHK', 'EPHKin'];
   const PERSON_FIELDS = ['geschlecht', 'nachname', 'vorname', 'geb', 'anschrift', 'tel', 'email'];
 
   const STEPS = [
+    {
+      id: 'lage', phase: 'Einsatz', title: 'Worum geht es?', lead: 'Vier Antworten – danach kennt der Assistent den Weg und fragt nur noch, was passt.', gen: 'lage',
+      fields: [
+        { k: 'ort.art', t: 'choice', l: 'Wo ist es passiert?', o: [['strasse', 'Auf einer Straße'], ['parkplatz', 'Auf einem Parkplatz'], ['parkhaus', 'Parkhaus / Tiefgarage'], ['sonst', 'Sonstige Fläche']] },
+        { k: 'ub02.typ', t: 'choice', l: 'Was wurde beschädigt?', o: [['fahrzeug', 'Ein Fahrzeug'], ['sache', 'Eine sonstige Sache (Zaun, Poller …)']] },
+        { k: 'ub02.zustand', t: 'choice', l: 'Das geschädigte Fahrzeug war …', o: [['geparkt', 'abgestellt / geparkt'], ['fahrend', 'im fließenden Verkehr']], when: istFahrzeug },
+        { k: 'taeter.hinweise', t: 'yn', l: 'Gibt es Hinweise auf den Verursacher?', h: 'Zeugen, Kennzeichen, Zettel, Kamera, Fahrzeugteile …' },
+        { k: 'einsatz.aufnahmeort', t: 'choice', l: 'Wo nimmst du auf?', o: [['unfallort', 'Am Unfallort'], ['wache', 'Auf der Wache (Protokoll)']] }
+      ]
+    },
     /* ---------- Phase 1: Einsatz ---------- */
     {
       id: 'einsatz', phase: 'Einsatz', title: 'Einsatzübernahme', lead: 'Wann und auf welchem Weg kam der Einsatz?', gen: 'allg1',
@@ -221,14 +272,13 @@
         { k: 'einsatz.meldeweg', t: 'choice', l: 'Meldeweg', o: [['leitstelle', 'Leitstelle / Funk'], ['telefon', 'Telefonisch bei der Wache'], ['wache', 'Persönlich auf der Wache'], ['streife', 'Eigene Feststellung / Ansprache auf Streife'], ['online', 'Online-Anzeige']] },
         { t: 'info', when: d => get(d, 'einsatz.meldeweg') === 'online', text: 'DA 3.1: Der Verweis auf eine Online-Anzeige oder das Aufsuchen einer Wache ist bei einer Verkehrsunfallflucht ungeeignet – ein Einsatzmittel ist zur Unfallstelle zu entsenden.' },
         { k: 'einsatz.mitteiler', t: 'choice', l: 'Mitteiler', o: [['gesch', 'Geschädigte/r selbst'], ['zeuge', 'Zeuge/Zeugin'], ['dritte', 'Dritte (Anwohner, Firma …)'], ['unbekannt', 'Unbekannt']] },
-        { k: 'einsatz.aufnahmeort', t: 'choice', l: 'Wo wird aufgenommen?', o: [['unfallort', 'Am Unfallort'], ['wache', 'Protokollaufnahme auf der Wache']] },
         { k: 'einsatz.unfallstelleAufgesucht', t: 'yn', l: 'Unfallstelle (nachträglich) aufgesucht?', h: 'DA 3.1: Auch nach Protokollaufnahme ist die Unfallstelle aufzusuchen, um Sachverhalt und Spurenbild abzugleichen.', when: d => get(d, 'einsatz.aufnahmeort') === 'wache' }
       ]
     },
     {
       id: 'kraefte', phase: 'Einsatz', title: 'Eingesetzte Kräfte', lead: 'Wer hat aufgenommen?', gen: 'allg1',
       fields: [
-        { k: 'einsatz.rufname', t: 'text', l: 'Rufname / Einsatzmittel', ph: 'z. B. Stf 21/03', w: 'half' },
+        { k: 'einsatz.rufname', t: 'text', l: 'Rufname / Einsatzmittel', ph: 'z. B. Stf 21/03', w: 'half', recent: true },
         { k: 'einsatz.kraefte', t: 'crew', l: 'Beamtinnen und Beamte', grade: GRADE, max: 6 },
         { k: 'einsatz.eintreffZeit', t: 'time', l: 'Eintreffzeit am Unfallort', w: 'half', q: 'jetzt', when: d => get(d, 'einsatz.aufnahmeort') !== 'wache' || get(d, 'einsatz.unfallstelleAufgesucht') === 'ja' }
       ]
@@ -236,8 +286,17 @@
     {
       id: 'erkenntnis', phase: 'Einsatz', title: 'Erkenntnislage', lead: 'Was war bei Einsatzübernahme bekannt?', gen: 'allg2',
       fields: [
-        { k: 'einsatz.erkenntnis', t: 'area', l: 'Gemeldeter Sachverhalt (Telegrammstil)', ph: 'z. B. Pkw auf Parkplatz beschädigt, Verursacher unbekannt, Zeuge vor Ort', rows: 3 },
-        { k: 'einsatz.anfahrt', t: 'area', l: 'Feststellungen während der Anfahrt (optional)', ph: 'z. B. kein flüchtendes Fahrzeug festgestellt; Sonderrechte nicht in Anspruch genommen', rows: 2 }
+        { k: 'einsatz.erkenntnis', t: 'area', rows: 2, l: 'Was wurde gemeldet? (Telegrammstil)', pre: 'Sachverhalt:', ph: 'Pkw auf Kundenparkplatz beschädigt, Verursacher unbekannt, Zeugin vor Ort' },
+        { k: 'einsatz.anfahrt', t: 'text', l: 'Feststellungen während der Anfahrt (optional)', pre: 'Während der Anfahrt', ph: 'wurden keine unfallbezogenen Feststellungen gemacht', sugg: [['Keine Feststellungen', 'wurden keine unfallbezogenen Feststellungen gemacht'], ['Kein flüchtendes Fzg.', 'wurde kein flüchtendes Fahrzeug festgestellt']] }
+      ]
+    },
+    {
+      id: 'gesch', phase: 'Einsatz', title: 'Geschädigte Person', lead: 'Personalien und Stellung zum Fahrzeug (UB 02) – danach passen alle Satzvorschläge zum Geschlecht.', gen: 'subj',
+      fields: [
+        { k: 'gesch', t: 'person', l: 'Geschädigte/r', fields: PERSON_FIELDS },
+        { k: 'gesch.rolle', t: 'choice', l: 'Stellung zum Fahrzeug', o: [['halterfahrer', 'Halter/in und Fahrer/in'], ['halter', 'Halter/in'], ['fahrer', 'Fahrer/in (nicht Halter)'], ['nutzer', 'Nutzungsberechtigt (Firma/Miete)'], ['eigentuemer', 'Eigentümer/in der Sache']] },
+        { k: 'gesch.firma', t: 'text', l: 'Wer ist Halter?', pre: 'Halter des Fahrzeugs ist', ph: 'die Musterbau GmbH, Steinfurt', when: d => ['fahrer', 'nutzer'].includes(get(d, 'gesch.rolle')) },
+        { k: 'gesch.anwesend', t: 'yn', l: 'Bei der Aufnahme vor Ort anwesend?', w: 'half' }
       ]
     },
 
@@ -257,17 +316,16 @@
     {
       id: 'ort', phase: 'Unfallort', title: 'Unfallörtlichkeit', lead: 'Wo hat sich der Unfall ereignet?', gen: 'ort',
       fields: [
-        { k: 'ort.art', t: 'choice', l: 'Art der Örtlichkeit', o: [['strasse', 'Straße'], ['parkplatz', 'Parkplatz'], ['parkhaus', 'Parkhaus / Tiefgarage'], ['sonst', 'Sonstige Fläche']] },
         { k: 'ort.strasse', t: 'text', l: 'Straße', ph: 'z. B. Bahnhofstraße', w: 'half', req: true },
         { k: 'ort.hausnr', t: 'text', l: 'Haus-Nr. / Höhe', ph: '12', w: 'half' },
         { k: 'ort.plz', t: 'text', l: 'PLZ', ph: '48565', w: 'half', inputmode: 'numeric' },
-        { k: 'ort.stadt', t: 'text', l: 'Ort', ph: 'Steinfurt', w: 'half', req: true },
+        { k: 'ort.stadt', t: 'text', l: 'Ort', ph: 'Steinfurt', w: 'half', req: true, recent: ['ort.plz', 'ort.stadt'] },
         { k: 'ort.ortsteil', t: 'text', l: 'Ortsteil (optional)', ph: 'z. B. Borghorst', w: 'half' },
         { k: 'ort.lage', t: 'choice', l: 'Lage', w: 'half', o: [['innerorts', 'innerorts'], ['ausserorts', 'außerorts']], when: istStrasse },
         { k: 'ort.strassentyp', t: 'choice', l: 'Straßenart', o: [['gemeinde', 'Gemeindestraße'], ['kreis', 'Kreisstraße'], ['land', 'Landesstraße'], ['bundes', 'Bundesstraße'], ['bab', 'Autobahn']], when: istStrasse },
-        { k: 'ort.zugehoerigkeit', t: 'text', l: 'Zugehörigkeit der Fläche', ph: 'z. B. Kundenparkplatz des REWE-Marktes', when: d => !istStrasse(d) },
+        { k: 'ort.zugehoerigkeit', t: 'text', l: 'Zu wem gehört die Fläche?', pre: d => 'Bei der Unfallörtlichkeit handelt es sich um ' + ({ parkhaus: 'das Parkhaus', parkplatz: 'den Parkplatz' }[get(d, 'ort.art')] || 'die Verkehrsfläche'), ph: d => ({ parkhaus: 'des Einkaufszentrums „Stadtgalerie“', parkplatz: 'des REWE-Marktes' }[get(d, 'ort.art')] || 'vor dem Rathaus'), h: 'Genitiv („des …“) oder Ortsangabe („vor dem …“) – die Adresse hängt der Bericht selbst an.', when: d => !istStrasse(d) },
         { k: 'ort.oeffentlich', t: 'choice', l: 'Für jedermann zugänglich (öffentlicher Verkehrsraum)?', h: '§ 142 StGB setzt einen Unfall im öffentlichen Verkehrsraum voraus. Auch Privatflächen zählen, wenn sie tatsächlich für jedermann zugänglich sind.', o: [['ja', 'Ja, frei zugänglich'], ['nein', 'Nein (Schranke/Tor, nur Berechtigte)'], ['unklar', 'Zu prüfen']], when: d => !istStrasse(d) },
-        { k: 'ort.position', t: 'area', l: 'Genaue Lage der Unfallstelle', ph: 'z. B. in der zweiten Parkreihe von Norden, Stellplatz Nr. 14 / am rechten Fahrbahnrand in Fahrtrichtung Norden, Höhe Haus-Nr. 12', rows: 2 },
+        { k: 'ort.position', t: 'text', l: 'Genaue Lage der Unfallstelle', pre: 'Die Unfallstelle befindet sich', ph: d => istStrasse(d) ? 'am rechten Fahrbahnrand in Fahrtrichtung Norden, Höhe Haus-Nr. 12' : 'in der zweiten Parkreihe von Norden, Stellplatz 14', sugg: d => istStrasse(d) ? [['rechter Fahrbahnrand', 'am rechten Fahrbahnrand '], ['linker Fahrbahnrand', 'am linken Fahrbahnrand '], ['Einmündung', 'im Einmündungsbereich '], ['Parkbucht', 'in einer Parkbucht ']] : [['Parkreihe', 'in der Parkreihe '], ['Einfahrt', 'im Bereich der Einfahrt '], ['Stellplatz', 'auf dem Stellplatz Nr. ']] },
         { k: 'ort.ortSicher', t: 'choice', l: 'Wie sicher ist die Ortsangabe des Geschädigten?', w: 'half', o: [['sicher', 'Sicher'], ['unsicher', 'Nicht sicher']] }
       ]
     },
@@ -281,7 +339,7 @@
         { k: 'ort.parkordnung', t: 'choice', l: 'Parken am Fahrbahnrand', o: [['laengs', 'Längsparken'], ['quer', 'Querparken'], ['schraeg', 'Schrägparken'], ['bucht', 'Parkbuchten'], ['verbot', 'Parkverbot']] },
         { k: 'ort.verlauf', t: 'choice', l: 'Streckenverlauf', w: 'half', o: [['gerade', 'gerade'], ['links', 'Linkskurve'], ['rechts', 'Rechtskurve'], ['kreuzung', 'Kreuzung / Einmündung']] },
         { k: 'ort.steigung', t: 'choice', l: 'Höhenprofil', w: 'half', o: [['eben', 'eben'], ['gefaelle', 'Gefälle'], ['steigung', 'Steigung']] },
-        { k: 'ort.fahrtrichtung', t: 'text', l: 'Bezugs-Fahrtrichtung', ph: 'z. B. stadteinwärts / Richtung Burgsteinfurt', w: 'half' },
+        { k: 'ort.fahrtrichtung', t: 'text', l: 'Bezugs-Fahrtrichtung', pre: 'bezogen auf die Fahrtrichtung', ph: 'Burgsteinfurt' },
         { k: 'ort.besonderheiten', t: 'multi', l: 'Besonderheiten', o: [['engstelle', 'Engstelle'], ['baustelle', 'Arbeitsstelle'], ['kuppe', 'Kuppe'], ['bushalt', 'Bushaltestelle'], ['fgue', 'Fußgängerüberweg'], ['radweg', 'Radverkehrsanlage'], ['einbahn', 'Einbahnstraße'], ['spielstr', 'Verkehrsberuhigt']] },
         { k: 'ort.verkehr', t: 'choice', l: 'Verkehrsaufkommen bei der Aufnahme', w: 'half', o: [['gering', 'gering'], ['maessig', 'mäßig'], ['stark', 'stark'], ['stau', 'zähfließend / Stau']] }
       ]
@@ -295,27 +353,25 @@
         { k: 'ort.beleuchtung', t: 'choice', l: 'Straßen-/Platzbeleuchtung', w: 'half', o: [['betrieb', 'in Betrieb'], ['aus', 'vorhanden, aus'], ['keine', 'nicht vorhanden']], when: d => get(d, 'ort.licht') !== 'tag' },
         { k: 'ort.wetter', t: 'choice', l: 'Witterung', o: [['trocken', 'trocken'], ['regen', 'Regen'], ['nieselregen', 'Nieselregen'], ['schnee', 'Schneefall'], ['nebel', 'Nebel'], ['sonne', 'tiefstehende Sonne']] },
         { k: 'ort.sicht', t: 'choice', l: 'Sichtverhältnisse', w: 'half', o: [['gut', 'gut'], ['eingeschraenkt', 'eingeschränkt'], ['schlecht', 'schlecht']] },
-        { k: 'ort.sichtbehinderung', t: 'text', l: 'Sichtbehinderung durch …', ph: 'z. B. geparkte Fahrzeuge, Hecke, Lieferwagen', when: d => ['eingeschraenkt', 'schlecht'].includes(get(d, 'ort.sicht')) }
+        { k: 'ort.sichtbehinderung', t: 'text', l: 'Wodurch war die Sicht eingeschränkt?', pre: 'Die Sicht war eingeschränkt durch', ph: 'am Fahrbahnrand geparkte Fahrzeuge', sugg: [['geparkte Fahrzeuge', 'am Fahrbahnrand geparkte Fahrzeuge'], ['Bewuchs', 'Randbewuchs'], ['tiefe Sonne', 'die tiefstehende Sonne'], ['Regen', 'starken Regen']], when: d => ['eingeschraenkt', 'schlecht'].includes(get(d, 'ort.sicht')) }
       ]
     },
     {
       id: 'eintreff', phase: 'Unfallort', title: 'Eintreffsituation', lead: 'Was wurde beim Eintreffen vorgefunden?', gen: 'allg3', when: d => get(d, 'einsatz.aufnahmeort') !== 'wache' || get(d, 'einsatz.unfallstelleAufgesucht') === 'ja',
       fields: [
-        { k: 'spuren.eintreff.text', t: 'area', l: 'Standort / Stellung des geschädigten Fahrzeugs, anwesende Personen', ph: 'z. B. Pkw stand unverändert vorwärts in der Parkbucht; Geschädigter und Zeuge warteten am Fahrzeug', rows: 3 },
+        { k: 'spuren.eintreff.text', t: 'area', rows: 2, l: 'Was wurde beim Eintreffen vorgefunden?', pre: d => 'Beim Eintreffen' + (has(get(d, 'einsatz.eintreffZeit')) ? ' um ' + get(d, 'einsatz.eintreffZeit') + ' Uhr' : ''), ph: d => (get(d, 'ub02.typ') === 'sache' ? 'war die beschädigte Sache unverändert' : 'stand das Fahrzeug unverändert am Abstellort') + '; ' + geschNom(d) + ' wartete vor Ort' },
         { k: 'spuren.eintreff.veraendert', t: 'yn', l: 'Wurde die Unfallstelle vor dem Eintreffen verändert?', h: 'z. B. Fahrzeug umgesetzt, Teile aufgesammelt' },
-        { k: 'spuren.eintreff.veraendertText', t: 'text', l: 'Welche Veränderung?', ph: 'z. B. Geschädigter hat Spiegelglasteile aufgesammelt', when: d => get(d, 'spuren.eintreff.veraendert') === 'ja' },
+        { k: 'spuren.eintreff.veraendertText', t: 'text', l: 'Was wurde verändert?', pre: 'Vor dem Eintreffen', ph: d => 'hatte ' + geschNom(d) + ' Fahrzeugteile aufgesammelt', sugg: d => [['Teile aufgesammelt', 'hatte ' + geschNom(d) + ' Fahrzeugteile aufgesammelt'], ['Fzg. umgesetzt', 'hatte ' + geschNom(d) + ' das Fahrzeug umgesetzt'], ['Regen', 'hatte Regen die Spuren teilweise verwischt']], when: d => get(d, 'spuren.eintreff.veraendert') === 'ja' },
         { k: 'spuren.eintreff.fotos', t: 'yn', l: 'Übersichtsaufnahmen der Eintreffsituation gefertigt?' }
       ]
     },
 
     /* ---------- Phase 3: Geschädigtes Fahrzeug / Sache ---------- */
     {
-      id: 'ub02', phase: 'Geschädigtes Fahrzeug', title: 'Was wurde beschädigt?', lead: 'Fahrzeug oder sonstige Sache?', gen: 'fz02',
+      id: 'ub02', phase: 'Geschädigtes Fahrzeug', title: d => (istFahrzeug(d) ? 'Geschädigtes Fahrzeug' : 'Beschädigte Sache'), lead: d => (istFahrzeug(d) ? 'Art, Marke, Farbe und Kennzeichen (UB 02)' : 'Was genau wurde beschädigt?'), gen: 'fz02',
       fields: [
-        { k: 'ub02.typ', t: 'choice', l: 'Beschädigt wurde', o: [['fahrzeug', 'Ein Fahrzeug'], ['sache', 'Eine sonstige Sache']] },
-        { k: 'ub02.sache', t: 'area', l: 'Beschreibung der Sache', ph: 'z. B. Gartenzaun aus Holz, Grundstück Bahnhofstraße 12', rows: 2, when: d => !istFahrzeug(d) },
-        { k: 'ub02.fz', t: 'vehicle', l: 'Fahrzeug (UB 02)', when: istFahrzeug },
-        { k: 'ub02.zustand', t: 'choice', l: 'Zum Unfallzeitpunkt', o: [['geparkt', 'Abgestellt / geparkt'], ['fahrend', 'Im fließenden Verkehr']], when: istFahrzeug }
+        { k: 'ub02.sache', t: 'text', l: 'Was wurde beschädigt?', pre: 'Bei der beschädigten Sache handelt es sich um', ph: 'einen Gartenzaun aus Holz (Grundstück Bahnhofstraße 12)', h: 'Akkusativ („einen …“, „ein …“, „eine …“) – so passt es auch in den Hergang.', sugg: [['Zaun', 'einen Zaun '], ['Poller', 'einen Poller '], ['Verkehrszeichen', 'ein Verkehrszeichen '], ['Laterne', 'eine Straßenlaterne '], ['Mauer', 'eine Mauer ']], when: d => !istFahrzeug(d) },
+        { k: 'ub02.fz', t: 'vehicle', l: 'Fahrzeug (UB 02)', when: istFahrzeug }
       ]
     },
     {
@@ -327,16 +383,16 @@
         { k: 'ub02.park.abgestelltVon', t: 'choice', l: 'Wer hat das Fahrzeug abgestellt?', o: [['gesch', 'Geschädigte/r selbst'], ['andere', 'Eine andere Person']] },
         { k: 'ub02.park.fahrer', t: 'person', l: 'Person, die das Fahrzeug abgestellt hat', fields: ['geschlecht', 'nachname', 'vorname', 'tel'], when: d => get(d, 'ub02.park.abgestelltVon') === 'andere' },
         { k: 'ub02.park.beladen', t: 'yn', l: 'War das Fahrzeug beladen oder besetzt?', w: 'half' },
-        { k: 'ub02.park.beladenText', t: 'text', l: 'Womit / mit wem?', when: d => get(d, 'ub02.park.beladen') === 'ja' }
+        { k: 'ub02.park.beladenText', t: 'text', l: 'Womit / mit wem?', pre: 'Das Fahrzeug war', ph: 'mit Einkäufen beladen', sugg: [['Einkäufe', 'mit Einkäufen beladen'], ['Person', 'mit einer Person besetzt'], ['Werkzeug', 'mit Werkzeug beladen']], when: d => get(d, 'ub02.park.beladen') === 'ja' }
       ]
     },
     {
       id: 'fahrt', phase: 'Geschädigtes Fahrzeug', title: 'Fahrvorgang', lead: 'Was tat das geschädigte Fahrzeug gerade?', gen: 'fz02', when: d => istFahrzeug(d) && get(d, 'ub02.zustand') === 'fahrend',
       fields: [
         { k: 'ub02.fahrt.vorgang', t: 'choice', l: 'Vorgang', o: [['geradeaus', 'Geradeausfahrt'], ['warten', 'Warten (Ampel/Stau)'], ['abbiegen', 'Abbiegen'], ['ueberholen', 'Überholen / Vorbeifahren'], ['einparken', 'Einparken'], ['ausparken', 'Ausparken'], ['kreisverkehr', 'Kreisverkehr']] },
-        { k: 'ub02.fahrt.richtung', t: 'text', l: 'Fahrtrichtung', ph: 'z. B. stadtauswärts', w: 'half' },
+        { k: 'ub02.fahrt.richtung', t: 'text', l: 'Fahrtrichtung', pre: 'in Fahrtrichtung', ph: 'Emsdetten' },
         { k: 'ub02.fahrt.tempo', t: 'number', l: 'Geschwindigkeit ca. (km/h)', w: 'half', q: [0, 10, 30, 50], min: 0, max: 200, step: 5 },
-        { k: 'ub02.fahrt.text', t: 'area', l: 'Kurzbeschreibung des Vorgangs', ph: 'z. B. UB 02 wartete an der roten LZA, als ein von hinten kommendes Fahrzeug auffuhr', rows: 3 }
+        { k: 'ub02.fahrt.text', t: 'area', l: 'Kurzbeschreibung des Vorgangs (ganze Sätze, Präteritum)', ph: 'Das Kraftrad wartete an der roten Ampel, als ein nachfolgender Pkw auffuhr.', rows: 3 }
       ]
     },
     {
@@ -346,10 +402,10 @@
     {
       id: 'sache02', phase: 'Geschädigtes Fahrzeug', title: 'Schadensbild an der Sache', lead: 'Wie sieht der Schaden aus?', gen: 'fz02', when: d => !istFahrzeug(d),
       fields: [
-        { k: 'ub02.sacheSchaden', t: 'area', l: 'Beschreibung der Beschädigung', ph: 'z. B. zwei Zaunfelder eingedrückt, Pfosten geknickt; Anstoßhöhe ca. 40–60 cm', rows: 3 },
+        { k: 'ub02.sacheSchaden', t: 'area', rows: 2, l: 'Wie sieht die Beschädigung aus?', pre: 'An der Sache', ph: 'waren zwei Zaunfelder eingedrückt und ein Pfosten geknickt; Anstoßhöhe ca. 30–70 cm' },
         { k: 'ub02.sacheFremdlack', t: 'yn', l: 'Fremdlack / Fremdmaterial an der Anstoßstelle?' },
-        { k: 'ub02.sacheFarbe', t: 'text', l: 'Farbe / Material', ph: 'z. B. silberner Lackabrieb', when: d => get(d, 'ub02.sacheFremdlack') === 'ja' },
-        { k: 'ub02.sacheEigentuemer', t: 'text', l: 'Eigentümer / Zuständiger', ph: 'z. B. Stadt Steinfurt (Verkehrszeichen) / Grundstückseigentümer' }
+        { k: 'ub02.sacheFarbe', t: 'text', l: 'Welches Fremdmaterial?', pre: 'An der Anstoßstelle fand sich', ph: 'silberner Lackabrieb', sugg: [['schwarzer Lack', 'schwarzer Lackabrieb'], ['weißer Lack', 'weißer Lackabrieb'], ['silberner Lack', 'silberner Lackabrieb'], ['Kunststoff', 'schwarzer Kunststoffabrieb']], when: d => get(d, 'ub02.sacheFremdlack') === 'ja' },
+        { k: 'ub02.sacheEigentuemer', t: 'text', l: 'Wem gehört die Sache?', pre: 'Eigentümer bzw. zuständig ist', ph: 'die Stadt Steinfurt / Herr M., Bahnhofstraße 12', sugg: [['Kommune', 'die Stadt bzw. Gemeinde '], ['Kreis', 'der Kreis als Straßenbaulastträger'], ['Straßen.NRW', 'der Landesbetrieb Straßen.NRW']] }
       ]
     },
     {
@@ -360,7 +416,7 @@
         { k: 'ub02.fahrbereit', t: 'yn', l: 'Fahrzeug fahrbereit und verkehrssicher?', w: 'half', when: istFahrzeug },
         { k: 'ub02.verbleib', t: 'choice', l: 'Verbleib des Fahrzeugs', o: [['vorort', 'verblieb vor Ort'], ['gefahren', 'vom Geschädigten weitergenutzt'], ['abgeschleppt', 'abgeschleppt']], when: istFahrzeug },
         { k: 'ub02.altschaden', t: 'choice', l: 'Altschäden am Fahrzeug insgesamt?', o: [['nein', 'keine erkennbar'], ['ja', 'ja, abgrenzbar'], ['unklar', 'nicht sicher abgrenzbar']], when: istFahrzeug },
-        { k: 'ub02.altschadenText', t: 'text', l: 'Welche Altschäden?', ph: 'z. B. ältere Kratzer an der Heckschürze rechts, korrodiert', when: d => ['ja', 'unklar'].includes(get(d, 'ub02.altschaden')) }
+        { k: 'ub02.altschadenText', t: 'text', l: 'Welche Altschäden?', pre: d => get(d, 'ub02.altschaden') === 'ja' ? 'Als Altschäden erkennbar waren' : 'Als mögliche Altschäden in Betracht kommen', ph: 'ältere, korrodierte Kratzer an der Heckschürze rechts', when: d => ['ja', 'unklar'].includes(get(d, 'ub02.altschaden')) }
       ]
     },
 
@@ -376,7 +432,7 @@
         { k: 'spuren.fz.lackprobeArt', t: 'choice', l: 'Gewonnen durch', w: 'half', o: [['schneiden', 'Schneiden / Ausheben'], ['abnehmen', 'Abnehmen loser Splitter']], when: d => get(d, 'spuren.fz.lackprobe') === 'ja' },
         { k: 'spuren.fz.eigenlack', t: 'yn', l: 'Vergleichsprobe des Eigenlacks gesichert?', w: 'half', when: d => get(d, 'spuren.fz.lackprobe') === 'ja' },
         { k: 'spuren.fz.fremdteile', t: 'yn', l: 'Fremdteile des Verursacherfahrzeugs aufgefunden?', h: 'z. B. Spiegelglas, Blinkerglas, Zierleiste, Stoßfängerfragment' },
-        { k: 'spuren.fz.fremdteileText', t: 'text', l: 'Welche Teile, wo?', ph: 'z. B. Spiegelgehäuse schwarz, lag neben dem Vorderrad links', when: d => get(d, 'spuren.fz.fremdteile') === 'ja' },
+        { k: 'spuren.fz.fremdteileText', t: 'text', l: 'Welche Teile, wo?', pre: 'Folgende Fremdteile wurden aufgefunden:', ph: 'ein schwarzes Spiegelgehäuse aus Kunststoff neben dem Vorderrad links', when: d => get(d, 'spuren.fz.fremdteile') === 'ja' },
         { k: 'spuren.fz.fremdteileSicher', t: 'yn', l: 'Fremdteile sichergestellt?', w: 'half', when: d => get(d, 'spuren.fz.fremdteile') === 'ja' },
         { k: 'spuren.fz.fotosMassstab', t: 'yn', l: 'Beschädigungen mit Maßstab fotografiert (Anstoßhöhe)?' },
         { k: 'spuren.fz.mikroskop', t: 'yn', l: 'Optische Vorauswertung (Handmikroskop) durchgeführt?', w: 'half' }
@@ -387,18 +443,17 @@
       fields: [
         { k: 'spuren.fahrbahn.vorhanden', t: 'yn', l: 'Spuren auf der Fahrbahn oder im Umfeld festgestellt?' },
         { k: 'spuren.fahrbahn.arten', t: 'multi', l: 'Art der Spuren', o: [['splitter', 'Glas-/Kunststoffsplitter'], ['teile', 'Fahrzeugteile'], ['lack', 'Lackpartikel'], ['reifen', 'Reifen-/Rangierspuren'], ['fluessig', 'Flüssigkeiten'], ['schmutz', 'Schmutzabwurf'], ['kratz', 'Kratzspuren am Boden']], when: d => get(d, 'spuren.fahrbahn.vorhanden') === 'ja' },
-        { k: 'spuren.fahrbahn.text', t: 'area', l: 'Lage und Verlauf', ph: 'z. B. Splitterfeld ca. 1 m hinter dem Fahrzeug, Rangierspur in Richtung Ausfahrt', rows: 2, when: d => get(d, 'spuren.fahrbahn.vorhanden') === 'ja' },
+        { k: 'spuren.fahrbahn.text', t: 'text', l: 'Wo genau?', pre: 'Die Spuren befanden sich', ph: 'ca. 0,5 m neben dem Vorderrad links, verteilt auf ca. 1 m²', when: d => get(d, 'spuren.fahrbahn.vorhanden') === 'ja' },
         { k: 'spuren.fahrbahn.gesichert', t: 'yn', l: 'Spuren fotografiert und ggf. gesichert?', w: 'half', when: d => get(d, 'spuren.fahrbahn.vorhanden') === 'ja' },
         { k: 'spuren.sonst.vorhanden', t: 'yn', l: 'Spuren an sonstigen Gegenständen (Poller, Zaun, Verkehrszeichen)?' },
-        { k: 'spuren.sonst.text', t: 'area', l: 'Welche?', ph: 'z. B. Poller mit Lackabrieb in der Farbe Schwarz, Höhe 35–45 cm', rows: 2, when: d => get(d, 'spuren.sonst.vorhanden') === 'ja' }
+        { k: 'spuren.sonst.text', t: 'text', l: 'Woran?', pre: 'Weitere Spuren fanden sich an', ph: 'einem Poller vor Haus-Nr. 14 (schwarzer Lackabrieb in 35–45 cm Höhe)', h: 'Dativ: „an einem Poller“, „an der Hauswand“.', when: d => get(d, 'spuren.sonst.vorhanden') === 'ja' }
       ]
     },
 
     /* ---------- Phase 5: Verursacher ---------- */
     {
-      id: 'taeter', phase: 'Verursacher', title: 'Hinweise auf den Verursacher', lead: 'Gibt es Hinweise auf Fahrzeug oder Person?', gen: 'taeter',
+      id: 'taeter', phase: 'Verursacher', title: 'Woher stammen die Hinweise?', lead: 'Mehrfachauswahl möglich', gen: 'taeter', when: hinweise,
       fields: [
-        { k: 'taeter.hinweise', t: 'yn', l: 'Hinweise auf den Unfallflüchtigen vorhanden?' },
         { k: 'taeter.quelle', t: 'multi', l: 'Woher stammen die Hinweise?', o: [['zeuge', 'Zeuge'], ['zettel', 'Zettel am Fahrzeug'], ['kamera', 'Video / Dashcam'], ['teile', 'Fahrzeugteile'], ['gesch', 'Geschädigte/r selbst'], ['spuren', 'Spurenbild']], when: hinweise }
       ]
     },
@@ -406,8 +461,8 @@
       id: 'taeterfz', phase: 'Verursacher', title: 'Verursacherfahrzeug', lead: 'Was ist über das flüchtige Fahrzeug bekannt?', gen: 'taeter', when: hinweise,
       fields: [
         { k: 'taeter.fz', t: 'vehicle', l: 'Flüchtiges Fahrzeug (UB 01)', fragment: true },
-        { k: 'taeter.fz.besonderheiten', t: 'text', l: 'Besonderheiten', ph: 'z. B. Dachbox, Aufkleber, Firmenaufschrift, Beschädigung vorne rechts' },
-        { k: 'taeter.fz.fluchtrichtung', t: 'text', l: 'Fluchtrichtung', ph: 'z. B. in Richtung Innenstadt', w: 'half' }
+        { k: 'taeter.fz.besonderheiten', t: 'text', l: 'Besonderheiten', pre: 'Besonderheiten am Fahrzeug:', ph: 'Fahrradträger am Heck, Aufschrift „Muster GmbH“ auf der Heckscheibe' },
+        { k: 'taeter.fz.fluchtrichtung', t: 'text', l: 'Fluchtrichtung', pre: 'Das Fahrzeug entfernte sich', ph: 'in Richtung Innenstadt', sugg: [['Richtung …', 'in Richtung '], ['unbekannt', 'in unbekannte Richtung']] }
       ]
     },
     {
@@ -415,19 +470,19 @@
       fields: [
         { k: 'taeter.personen.anzahl', t: 'number', l: 'Personen im Fahrzeug', q: [1, 2, 3], w: 'half', min: 1, max: 9, step: 1 },
         { k: 'taeter.personen.fahrer', t: 'choice', l: 'Fahrer/in', w: 'half', o: [['m', 'männlich'], ['w', 'weiblich'], ['u', 'nicht sicher']] },
-        { k: 'taeter.personen.beschreibung', t: 'area', l: 'Beschreibung (Alter, Gestalt, Haare, Brille, Kleidung)', rows: 2 },
-        { k: 'taeter.personen.wiedererkennen', t: 'choice', l: 'Würde der Fahrer wiedererkannt?', w: 'half', o: [['ja', 'Ja'], ['evtl', 'Eventuell'], ['nein', 'Nein']] },
-        { k: 'taeter.verhalten.angehalten', t: 'yn', l: 'Hat der Fahrer nach dem Anstoß angehalten?', o: JNU },
-        { k: 'taeter.verhalten.ausgestiegen', t: 'yn', l: 'Ist er ausgestiegen / hat er den Schaden begutachtet?', o: JNU, when: d => get(d, 'taeter.verhalten.angehalten') === 'ja' },
+        { k: 'taeter.personen.beschreibung', t: 'text', l: 'Wie sah die Person am Steuer aus?', pre: d => fahrerNom(d) + ' wurde beschrieben als', ph: 'ca. 60 Jahre alt, schlank, mit kurzen grauen Haaren und Brille' },
+        { k: 'taeter.personen.wiedererkennen', t: 'choice', l: d => 'Würde ' + fahrerNom(d).replace(/^D/, 'd') + ' wiedererkannt?', w: 'half', o: [['ja', 'Ja'], ['evtl', 'Eventuell'], ['nein', 'Nein']] },
+        { k: 'taeter.verhalten.angehalten', t: 'yn', l: d => 'Hat ' + fahrerNom(d).replace(/^D/, 'd') + ' nach dem Anstoß angehalten?', o: JNU },
+        { k: 'taeter.verhalten.ausgestiegen', t: 'yn', l: d => (get(d, 'taeter.personen.fahrer') === 'w' ? 'Ist sie ausgestiegen / hat sie' : 'Ist er ausgestiegen / hat er') + ' den Schaden begutachtet?', o: JNU, when: d => get(d, 'taeter.verhalten.angehalten') === 'ja' },
         { k: 'taeter.verhalten.wartezeit', t: 'number', l: 'Wartezeit vor Ort (Minuten)', q: [0, 1, 5, 10, 30], w: 'half', min: 0, max: 600, step: 1, when: d => get(d, 'taeter.verhalten.angehalten') === 'ja' },
-        { k: 'taeter.verhalten.aufgefordert', t: 'yn', l: 'Wurde er aufgefordert, zu bleiben?', o: JNU },
-        { k: 'taeter.verhalten.aufgefordertVon', t: 'text', l: 'Von wem?', ph: 'z. B. von der Geschädigten / vom Zeugen', w: 'half', when: d => get(d, 'taeter.verhalten.aufgefordert') === 'ja' },
+        { k: 'taeter.verhalten.aufgefordert', t: 'yn', l: d => (get(d, 'taeter.personen.fahrer') === 'w' ? 'Wurde sie' : 'Wurde er') + ' aufgefordert, zu bleiben?', o: JNU },
+        { k: 'taeter.verhalten.aufgefordertVon', t: 'text', l: 'Von wem?', pre: 'Die Aufforderung erfolgte durch', ph: d => geschAkk(d), sugg: d => [['Geschädigte/r', geschAkk(d)], ['Zeuge', 'einen Zeugen'], ['Zeugin', 'eine Zeugin']], when: d => get(d, 'taeter.verhalten.aufgefordert') === 'ja' },
         { k: 'taeter.verhalten.zettel', t: 'yn', l: 'Zettel mit Kontaktdaten hinterlassen?', o: JNU },
-        { k: 'taeter.verhalten.zettelText', t: 'text', l: 'Inhalt des Zettels', ph: 'z. B. Name und Telefonnummer, unleserlich …', when: d => get(d, 'taeter.verhalten.zettel') === 'ja' },
-        { k: 'taeter.verhalten.geraeusch', t: 'yn', l: 'War der Anstoß so laut/deutlich, dass der Fahrer ihn bemerken musste?', o: JNU },
+        { k: 'taeter.verhalten.zettelText', t: 'text', l: 'Was stand auf dem Zettel?', pre: 'Auf dem Zettel war vermerkt:', ph: 'lediglich ein Vorname und eine unvollständige Telefonnummer', when: d => get(d, 'taeter.verhalten.zettel') === 'ja' },
+        { k: 'taeter.verhalten.geraeusch', t: 'yn', l: d => 'War der Anstoß so laut/deutlich, dass ' + fahrerNom(d).replace(/^D/, 'd') + ' ihn bemerken musste?', o: JNU },
         { k: 'taeter.verhalten.tempo', t: 'number', l: 'Geschätzte Geschwindigkeit (km/h)', q: [5, 10, 20, 30, 50], w: 'half', min: 0, max: 200, step: 5 },
         { k: 'taeter.verhalten.alkohol', t: 'yn', l: 'Anzeichen für Alkohol-/Drogeneinfluss?', o: JNU, w: 'half' },
-        { k: 'taeter.verhalten.alkoholText', t: 'text', l: 'Woran bemerkt?', ph: 'z. B. unsicherer Gang, lallende Aussprache', when: d => get(d, 'taeter.verhalten.alkohol') === 'ja' }
+        { k: 'taeter.verhalten.alkoholText', t: 'text', l: 'Woran bemerkt?', pre: 'Dies zeigte sich an', ph: 'einem unsicheren Gang und einer verwaschenen Aussprache', join: ' und ', sugg: [['unsicherer Gang', 'einem unsicheren Gang'], ['Aussprache', 'einer verwaschenen Aussprache'], ['Alkoholgeruch', 'deutlichem Alkoholgeruch']], when: d => get(d, 'taeter.verhalten.alkohol') === 'ja' }
       ]
     },
     {
@@ -441,7 +496,7 @@
         { k: 'taeter.ermittlung.fzAngetroffen', t: 'yn', l: 'Verursacherfahrzeug angetroffen?', when: d => get(d, 'taeter.ermittlung.anschrift') === 'ja' },
         { k: 'taeter.ermittlung.schadenKorr', t: 'choice', l: 'Korrespondiert das Schadensbild?', o: [['ja', 'Ja, in Höhe und Verlauf'], ['teils', 'Teilweise'], ['nein', 'Nein'], ['offen', 'Nicht beurteilbar']], when: fzAngetroffen },
         { k: 'taeter.ermittlung.fahrerErmittelt', t: 'yn', l: 'Fahrer/in zum Unfallzeitpunkt ermittelt?', when: d => get(d, 'taeter.ermittlung.anschrift') === 'ja' },
-        { k: 'taeter.ermittlung.text', t: 'area', l: 'Weitere Ermittlungen / Ergebnis', ph: 'z. B. Halter nicht angetroffen, Benachrichtigung hinterlassen; Nachbarn befragt', rows: 2 }
+        { k: 'taeter.ermittlung.text', t: 'area', l: 'Weitere Ermittlungen / Ergebnis (ganze Sätze, Präteritum)', ph: 'Der Halter wurde an der Anschrift nicht angetroffen; eine Benachrichtigung wurde hinterlassen.', rows: 2 }
       ]
     },
     {
@@ -451,9 +506,9 @@
         { k: 'taeter.person.halter', t: 'yn', l: 'Ist die Person zugleich Halter/in?', w: 'half' },
         { k: 'taeter.person.fs', t: 'yn', l: 'Fahrerlaubnis vorgelegt?', w: 'half' },
         { k: 'taeter.person.belehrt', t: 'yn', l: 'Als Beschuldigte/r belehrt?' },
-        { k: 'taeter.person.belehrtVon', t: 'text', l: 'Belehrt durch', ph: 'z. B. POK Müller', w: 'half', when: d => get(d, 'taeter.person.belehrt') === 'ja' },
+        { k: 'taeter.person.belehrtVon', t: 'crewpick', l: 'Belehrt durch', w: 'half', when: d => get(d, 'taeter.person.belehrt') === 'ja' },
         { k: 'taeter.person.einlassung', t: 'choice', l: 'Einlassung', o: [['angaben', 'Machte Angaben'], ['keine', 'Keine Angaben zur Sache'], ['verweigert', 'Verweigerte Angaben / Anwalt']], when: d => get(d, 'taeter.person.belehrt') === 'ja' },
-        { k: 'taeter.person.text', t: 'area', l: 'Sinngemäße Angaben', ph: 'z. B. Er habe beim Ausparken einen leichten Ruck bemerkt, aber keinen Schaden gesehen …', rows: 4, when: d => get(d, 'taeter.person.einlassung') === 'angaben' }
+        { k: 'taeter.person.text', t: 'area', l: 'Was hat die Person angegeben? (indirekte Rede)', pre: d => ER(gB(d)) + ' machte sinngemäß folgende Angaben:', ph: d => ER(gB(d)) + ' habe beim Ausparken einen leichten Ruck bemerkt, aber keinen Schaden gesehen. ' + ER(gB(d)) + ' sei davon ausgegangen, nur den Bordstein berührt zu haben.', lint: 'konj', rows: 4, when: d => get(d, 'taeter.person.einlassung') === 'angaben' }
       ]
     },
     {
@@ -468,26 +523,17 @@
 
     /* ---------- Phase 6: Personen & Angaben ---------- */
     {
-      id: 'gesch', phase: 'Personen', title: 'Geschädigte Person', lead: 'Personalien und Rolle (UB 02)', gen: 'subj',
-      fields: [
-        { k: 'gesch', t: 'person', l: 'Geschädigte/r', fields: PERSON_FIELDS },
-        { k: 'gesch.rolle', t: 'choice', l: 'Stellung zum Fahrzeug', o: [['halterfahrer', 'Halter/in und Fahrer/in'], ['halter', 'Halter/in'], ['fahrer', 'Fahrer/in (nicht Halter)'], ['nutzer', 'Nutzungsberechtigt (Firma/Miete)'], ['eigentuemer', 'Eigentümer/in der Sache']] },
-        { k: 'gesch.firma', t: 'text', l: 'Firma / Halter (falls abweichend)', ph: 'z. B. Musterbau GmbH, Steinfurt', when: d => ['fahrer', 'nutzer'].includes(get(d, 'gesch.rolle')) },
-        { k: 'gesch.anwesend', t: 'yn', l: 'Bei der Aufnahme vor Ort anwesend?', w: 'half' }
-      ]
-    },
-    {
       id: 'geschangaben', phase: 'Personen', title: 'Angaben der geschädigten Person', lead: 'Fragebogen Anlage 2, Fragen 8–11', gen: 'subj',
       fields: [
         { k: 'gesch.belehrt', t: 'yn', l: 'Zeugenschaftlich belehrt?', w: 'half' },
-        { k: 'gesch.belehrtVon', t: 'text', l: 'Belehrt durch', ph: 'z. B. PKin Schmidt', w: 'half', when: d => get(d, 'gesch.belehrt') === 'ja' },
+        { k: 'gesch.belehrtVon', t: 'crewpick', l: 'Belehrt durch', w: 'half', when: d => get(d, 'gesch.belehrt') === 'ja' },
         { k: 'gesch.aufmerksam', t: 'choice', l: 'Wie wurde die Person auf den Unfall aufmerksam?', o: [['selbst', 'Eigene Feststellung bei Rückkehr'], ['zeuge', 'Durch Zeugen'], ['nachbar', 'Durch Nachbarn / Anwohner'], ['zettel', 'Zettel am Fahrzeug'], ['geraeusch', 'Anstoßgeräusch gehört'], ['beobachtet', 'Unfall selbst beobachtet']] },
-        { k: 'gesch.standort', t: 'text', l: 'Wo befand sich die Person zum Unfallzeitpunkt?', ph: 'z. B. im Supermarkt / in der Wohnung', w: 'half' },
+        { k: 'gesch.standort', t: 'text', l: 'Wo war die Person zum Unfallzeitpunkt?', pre: d => 'Zum Unfallzeitpunkt habe ' + erL(gG(d)) + ' sich', post: 'befunden.', ph: 'im Supermarkt', sugg: d => [['Wohnung', 'in ' + posse(gG(d), 'er') + ' Wohnung'], ['Arbeit', 'an ' + posse(gG(d), 'em') + ' Arbeitsplatz'], ['Geschäft', 'in einem nahegelegenen Geschäft']] },
         { k: 'gesch.sichtkontakt', t: 'yn', l: 'Sichtkontakt zum Fahrzeug?', w: 'half' },
         { k: 'gesch.modus', t: 'choice', l: 'Vorlage für die Schilderung', o: [['abgestellt', 'Fahrzeug abgestellt – beschädigt vorgefunden'], ['beobachtet', 'Unfall selbst wahrgenommen'], ['frei', 'Freitext']] },
         { k: 'gesch.zwischenzeit', t: 'yn', l: 'Feststellungen in der Zwischenzeit (Zwischenkontrolle)?', when: d => get(d, 'gesch.modus') === 'abgestellt' },
-        { k: 'gesch.zwischenzeitText', t: 'text', l: 'Welche?', ph: 'z. B. gegen 12:00 Uhr Fahrzeug noch unbeschädigt gesehen', when: d => get(d, 'gesch.zwischenzeit') === 'ja' },
-        { k: 'gesch.freitext', t: 'area', l: 'Sinngemäße Angaben', ph: 'Im Konjunktiv, z. B.: Sie habe … / Er sei …', rows: 4, when: d => ['beobachtet', 'frei'].includes(get(d, 'gesch.modus')) },
+        { k: 'gesch.zwischenzeitText', t: 'area', rows: 2, l: 'Welche?', pre: d => 'In der Zwischenzeit habe ' + erL(gG(d)) + ' Folgendes festgestellt:', ph: 'Gegen 12:00 Uhr sei das Fahrzeug noch unbeschädigt gewesen.', lint: 'konj', when: d => get(d, 'gesch.zwischenzeit') === 'ja' },
+        { k: 'gesch.freitext', t: 'area', l: 'Was hat die Person geschildert? (indirekte Rede)', pre: d => ER(gG(d)) + ' gab sinngemäß Folgendes an:', ph: d => get(d, 'gesch.modus') === 'beobachtet' ? ER(gG(d)) + ' habe an der roten Ampel gewartet, als ' + erL(gG(d)) + ' plötzlich einen Stoß von hinten gespürt habe. Der Pkw dahinter sei anschließend davongefahren.' : ER(gG(d)) + ' habe das Fahrzeug am Vormittag abgestellt und am Nachmittag beschädigt vorgefunden.', lint: 'konj', rows: 4, when: d => ['beobachtet', 'frei'].includes(get(d, 'gesch.modus')) },
         { k: 'gesch.schaden', t: 'euro', l: 'Schadenssumme laut Geschädigtem (€)', q: [300, 500, 1000, 2000], step: 100 },
         { k: 'gesch.altschaden', t: 'choice', l: 'Könnte es sich um Altschäden handeln (Angabe des Geschädigten)?', o: [['nein', 'Nein'], ['ja', 'Ja'], ['unsicher', 'Nicht sicher']] },
         { k: 'gesch.fragebogen', t: 'yn', l: 'Fragebogen zur Verkehrsunfallflucht ausgehändigt / ausgefüllt?', w: 'half' }
@@ -500,11 +546,11 @@
         sub: [
           { k: 'p', t: 'person', l: 'Personalien', fields: PERSON_FIELDS },
           { k: 'art', t: 'choice', l: 'Wahrnehmung', o: [['sicht', 'Unfall beobachtet'], ['knall', 'Knallzeuge (nur gehört)'], ['nachher', 'Nachträgliche Feststellung']] },
-          { k: 'standort', t: 'text', l: 'Standort', ph: 'z. B. Balkon 2. OG, Haus-Nr. 14', w: 'half' },
+          { k: 'standort', t: 'text', l: 'Wo war die Person?', pre: (d, it) => 'Zum Unfallzeitpunkt befand ' + erL(ZG(it)) + ' sich', ph: 'am Einkaufswagen-Unterstand / auf dem Balkon im 2. OG, Haus-Nr. 14' },
           { k: 'entfernung', t: 'number', l: 'Entfernung ca. (m)', q: [5, 10, 20, 50], w: 'half', min: 0, max: 2000, step: 5 },
           { k: 'sicht', t: 'choice', l: 'Sicht auf die Unfallstelle', w: 'half', o: [['frei', 'frei'], ['eingeschraenkt', 'eingeschränkt']] },
           { k: 'belehrt', t: 'yn', l: 'Belehrt?', w: 'half' },
-          { k: 'angaben', t: 'area', l: 'Sinngemäße Angaben', ph: 'Im Konjunktiv, z. B.: Er habe gegen 14:10 Uhr einen lauten Knall gehört und …', rows: 4 },
+          { k: 'angaben', t: 'area', l: 'Was hat die Person geschildert? (indirekte Rede)', pre: (d, it) => ER(ZG(it)) + ' gab sinngemäß an:', ph: (d, it) => ER(ZG(it)) + ' habe gegen 14:10 Uhr einen lauten Knall gehört und daraufhin gesehen, wie ein roter Kleinwagen davongefahren sei.', lint: 'konj', rows: 4 },
           { k: 'wiedererkennen', t: 'choice', l: 'Fahrer/Fahrzeug wiedererkennen?', w: 'half', o: [['ja', 'Ja'], ['evtl', 'Eventuell'], ['nein', 'Nein']] },
           { k: 'erreichbar', t: 'choice', l: 'Erreichbarkeit', w: 'half', o: [['vorort', 'vor Ort angetroffen'], ['telefon', 'nur telefonisch'], ['spaeter', 'nachträglich zu kontaktieren']] }
         ]
@@ -514,7 +560,7 @@
       id: 'dritte', phase: 'Personen', title: 'Sonstige Angaben Dritter', lead: 'Anwohner, Firmen, Angehörige – keine unmittelbaren Zeugen', gen: 'subj',
       fields: [
         { k: 'dritte.vorhanden', t: 'yn', l: 'Angaben Dritter vorhanden?' },
-        { k: 'dritte.text', t: 'area', l: 'Wer hat was mitgeteilt?', ph: 'z. B. Marktleiter: Kamera erfasst den Parkplatz nur teilweise; Aufzeichnung wird 72 Stunden vorgehalten', rows: 3, when: d => get(d, 'dritte.vorhanden') === 'ja' }
+        { k: 'dritte.text', t: 'area', l: 'Wer hat was mitgeteilt? (ganze Sätze)', ph: 'Der Marktleiter teilte mit, die Parkplatzkamera erfasse nur die Einfahrt; die Aufzeichnung werde 72 Stunden gespeichert.', rows: 3, when: d => get(d, 'dritte.vorhanden') === 'ja' }
       ]
     },
 
@@ -536,14 +582,14 @@
       fields: [
         { k: 'massnahmen.kamera', t: 'yn', l: 'Unfallörtlichkeit auf Kameraüberwachung geprüft?', h: 'Anliegende Firmen, Tankstellen, Haltestellen, Dashcams' },
         { k: 'massnahmen.kameraErgebnis', t: 'choice', l: 'Ergebnis', o: [['keine', 'Keine Kamera vorhanden'], ['vorhanden', 'Kamera vorhanden, Sicherung veranlasst'], ['gesichert', 'Aufzeichnung gesichert'], ['angefragt', 'Anfrage läuft']], when: d => get(d, 'massnahmen.kamera') === 'ja' },
-        { k: 'massnahmen.kameraText', t: 'text', l: 'Details', ph: 'z. B. Kamera REWE, Ansprechpartner Marktleitung, Speicherdauer 72 h', when: d => get(d, 'massnahmen.kamera') === 'ja' && get(d, 'massnahmen.kameraErgebnis') !== 'keine' },
+        { k: 'massnahmen.kameraText', t: 'text', l: 'Kamera und Ansprechpartner', pre: 'Kamera / Ansprechpartner:', ph: 'Tankstelle Ecke Lindenstraße, Herr M., Speicherdauer 72 Stunden', when: d => get(d, 'massnahmen.kamera') === 'ja' && get(d, 'massnahmen.kameraErgebnis') !== 'keine' },
         { k: 'massnahmen.zeugensuche', t: 'yn', l: 'Aktiv nach weiteren Zeugen gesucht?' },
         { k: 'massnahmen.zeugensucheArt', t: 'multi', l: 'Wie?', o: [['anwohner', 'Anwohnerbefragung'], ['umfeld', 'Umfeld / Geschäfte'], ['zettel', 'Zeugenaufruf hinterlassen'], ['nachbarfz', 'Nachbarfahrzeuge geprüft']], when: d => get(d, 'massnahmen.zeugensuche') === 'ja' },
         { k: 'massnahmen.zeugensucheErgebnis', t: 'choice', l: 'Ergebnis', w: 'half', o: [['keine', 'ohne Ergebnis'], ['hinweise', 'mit Hinweisen']], when: d => get(d, 'massnahmen.zeugensuche') === 'ja' },
         { k: 'massnahmen.asservate', t: 'yn', l: 'Asservate (Folien, Lackproben, Teile) zum Vorgang genommen?' },
-        { k: 'massnahmen.asservateText', t: 'text', l: 'Welche?', ph: 'z. B. 2 Spurfix-Folien, 1 Pergamintüte Lackanrieb, Spiegelgehäuse', when: d => get(d, 'massnahmen.asservate') === 'ja' },
+        { k: 'massnahmen.asservateText', t: 'text', l: 'Welche?', pre: 'Folgende Asservate wurden zum Vorgang genommen:', ph: 'zwei Spurfix-Folien (Nr. 1 und 2) und eine Pergamintüte mit Lackanrieb', sugg: d => { const a = asservatVorschlag(d); return a ? [['Aus den Spuren übernehmen', a]] : []; }, when: d => get(d, 'massnahmen.asservate') === 'ja' },
         { k: 'massnahmen.sonstige', t: 'multi', l: 'Weitere Maßnahmen', o: [['anschluss', 'Anschlussermittlungen veranlasst'], ['vk', 'VK informiert'], ['sbl', 'Straßenbaulastträger informiert'], ['eigentum', 'Eigentumssicherung'], ['verkehr', 'Verkehrslenkung / Absicherung']] },
-        { k: 'massnahmen.weiteres', t: 'area', l: 'Sonstiges', rows: 2 },
+        { k: 'massnahmen.weiteres', t: 'area', l: 'Sonstiges (ganze Sätze)', ph: 'Der Straßenbaulastträger wurde über den beschädigten Poller informiert.', rows: 2 },
         { k: 'massnahmen.einsatzende', t: 'time', l: 'Einsatzende', w: 'half', q: 'jetzt' }
       ]
     },
@@ -554,11 +600,11 @@
       fields: [
         { k: 'bewertung.hergangArt', t: 'choice', l: 'Das Spurenbild spricht für …', o: [['rangieren', 'Rangieren / Ein- oder Ausparken'], ['vorbeifahrt', 'Streifkontakt bei Vorbeifahrt'], ['tuer', 'Anschlagen einer Fahrzeugtür'], ['wagen', 'Einkaufswagen / Handwagen'], ['auffahren', 'Auffahren von hinten'], ['unklar', 'Nicht eindeutig']] },
         { k: 'bewertung.uebereinstimmung', t: 'choice', l: 'Aussagen und Spurenbild', o: [['stimmig', 'stimmen überein'], ['teils', 'stimmen teilweise überein'], ['widerspruch', 'widersprechen sich'], ['keine', 'keine Aussagen vorhanden']] },
-        { k: 'bewertung.hergang', t: 'area', l: 'Vermutlicher Unfallhergang in eigenen Worten (optional)', ph: 'Aus Sicht der Polizei, nicht der Beteiligten', rows: 3 },
+        { k: 'bewertung.hergang', t: 'area', l: 'Vermutlicher Unfallhergang – leer lassen übernimmt den grauen Vorschlag', ph: d => (root.WVUF ? root.WVUF.hergangVorschlag(d) : ''), sugg: d => (root.WVUF ? [['Vorschlag übernehmen und anpassen', root.WVUF.hergangVorschlag(d)]] : []), rows: 4 },
         { k: 'bewertung.widersprueche', t: 'yn', l: 'Widersprüche festgestellt?' },
-        { k: 'bewertung.widerspruecheText', t: 'area', l: 'Welche?', rows: 2, when: d => get(d, 'bewertung.widersprueche') === 'ja' },
+        { k: 'bewertung.widerspruecheText', t: 'area', rows: 2, l: 'Welche?', pre: 'Widersprüche:', ph: 'Der Beschuldigte will nur einen leichten Ruck bemerkt haben; das Schadensbild spricht für einen deutlich wahrnehmbaren Anstoß.', when: d => get(d, 'bewertung.widersprueche') === 'ja' },
         { k: 'bewertung.manipulation', t: 'choice', l: 'Anhaltspunkte für Vortäuschung oder Manipulation?', h: 'Spurenkatalog: Spuren an untypischen Stellen (unterhalb von Stoßfängerkanten), Basalt-/Pflasteranhaftungen, Stanzformen – DA 3.6: gesonderter Vermerk an die Sachbearbeitung.', o: [['nein', 'Nein'], ['vermutung', 'Vermutung (Vermerk)'], ['konkret', 'Konkrete Verdachtsmomente']] },
-        { k: 'bewertung.manipulationText', t: 'area', l: 'Welche Anhaltspunkte?', rows: 2, when: d => get(d, 'bewertung.manipulation') !== 'nein' && has(get(d, 'bewertung.manipulation')) },
+        { k: 'bewertung.manipulationText', t: 'text', l: 'Welche Anhaltspunkte?', pre: 'Anhaltspunkte:', ph: 'Kratzspuren unterhalb der Stoßfängerkante, Anhaftungen von Pflastersteinmaterial', when: d => get(d, 'bewertung.manipulation') !== 'nein' && has(get(d, 'bewertung.manipulation')) },
         { k: 'meta.klarnamen', t: 'yn', l: 'Klarnamen im Berichtstext verwenden?', h: 'DA 1.2: Im Unfallbefundbericht auf Klarnamen verzichten – Rollen und Ordnungsnummern genügen. Personalien stehen gesondert am Ende.', o: [['nein', 'Nein (Rollen + Nr.)'], ['ja', 'Ja']] }
       ]
     }
@@ -571,7 +617,7 @@
 (function (root) {
   'use strict';
   const C = root.WVUF_CORE;
-  const { get, str, has, num, cap, low, arr, endDot, numWord, euro, joinList, fmtDate, fmtTime, when, period, PH, person, crewText, vehicle, vehicleG, partText } = C;
+  const { get, str, has, num, cap, low, arr, endDot, numWord, euro, joinList, fmtDate, fmtTime, when, period, PH, person, crewText, vehicle, vehicleG, partText, slot, sent } = C;
 
   /* ---------- Kontext: Personen & Fahrzeuge mit passender Referenz ---------- */
   function ctx(d) {
@@ -611,9 +657,9 @@
       const rand = seite === 'links' ? 'am linken Fahrbahnrand der ' : seite === 'rechts' ? 'am rechten Fahrbahnrand der ' : 'auf der ';
       return rand + adresse(d, true);
     }
-    const zu = str(o.zugehoerigkeit);
+    const zu = slot(o.zugehoerigkeit);
     const art = o.art === 'parkhaus' ? 'im Parkhaus' : o.art === 'parkplatz' ? 'auf dem Parkplatz' : 'auf der Fläche';
-    return (zu ? (o.art === 'parkhaus' ? 'im ' : 'auf dem ') + zu : art) + ', ' + adresse(d, true);
+    return art + (zu ? ' ' + zu : '') + ', ' + adresse(d, true);
   }
 
   /* ---------- 1 Allgemeines ---------- */
@@ -632,7 +678,7 @@
       if (e.unfallstelleAufgesucht === 'ja') s3 += ' Die Unfallstelle wurde im Anschluss aufgesucht, um die Sachverhaltsdarstellung mit dem Spurenbild abzugleichen und weitergehende Maßnahmen zu prüfen.';
       else if (e.unfallstelleAufgesucht === 'nein') s3 += ' Die Unfallstelle wurde nicht aufgesucht.';
     } else if (e.aufnahmeort === 'unfallort') s3 = 'Die Unfallaufnahme erfolgte am Unfallort.';
-    const anf = has(e.anfahrt) ? 'Anfahrt: ' + endDot(e.anfahrt) : '';
+    const anf = has(e.anfahrt) ? `Während der Anfahrt ${slot(e.anfahrt)}.` : '';
     return B(P(s1, mit, s3), anf);
   }
   function allg2(d) {
@@ -650,10 +696,10 @@
     const x = ctx(d);
     const zeit = has(e.eintreffZeit) ? `Beim Eintreffen um ${fmtTime(e.eintreffZeit)}` : 'Beim Eintreffen';
     let s1;
-    if (has(s.text)) s1 = `${zeit} ergab sich folgende Situation: ${endDot(s.text)}`;
+    if (has(s.text)) s1 = `${zeit} ${slot(s.text)}.`;
     else if (x.istFz && x.geparkt) s1 = `${zeit} stand ${vehicle(x.fz02, 'nom', true)} ${x.g.gen} ${parkPhrase(d, 'kurz')}.`;
     else s1 = `${zeit} ${PH('Eintreffsituation: Standorte, Personen, Fahrzeuge')}.`;
-    const v = s.veraendert === 'ja' ? `Die Unfallstelle war vor dem Eintreffen verändert worden${has(s.veraendertText) ? ' (' + str(s.veraendertText) + ')' : ''}.` : s.veraendert === 'nein' ? 'Veränderungen an der Unfallstelle vor dem Eintreffen wurden nicht festgestellt.' : '';
+    const v = s.veraendert === 'ja' ? (has(s.veraendertText) ? `Vor dem Eintreffen ${slot(s.veraendertText)}.` : 'Die Unfallstelle war vor dem Eintreffen verändert worden.') : s.veraendert === 'nein' ? 'Veränderungen an der Unfallstelle vor dem Eintreffen wurden nicht festgestellt.' : '';
     const f = s.fotos === 'ja' ? 'Die Eintreffsituation wurde durch Übersichtsaufnahmen fotografisch dokumentiert.' : '';
     return P(s1, v, f);
   }
@@ -668,12 +714,12 @@
       out.push(`Bei der Unfallörtlichkeit handelt es sich um die ${lage}${typ} ${quoteStr(o.strasse)}${has(o.hausnr) ? ' in Höhe der Hausnummer ' + str(o.hausnr) : ''}, ${[str(o.plz), str(o.stadt) || PH('Ort')].filter(Boolean).join(' ')}${has(o.ortsteil) ? ' (Ortsteil ' + str(o.ortsteil) + ')' : ''}.`);
     } else {
       const was = o.art === 'parkhaus' ? 'das Parkhaus' : o.art === 'parkplatz' ? 'den Parkplatz' : 'die Verkehrsfläche';
-      out.push(`Bei der Unfallörtlichkeit handelt es sich um ${has(o.zugehoerigkeit) ? was + ' ' + quoteStr(o.zugehoerigkeit) : was}, ${adresse(d)}.`);
+      out.push(`Bei der Unfallörtlichkeit handelt es sich um ${was}${has(o.zugehoerigkeit) ? ' ' + slot(o.zugehoerigkeit) : ''}, ${adresse(d)}.`);
       if (o.oeffentlich === 'ja') out.push('Die Fläche ist für jedermann zugänglich und damit öffentlicher Verkehrsraum.');
       else if (o.oeffentlich === 'nein') out.push('Die Fläche ist nicht für jedermann zugänglich (Zugang nur für Berechtigte); es handelt sich nach den Feststellungen vor Ort nicht um öffentlichen Verkehrsraum.');
       else if (o.oeffentlich === 'unklar') out.push('Ob die Fläche öffentlicher Verkehrsraum ist, bedarf der Prüfung durch die Sachbearbeitung.');
     }
-    if (has(o.position)) out.push(`Die Unfallstelle befindet sich ${lowFirst(o.position)}.`);
+    if (has(o.position)) out.push(`Die Unfallstelle befindet sich ${slot(o.position)}.`);
     if (o.ortSicher === 'unsicher') out.push(`${x.g.Nom} konnte den Unfallort nicht mit Sicherheit angeben.`);
     const p1 = out.join(' ');
 
@@ -695,7 +741,7 @@
       if (po) v.push(po);
       const vl = { gerade: 'verläuft gerade', links: 'verläuft in einer Linkskurve', rechts: 'verläuft in einer Rechtskurve', kreuzung: 'liegt im Bereich einer Kreuzung bzw. Einmündung' }[o.verlauf];
       const st = { eben: 'ist eben', gefaelle: 'weist ein Gefälle auf', steigung: 'weist eine Steigung auf' }[o.steigung];
-      const fr = has(o.fahrtrichtung) ? ` (bezogen auf die Fahrtrichtung ${str(o.fahrtrichtung)})` : '';
+      const fr = has(o.fahrtrichtung) ? ` (bezogen auf die Fahrtrichtung ${slot(o.fahrtrichtung)})` : '';
       if (vl && st) v.push(`Der Streckenabschnitt ${vl} und ${st}${fr}.`);
       else if (vl) v.push(`Der Streckenabschnitt ${vl}${fr}.`);
       else if (st) v.push(`Der Streckenabschnitt ${st}${fr}.`);
@@ -720,7 +766,7 @@
     if (we) w.push(we);
     const si = { gut: 'Die Sichtverhältnisse waren gut.', eingeschraenkt: 'Die Sichtverhältnisse waren eingeschränkt', schlecht: 'Die Sichtverhältnisse waren schlecht' }[o.sicht];
     if (o.sicht === 'gut') w.push(si);
-    else if (si) w.push(si + (has(o.sichtbehinderung) ? ' (Sichtbehinderung durch ' + str(o.sichtbehinderung) + ')' : '') + '.');
+    else if (si) w.push(!has(o.sichtbehinderung) ? si + '.' : o.sicht === 'schlecht' ? `${si}; die Sicht war zusätzlich eingeschränkt durch ${slot(o.sichtbehinderung)}.` : `Die Sicht war eingeschränkt durch ${slot(o.sichtbehinderung)}.`);
     return B(p1, v.join(' '), w.join(' '));
   }
   const quoteStr = s => (has(s) ? '„' + str(s) + '“' : PH('Straße'));
@@ -741,15 +787,16 @@
     const x = ctx(d), u = get(d, 'ub02') || {};
     if (!x.istFz) {
       const out = [];
-      out.push(`Beschädigt wurde ${has(u.sache) ? lowFirst(u.sache) : PH('Sache')}${has(u.sacheEigentuemer) ? '; ' + str(u.sacheEigentuemer) : ''}.`);
-      if (has(u.sacheSchaden)) out.push(endDot(u.sacheSchaden));
-      if (u.sacheFremdlack === 'ja') out.push(`An der Anstoßstelle ${has(u.sacheFarbe) ? 'wurde ' + lowFirst(u.sacheFarbe) + ' festgestellt' : 'wurden Fremdlack- bzw. Fremdmaterialanhaftungen festgestellt'}.`);
+      out.push(`Bei der beschädigten Sache handelt es sich um ${has(u.sache) ? slot(u.sache) : PH('Sache')}.`);
+      if (has(u.sacheEigentuemer)) out.push(`Eigentümer bzw. zuständig ist ${slot(u.sacheEigentuemer)}.`);
+      if (has(u.sacheSchaden)) out.push(`An der Sache ${slot(u.sacheSchaden)}.`);
+      if (u.sacheFremdlack === 'ja') out.push(has(u.sacheFarbe) ? `An der Anstoßstelle fand sich ${slot(u.sacheFarbe)}.` : 'An der Anstoßstelle wurden Fremdlack- bzw. Fremdmaterialanhaftungen festgestellt.');
       else if (u.sacheFremdlack === 'nein') out.push('Fremdlack- oder Fremdmaterialanhaftungen waren an der Anstoßstelle nicht erkennbar.');
       return B(out.join(' '), wertText(d));
     }
     const intro = [];
     const fzFull = vehicle(x.fz02, 'nom', true);
-    const poss = ['halterfahrer', 'halter', 'eigentuemer'].includes(get(d, 'gesch.rolle')) ? x.g.gen : has(get(d, 'gesch.firma')) ? 'der Firma ' + str(get(d, 'gesch.firma')) : x.g.gen;
+    const poss = x.g.gen + (['fahrer', 'nutzer'].includes(get(d, 'gesch.rolle')) && has(get(d, 'gesch.firma')) ? ` (Halter: ${slot(get(d, 'gesch.firma'))})` : '');
     if (x.geparkt) {
       const p = u.park || {};
       intro.push(`${cap(fzFull)} ${poss} war ${zeitPhrase(d)} ${parkPhrase(d)}.`);
@@ -757,13 +804,13 @@
         const f = person('fahrer', p.fahrer, { klarnamen: x.kl });
         intro.push(`Abgestellt wurde das Fahrzeug nicht ${x.g.dat} selbst, sondern ${x.kl && f.name ? f.name : 'einer anderen Person'} (siehe Personalien).`);
       }
-      if (p.beladen === 'ja') intro.push(`Das Fahrzeug war ${has(p.beladenText) ? 'beladen bzw. besetzt (' + str(p.beladenText) + ')' : 'beladen bzw. besetzt'}.`);
+      if (p.beladen === 'ja') intro.push(has(p.beladenText) ? `Das Fahrzeug war ${slot(p.beladenText)}.` : 'Das Fahrzeug war beladen bzw. besetzt.');
       else if (p.beladen === 'nein') intro.push('Das Fahrzeug war unbeladen und unbesetzt.');
     } else {
       const f = u.fahrt || {};
       const vg = { geradeaus: 'befuhr die Straße in Geradeausfahrt', warten: 'stand verkehrsbedingt wartend', abbiegen: 'befand sich im Abbiegevorgang', ueberholen: 'befand sich im Überhol- bzw. Vorbeifahrvorgang', einparken: 'befand sich im Einparkvorgang', ausparken: 'befand sich im Ausparkvorgang', kreisverkehr: 'befuhr den Kreisverkehr' }[f.vorgang] || PH('Fahrvorgang');
-      intro.push(`${cap(fzFull)} ${poss} ${vg}${has(f.richtung) ? ' in Fahrtrichtung ' + str(f.richtung) : ''}${num(f.tempo) ? ' mit ca. ' + num(f.tempo) + ' km/h' : ''}, als es ${zeitPhrase(d)} an der Unfallörtlichkeit ${ortKurz(d)} zu dem Zusammenstoß kam.`);
-      if (has(f.text)) intro.push(endDot(f.text));
+      intro.push(`${cap(fzFull)} ${poss} ${vg}${has(f.richtung) ? ' in Fahrtrichtung ' + slot(f.richtung) : ''}${num(f.tempo) ? ' mit ca. ' + num(f.tempo) + ' km/h' : ''}, als es ${zeitPhrase(d)} an der Unfallörtlichkeit ${ortKurz(d)} zu dem Zusammenstoß kam.`);
+      if (has(f.text)) intro.push(sent(f.text));
     }
     const teile = arr(u.teile).filter(t => t && has(t.name));
     let schaden;
@@ -771,8 +818,8 @@
     else schaden = `Am Fahrzeug ${PH('Beschädigungen – noch keine Fahrzeugteile erfasst')}.`;
     const nach = [];
     if (u.verdeckt === 'ja') nach.push('Aufgrund der festgestellten äußeren Beschädigungen können verdeckte Schäden, insbesondere an Trägerstrukturen, Befestigungspunkten und Verformungselementen, nicht ausgeschlossen werden.');
-    if (u.altschaden === 'ja') nach.push(`Davon abgrenzbar wies das Fahrzeug Altschäden auf${has(u.altschadenText) ? ' (' + str(u.altschadenText) + ')' : ''}, die nicht dem Unfallgeschehen zuzuordnen sind.`);
-    else if (u.altschaden === 'unklar') nach.push(`Eine sichere Abgrenzung zu möglichen Altschäden war vor Ort nicht möglich${has(u.altschadenText) ? ' (' + str(u.altschadenText) + ')' : ''}.`);
+    if (u.altschaden === 'ja') nach.push(has(u.altschadenText) ? `Davon abgrenzbar wies das Fahrzeug Altschäden auf: Als Altschäden erkennbar waren ${slot(u.altschadenText)}; diese sind nicht dem Unfallgeschehen zuzuordnen.` : 'Davon abgrenzbar wies das Fahrzeug Altschäden auf, die nicht dem Unfallgeschehen zuzuordnen sind.');
+    else if (u.altschaden === 'unklar') nach.push(`Eine sichere Abgrenzung zu möglichen Altschäden war vor Ort nicht möglich.${has(u.altschadenText) ? ` Als mögliche Altschäden in Betracht kommen ${slot(u.altschadenText)}.` : ''}`);
     else if (u.altschaden === 'nein') nach.push('Weitere, nicht unfallbedingte Altschäden waren am Fahrzeug nicht erkennbar.');
     const wt = wertText(d);
     if (u.fahrbereit === 'ja') nach.push('Das Fahrzeug war fahrbereit und verkehrssicher.');
@@ -796,7 +843,7 @@
       out.push(`Fremdlackanriebe bzw. -splitter wurden ${s.lackprobeArt === 'schneiden' ? 'durch Schneiden bzw. Ausheben bis zum Träger' : 'als lose Partikel'} gesondert gesichert und dem Vorgang als Asservat beigefügt (für eine mögliche Materialuntersuchung beim LKA geeignet).`);
       if (s.eigenlack === 'ja') out.push('Zu Vergleichszwecken wurde zusätzlich eine Probe des Eigenlacks des geschädigten Fahrzeugs gesichert.');
     }
-    if (s.fremdteile === 'ja') out.push(`${has(s.fremdteileText) ? 'Als Fremdteile wurden aufgefunden: ' + endDot(s.fremdteileText) : 'Es wurden Fremdteile des Verursacherfahrzeugs aufgefunden.'} ${s.fremdteileSicher === 'ja' ? 'Die Teile wurden sichergestellt und dem Vorgang beigefügt.' : s.fremdteileSicher === 'nein' ? 'Eine Sicherstellung erfolgte nicht.' : ''}`.trim());
+    if (s.fremdteile === 'ja') out.push(`${has(s.fremdteileText) ? `Folgende Fremdteile wurden aufgefunden: ${slot(s.fremdteileText)}.` : 'Es wurden Fremdteile des Verursacherfahrzeugs aufgefunden.'} ${s.fremdteileSicher === 'ja' ? 'Die Teile wurden sichergestellt und dem Vorgang beigefügt.' : s.fremdteileSicher === 'nein' ? 'Eine Sicherstellung erfolgte nicht.' : ''}`.trim());
     else if (s.fremdteile === 'nein') out.push('Fremdteile des Verursacherfahrzeugs wurden nicht aufgefunden.');
     if (s.fotosMassstab === 'ja') out.push('Die Beschädigungen wurden unter Verwendung eines Maßstabs fotografisch dokumentiert, sodass die Anstoßhöhen nachvollziehbar sind.');
     if (s.mikroskop === 'ja') out.push('Eine optische Vorauswertung der Anhaftungen (Handmikroskop) wurde im Ersten Angriff durchgeführt.');
@@ -831,13 +878,13 @@
     else if (f.vorhanden === 'ja') {
       const ART = { splitter: 'Glas- bzw. Kunststoffsplitter', teile: 'Fahrzeugteile', lack: 'Lackpartikel', reifen: 'Reifen- bzw. Rangierspuren', fluessig: 'Flüssigkeitsspuren', schmutz: 'Schmutzabwurf', kratz: 'Kratzspuren am Boden' };
       const a = arr(f.arten).map(k => ART[k]).filter(Boolean);
-      out.push(`Auf der Fahrbahn ${a.length ? 'wurden ' + joinList(a) + ' festgestellt' : 'wurden Spuren festgestellt'}${has(f.text) ? ': ' + endDot(f.text) : '.'}`);
+      out.push(`Auf der Fahrbahn ${a.length ? 'wurden ' + joinList(a) + ' festgestellt' : 'wurden Spuren festgestellt'}.${has(f.text) ? ` Die Spuren befanden sich ${slot(f.text)}.` : ''}`);
       if (f.gesichert === 'ja') out.push('Die Spuren wurden fotografisch dokumentiert und, soweit möglich, gesichert.');
       else if (f.gesichert === 'nein') out.push('Eine Sicherung der Spuren war nicht möglich bzw. nicht erforderlich.');
     } else out.push(PH('Spuren auf der Fahrbahn'));
     const p1 = out.join(' ');
     let p2 = '';
-    if (s.vorhanden === 'ja') p2 = 'Spuren an sonstigen Gegenständen: ' + (has(s.text) ? endDot(s.text) : PH('Beschreibung'));
+    if (s.vorhanden === 'ja') p2 = `Weitere Spuren fanden sich an ${has(s.text) ? slot(s.text) : PH('Gegenstand')}.`;
     else if (s.vorhanden === 'nein') p2 = 'Spuren an sonstigen Gegenständen (Verkehrseinrichtungen, Gebäude, Zäune) wurden nicht festgestellt.';
     return B(p1, p2);
   }
@@ -852,15 +899,17 @@
     out.push(`Hinweise auf den Unfallverursacher liegen vor${q.length ? ' (durch ' + joinList(q) + ')' : ''}.`);
     const f = t.fz || {};
     if (has(f.art) || has(f.marke) || has(f.farbe) || has(f.kz)) {
-      out.push(`Bei dem flüchtigen Fahrzeug soll es sich um ${vehicle(f, 'akk', true)} handeln${has(f.besonderheiten) ? '; Besonderheiten: ' + str(f.besonderheiten) : ''}.`);
+      out.push(`Bei dem flüchtigen Fahrzeug soll es sich um ${vehicle(f, 'akk', true)} handeln.`);
       if (f.kzFragment && has(f.kz)) out.push('Das Kennzeichen konnte nur fragmentarisch abgelesen werden.');
-    } else if (has(f.besonderheiten)) out.push('Besonderheiten des Verursacherfahrzeugs: ' + endDot(f.besonderheiten));
-    if (has(f.fluchtrichtung)) out.push(`Das Fahrzeug entfernte sich ${str(f.fluchtrichtung)}.`);
+    }
+    if (has(f.besonderheiten)) out.push(`Besonderheiten am Fahrzeug: ${slot(f.besonderheiten)}.`);
+    if (has(f.fluchtrichtung)) out.push(`Das Fahrzeug entfernte sich ${slot(f.fluchtrichtung)}.`);
     const pe = t.personen || {};
     const n = num(pe.anzahl);
-    const fa = { m: 'ein männlicher Fahrer', w: 'eine weibliche Fahrerin', u: 'eine Person, deren Geschlecht nicht sicher angegeben werden konnte' }[pe.fahrer];
-    if (n != null || fa) out.push(`${n != null ? 'In dem Fahrzeug befand' + (n === 1 ? ' sich eine Person' : 'en sich ' + numWord(n) + ' Personen') : 'Zu den Insassen'}${fa ? (n != null ? '; am Steuer saß ' : ' wurde angegeben: am Steuer saß ') + fa : ''}.`);
-    if (has(pe.beschreibung)) out.push('Beschreibung: ' + endDot(pe.beschreibung));
+    const fa = { m: 'ein Mann', w: 'eine Frau', u: 'eine Person, deren Geschlecht nicht sicher angegeben werden konnte' }[pe.fahrer];
+    if (n != null) out.push(`In dem Fahrzeug befand${n === 1 ? ' sich eine Person' : 'en sich ' + numWord(n, true) + ' Personen'}${fa ? '; am Steuer saß ' + fa : ''}.`);
+    else if (fa) out.push(`Am Steuer saß ${fa}.`);
+    if (has(pe.beschreibung)) out.push(`${{ m: 'Der Fahrer', w: 'Die Fahrerin' }[pe.fahrer] || 'Die fahrzeugführende Person'} wurde beschrieben als ${slot(pe.beschreibung)}.`);
     const fg = pe.fahrer === 'w' ? 'der Fahrerin' : 'des Fahrers';
     const we = { ja: `${pe.fahrer === 'w' ? 'Die Fahrerin' : 'Der Fahrer'} würde wiedererkannt werden.`, evtl: `Ein Wiedererkennen ${fg} wird für möglich gehalten.`, nein: `Ein Wiedererkennen ${fg} ist nicht möglich.` }[pe.wiedererkennen];
     if (we) out.push(we);
@@ -871,14 +920,14 @@
       const wz = num(v.wartezeit);
       vh.push(`${tf.Nom} hielt nach dem Anstoß zunächst an${v.ausgestiegen === 'ja' ? ', stieg aus und begutachtete den Schaden' : v.ausgestiegen === 'nein' ? ', ohne auszusteigen,' : ''}${wz != null ? ' und verblieb ' + (wz === 0 ? 'nur wenige Augenblicke' : 'ca. ' + wz + ' Minute' + (wz === 1 ? '' : 'n')) + ' vor Ort' : ''}, bevor ${tf.er} sich entfernte.`);
     } else if (v.angehalten === 'nein') vh.push(`${tf.Nom} hielt nach dem Anstoß nicht an und setzte die Fahrt unmittelbar fort.`);
-    if (v.aufgefordert === 'ja') vh.push(`${tf.Er} wurde${has(v.aufgefordertVon) ? ' ' + (/^(von|vom|durch)\b/i.test(str(v.aufgefordertVon)) ? '' : 'von ') + str(v.aufgefordertVon) : ''} aufgefordert, an der Unfallstelle zu bleiben, kam dem jedoch nicht nach.`);
+    if (v.aufgefordert === 'ja') { let von = slot(v.aufgefordertVon); if (/^(den|die) geschädigten?$|^die geschädigte person$/i.test(von)) von = x.g.akk; vh.push(`${tf.Er} wurde${von ? (/^(von|vom|durch)\s/i.test(von) ? ' ' + von : ' durch ' + von) : ''} aufgefordert, an der Unfallstelle zu bleiben, kam dem jedoch nicht nach.`); }
     else if (v.aufgefordert === 'nein') vh.push('Eine Aufforderung, an der Unfallstelle zu bleiben, erfolgte nicht.');
-    if (v.zettel === 'ja') vh.push(`Am Fahrzeug ${x.g.gen} wurde ein Zettel hinterlassen${has(v.zettelText) ? ' (' + str(v.zettelText) + ')' : ''}; eine Benachrichtigung der Polizei oder ${x.g.gen} erfolgte durch den Verursacher nicht.`);
+    if (v.zettel === 'ja') vh.push(`Am Fahrzeug ${x.g.gen} wurde ein Zettel hinterlassen.${has(v.zettelText) ? ` Auf dem Zettel war vermerkt: ${slot(v.zettelText)}.` : ''}`);
     else if (v.zettel === 'nein') vh.push('Ein Zettel mit Kontaktdaten wurde nicht hinterlassen.');
     if (v.geraeusch === 'ja') vh.push(`Nach den Angaben vor Ort war der Anstoß so laut und deutlich wahrnehmbar, dass er ${tf.er === 'sie' ? 'der Fahrerin' : 'dem Fahrer'} nicht entgangen sein kann.`);
     else if (v.geraeusch === 'nein') vh.push(`Ob ${tf.er === 'sie' ? 'die Fahrerin' : 'der Fahrer'} den Anstoß bemerkt hat, ist nach den Angaben vor Ort fraglich.`);
     if (num(v.tempo) != null) vh.push(`Die Geschwindigkeit des Verursacherfahrzeugs wurde auf ca. ${num(v.tempo)} km/h geschätzt.`);
-    if (v.alkohol === 'ja') vh.push(`Es bestanden Anzeichen für eine alkohol- bzw. drogenbedingte Beeinflussung ${tf.er === 'sie' ? 'der Fahrerin' : 'des Fahrers'}${has(v.alkoholText) ? ' (' + str(v.alkoholText) + ')' : ''}.`);
+    if (v.alkohol === 'ja') vh.push(`Es bestanden Anzeichen für eine alkohol- bzw. drogenbedingte Beeinflussung ${tf.er === 'sie' ? 'der Fahrerin' : 'des Fahrers'}.${has(v.alkoholText) ? ` Dies zeigte sich an ${slot(v.alkoholText)}.` : ''}`);
     else if (v.alkohol === 'nein') vh.push('Anzeichen für eine Beeinflussung durch Alkohol oder Drogen wurden nicht geschildert.');
     return B(out.join(' '), vh.join(' '));
   }
@@ -890,8 +939,8 @@
     // 3.1 Geschädigte/r
     const s = [];
     const anw = g.anwesend === 'ja' ? ' war bei der Unfallaufnahme vor Ort anwesend.' : g.anwesend === 'nein' ? ' war bei der Unfallaufnahme nicht vor Ort anwesend.' : '';
-    const rolle = { halterfahrer: `${x.g.Er} ist Halter${x.g.fem ? 'in' : ''} und ${x.g.fem ? 'Führerin' : 'Führer'} des Fahrzeugs.`, halter: `${x.g.Er} ist Halter${x.g.fem ? 'in' : ''} des Fahrzeugs.`, fahrer: `${x.g.Er} ist ${x.g.fem ? 'Führerin' : 'Führer'}, nicht jedoch Halter${x.g.fem ? 'in' : ''} des Fahrzeugs${has(g.firma) ? ' (Halter: ' + str(g.firma) + ')' : ''}.`, nutzer: `${x.g.Er} ist nutzungsberechtigt${has(g.firma) ? ' (Halter: ' + str(g.firma) + ')' : ''}.`, eigentuemer: `${x.g.Er} ist Eigentümer${x.g.fem ? 'in' : ''} der beschädigten Sache.` }[g.rolle] || '';
-    s.push(`${x.g.FirstNom}${anw || '.'} ${rolle}`.trim());
+    const rolle = { halterfahrer: `${x.g.Er} ist Halter${x.g.fem ? 'in' : ''} und ${x.g.fem ? 'Führerin' : 'Führer'} des Fahrzeugs.`, halter: `${x.g.Er} ist Halter${x.g.fem ? 'in' : ''} des Fahrzeugs.`, fahrer: `${x.g.Er} ist ${x.g.fem ? 'Führerin' : 'Führer'}, nicht jedoch Halter${x.g.fem ? 'in' : ''} des Fahrzeugs.${has(g.firma) ? ` Halter des Fahrzeugs ist ${slot(g.firma)}.` : ''}`, nutzer: `${x.g.Er} ist nutzungsberechtigt.${has(g.firma) ? ` Halter des Fahrzeugs ist ${slot(g.firma)}.` : ''}`, eigentuemer: `${x.g.Er} ist Eigentümer${x.g.fem ? 'in' : ''} der beschädigten Sache.` }[g.rolle] || '';
+    s.push(anw ? `${x.g.FirstNom}${anw} ${rolle}`.trim() : rolle ? rolle.replace(x.g.Er + ' ', x.g.FirstNom + ' ') : `${x.g.FirstNom}:`);
     const bel = g.belehrt === 'ja' ? `Nach zeugenschaftlicher Belehrung${has(g.belehrtVon) ? ' durch ' + str(g.belehrtVon) : ''} gab ${x.g.er} sinngemäß Folgendes an:` : g.belehrt === 'nein' ? `Im Rahmen der informatorischen Befragung gab ${x.g.er} sinngemäß Folgendes an:` : `${PH('Belehrung')} ${cap(x.g.er)} gab sinngemäß Folgendes an:`;
     let ang = '';
     if (g.modus === 'abgestellt') {
@@ -902,13 +951,13 @@
       ang = `${x.g.Er} habe ${fzRef} ${ab || PH('Abstellzeit')} ${ortKurz(d)} ${parkPhrase(d, 'angabe')} abgestellt. Bei ${x.g.poss('dat', 'w')} Rückkehr ${rk || PH('Rückkehrzeit')} habe ${x.g.er} das Fahrzeug beschädigt vorgefunden.`.replace(/\s+/g, ' ');
       const auf = { selbst: '', zeuge: ` Auf den Unfall sei ${x.g.er} durch einen Zeugen aufmerksam gemacht worden.`, nachbar: ` Auf den Unfall sei ${x.g.er} durch Nachbarn bzw. Anwohner aufmerksam gemacht worden.`, zettel: ` Auf den Unfall sei ${x.g.er} durch einen am Fahrzeug hinterlassenen Zettel aufmerksam geworden.`, geraeusch: ` ${x.g.Er} habe ein Anstoßgeräusch gehört und daraufhin nachgesehen.`, beobachtet: ` ${x.g.Er} habe den Unfall selbst beobachtet.` }[g.aufmerksam] || '';
       ang += auf;
-      if (has(g.standort)) ang += ` Zum Unfallzeitpunkt habe ${x.g.er} sich ${lowFirst(g.standort)} befunden${g.sichtkontakt === 'ja' ? ' und Sichtkontakt zum Fahrzeug gehabt' : g.sichtkontakt === 'nein' ? ' und keinen Sichtkontakt zum Fahrzeug gehabt' : ''}.`;
-      if (g.zwischenzeit === 'ja') ang += ` In der Zwischenzeit habe ${x.g.er} Folgendes festgestellt: ${has(g.zwischenzeitText) ? endDot(g.zwischenzeitText) : PH('Zwischenfeststellung')}`;
+      if (has(g.standort)) ang += ` Zum Unfallzeitpunkt habe ${x.g.er} sich ${slot(g.standort)} befunden${g.sichtkontakt === 'ja' ? ' und Sichtkontakt zum Fahrzeug gehabt' : g.sichtkontakt === 'nein' ? ' und keinen Sichtkontakt zum Fahrzeug gehabt' : ''}.`;
+      if (g.zwischenzeit === 'ja') ang += ` In der Zwischenzeit habe ${x.g.er} Folgendes festgestellt: ${has(g.zwischenzeitText) ? sent(g.zwischenzeitText) : PH('Zwischenfeststellung')}`;
       else if (g.zwischenzeit === 'nein') ang += ` Weitere Feststellungen in der Zwischenzeit habe ${x.g.er} nicht gemacht.`;
       ang += ` ${x.g.Er} gehe davon aus, dass es in diesem Zeitraum zu einem Verkehrsunfall gekommen sei, bei dem das Fahrzeug beschädigt wurde, und dass sich der Verursacher entfernt habe, ohne die erforderlichen Feststellungen zu ermöglichen.`;
     } else if (g.modus === 'beobachtet' || g.modus === 'frei') {
-      ang = has(g.freitext) ? str(g.freitext) : PH('Angaben der geschädigten Person');
-      if (g.modus === 'beobachtet' && has(g.standort)) ang += ` Zum Unfallzeitpunkt habe ${x.g.er} sich ${lowFirst(g.standort)} befunden.`;
+      ang = has(g.freitext) ? sent(g.freitext) : PH('Angaben der geschädigten Person');
+      if (g.modus === 'beobachtet' && has(g.standort)) ang += ` Zum Unfallzeitpunkt habe ${x.g.er} sich ${slot(g.standort)} befunden.`;
     } else ang = PH('Vorlage für die Schilderung wählen');
     const sch = num(g.schaden);
     const nach = [];
@@ -925,7 +974,7 @@
       if (b.fs === 'ja') t.push('Eine gültige Fahrerlaubnis wurde vorgelegt.');
       else if (b.fs === 'nein') t.push('Eine Fahrerlaubnis wurde nicht vorgelegt.');
       if (b.belehrt === 'ja') {
-        const e = { angaben: `Nach Beschuldigtenbelehrung${has(b.belehrtVon) ? ' durch ' + str(b.belehrtVon) : ''} machte ${x.b.er} sinngemäß folgende Angaben:\n${has(b.text) ? str(b.text) : PH('Einlassung')}`, keine: `Nach Beschuldigtenbelehrung${has(b.belehrtVon) ? ' durch ' + str(b.belehrtVon) : ''} machte ${x.b.er} keine Angaben zur Sache.`, verweigert: `Nach Beschuldigtenbelehrung${has(b.belehrtVon) ? ' durch ' + str(b.belehrtVon) : ''} verweigerte ${x.b.er} jegliche Angaben und verwies auf ${x.b.poss('akk', 'm')} Rechtsbeistand.` }[b.einlassung] || `${x.b.Er} wurde als Beschuldigte${x.b.fem ? '' : 'r'} belehrt.`;
+        const e = { angaben: `Nach Beschuldigtenbelehrung${has(b.belehrtVon) ? ' durch ' + str(b.belehrtVon) : ''} machte ${x.b.er} sinngemäß folgende Angaben:\n${has(b.text) ? sent(b.text) : PH('Einlassung')}`, keine: `Nach Beschuldigtenbelehrung${has(b.belehrtVon) ? ' durch ' + str(b.belehrtVon) : ''} machte ${x.b.er} keine Angaben zur Sache.`, verweigert: `Nach Beschuldigtenbelehrung${has(b.belehrtVon) ? ' durch ' + str(b.belehrtVon) : ''} verweigerte ${x.b.er} jegliche Angaben und verwies auf ${x.b.poss('akk', 'm')} Rechtsbeistand.` }[b.einlassung] || `${x.b.Er} wurde als Beschuldigte${x.b.fem ? '' : 'r'} belehrt.`;
         t.push(e);
       } else if (b.belehrt === 'nein') t.push(`Eine Beschuldigtenbelehrung erfolgte vor Ort nicht; ${x.b.er} wurde lediglich informatorisch angehört.`);
       blocks.push(t.join(' '));
@@ -938,9 +987,9 @@
         t.push(art);
         const ent = num(z.entfernung);
         const sicht = { frei: 'mit freier Sicht auf die Unfallstelle', eingeschraenkt: 'mit eingeschränkter Sicht auf die Unfallstelle' }[z.sicht];
-        if (has(z.standort) || ent != null || sicht) t.push(`Zum Unfallzeitpunkt befand ${p.er} sich ${[has(z.standort) ? lowFirst(z.standort) : '', ent != null ? 'in ca. ' + ent + ' m Entfernung' : '', sicht].filter(Boolean).join(', ')}.`);
+        if (has(z.standort) || ent != null || sicht) t.push(`Zum Unfallzeitpunkt befand ${p.er} sich ${[has(z.standort) ? slot(z.standort) : '', ent != null ? 'in ca. ' + ent + ' m Entfernung' : '', sicht].filter(Boolean).join(', ')}.`);
         const bel = z.belehrt === 'ja' ? `Nach zeugenschaftlicher Belehrung gab ${p.er} sinngemäß an:` : z.belehrt === 'nein' ? `Bei der informatorischen Befragung gab ${p.er} sinngemäß an:` : `${PH('Belehrung')} ${p.Er} gab sinngemäß an:`;
-        t.push(bel + '\n' + (has(z.angaben) ? str(z.angaben) : PH('Angaben')));
+        t.push(bel + '\n' + (has(z.angaben) ? sent(z.angaben) : PH('Angaben')));
         const we = { ja: `${p.Er} würde den Fahrer bzw. das Fahrzeug wiedererkennen.`, evtl: `${p.Er} hält ein Wiedererkennen für möglich.`, nein: `${p.Er} könnte den Fahrer bzw. das Fahrzeug nicht wiedererkennen.` }[z.wiedererkennen];
         if (we) t.push(we);
         const er = { vorort: '', telefon: `${p.Er} war nur telefonisch erreichbar; eine nachträgliche Kontaktaufnahme ist erforderlich.`, spaeter: `${p.Er} ist nachträglich zu kontaktieren.` }[z.erreichbar];
@@ -950,7 +999,7 @@
     } else blocks.push('Unmittelbare Unfallzeugen konnten nicht festgestellt werden.');
     // 3.3 Dritte
     const dr = get(d, 'dritte') || {};
-    if (dr.vorhanden === 'ja') blocks.push('Sonstige Angaben Dritter: ' + (has(dr.text) ? endDot(dr.text) : PH('Angaben Dritter')));
+    if (dr.vorhanden === 'ja') blocks.push(has(dr.text) ? sent(dr.text) : PH('Angaben Dritter'));
     else if (dr.vorhanden === 'nein') blocks.push('Sonstige Angaben Dritter liegen nicht vor.');
     return blocks;
   }
@@ -975,17 +1024,18 @@
     const farben = [...new Set(teile.filter(t => t.fremdlack === 'ja' && has(t.farbe)).map(t => cap(str(t.farbe))))];
     if (farben.length) out.push(`Die Fremdlackanhaftungen in der Farbe ${joinList(farben)} lassen auf ein entsprechend lackiertes Verursacherfahrzeug schließen.`);
     const ue = { stimmig: 'Da die Angaben der Beteiligten und Zeugen sowie das festgestellte Spurenbild übereinstimmen, kann davon ausgegangen werden, dass sich der Unfall wie folgt ereignet hat:', teils: 'Die Angaben der Beteiligten und Zeugen stimmen mit dem Spurenbild nur teilweise überein. Aus polizeilicher Sicht dürfte sich der Unfall wie folgt ereignet haben:', widerspruch: 'Aufgrund der widersprüchlichen Angaben und des Spurenbildes kann der Unfallhergang aus Sicht der aufnehmenden Beamten nicht eindeutig geklärt werden. Vermutlicher Hergang:', keine: 'Angaben zum Unfallhergang liegen nicht vor. Aus dem Spurenbild ergibt sich folgender vermutlicher Hergang:' }[b.uebereinstimmung] || 'Vermutlicher Unfallhergang:';
-    let herg = has(b.hergang) ? str(b.hergang) : autoHergang(x, b);
+    let herg = has(b.hergang) ? sent(b.hergang) : autoHergang(x, b);
     out.push(ue + '\n' + herg);
-    const wd = b.widersprueche === 'ja' ? 'Widersprüche: ' + (has(b.widerspruecheText) ? endDot(b.widerspruecheText) : PH('Widersprüche')) : b.widersprueche === 'nein' ? 'Widersprüche zwischen den Angaben und dem Spurenbild wurden nicht festgestellt.' : '';
-    const man = { nein: 'Anhaltspunkte für einen vorgetäuschten oder manipulierten Verkehrsunfall ergaben sich nicht.', vermutung: 'Es besteht die Vermutung, dass der Unfall vorgetäuscht bzw. manipuliert worden sein könnte' + (has(b.manipulationText) ? ' (' + str(b.manipulationText) + ')' : '') + '. Dies wird der Sachbearbeitung per gesondertem Vermerk mitgeteilt.', konkret: 'Es bestehen konkrete Verdachtsmomente für einen vorgetäuschten bzw. manipulierten Unfall' + (has(b.manipulationText) ? ' (' + str(b.manipulationText) + ')' : '') + '. Die betreffende Person wurde als Beschuldigte belehrt; es wird gesondert angezeigt.' }[b.manipulation];
+    const wd = b.widersprueche === 'ja' ? 'Widersprüche: ' + (has(b.widerspruecheText) ? sent(b.widerspruecheText) : PH('Widersprüche')) : b.widersprueche === 'nein' ? 'Widersprüche zwischen den Angaben und dem Spurenbild wurden nicht festgestellt.' : '';
+    const man = { nein: 'Anhaltspunkte für einen vorgetäuschten oder manipulierten Verkehrsunfall ergaben sich nicht.', vermutung: 'Es besteht die Vermutung, dass der Unfall vorgetäuscht bzw. manipuliert worden sein könnte' + (has(b.manipulationText) ? ' (Anhaltspunkte: ' + slot(b.manipulationText) + ')' : '') + '. Dies wird der Sachbearbeitung per gesondertem Vermerk mitgeteilt.', konkret: 'Es bestehen konkrete Verdachtsmomente für einen vorgetäuschten bzw. manipulierten Unfall' + (has(b.manipulationText) ? ' (Anhaltspunkte: ' + slot(b.manipulationText) + ')' : '') + '. Die betreffende Person wurde als Beschuldigte belehrt; es wird gesondert angezeigt.' }[b.manipulation];
     return B(out.join(' ').replace(':\n', ':\n'), P(wd, man));
   }
   function autoHergang(x, b) {
     const d = x.d;
-    const ver = x.hinweise ? `der ${x.ermittelt ? 'ermittelte' : 'bislang unbekannte'} Führer ${vehicle(x.fz01, 'gen', has(get(d, 'taeter.fz.marke')) || has(get(d, 'taeter.fz.farbe')))}` : 'der Führer eines bislang unbekannten Fahrzeugs';
+    const fzBekannt = has(get(d, 'taeter.fz.art')) || has(get(d, 'taeter.fz.marke')) || has(get(d, 'taeter.fz.kz'));
+    const ver = x.hinweise && (fzBekannt || x.ermittelt) ? `der ${x.ermittelt ? 'ermittelte' : 'bislang unbekannte'} Führer ${vehicle(x.fz01, 'gen', has(get(d, 'taeter.fz.marke')) || has(get(d, 'taeter.fz.farbe')))}` : 'der Führer eines bislang unbekannten Fahrzeugs';
     const akt = { rangieren: 'beim Rangieren bzw. Ein- oder Ausparken', vorbeifahrt: 'bei der Vorbeifahrt', tuer: 'beim Öffnen einer Fahrzeugtür', wagen: 'mit einem Einkaufs- bzw. Handwagen', auffahren: 'durch Auffahren' }[b.hergangArt] || 'auf nicht näher bekannte Weise';
-    const obj = x.istFz ? `${vehicle(x.fz02, 'akk', false)} ${x.g.gen}` : (has(get(d, 'ub02.sache')) ? 'die Sache „' + str(get(d, 'ub02.sache')) + '“' : 'eine fremde Sache');
+    const obj = x.istFz ? `${vehicle(x.fz02, 'akk', false)} ${x.g.gen}` : (has(get(d, 'ub02.sache')) ? slot(get(d, 'ub02.sache')) : 'eine fremde Sache');
     const wo = x.istFz && x.geparkt ? ` ${ortKurz(d)} abgestellten` : '';
     const obj2 = x.istFz ? `${x.geparkt ? 'den' + wo + ' ' + vehicle(x.fz02, 'akk', false).split(' ').slice(1).join(' ') : vehicle(x.fz02, 'akk', false)} ${x.g.gen}` : obj;
     return `${cap(zeitPhrase(d))} beschädigte ${ver} ${akt} ${obj2} und entfernte sich anschließend vom Unfallort, ohne die nach § 142 StGB erforderlichen Feststellungen zu ermöglichen oder zu dulden.`;
@@ -1008,7 +1058,7 @@
       const an = { ja: 'Es wurden unverzüglich Ermittlungen an der Halteranschrift durchgeführt.', spaeter: 'Ermittlungen an der Halteranschrift wurden veranlasst.', nein: 'Ermittlungen an der Halteranschrift waren nicht möglich bzw. entbehrlich.' }[e.anschrift];
       if (an) s1.push(an + (e.fzAngetroffen === 'nein' && e.anschrift === 'ja' ? ' Das Verursacherfahrzeug wurde dort nicht angetroffen.' : ''));
       if (e.fahrerErmittelt === 'nein' && e.anschrift === 'ja') s1.push('Der Fahrzeugführer zum Unfallzeitpunkt konnte bislang nicht ermittelt werden.');
-      if (has(e.text)) s1.push(endDot(e.text));
+      if (has(e.text)) s1.push(sent(e.text));
     }
     const um = { vorort: `${x.g.Dat} wurde vor Ort eine Durchschrift der Unfallmitteilung ausgehändigt.`, nachgesandt: `Die Unfallmitteilung konnte vor Ort nicht ausgehändigt werden und wird ${x.g.dat} unverzüglich nachgesandt.`, digital: `${x.g.Dat} wurde die Unfallmitteilung in digitaler Form per E-Mail übersandt.`, keine: 'Eine Unfallmitteilung wurde nicht ausgehändigt.' }[m.unfallmitteilung];
     if (um) s2.push(um);
@@ -1020,17 +1070,17 @@
     if (m.skizze === 'ja') s2.push('Eine Skizze der Unfallörtlichkeit wurde gefertigt und ist dem Vorgang beigefügt.');
     if (m.kamera === 'ja') {
       const k = { keine: 'Eine Kameraüberwachung, die den Unfallort erfasst, ist nicht vorhanden.', vorhanden: 'Die Unfallörtlichkeit wird videoüberwacht; die Sicherung der Aufzeichnungen wurde veranlasst', gesichert: 'Die Unfallörtlichkeit wird videoüberwacht; die Aufzeichnungen wurden gesichert und sind dem Vorgang beigefügt', angefragt: 'Die Unfallörtlichkeit wird möglicherweise videoüberwacht; eine Anfrage beim Betreiber läuft' }[m.kameraErgebnis] || 'Die Unfallörtlichkeit wurde auf eine Kameraüberwachung geprüft';
-      s3.push(k + (m.kameraErgebnis !== 'keine' && has(m.kameraText) ? ' (' + str(m.kameraText) + ').' : k.endsWith('.') ? '' : '.'));
+      s3.push((k.endsWith('.') ? k : k + '.') + (m.kameraErgebnis !== 'keine' && has(m.kameraText) ? ` Kamera/Ansprechpartner: ${slot(m.kameraText)}.` : ''));
     } else if (m.kamera === 'nein') s3.push('Eine Prüfung auf Kameraüberwachung erfolgte nicht.');
     if (m.zeugensuche === 'ja') {
       const Z = { anwohner: 'Befragung der Anwohner', umfeld: 'Befragung im Umfeld (Geschäfte, Passanten)', zettel: 'Hinterlassen eines Zeugenaufrufs', nachbarfz: 'Überprüfung benachbart abgestellter Fahrzeuge auf korrespondierende Schäden' };
       const z = arr(m.zeugensucheArt).map(k => Z[k]).filter(Boolean);
       s3.push(`Es wurde aktiv nach weiteren Zeugen gesucht${z.length ? ' (' + joinList(z) + ')' : ''}${m.zeugensucheErgebnis === 'keine' ? ' – ohne Ergebnis.' : m.zeugensucheErgebnis === 'hinweise' ? '; hierbei ergaben sich weitere Hinweise.' : '.'}`);
     } else if (m.zeugensuche === 'nein') s3.push('Eine aktive Zeugensuche im Umfeld erfolgte nicht.');
-    if (m.asservate === 'ja') s3.push(`Folgende Asservate wurden zum Vorgang genommen: ${has(m.asservateText) ? endDot(m.asservateText) : PH('Asservate')} Die Erfassung erfolgt nach den Richtlinien des Asservatenmanagementsystems.`);
+    if (m.asservate === 'ja') s3.push(`Folgende Asservate wurden zum Vorgang genommen: ${has(m.asservateText) ? slot(m.asservateText) + '.' : PH('Asservate')} Die Erfassung erfolgt nach den Richtlinien des Asservatenmanagementsystems.`);
     const SO = { anschluss: 'Anschlussermittlungen wurden veranlasst.', vk: 'Das Verkehrskommissariat wurde informiert.', sbl: 'Der Straßenbaulastträger wurde über die Beschädigung informiert.', eigentum: 'Maßnahmen zur Eigentumssicherung wurden getroffen.', verkehr: 'Die Unfallstelle wurde abgesichert; der Verkehr wurde vorübergehend geregelt.' };
     arr(m.sonstige).forEach(k => { if (SO[k]) s3.push(SO[k]); });
-    if (has(m.weiteres)) s3.push(endDot(m.weiteres));
+    if (has(m.weiteres)) s3.push(sent(m.weiteres));
     if (m.anzeige === 'ja') s3.push('Eine Verkehrsunfallanzeige wegen des Verdachts des unerlaubten Entfernens vom Unfallort (§ 142 StGB) wurde gefertigt.');
     else if (m.anzeige === 'nein') s3.push('Eine Verkehrsunfallanzeige wurde noch nicht gefertigt.');
     return { s1: s1.join(' '), s2: s2.join(' '), s3: s3.join(' ') };
@@ -1103,11 +1153,11 @@
     const f = x.fz01, pe = get(d, 'taeter.personen') || {}, v = get(d, 'taeter.verhalten') || {};
     const teile = arr(get(d, 'ub02.teile')).filter(t => t && has(t.name));
     const s = [];
-    s.push(`Gesucht wird nach einer Verkehrsunfallflucht ${zeitPhrase(d)} ${ortKurz(d)}: ${vehicle(f, 'nom', true)}${has(f.besonderheiten) ? ', ' + str(f.besonderheiten) : ''}.`);
+    s.push(`Gesucht wird nach einer Verkehrsunfallflucht ${zeitPhrase(d)} ${ortKurz(d)}: ${vehicle(f, 'nom', true)}${has(f.besonderheiten) ? ', ' + slot(f.besonderheiten) : ''}.`);
     const farben = [...new Set(teile.filter(t => t.fremdlack === 'ja' && has(t.farbe)).map(t => cap(str(t.farbe))))];
     if (teile.length) s.push(`Am Verursacherfahrzeug sind frische Schäden${farben.length ? '' : ''} in einer Höhe von ${(() => { const h = teile.map(t => [num(t.von), num(t.bis)]).filter(h => h[0] != null || h[1] != null); if (!h.length) return PH('Höhe'); const a = Math.min(...h.map(q => q[0] ?? q[1])), b = Math.max(...h.map(q => q[1] ?? q[0])); return a === b ? 'ca. ' + a + ' cm' : a + '–' + b + ' cm'; })()} zu erwarten${farben.length ? ' (Eigenlack vermutlich ' + joinList(farben) + ')' : ''}.`);
-    if (has(pe.beschreibung) || pe.fahrer) s.push(`Fahrer/in: ${[{ m: 'männlich', w: 'weiblich', u: 'Geschlecht unklar' }[pe.fahrer], str(pe.beschreibung)].filter(Boolean).join(', ')}${num(pe.anzahl) != null ? '; Insassen: ' + num(pe.anzahl) : ''}.`);
-    if (has(f.fluchtrichtung)) s.push(`Fluchtrichtung: ${str(f.fluchtrichtung)}.`);
+    if (has(pe.beschreibung) || pe.fahrer) s.push(`Fahrer/in: ${[{ m: 'männlich', w: 'weiblich', u: 'Geschlecht unklar' }[pe.fahrer], slot(pe.beschreibung)].filter(Boolean).join(', ')}${num(pe.anzahl) != null ? '; Insassen: ' + num(pe.anzahl) : ''}.`);
+    if (has(f.fluchtrichtung)) s.push(`Fluchtrichtung: ${slot(f.fluchtrichtung)}.`);
     if (v.alkohol === 'ja') s.push('Hinweis: mögliche Beeinflussung durch Alkohol/Drogen.');
     return s.join(' ');
   }
@@ -1180,6 +1230,7 @@
     const st = root.WVUF_STEPS.find(s => s.id === stepId);
     if (!st) return '';
     switch (st.gen) {
+      case 'lage': return kurz(d);
       case 'allg1': return allg1(d);
       case 'allg2': return allg2(d);
       case 'allg3': return allg3(d);
@@ -1197,7 +1248,7 @@
   /** Titel für die Vorgangsliste. */
   function title(d) {
     const o = get(d, 'ort') || {};
-    const ortS = [str(o.strasse), str(o.hausnr)].filter(Boolean).join(' ') || str(o.zugehoerigkeit) || '';
+    const ortS = [str(o.strasse), str(o.hausnr)].filter(Boolean).join(' ') || (has(o.zugehoerigkeit) ? ({ parkhaus: 'Parkhaus', parkplatz: 'Parkplatz' }[o.art] || 'Fläche') + ' ' + slot(o.zugehoerigkeit) : '');
     const z = get(d, 'zeit') || {};
     const dat = z.art === 'zeitpunkt' ? fmtDate(z.datum) : z.art === 'zeitraum' ? fmtDate(z.bisDatum || z.vonDatum) : fmtDate(get(d, 'einsatz.datum'));
     return ['VUF', ortS, has(o.stadt) ? str(o.stadt) : '', dat].filter(Boolean).join(' · ') || 'Verkehrsunfallflucht';
@@ -1211,6 +1262,7 @@
 
   root.WVUF = Object.freeze({
     id: 'vuf', name: 'Verkehrsunfallflucht ohne Personenschaden', short: 'VUF Sachschaden', kurz: 'VUF',
-    steps: root.WVUF_STEPS, text, plain, preview, kurzText: kurz, fahndung, offen, personalien, title, subtitle, ctx
+    steps: root.WVUF_STEPS, text, plain, preview, kurzText: kurz, fahndung, offen, personalien, title, subtitle, ctx,
+    hergangVorschlag: d => autoHergang(ctx(d), get(d, 'bewertung') || {})
   });
 })(typeof window !== 'undefined' ? window : globalThis);
