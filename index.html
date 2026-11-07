@@ -202,7 +202,18 @@ svg.i{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-widt
 .law{margin-top:10px;padding:10px 12px;border-radius:14px;background:var(--coral-soft);color:#f3b3a1;font-size:12px;line-height:1.4}
 .stamps{margin-top:14px;padding:4px 6px 2px}
 .stamps-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
-.stamps-head .lbl{font-size:12px;color:var(--text-2)}
+.stamps-head .lbl{font-size:12.5px;color:var(--text-2);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stamps-act{display:flex;align-items:center;gap:6px;flex:none}
+.add15{height:34px;padding:0 14px;border-radius:999px;background:var(--accent-soft);border:1px solid rgba(236,217,111,.32);color:var(--accent);font-size:13px;font-weight:500;white-space:nowrap;transition:transform .12s var(--ease-out),background-color .15s ease,opacity .15s ease}
+.add15:active{transform:scale(.93)}
+.add15:disabled{opacity:.35;cursor:default;transform:none}
+@media (hover:hover) and (pointer:fine){.add15:not(:disabled):hover{background:rgba(236,217,111,.22)}}
+.stamp.adj .adj-lbl{color:var(--accent)}
+.adj-val{font-family:var(--mono);color:var(--accent);display:inline-block}
+.adj-val.bump{animation:bump .24s var(--ease-out)}
+@keyframes bump{from{transform:scale(1.2)}to{transform:none}}
+.adj-minus{height:28px;padding:0 10px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--text-2);font:500 11.5px var(--mono);transition:transform .12s var(--ease-out),background-color .15s ease}
+.adj-minus:active{transform:scale(.93)}
 .stamp-list{list-style:none;margin:0;padding:0}
 .stamp{display:flex;align-items:center;gap:8px;height:40px;border-top:1px solid var(--line);font-size:13px}
 .stamp:first-child{border-top:0}
@@ -213,7 +224,7 @@ svg.i{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-widt
 
 /* ---------- Planner ---------- */
 .planner{padding:0;overflow:hidden}
-.hero{position:relative;min-height:248px;padding:22px 24px 22px;display:flex;flex-direction:column;justify-content:flex-end;
+.hero{position:relative;min-height:248px;padding:22px 84px 22px 24px;display:flex;flex-direction:column;justify-content:flex-end;
   background:#2a2620 url("assets/hero.jpg") center 38%/cover no-repeat;isolation:isolate}
 .hero::before{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,rgba(10,10,11,.25) 0%,rgba(14,14,15,.55) 45%,rgba(26,26,28,.96) 92%,#1d1d1f 100%)}
 .hero-pills{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
@@ -505,12 +516,16 @@ details.adv[open] summary::before{content:"–"}
   .card{order:var(--o,0)}
   body[data-tab=zeit] .pane-aufgaben,body[data-tab=aufgaben] .pane-zeit{display:none}
   .card{border-radius:26px}
-  .hero{min-height:230px;padding:20px}
+  .hero{min-height:240px;padding:72px 20px 20px}
+  .hero-side{flex-direction:row;top:16px;right:14px;left:14px;justify-content:flex-end;gap:6px}
+  .hero-side .hs-lbl{margin:0 4px 0 0;padding:0;letter-spacing:.3em}
+  .hero-side [data-hs=new]{order:9;margin-left:4px}
   .planner-body{padding:4px 14px 20px}
   .filters{margin:14px -14px 0;padding:0 14px 2px}
   .quick-hint{display:none}
   .item{grid-template-columns:42px minmax(0,1fr) 26px;grid-template-areas:"tile main check" "tile pills check";row-gap:6px;padding:10px 12px 10px 9px}
-  .item .pills{justify-content:flex-start}
+  .item .pills{justify-content:flex-start;flex-wrap:wrap;min-width:0;row-gap:6px}
+  .item .pills .pill{max-width:100%;overflow:hidden;text-overflow:ellipsis}
   .item .pills:empty{display:none}
   .item:has(.pills:empty){grid-template-areas:"tile main check"}
   .tile{width:42px;height:42px}
@@ -717,7 +732,7 @@ details.adv[open] summary::before{content:"–"}
         </div>
         <div class="law" id="lawHint" hidden></div>
         <div class="stamps">
-          <div class="stamps-head"><span class="lbl" id="stampsTitle">Stempel · Heute</span><span><button class="link" id="stampsToday" type="button" hidden>Heute</button> <button class="link" id="addStamp" type="button">+ Nachtragen</button></span></div>
+          <div class="stamps-head"><span class="lbl" id="stampsTitle">Heute</span><span class="stamps-act"><button class="link" id="stampsToday" type="button" hidden>Zu heute</button><button class="add15" id="add15" type="button">+15 Min</button></span></div>
           <ul class="stamp-list" id="stampList"></ul>
         </div>
       </article>

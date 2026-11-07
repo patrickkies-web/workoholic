@@ -93,7 +93,7 @@ const STATUS = { offen: 'Offen', inarbeit: 'In Arbeit', wartet: 'Wartet' };
 const REPEATS = { daily: 'täglich', weekdays: 'werktags', weekly: 'wöchentlich', monthly: 'monatlich' };
 
 /* ======================= State model ======================= */
-const blank = () => ({ v: 2, items: [], stamps: [], del: {}, settings: { targetMin: 480, name: '', u: 0 } });
+const blank = () => ({ v: 2, items: [], stamps: [], adj: {}, del: {}, settings: { targetMin: 480, name: '', u: 0 } });
 const num = v => (typeof v === 'number' && Number.isFinite(v)) ? v : null;
 
 function normItem(x) {
@@ -149,6 +149,11 @@ function normalize(s) {
   b.stamps = [...stamps.values()].sort((a, c) => a.in - c.in || cmp(a.id, c.id));
   b.stamps.forEach((st, i) => { if (st.out == null && i < b.stamps.length - 1) st.out = b.stamps[i + 1].in; });
   const cutoff = Date.now() - 120 * DAY;
+  const adj = s.adj && typeof s.adj === 'object' ? s.adj : {};
+  Object.keys(adj).filter(k => /^\d{4}-\d{2}-\d{2}$/.test(k)).sort().forEach(k => {
+    const x = adj[k] || {}, m = clamp(Math.round(Number(x.m) || 0), 0, 16 * 60), u = num(x.u) || 0;
+    if (m > 0 || u > cutoff) b.adj[k] = { m, u };
+  });
   const del = s.del && typeof s.del === 'object' ? s.del : {};
   Object.keys(del).sort().forEach(k => { const v = num(del[k]); if (v && v > cutoff) b.del[k] = v; });
   const se = s.settings || {};
@@ -178,7 +183,12 @@ function merge(a, b) {
   const items = pick([...a.items, ...b.items], 'updatedAt');
   const stamps = pick([...a.stamps, ...b.stamps], 'u');
   const settings = (b.settings.u || 0) > (a.settings.u || 0) ? b.settings : a.settings;
-  return normalize({ items, stamps, del, settings });
+  const adj = {};
+  for (const k of new Set([...Object.keys(a.adj || {}), ...Object.keys(b.adj || {})])) {
+    const x = (a.adj || {})[k], y = (b.adj || {})[k];
+    adj[k] = !x ? y : !y ? x : (y.u > x.u || (y.u === x.u && y.m > x.m)) ? y : x;
+  }
+  return normalize({ items, stamps, adj, del, settings });
 }
 
 let state = blank();
@@ -240,6 +250,8 @@ function applyState(raw) {
   const keep = new Set([...next.items.map(i => i.id), ...next.stamps.map(s => s.id)]);
   for (const x of [...state.items, ...state.stamps]) if (!keep.has(x.id)) next.del[x.id] = now;
   for (const k in state.del) if (!keep.has(k)) next.del[k] = Math.max(next.del[k] || 0, state.del[k]);
+  for (const k in next.adj) { const c = state.adj[k]; if (!c || c.m !== next.adj[k].m) next.adj[k].u = now; else next.adj[k].u = c.u; }
+  for (const k in state.adj) if (!next.adj[k]) next.adj[k] = { m: 0, u: now };
   const plain = s => JSON.stringify({ ...s, u: 0 });
   if (plain(next.settings) !== plain(state.settings)) next.settings.u = now; else next.settings.u = state.settings.u;
   state = normalize(next);
@@ -252,7 +264,8 @@ const ui = { kind: 'alle', q: '', day: null, person: null, selDay: null, calMont
 
 /* ======================= Time tracking ======================= */
 const openStamp = () => { const l = state.stamps[state.stamps.length - 1]; return l && l.out == null ? l : null; };
-function workedIn(a, b, now = Date.now()) {
+/** Nur gestempelte Zeit (für Tagesverlauf und Pausen). */
+function stampsIn(a, b, now = Date.now()) {
   let s = 0;
   for (const st of state.stamps) {
     const x = Math.max(st.in, a), y = Math.min(st.out ?? now, b);
@@ -260,17 +273,34 @@ function workedIn(a, b, now = Date.now()) {
   }
   return s;
 }
+/** Per +15 nachgetragene Minuten für Tage im Bereich. */
+function adjIn(a, b) {
+  let s = 0;
+  for (const k in state.adj) { const t = fromKey(k); if (t >= a && t < b) s += state.adj[k].m * MIN; }
+  return s;
+}
+const workedIn = (a, b, now = Date.now()) => stampsIn(a, b, now) + adjIn(a, b);
+function addMinutes(key, delta) {
+  if (!S || fromKey(key) > Date.now()) return;
+  const cur = (state.adj[key] && state.adj[key].m) || 0;
+  const m = clamp(cur + delta, 0, 16 * 60);
+  if (m === cur) return;
+  state.adj[key] = { m, u: Date.now() };
+  commit();
+  const v = $('#adjVal');
+  if (v && !reduceMotion.matches) { v.classList.remove('bump'); void v.offsetWidth; v.classList.add('bump'); }
+}
 function dayInfo(t, now = Date.now()) {
   const a = sod(t), b = eod(t);
   const sts = state.stamps.filter(st => (st.out ?? now) > a && st.in < b);
-  const worked = workedIn(a, b, now);
+  const stamped = stampsIn(a, b, now), adj = adjIn(a, b);
   let pause = 0;
   if (sts.length) {
     const first = Math.max(sts[0].in, a);
     const lastEnd = Math.min(sts[sts.length - 1].out ?? now, b);
-    pause = Math.max(0, (lastEnd - first) - worked);
+    pause = Math.max(0, (lastEnd - first) - stamped);
   }
-  return { a, b, sts, worked, pause };
+  return { a, b, sts, worked: stamped + adj, stamped, adj, pause };
 }
 const requiredPause = ms => ms > 9 * HOUR ? 45 * MIN : ms > 6 * HOUR ? 30 * MIN : 0;
 
@@ -498,7 +528,7 @@ function updateLive(now = Date.now()) {
     lbl.textContent = 'Feierabend ~';
     val.textContent = hm(now + remaining + missing);
     val.title = missing ? `inkl. ${dur(missing)} h noch fälliger Pause (ArbZG)` : '';
-  } else if (di.sts.length) { lbl.textContent = 'Noch offen'; val.textContent = dur(remaining); }
+  } else if (di.sts.length || di.adj) { lbl.textContent = 'Noch offen'; val.textContent = dur(remaining); }
   else { lbl.textContent = 'Tagessoll'; val.textContent = dur(target); }
 
   const ws = weekStart(now);
@@ -534,7 +564,7 @@ function renderWave(now) {
   let html = '';
   for (let i = 0; i < n; i++) {
     const a = start + i * slot, b = a + slot;
-    const frac = workedIn(a, Math.min(b, now), now) / slot;
+    const frac = stampsIn(a, Math.min(b, now), now) / slot;
     const isNow = now >= a && now < b;
     if (frac > 0.02) {
       const r = Math.abs(Math.sin(i * 12.9898 + 4.1) * 43758.5453) % 1;
@@ -544,7 +574,7 @@ function renderWave(now) {
   }
   $('#waveBars').innerHTML = html;
   const open = openStamp();
-  $('#waveStatus').textContent = open ? `Eingedongelt · ${hm(open.in)}` : di.sts.length ? `Heute ${dur(di.worked)} h` : 'Noch nicht eingedongelt';
+  $('#waveStatus').textContent = open ? `Eingedongelt · ${hm(open.in)}` : (di.sts.length || di.adj) ? `Heute ${dur(di.worked)} h` : 'Noch nicht eingedongelt';
   $('#waveRange').textContent = `${pad(new Date(start).getHours())}–${pad(new Date(end).getHours() || 24)} Uhr`;
 }
 
@@ -553,11 +583,16 @@ function renderStamps(now) {
   const t = fromKey(key);
   const isToday = key === dayKey(now);
   const di = dayInfo(t, now);
-  $('#stampsTitle').textContent = `Stempel · ${isToday ? 'Heute' : dateShort(t)}${di.sts.length ? ` · ${dur(di.worked)} h` : ''}`;
+  $('#stampsTitle').textContent = `${isToday ? 'Heute' : dateShort(t)}${di.sts.length || di.adj ? ` · ${dur(di.worked)} h` : ''}`;
   $('#stampsToday').hidden = isToday;
+  const add = $('#add15'), future = t > now;
+  add.disabled = future;
+  add.setAttribute('aria-label', `15 Minuten für ${isToday ? 'heute' : dateShort(t)} hinzufügen`);
+  add.title = future ? 'Nur für heute oder vergangene Tage' : `15 Minuten zu ${isToday ? 'heute' : dateShort(t)} hinzufügen`;
   const list = $('#stampList');
-  if (!di.sts.length) { list.innerHTML = `<li class="stamp-empty">${isToday ? 'Noch nicht eingedongelt.' : 'Keine Stempel an diesem Tag.'}</li>`; return; }
-  list.innerHTML = di.sts.map(st => {
+  const adjRow = di.adj ? `<li class="stamp adj"><span class="adj-lbl">Nachgetragen</span><span class="grow"></span><span class="adj-val" id="adjVal" aria-live="polite">+${dur(di.adj)}</span><button class="adj-minus" type="button" data-adj="-15" aria-label="15 Minuten wieder abziehen">−15</button></li>` : '';
+  if (!di.sts.length) { list.innerHTML = adjRow || `<li class="stamp-empty">${isToday ? 'Noch nicht eingedongelt.' : 'Keine Stempel an diesem Tag.'}</li>`; return; }
+  list.innerHTML = adjRow + di.sts.map(st => {
     const prev = st.in < di.a ? ' <span class="dim">(Vortag)</span>' : '';
     const out = st.out == null ? `<span class="run"><i class="pulse"></i>läuft</span>` : `<span class="mono">${hm(st.out)}</span>`;
     return `<li class="stamp"><span class="mono">${hm(st.in)}</span>${prev}<span class="arrow">→</span>${out}<span class="grow"></span><span class="mono dim">${dur((st.out ?? now) - st.in)}</span><button class="icon-btn sm" type="button" data-stamp="${st.id}" aria-label="Stempel ${hm(st.in)} bearbeiten">${ico('edit')}</button></li>`;
@@ -1004,8 +1039,11 @@ $('#sDelete').addEventListener('click', () => {
   state.del[editStampId] = Date.now();
   closeDlg($('#stampDlg')); commit(); toast('Stempel gelöscht', { undo: snap });
 });
-$('#stampList').addEventListener('click', e => { const b = e.target.closest('[data-stamp]'); if (b) openStampEditor(b.dataset.stamp); });
-$('#addStamp').addEventListener('click', () => openStampEditor(null));
+$('#stampList').addEventListener('click', e => {
+  const m = e.target.closest('[data-adj]'); if (m) { addMinutes(ui.selDay || dayKey(Date.now()), Number(m.dataset.adj)); return; }
+  const b = e.target.closest('[data-stamp]'); if (b) openStampEditor(b.dataset.stamp);
+});
+$('#add15').addEventListener('click', () => addMinutes(ui.selDay || dayKey(Date.now()), 15));
 $('#stampsToday').addEventListener('click', () => { ui.selDay = null; renderTime(); renderWeek(); });
 
 /* ======================= Dongle slider ======================= */
@@ -1234,8 +1272,13 @@ menu.addEventListener('click', async e => {
       const end = st.out ?? Date.now();
       rows.push([new Date(st.in).toLocaleDateString('de-DE'), WDL[new Date(st.in).getDay()], hm(st.in), st.out ? hm(st.out) : 'läuft', dur(end - st.in), ((end - st.in) / HOUR).toFixed(2).replace('.', ',')]);
     }
+    for (const k of Object.keys(state.adj).sort()) {
+      const m = state.adj[k].m; if (!m) continue;
+      const t = fromKey(k);
+      rows.push([new Date(t).toLocaleDateString('de-DE'), WDL[new Date(t).getDay()], 'Nachtrag', '', dur(m * MIN), (m / 60).toFixed(2).replace('.', ',')]);
+    }
     download(`workoholic-arbeitszeiten-${stamp}.csv`, '﻿' + rows.map(r => r.join(';')).join('\r\n'), 'text/csv;charset=utf-8');
-    toast(`${state.stamps.length} Stempel exportiert`);
+    toast(`${rows.length - 1} Zeilen exportiert`);
   }
   else if (a === 'cleardone') {
     const done = state.items.filter(i => i.done);
