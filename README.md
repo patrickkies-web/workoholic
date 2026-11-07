@@ -61,7 +61,7 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 ## Funktionen
 
 **Erfassen**
-- **Anfrage** (von wem?), **Todo** oder **Aufgabe**.
+- **Anfrage** (von wem?), **Todo**, **Aufgabe** oder **Stundenbuchung** (siehe unten).
 - Dringlichkeit:
   - *Einmalig*
   - *Ultimatum* (Frist mit Countdown)
@@ -69,17 +69,28 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
   - *Schnellstmöglich*
   - *Wiederkehrend* (täglich, werktags, wöchentlich, monatlich)
 - Status: offen, in Arbeit, wartet auf Rückmeldung.
-- Schnellerfassung: `@Sabine Zahlen schicken !` legt eine dringende Anfrage von Sabine an. `#aufgabe` / `#todo` wählt die Art, `⇧ Enter` öffnet die Details.
+- Schnellerfassung: `@Sabine Zahlen schicken !` legt eine dringende Anfrage von Sabine an. `#aufgabe` / `#todo` / `#buchung` wählt die Art, `⇧ Enter` öffnet die Details.
 
 **Überblick**
 - Planner nach Dringlichkeit gruppiert.
 - Fokus-Karte mit Live-Countdown.
 - Filter, Suche, Kollegen-Avatare und Kalender mit Fristen.
 
-**Stempeluhr**
-- Ein-/Ausdongeln per Tippen, Ziehen oder Taste `D`.
-- Tagesverlauf, Pausen, voraussichtlicher Feierabend, Hinweise nach Arbeitszeitgesetz.
-- Wochenchart, Stempel nachtragen und korrigieren, CSV-Export.
+**Dienste & Überstunden**
+- **Eindongeln** (Tippen, Ziehen oder Taste `D`) beginnt einen Dienst: Vorlage aus dem Katalog antippen, Beginn ist jetzt, das geplante Ende kommt aus der Vorlage. Ein vorab eingetragener Dienst startet direkt.
+- Beginn und geplantes Ende lassen sich jederzeit über den Stift ändern, auch während des Dienstes.
+- **Länger gemacht:** zwischendurch oder danach per `+15 Min` / `−15` eintragen. Wer nach dem geplanten Ende **ausdongelt**, wird gefragt, ob die Mehrzeit als Überstunden zählt (auf 15 Minuten gerundet).
+- Ausdongeln vergessen? Die App fragt, ob das geplante Ende oder „jetzt“ gilt.
+- **Überstunden-Konto:** Woche, Monat, Jahr und Gesamt, dazu die letzten Dienste mit Überstunden.
+- **Dienste eintragen** für jeden Tag, auch im Voraus (Nachtdienste enden automatisch am Folgetag). Überschneidungen werden abgefangen; Pausen werden nach Arbeitszeitgesetz geprüft.
+- **Dienste-Katalog:** Schichtbezeichnung, Beginn, Ende, Pause und Farbe frei änderbar. Vorlagen lassen sich anlegen und löschen, und der Katalog wird zwischen deinen Geräten synchronisiert.
+- Wochenchart mit Diensten, Überstunden (gestapelt) und geplanten Diensten; im Kalender sind geplante Dienste markiert.
+- CSV-Export aller Dienste mit Pause, Arbeitszeit und Überstunden.
+
+**Stunden für Kollegen buchen**
+- Eintragsart *Stunden buchen*: Kollegin/Kollege, Datum des Dienstes, Dienst (aus dem Katalog) und Stunden in 15-Minuten-Schritten.
+- Landet als Todo im Planner (Filter „Buchungen“) und wird abgehakt, sobald du die Stunden im System eingetragen hast.
+- Schnellzugriff: Knopf *Stunden für Kollegen merken* im Überstunden-Konto.
 
 **Tastatur:** `N` neu · `/` suchen · `D` dongeln · `L` sperren · `Strg/⌘ + Enter` speichern
 

@@ -79,22 +79,34 @@ const ICONS = {
   repeat: '<path d="M17 3l3 3-3 3"/><path d="M4 11V9a3 3 0 0 1 3-3h13"/><path d="M7 21l-3-3 3-3"/><path d="M20 13v2a3 3 0 0 1-3 3H4"/>',
   edit: '<path d="M4 20l1-4L16 5a2.1 2.1 0 0 1 3 3L8 19z"/>',
   x: '<path d="M6 6l12 12M18 6L6 18"/>',
-  chev: '<path d="M9.5 6l6 6-6 6"/>'
+  chev: '<path d="M9.5 6l6 6-6 6"/>',
+  clockplus: '<circle cx="11" cy="12.5" r="7.5"/><path d="M11 8.5v4l2.6 1.6"/><path d="M19.5 2.5v5M17 5h5"/>'
 };
 const ico = n => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true">${ICONS[n] || ''}</svg>`;
 
 const KINDS = {
   anfrage: { label: 'Anfrage', plural: 'Anfragen', icon: 'user' },
   todo: { label: 'Todo', plural: 'Todos', icon: 'todo' },
-  aufgabe: { label: 'Aufgabe', plural: 'Aufgaben', icon: 'brief' }
+  aufgabe: { label: 'Aufgabe', plural: 'Aufgaben', icon: 'brief' },
+  buchung: { label: 'Stundenbuchung', plural: 'Buchungen', icon: 'clockplus' }
 };
 const MODES = { einmalig: 'Einmalig', deadline: 'Ultimatum', dauer: 'Dauer', asap: 'Schnellstmöglich', repeat: 'Wiederkehrend' };
 const STATUS = { offen: 'Offen', inarbeit: 'In Arbeit', wartet: 'Wartet' };
 const REPEATS = { daily: 'täglich', weekdays: 'werktags', weekly: 'wöchentlich', monthly: 'monatlich' };
 
 /* ======================= State model ======================= */
-const blank = () => ({ v: 2, items: [], stamps: [], adj: {}, del: {}, settings: { targetMin: 480, name: '', u: 0 } });
+const COLORS = { lime: '#c6dc7a', gelb: '#ecd96f', koralle: '#f0876a', blau: '#8fb3e8', mauve: '#c9a9a0' };
+const COLOR_NAMES = { lime: 'Limette', gelb: 'Gelb', koralle: 'Koralle', blau: 'Blau', mauve: 'Mauve' };
+const defaultTpls = () => [
+  { id: 'tpl-frueh', name: 'Frühdienst', start: '06:00', end: '14:00', breakMin: 30, color: 'gelb', u: 1 },
+  { id: 'tpl-spaet', name: 'Spätdienst', start: '14:00', end: '22:00', breakMin: 30, color: 'koralle', u: 1 },
+  { id: 'tpl-nacht', name: 'Nachtdienst', start: '22:00', end: '06:00', breakMin: 45, color: 'blau', u: 1 },
+  { id: 'tpl-tag', name: 'Tagdienst', start: '08:00', end: '16:30', breakMin: 30, color: 'lime', u: 1 }
+];
+const blank = () => ({ v: 3, items: [], shifts: [], tpls: defaultTpls(), del: {}, settings: { targetMin: 480, name: '', u: 0 } });
 const num = v => (typeof v === 'number' && Number.isFinite(v)) ? v : null;
+const isKey = k => typeof k === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(k);
+const isHM = t => typeof t === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(t);
 
 function normItem(x) {
   const now = Date.now();
@@ -116,6 +128,9 @@ function normItem(x) {
     doneAt: num(x.doneAt),
     doneCount: num(x.doneCount) || 0,
     lastDone: num(x.lastDone),
+    bDate: isKey(x.bDate) ? x.bDate : null,
+    bShift: String(x.bShift || '').slice(0, 40),
+    bMin: clamp(Math.round(Number(x.bMin) || 0), 0, 24 * 60),
     createdAt: num(x.createdAt) || now,
     updatedAt: num(x.updatedAt) || now
   };
@@ -123,13 +138,60 @@ function normItem(x) {
   if ((it.mode === 'deadline' || it.mode === 'repeat') && it.due == null) it.mode = 'einmalig';
   if (it.mode === 'asap' || it.mode === 'einmalig') it.due = null;
   if (it.mode !== 'repeat') { it.repeat = null; it.repDay = null; }
+  if (it.kind !== 'buchung') { it.bDate = null; it.bShift = ''; it.bMin = 0; }
   return it;
+}
+function normShift(x) {
+  const start = num(x && x.start);
+  if (start == null) return null;
+  let pe = num(x.plannedEnd); if (pe == null || pe < start) pe = start;
+  const end = num(x.end);
+  return {
+    id: String(x.id || uid()),
+    date: isKey(x.date) ? x.date : dayKey(start),
+    name: String(x.name || '').slice(0, 40).trim() || 'Dienst',
+    color: COLORS[x.color] ? x.color : 'lime',
+    start, plannedEnd: pe,
+    end: end != null && end >= start ? end : null,
+    live: !!x.live,
+    breakMin: clamp(Math.round(Number(x.breakMin) || 0), 0, 240),
+    extraMin: clamp(Math.round(Number(x.extraMin) || 0), 0, 24 * 60),
+    u: num(x.u) || 1
+  };
+}
+function normTpl(x) {
+  if (!x || !isHM(x.start) || !isHM(x.end)) return null;
+  return { id: String(x.id || uid()), name: String(x.name || '').slice(0, 40).trim() || 'Dienst', start: x.start, end: x.end, breakMin: clamp(Math.round(Number(x.breakMin) || 0), 0, 240), color: COLORS[x.color] ? x.color : 'lime', u: num(x.u) || 1 };
+}
+/** Alte Stempel (+15-Nachträge) werden zu Diensten – deterministisch, damit alle Geräte dasselbe erzeugen. */
+function migrateStamps(s) {
+  const out = [], byDay = {};
+  for (const st of (Array.isArray(s.stamps) ? s.stamps : [])) {
+    if (!st || num(st.in) == null) continue;
+    (byDay[dayKey(st.in)] = byDay[dayKey(st.in)] || []).push(st);
+  }
+  const adj = s.adj && typeof s.adj === 'object' ? s.adj : {};
+  for (const k of new Set([...Object.keys(byDay), ...Object.keys(adj).filter(isKey)])) {
+    const arr = (byDay[k] || []).sort((a, b) => a.in - b.in);
+    const extra = Math.round(Number(adj[k] && adj[k].m) || 0);
+    if (!arr.length) {
+      if (extra > 0) { const t = fromKey(k) + 8 * HOUR; out.push({ id: 'mig-' + k, date: k, name: 'Nachtrag', start: t, plannedEnd: t, end: null, breakMin: 0, extraMin: extra, u: 1 }); }
+      continue;
+    }
+    const first = arr[0].in, last = arr[arr.length - 1], running = num(last.out) == null;
+    let worked = 0; for (const st of arr) if (num(st.out) != null) worked += st.out - st.in;
+    const lastOut = running ? null : last.out;
+    out.push({ id: 'mig-' + k, date: k, name: 'Dienst', start: first, plannedEnd: running ? first + 8.5 * HOUR : lastOut, end: null, live: running,
+      breakMin: running ? 30 : Math.max(0, Math.round(((lastOut - first) - worked) / MIN)), extraMin: extra, u: 1 });
+  }
+  return out;
 }
 
 /** Bringt Daten in eine kanonische Form (feste Reihenfolge), damit Geräte bitgleich übereinstimmen. */
 function normalize(s) {
   const b = blank();
   if (!s || typeof s !== 'object') return b;
+  const ver = Number(s.v) || 1;
   const items = new Map();
   for (const x of (Array.isArray(s.items) ? s.items : [])) {
     if (!x || !x.title) continue;
@@ -137,25 +199,29 @@ function normalize(s) {
     if (!c || it.updatedAt > c.updatedAt) items.set(it.id, it);
   }
   b.items = [...items.values()].sort((a, c) => a.createdAt - c.createdAt || cmp(a.id, c.id));
-  const stamps = new Map();
-  for (const x of (Array.isArray(s.stamps) ? s.stamps : [])) {
-    if (!x || num(x.in) == null) continue;
-    const out = num(x.out);
-    if (out != null && out <= x.in) continue;
-    const st = { id: String(x.id || uid()), in: x.in, out, u: num(x.u) || (out ?? x.in) };
-    const c = stamps.get(st.id);
-    if (!c || st.u > c.u) stamps.set(st.id, st);
+  const shifts = new Map();
+  for (const x of [...(Array.isArray(s.shifts) ? s.shifts : []), ...(ver < 3 ? migrateStamps(s) : [])]) {
+    const sh = normShift(x); if (!sh) continue;
+    const c = shifts.get(sh.id);
+    if (!c || sh.u > c.u || (sh.u === c.u && JSON.stringify(sh) > JSON.stringify(c))) shifts.set(sh.id, sh);
   }
-  b.stamps = [...stamps.values()].sort((a, c) => a.in - c.in || cmp(a.id, c.id));
-  b.stamps.forEach((st, i) => { if (st.out == null && i < b.stamps.length - 1) st.out = b.stamps[i + 1].in; });
+  b.shifts = [...shifts.values()].sort((a, c) => a.start - c.start || cmp(a.id, c.id));
+  let liveSeen = false; // nur der jüngste Dienst darf laufen
+  for (let i = b.shifts.length - 1; i >= 0; i--) {
+    const sh = b.shifts[i]; if (!sh.live) continue;
+    if (liveSeen) sh.live = false;
+    liveSeen = true;
+  }
+  if (Array.isArray(s.tpls)) {
+    const t = new Map();
+    for (const x of s.tpls) { const tp = normTpl(x); if (!tp) continue; const c = t.get(tp.id); if (!c || tp.u > c.u) t.set(tp.id, tp); }
+    b.tpls = [...t.values()];
+  } else if (ver >= 3) b.tpls = [];
   const cutoff = Date.now() - 120 * DAY;
-  const adj = s.adj && typeof s.adj === 'object' ? s.adj : {};
-  Object.keys(adj).filter(k => /^\d{4}-\d{2}-\d{2}$/.test(k)).sort().forEach(k => {
-    const x = adj[k] || {}, m = clamp(Math.round(Number(x.m) || 0), 0, 16 * 60), u = num(x.u) || 0;
-    if (m > 0 || u > cutoff) b.adj[k] = { m, u };
-  });
   const del = s.del && typeof s.del === 'object' ? s.del : {};
   Object.keys(del).sort().forEach(k => { const v = num(del[k]); if (v && v > cutoff) b.del[k] = v; });
+  b.shifts = b.shifts.filter(x => !(b.del[x.id] >= x.u));
+  b.tpls = b.tpls.filter(x => !(b.del[x.id] >= x.u)).sort((a, c) => cmp(a.start, c.start) || cmp(a.name, c.name) || cmp(a.id, c.id));
   const se = s.settings || {};
   const t = Number(se.targetMin);
   b.settings = { targetMin: Number.isFinite(t) ? clamp(Math.round(t), 0, 24 * 60) : 480, name: String(se.name || '').slice(0, 40), u: num(se.u) || 0 };
@@ -181,14 +247,10 @@ function merge(a, b) {
     return out;
   };
   const items = pick([...a.items, ...b.items], 'updatedAt');
-  const stamps = pick([...a.stamps, ...b.stamps], 'u');
+  const shifts = pick([...a.shifts, ...b.shifts], 'u');
+  const tpls = pick([...a.tpls, ...b.tpls], 'u');
   const settings = (b.settings.u || 0) > (a.settings.u || 0) ? b.settings : a.settings;
-  const adj = {};
-  for (const k of new Set([...Object.keys(a.adj || {}), ...Object.keys(b.adj || {})])) {
-    const x = (a.adj || {})[k], y = (b.adj || {})[k];
-    adj[k] = !x ? y : !y ? x : (y.u > x.u || (y.u === x.u && y.m > x.m)) ? y : x;
-  }
-  return normalize({ items, stamps, adj, del, settings });
+  return normalize({ v: 3, items, shifts, tpls, del, settings });
 }
 
 let state = blank();
@@ -243,15 +305,13 @@ const touch = it => { it.updatedAt = Date.now(); };
 /** Ersetzt den Stand (Rückgängig, Import, Demo, Löschen) so, dass die Sync-Logik es als neueste Änderung erkennt. */
 function applyState(raw) {
   const next = normalize(raw), now = Date.now();
-  const curI = new Map(state.items.map(x => [x.id, JSON.stringify(x)]));
-  const curS = new Map(state.stamps.map(x => [x.id, JSON.stringify(x)]));
-  for (const it of next.items) { if (curI.get(it.id) !== JSON.stringify(it)) it.updatedAt = now; delete next.del[it.id]; }
-  for (const st of next.stamps) { if (curS.get(st.id) !== JSON.stringify(st)) st.u = now; delete next.del[st.id]; }
-  const keep = new Set([...next.items.map(i => i.id), ...next.stamps.map(s => s.id)]);
-  for (const x of [...state.items, ...state.stamps]) if (!keep.has(x.id)) next.del[x.id] = now;
+  const keep = new Set();
+  for (const [g, key] of [['items', 'updatedAt'], ['shifts', 'u'], ['tpls', 'u']]) {
+    const cur = new Map(state[g].map(x => [x.id, JSON.stringify(x)]));
+    for (const x of next[g]) { if (cur.get(x.id) !== JSON.stringify(x)) x[key] = now; delete next.del[x.id]; keep.add(x.id); }
+  }
+  for (const g of ['items', 'shifts', 'tpls']) for (const x of state[g]) if (!keep.has(x.id)) next.del[x.id] = now;
   for (const k in state.del) if (!keep.has(k)) next.del[k] = Math.max(next.del[k] || 0, state.del[k]);
-  for (const k in next.adj) { const c = state.adj[k]; if (!c || c.m !== next.adj[k].m) next.adj[k].u = now; else next.adj[k].u = c.u; }
-  for (const k in state.adj) if (!next.adj[k]) next.adj[k] = { m: 0, u: now };
   const plain = s => JSON.stringify({ ...s, u: 0 });
   if (plain(next.settings) !== plain(state.settings)) next.settings.u = now; else next.settings.u = state.settings.u;
   state = normalize(next);
@@ -262,70 +322,143 @@ const restore = snap => applyState(JSON.parse(snap));
 /* ======================= UI state ======================= */
 const ui = { kind: 'alle', q: '', day: null, person: null, selDay: null, calMonth: null, openDone: false };
 
-/* ======================= Time tracking ======================= */
-const openStamp = () => { const l = state.stamps[state.stamps.length - 1]; return l && l.out == null ? l : null; };
-/** Nur gestempelte Zeit (für Tagesverlauf und Pausen). */
-function stampsIn(a, b, now = Date.now()) {
+/* ======================= Dienste & Zeit ======================= */
+const liveShift = () => state.shifts.find(s => s.live) || null;
+const hmToMin = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+const tplLen = tp => { let d = hmToMin(tp.end) - hmToMin(tp.start); if (d <= 0) d += 24 * 60; return d; };
+const tplNet = tp => Math.max(0, tplLen(tp) - tp.breakMin);
+const atHM = (dayTs, hhmm) => { const d = new Date(dayTs); const [h, m] = hhmm.split(':').map(Number); d.setHours(h, m, 0, 0); return d.getTime(); };
+/** Erstes Vorkommen der Endzeit nach dem Beginn (Nachtdienste enden am Folgetag). */
+function endAfter(startTs, hhmm, lenMin) {
+  let e = atHM(startTs, hhmm);
+  if (e <= startTs) e = addDays(e, 1);
+  if (lenMin && e - startTs > (lenMin + 240) * MIN) e = startTs + lenMin * MIN;
+  return e;
+}
+const isPlanned = (sh, now = Date.now()) => !sh.live && sh.start > now;
+const plannedNet = sh => Math.max(0, sh.plannedEnd - sh.start - sh.breakMin * MIN);
+/** Gearbeitete Zeit eines Dienstes: laufend = seit Beginn, sonst Plan (bzw. früheres Ende) minus Pause plus Überstunden. */
+function shiftWorked(sh, now = Date.now()) {
+  if (isPlanned(sh, now)) return 0;
+  if (sh.live) return Math.max(0, now - sh.start);
+  const end = Math.min(sh.end ?? sh.plannedEnd, sh.plannedEnd);
+  return Math.max(0, end - sh.start - sh.breakMin * MIN) + sh.extraMin * MIN;
+}
+const shiftOt = (sh, now = Date.now()) => isPlanned(sh, now) ? 0 : sh.extraMin * MIN;
+const shiftsOn = key => state.shifts.filter(s => s.date === key);
+function workedIn(a, b, now = Date.now()) {
   let s = 0;
-  for (const st of state.stamps) {
-    const x = Math.max(st.in, a), y = Math.min(st.out ?? now, b);
-    if (y > x) s += y - x;
-  }
+  for (const sh of state.shifts) { const t = fromKey(sh.date); if (t >= a && t < b) s += shiftWorked(sh, now); }
   return s;
 }
-/** Per +15 nachgetragene Minuten für Tage im Bereich. */
-function adjIn(a, b) {
+function overtimeIn(a, b, now = Date.now()) {
   let s = 0;
-  for (const k in state.adj) { const t = fromKey(k); if (t >= a && t < b) s += state.adj[k].m * MIN; }
+  for (const sh of state.shifts) { const t = fromKey(sh.date); if (t >= a && t < b) s += shiftOt(sh, now); }
   return s;
 }
-const workedIn = (a, b, now = Date.now()) => stampsIn(a, b, now) + adjIn(a, b);
-function addMinutes(key, delta) {
-  if (!S || fromKey(key) > Date.now()) return;
-  const cur = (state.adj[key] && state.adj[key].m) || 0;
-  const m = clamp(cur + delta, 0, 16 * 60);
-  if (m === cur) return;
-  state.adj[key] = { m, u: Date.now() };
+/** Der Dienst, um den es gerade geht: laufend, sonst der zeitlich nächste von heute. */
+function currentShift(now = Date.now()) {
+  const live = liveShift(); if (live) return live;
+  const today = shiftsOn(dayKey(now));
+  const upcoming = today.filter(s => s.start > now).sort((a, b) => a.start - b.start)[0];
+  const past = today.filter(s => s.start <= now).sort((a, b) => b.start - a.start)[0];
+  if (past && upcoming) return (upcoming.start - now <= HOUR || now - Math.min(past.end ?? past.plannedEnd, Math.max(past.end ?? 0, past.plannedEnd)) >= 30 * MIN) ? upcoming : past;
+  return past || upcoming || null;
+}
+/** Dienst, auf den „länger gemacht“ wirkt: heute der aktuelle, sonst der letzte des gewählten Tages. */
+function extraTarget(now = Date.now()) {
+  const key = ui.selDay || dayKey(now);
+  const live = liveShift();
+  if (key === dayKey(now)) return live || shiftsOn(key).filter(s => !isPlanned(s, now)).sort((a, b) => b.start - a.start)[0] || null;
+  if (fromKey(key) > now) return null;
+  return shiftsOn(key).sort((a, b) => b.start - a.start)[0] || null;
+}
+function addExtra(delta) {
+  const sh = extraTarget(); if (!sh || !S) return;
+  const m = clamp(sh.extraMin + delta, 0, 24 * 60);
+  if (m === sh.extraMin) return;
+  sh.extraMin = m; sh.u = Date.now();
   commit();
-  const v = $('#adjVal');
+  const v = $('#extraVal');
   if (v && !reduceMotion.matches) { v.classList.remove('bump'); void v.offsetWidth; v.classList.add('bump'); }
 }
-function dayInfo(t, now = Date.now()) {
-  const a = sod(t), b = eod(t);
-  const sts = state.stamps.filter(st => (st.out ?? now) > a && st.in < b);
-  const stamped = stampsIn(a, b, now), adj = adjIn(a, b);
-  let pause = 0;
-  if (sts.length) {
-    const first = Math.max(sts[0].in, a);
-    const lastEnd = Math.min(sts[sts.length - 1].out ?? now, b);
-    pause = Math.max(0, (lastEnd - first) - stamped);
-  }
-  return { a, b, sts, worked: stamped + adj, stamped, adj, pause };
-}
 const requiredPause = ms => ms > 9 * HOUR ? 45 * MIN : ms > 6 * HOUR ? 30 * MIN : 0;
+function lawNote(sh) {
+  if (!sh) return '';
+  const net = plannedNet(sh) + sh.extraMin * MIN;
+  if (net > 10 * HOUR) return `${dur(net)} h Arbeitszeit – über der gesetzlichen Höchstgrenze von 10 Std (ArbZG).`;
+  const need = requiredPause(net);
+  if (need && sh.breakMin * MIN < need) return `Bei ${dur(net)} h stehen dir ${need / MIN} Min Pause zu – eingetragen sind ${sh.breakMin} Min.`;
+  return '';
+}
 
 function stopTimers(now) {
   for (const i of state.items) if (i.timerStart) { i.spentMs += now - i.timerStart; i.timerStart = null; i.updatedAt = now; }
 }
 const spentOf = (it, now = Date.now()) => it.spentMs + (it.timerStart ? now - it.timerStart : 0);
 
-function toggleClock() {
+/* ---------- Eindongeln / Ausdongeln ---------- */
+function dongleAction() {
   if (!S) return;
-  const now = Date.now(), snap = snapshot(), open = openStamp();
-  if (open) {
-    open.out = now; open.u = now;
-    const running = state.items.some(i => i.timerStart);
-    stopTimers(now);
+  const live = liveShift();
+  if (live) { endShift(live.id); return; }
+  const now = Date.now();
+  const planned = state.shifts
+    .filter(s => !s.live && s.end == null && s.start > now - HOUR && s.start < now + 4 * HOUR && s.plannedEnd > now)
+    .sort((a, b) => Math.abs(a.start - now) - Math.abs(b.start - now))[0];
+  if (planned) {
+    const snap = snapshot();
+    planned.live = true; planned.start = now; planned.date = dayKey(now); planned.end = null; planned.u = now;
     commit();
-    const long = now - open.in > 14 * HOUR;
-    toast(long ? `Ausgedongelt – Session lief ${dur(now - open.in)} h. Bitte prüfen.` : `Ausgedongelt · ${dur(now - open.in)} h${running ? ' · Timer gestoppt' : ''}`,
-      long ? { action: { label: 'Korrigieren', fn: () => openStampEditor(open.id) } } : { undo: snap });
-  } else {
-    state.stamps.push({ id: uid(), in: now, out: null, u: now });
-    commit();
-    toast(`Eingedongelt um ${hm(now)}`, { undo: snap });
+    toast(`Eingedongelt · ${planned.name} bis ${hm(planned.plannedEnd)}`, { undo: snap });
+    if (navigator.vibrate) navigator.vibrate(12);
+    return;
   }
+  openStartSheet();
+}
+function startShift(tpl) {
+  if (!S || liveShift()) return;
+  const now = Date.now(), snap = snapshot();
+  const len = tpl ? tplLen(tpl) : state.settings.targetMin + 30;
+  const sh = normShift({ id: uid(), date: dayKey(now), name: tpl ? tpl.name : 'Dienst', color: tpl ? tpl.color : 'lime', start: now,
+    plannedEnd: tpl ? endAfter(now, tpl.end, len) : now + len * MIN, breakMin: tpl ? tpl.breakMin : 30, extraMin: 0, live: true, u: now });
+  state.shifts.push(sh);
+  commit();
+  toast(`Eingedongelt · ${sh.name} bis ${hm(sh.plannedEnd)}`, { undo: snap });
   if (navigator.vibrate) navigator.vibrate(12);
+}
+async function endShift(id) {
+  const sh = state.shifts.find(s => s.id === id); if (!sh || !sh.live) return;
+  const snap = snapshot();
+  let endAt = Date.now();
+  if (endAt - sh.plannedEnd > 4 * HOUR) {
+    const r = await ask({ title: 'Ausdongeln vergessen?', text: `${sh.name} war bis ${hm(sh.plannedEnd)} geplant – das ist ${rel(Date.now() - sh.plannedEnd)} her. Wann hast du wirklich aufgehört?`,
+      buttons: [{ label: 'Abbrechen', value: null }, { label: 'Jetzt', value: 'now' }, { label: `Um ${hm(sh.plannedEnd)}`, value: 'plan', cls: 'btn-accent', submit: true }] });
+    if (!r) return;
+    endAt = r.value === 'plan' ? sh.plannedEnd : Date.now();
+  }
+  const cur = state.shifts.find(s => s.id === id); if (!cur || !cur.live) return;
+  const running = state.items.some(i => i.timerStart);
+  stopTimers(Date.now());
+  cur.live = false; cur.end = endAt; cur.u = Date.now();
+  commit();
+  if (navigator.vibrate) navigator.vibrate(12);
+  const over = Math.floor((cur.end - cur.plannedEnd) / MIN) - cur.extraMin;
+  if (over >= 8) {
+    const lo = Math.max(15, Math.floor(over / 15) * 15), hi = Math.max(15, Math.ceil(over / 15) * 15);
+    const buttons = [{ label: 'Nicht eintragen', value: 0 }];
+    if (lo !== hi) buttons.push({ label: `+${dur(lo * MIN)}`, value: lo });
+    buttons.push({ label: `+${dur(hi * MIN)}`, value: hi, cls: 'btn-accent', submit: true });
+    const r = await ask({ title: 'Länger geblieben?', text: `${cur.name} war bis ${hm(cur.plannedEnd)} geplant, ausgedongelt hast du um ${hm(cur.end)} – ${dur(over * MIN)} h länger. Als Überstunden eintragen?`, buttons });
+    const c2 = state.shifts.find(s => s.id === id);
+    if (r && r.value && c2) {
+      c2.extraMin = clamp(c2.extraMin + r.value, 0, 24 * 60); c2.u = Date.now();
+      commit();
+      toast(`Ausgedongelt · +${dur(r.value * MIN)} Überstunden eingetragen`, { undo: snap });
+      return;
+    }
+  }
+  toast(`Ausgedongelt · ${cur.name} · ${dur(shiftWorked(cur))} h${running ? ' · Timer gestoppt' : ''}`, { undo: snap });
 }
 
 /* ======================= Items ======================= */
@@ -396,7 +529,7 @@ function toggleTimer(id) {
   it.timerStart = now; touch(it);
   if (it.status === 'offen') it.status = 'inarbeit';
   commit();
-  if (!openStamp()) toast('Timer läuft – du bist aber nicht eingedongelt.', { action: { label: 'Eindongeln', fn: toggleClock } });
+  if (!liveShift()) toast('Timer läuft – du bist aber nicht eingedongelt.', { action: { label: 'Eindongeln', fn: dongleAction } });
 }
 function removeItem(id) {
   const snap = snapshot();
@@ -475,70 +608,79 @@ const orb = createOrb($('#orb'));
 
 /* ======================= Render: time ======================= */
 function renderTime(now = Date.now()) {
-  const open = openStamp();
-  document.body.classList.toggle('is-in', !!open);
-  orb.setActive(!!open);
-
+  const live = liveShift(), cur = currentShift(now);
+  document.body.classList.toggle('is-in', !!live);
+  orb.setActive(!!live);
   const dg = $('#dongle');
   if (!dongle.busy) {
-    dg.dataset.state = open ? 'in' : 'out';
-    $('#dongleLabel').textContent = open ? 'Ausdongeln' : 'Eindongeln';
-    dg.setAttribute('aria-label', open ? `Ausdongeln (eingedongelt seit ${hm(open.in)})` : 'Eindongeln');
+    dg.dataset.state = live ? 'in' : 'out';
+    $('#dongleLabel').textContent = live ? 'Ausdongeln' : 'Eindongeln';
+    dg.setAttribute('aria-label', live ? `Ausdongeln – ${live.name} seit ${hm(live.start)}` : 'Eindongeln – Dienst beginnen');
   }
-  $('#dongleHint').textContent = open ? `seit ${hm(open.in)}` : (mobileMQ.matches ? 'tippen' : 'tippen oder ziehen');
-  $('#dockDongleLbl').textContent = open ? 'Ausdongeln' : 'Eindongeln';
+  const next = !live && cur && isPlanned(cur, now) ? cur : null;
+  $('#dongleHint').textContent = live ? `bis ${hm(live.plannedEnd)}` : next ? `${next.name} ${hm(next.start)}` : (mobileMQ.matches ? 'tippen' : 'tippen oder ziehen');
+  $('#dockDongleLbl').textContent = live ? 'Ausdongeln' : 'Eindongeln';
   const ts = $('#timeState');
-  ts.textContent = open ? 'Eingedongelt' : 'Ausgedongelt';
-  ts.className = 'pill ' + (open ? 'pill-accent-soft' : 'pill-quiet');
-  $('#ampmIn').classList.toggle('on', !!open);
-  $('#ampmOut').classList.toggle('on', !open);
-
+  const st = live ? ['Im Dienst', 'pill-accent-soft'] : !cur ? ['Frei', 'pill-quiet'] : isPlanned(cur, now) ? ['Geplant', 'pill-quiet'] : ['Beendet', 'pill-quiet'];
+  ts.textContent = st[0]; ts.className = 'pill ' + st[1];
+  $('#timeTitle').textContent = cur ? cur.name : 'Kein Dienst';
+  const dot = $('#shiftDot'); dot.hidden = !cur; if (cur) dot.style.background = COLORS[cur.color];
+  $('#ampmIn').classList.toggle('on', !!live);
+  $('#ampmOut').classList.toggle('on', !live);
   renderWave(now);
   updateLive(now);
-  renderStamps(now);
+  renderShiftList(now);
 }
 
 function updateLive(now = Date.now()) {
-  const open = openStamp();
-  const di = dayInfo(now, now);
-  const target = state.settings.targetMin * MIN;
-  const pct = target ? Math.round(di.worked / target * 100) : 0;
-  $('#workedBig').textContent = dur(di.worked);
-  $('#workedSub').textContent = target ? `von ${dur(target)} h Soll` : 'kein Tagessoll';
-  $('#orbPct').textContent = `${pct}%`;
-  $('#orbBar').style.transform = `scaleY(${target ? clamp(di.worked / target, 0, 1) : 0})`;
-  $('#capTime').textContent = open ? dur(now - open.in).padStart(5, '0') : '--:--';
-  $('#heroClock').textContent = open ? `Im Dienst · ${dur(now - open.in)}` : 'Ausgedongelt';
+  const live = liveShift(), cur = currentShift(now);
+  if (cur) {
+    const gross = Math.max(MIN, cur.plannedEnd - cur.start);
+    const planned = isPlanned(cur, now);
+    $('#workedBig').textContent = dur(live ? now - live.start : planned ? 0 : shiftWorked(cur, now));
+    $('#workedSub').textContent = `${hm(cur.start)}–${hm(cur.plannedEnd)} · ${dur(plannedNet(cur))} h netto`;
+    const frac = live ? (now - live.start) / gross : planned ? 0 : 1;
+    $('#orbPct').textContent = `${Math.round(frac * 100)}%`;
+    $('#orbBar').style.transform = `scaleY(${clamp(frac, 0, 1)})`;
+  } else {
+    $('#workedBig').textContent = '0:00';
+    $('#workedSub').textContent = 'Heute kein Dienst eingetragen';
+    $('#orbPct').textContent = '0%';
+    $('#orbBar').style.transform = 'scaleY(0)';
+  }
+  $('#capTime').textContent = live ? dur(now - live.start).padStart(5, '0') : '--:--';
+  $('#heroClock').textContent = live ? `Im Dienst · ${dur(now - live.start)}` : 'Ausgedongelt';
 
-  const st = $('#orbStatus');
-  st.classList.remove('warn');
-  if (open && open.in < sod(now)) { st.textContent = 'Seit gestern eingedongelt? Stempel prüfen.'; st.classList.add('warn'); }
-  else if (open) st.textContent = `Eingedongelt seit ${hm(open.in)} …`;
-  else if (di.sts.length) st.textContent = `Ausgedongelt um ${hm(di.sts[di.sts.length - 1].out)}`;
-  else st.textContent = 'Bereit zum Eindongeln …';
+  const os = $('#orbStatus');
+  os.classList.remove('warn', 'over');
+  if (live && now - live.plannedEnd > 4 * HOUR) { os.textContent = 'Ausdongeln vergessen? Bitte prüfen.'; os.classList.add('warn'); }
+  else if (live && now > live.plannedEnd) { os.textContent = `${dur(now - live.plannedEnd)} h länger als geplant …`; os.classList.add('over'); }
+  else if (live) os.textContent = `Eingedongelt seit ${hm(live.start)} …`;
+  else if (cur && isPlanned(cur, now)) os.textContent = `Geplant ab ${hm(cur.start)} · in ${rel(cur.start - now)}`;
+  else if (cur) os.textContent = `Beendet um ${hm(Math.min(cur.end ?? cur.plannedEnd, Math.max(cur.end ?? 0, cur.plannedEnd)))}`;
+  else os.textContent = 'Bereit zum Eindongeln …';
 
-  $('#stPause').textContent = dur(di.pause);
-  const remaining = target - di.worked;
-  const lbl = $('#stEndLbl'), val = $('#stEnd');
-  val.title = '';
-  if (!target) { lbl.textContent = 'Soll'; val.textContent = '–'; }
-  else if (remaining <= 0) { lbl.textContent = 'Überstunden'; val.textContent = '+' + dur(-remaining); }
-  else if (open) {
-    const missing = Math.max(0, requiredPause(target) - di.pause);
-    lbl.textContent = 'Feierabend ~';
-    val.textContent = hm(now + remaining + missing);
-    val.title = missing ? `inkl. ${dur(missing)} h noch fälliger Pause (ArbZG)` : '';
-  } else if (di.sts.length || di.adj) { lbl.textContent = 'Noch offen'; val.textContent = dur(remaining); }
-  else { lbl.textContent = 'Tagessoll'; val.textContent = dur(target); }
-
+  const s1L = $('#st1L'), s1 = $('#st1'), s2L = $('#st2L'), s2 = $('#st2');
+  if (live) {
+    const d = live.plannedEnd - now;
+    s1L.textContent = 'Dienstende'; s1.textContent = hm(live.plannedEnd);
+    s2L.textContent = d >= 0 ? 'Noch' : 'Länger'; s2.textContent = (d < 0 ? '+' : '') + dur(Math.abs(d));
+  } else if (cur && isPlanned(cur, now)) { s1L.textContent = 'Beginn'; s1.textContent = hm(cur.start); s2L.textContent = 'Dienstende'; s2.textContent = hm(cur.plannedEnd); }
+  else if (cur) { s1L.textContent = 'Ende'; s1.textContent = hm(cur.end != null ? cur.end : cur.plannedEnd); s2L.textContent = 'Arbeitszeit'; s2.textContent = dur(shiftWorked(cur, now)); }
+  else { s1L.textContent = 'Dienstende'; s1.textContent = '–'; s2L.textContent = 'Heute'; s2.textContent = dur(workedIn(sod(now), eod(now), now)); }
   const ws = weekStart(now);
-  $('#stWeek').textContent = dur(workedIn(ws, addDays(ws, 7), now));
+  $('#st3').textContent = '+' + dur(overtimeIn(ws, addDays(ws, 7), now));
 
   const law = $('#lawHint');
-  let msg = '';
-  if (di.worked > 10 * HOUR) msg = 'Über 10 Std heute – die gesetzliche Höchstarbeitszeit ist erreicht.';
-  else if (di.worked > 6 * HOUR && di.pause < requiredPause(di.worked)) msg = `Pause-Hinweis: Nach ${di.worked > 9 * HOUR ? '9 Std stehen 45' : '6 Std stehen 30'} Min Pause an – bisher ${dur(di.pause)} h.`;
+  const msg = lawNote(live || (cur && !isPlanned(cur, now) ? cur : null));
   law.hidden = !msg; law.textContent = msg;
+
+  const tgt = extraTarget(now);
+  $('#extraVal').textContent = '+' + dur((tgt ? tgt.extraMin : 0) * MIN);
+  $('#extraLbl').textContent = tgt ? `Länger gemacht · ${tgt.name}${(ui.selDay && ui.selDay !== dayKey(now)) ? ' ' + dateShort(tgt.start) : ''}` : 'Länger gemacht';
+  $('#extraPlus').disabled = !tgt;
+  $('#extraMinus').disabled = !tgt || !tgt.extraMin;
+  $('#extraBox').classList.toggle('off', !tgt);
 
   const fb = $('#fBig');
   if (fb && focusId) { const it = find(focusId); if (it) { const b = focusBig(it, now); fb.textContent = b.t; fb.className = 'f-big ' + (b.cls || ''); } }
@@ -551,52 +693,62 @@ function updateLive(now = Date.now()) {
 }
 
 function renderWave(now) {
-  const di = dayInfo(now, now);
-  const today = sod(now);
+  const today = sod(now), tEnd = eod(now);
+  const endOf = sh => sh.live ? Math.max(now, sh.plannedEnd) : Math.max(sh.end ?? 0, sh.plannedEnd);
+  const shs = state.shifts.filter(sh => sh.start < tEnd && endOf(sh) > today);
   let start = today + 7 * HOUR, end = today + 19 * HOUR;
-  if (di.sts.length) {
-    start = Math.min(start, Math.max(today, di.sts[0].in));
-    end = Math.max(end, Math.min(eod(now), di.sts[di.sts.length - 1].out ?? now));
-  }
-  start = start - (start - today) % HOUR;
-  end = Math.min(eod(now), end + (HOUR - (end - today) % HOUR) % HOUR);
+  for (const sh of shs) { start = Math.min(start, Math.max(today, sh.start)); end = Math.max(end, Math.min(tEnd, endOf(sh))); }
+  start -= (start - today) % HOUR;
+  end = Math.min(tEnd, end + (HOUR - (end - today) % HOUR) % HOUR);
   const slot = 10 * MIN, n = Math.round((end - start) / slot);
   let html = '';
   for (let i = 0; i < n; i++) {
-    const a = start + i * slot, b = a + slot;
-    const frac = stampsIn(a, Math.min(b, now), now) / slot;
-    const isNow = now >= a && now < b;
-    if (frac > 0.02) {
+    const a = start + i * slot, mid = a + slot / 2, isNow = now >= a && now < a + slot;
+    let kind = '';
+    for (const sh of shs) {
+      if (isPlanned(sh, now)) { if (mid >= sh.start && mid < sh.plannedEnd) { kind = 'plan'; break; } continue; }
+      const e = sh.live ? now : Math.min(sh.end ?? sh.plannedEnd, sh.plannedEnd);
+      if (mid >= sh.start && mid < e) { kind = mid >= sh.plannedEnd ? 'over' : 'on'; break; }
+      if (sh.live && mid >= now && mid < sh.plannedEnd) { kind = 'plan'; break; }
+    }
+    if (kind === 'on' || kind === 'over') {
       const r = Math.abs(Math.sin(i * 12.9898 + 4.1) * 43758.5453) % 1;
-      const h = Math.round((24 + r * 76) * Math.min(1, .35 + frac));
-      html += `<i class="on${isNow ? ' now' : ''}" style="height:${h}%"></i>`;
-    } else html += `<i${isNow ? ' class="now"' : ''}></i>`;
+      html += `<i class="${kind}${isNow ? ' now' : ''}" style="height:${Math.round(30 + r * 70)}%"></i>`;
+    } else html += `<i class="${kind}${isNow ? ' now' : ''}"></i>`;
   }
   $('#waveBars').innerHTML = html;
-  const open = openStamp();
-  $('#waveStatus').textContent = open ? `Eingedongelt · ${hm(open.in)}` : (di.sts.length || di.adj) ? `Heute ${dur(di.worked)} h` : 'Noch nicht eingedongelt';
+  const live = liveShift(), cur = currentShift(now);
+  $('#waveStatus').textContent = live ? `${live.name} · seit ${hm(live.start)}` : cur ? `${cur.name} · ${hm(cur.start)}–${hm(cur.plannedEnd)}` : 'Heute kein Dienst';
   $('#waveRange').textContent = `${pad(new Date(start).getHours())}–${pad(new Date(end).getHours() || 24)} Uhr`;
 }
 
-function renderStamps(now) {
-  const key = ui.selDay || dayKey(now);
-  const t = fromKey(key);
-  const isToday = key === dayKey(now);
-  const di = dayInfo(t, now);
-  $('#stampsTitle').textContent = `${isToday ? 'Heute' : dateShort(t)}${di.sts.length || di.adj ? ` · ${dur(di.worked)} h` : ''}`;
+function renderShiftList(now) {
+  const key = ui.selDay || dayKey(now), t = fromKey(key), isToday = key === dayKey(now);
+  const list = shiftsOn(key).sort((a, b) => a.start - b.start);
+  const total = list.reduce((s, x) => s + shiftWorked(x, now), 0);
+  $('#stampsTitle').textContent = `${isToday ? 'Heute' : dateShort(t)}${list.length && total ? ` · ${dur(total)} h` : ''}`;
   $('#stampsToday').hidden = isToday;
-  const add = $('#add15'), future = t > now;
-  add.disabled = future;
-  add.setAttribute('aria-label', `15 Minuten für ${isToday ? 'heute' : dateShort(t)} hinzufügen`);
-  add.title = future ? 'Nur für heute oder vergangene Tage' : `15 Minuten zu ${isToday ? 'heute' : dateShort(t)} hinzufügen`;
-  const list = $('#stampList');
-  const adjRow = di.adj ? `<li class="stamp adj"><span class="adj-lbl">Nachgetragen</span><span class="grow"></span><span class="adj-val" id="adjVal" aria-live="polite">+${dur(di.adj)}</span><button class="adj-minus" type="button" data-adj="-15" aria-label="15 Minuten wieder abziehen">−15</button></li>` : '';
-  if (!di.sts.length) { list.innerHTML = adjRow || `<li class="stamp-empty">${isToday ? 'Noch nicht eingedongelt.' : 'Keine Stempel an diesem Tag.'}</li>`; return; }
-  list.innerHTML = adjRow + di.sts.map(st => {
-    const prev = st.in < di.a ? ' <span class="dim">(Vortag)</span>' : '';
-    const out = st.out == null ? `<span class="run"><i class="pulse"></i>läuft</span>` : `<span class="mono">${hm(st.out)}</span>`;
-    return `<li class="stamp"><span class="mono">${hm(st.in)}</span>${prev}<span class="arrow">→</span>${out}<span class="grow"></span><span class="mono dim">${dur((st.out ?? now) - st.in)}</span><button class="icon-btn sm" type="button" data-stamp="${st.id}" aria-label="Stempel ${hm(st.in)} bearbeiten">${ico('edit')}</button></li>`;
-  }).join('');
+  $('#stampList').innerHTML = list.length ? list.map(sh => {
+    const planned = isPlanned(sh, now);
+    const endTxt = sh.live ? `<span class="run"><i class="pulse"></i>läuft</span>` : `<span class="mono">${hm(sh.end != null && sh.end < sh.plannedEnd ? sh.end : sh.plannedEnd)}</span>`;
+    return `<li class="stamp shift" data-shift="${sh.id}"><i class="cdot" style="background:${COLORS[sh.color]}"></i><span class="sh-name">${esc(sh.name)}</span><span class="mono dim">${hm(sh.start)}–</span>${endTxt}${planned ? '<span class="pill pill-quiet">geplant</span>' : ''}<span class="grow"></span>${sh.extraMin ? `<span class="mono extra-tag">+${dur(sh.extraMin * MIN)}</span>` : ''}<button class="icon-btn sm" type="button" data-shift-edit="${sh.id}" aria-label="${esc(sh.name)} ${hm(sh.start)} bearbeiten">${ico('edit')}</button></li>`;
+  }).join('') : `<li class="stamp-empty">${t > now ? 'Noch kein Dienst geplant.' : isToday ? 'Noch kein Dienst – eindongeln oder „+ Dienst“.' : 'Kein Dienst an diesem Tag.'}</li>`;
+}
+
+function renderOvertime(now = Date.now()) {
+  const d = new Date(now), ws = weekStart(now);
+  const ms = new Date(d.getFullYear(), d.getMonth(), 1).getTime(), me = new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime();
+  const ys = new Date(d.getFullYear(), 0, 1).getTime(), ye = new Date(d.getFullYear() + 1, 0, 1).getTime();
+  const all = state.shifts.reduce((s, x) => s + shiftOt(x, now), 0);
+  $('#otTotal').textContent = '+' + dur(all);
+  $('#otWeek').textContent = '+' + dur(overtimeIn(ws, addDays(ws, 7), now));
+  $('#otMonth').textContent = '+' + dur(overtimeIn(ms, me, now));
+  $('#otYear').textContent = '+' + dur(overtimeIn(ys, ye, now));
+  const recent = state.shifts.filter(x => x.extraMin && !isPlanned(x, now)).sort((a, b) => b.start - a.start).slice(0, 4);
+  $('#otList').innerHTML = recent.length ? recent.map(x => `<li><i class="cdot" style="background:${COLORS[x.color]}"></i><span class="ot-name">${esc(x.name)}</span><span class="dim">${dateShort(x.start)}</span><span class="grow"></span><b class="mono">+${dur(x.extraMin * MIN)}</b></li>`).join('') : '<li class="stamp-empty">Noch keine Überstunden erfasst.</li>';
+  const openB = state.items.filter(i => i.kind === 'buchung' && !i.done).length;
+  $('#otBookOpen').textContent = openB ? `${openB} offen` : '';
+  $('#otBookOpen').hidden = !openB;
 }
 
 /* ======================= Render: clock ======================= */
@@ -610,7 +762,13 @@ function renderClock(now) {
 function renderWeek(now = Date.now()) {
   const ws = weekStart(now), target = state.settings.targetMin * MIN;
   const days = [];
-  for (let i = 0; i < 7; i++) { const a = addDays(ws, i); days.push({ a, key: dayKey(a), worked: workedIn(a, addDays(a, 1), now), future: a > now }); }
+  for (let i = 0; i < 7; i++) {
+    const a = addDays(ws, i), key = dayKey(a), shs = shiftsOn(key);
+    days.push({ a, key, future: a > now, names: shs.map(x => x.name),
+      worked: shs.reduce((s, x) => s + shiftWorked(x, now), 0),
+      ot: shs.reduce((s, x) => s + shiftOt(x, now), 0),
+      plan: shs.filter(x => isPlanned(x, now)).reduce((s, x) => s + plannedNet(x), 0) });
+  }
   const total = days.reduce((s, d) => s + d.worked, 0);
   const workedDays = days.filter(d => d.worked > 5 * MIN);
   const avg = workedDays.length ? total / workedDays.length : 0;
@@ -622,19 +780,22 @@ function renderWeek(now = Date.now()) {
   $('#wkKw').textContent = `KW ${isoWeek(now)}`;
   $('#wkTotal').textContent = dur(total);
   $('#wkAvg').textContent = `Ø ${dur(avg)} h / Arbeitstag`;
-  $('#wkTarget').textContent = dur(target * 5);
+  $('#wkTarget').textContent = '+' + dur(days.reduce((s, d) => s + d.ot, 0));
   const delta = $('#wkDelta');
   if (pavg && avg) { const p = Math.round((avg / pavg - 1) * 100); delta.hidden = false; delta.className = `pill mono ${p >= 0 ? 'pill-lime' : 'pill-quiet'}`; delta.textContent = `${p >= 0 ? '+' : '−'}${Math.abs(p)}% Ø`; delta.title = `Durchschnitt pro Arbeitstag ggü. Vorwoche (${dur(pavg)} h)`; }
   else delta.hidden = true;
 
-  const maxV = Math.max(target * 1.25, ...days.map(d => d.worked * 1.08), 4 * HOUR);
+  const maxV = Math.max(target * 1.25, ...days.map(d => Math.max(d.worked, d.plan) * 1.08), 4 * HOUR);
   const sel = ui.selDay || dayKey(now), todayKey = dayKey(now);
   const cols = days.map(d => {
     const dt = new Date(d.a);
-    const h = d.worked / maxV * 100;
-    const tip = `${WD[dt.getDay()]} ${dt.getDate()}.${dt.getMonth() + 1}. · ${d.future ? 'kommt noch' : dur(d.worked) + ' h'}`;
-    return `<button type="button" class="wk-col${d.future ? ' future' : ''}${d.key === todayKey ? ' today' : ''}${d.key === sel ? ' sel' : ''}" data-day="${d.key}" data-tip="${esc(tip)}" aria-label="${esc(tip)}">
-      <span class="bar${d.worked < MIN ? ' zero' : ''}" style="height:${h.toFixed(2)}%"></span><span class="lbl">${WD[dt.getDay()]}</span></button>`;
+    const val = d.worked >= MIN ? `${dur(d.worked)} h${d.ot ? ` (davon +${dur(d.ot)} Überstd.)` : ''}` : d.plan ? `geplant ${dur(d.plan)} h` : (d.future ? 'kein Dienst geplant' : 'frei');
+    const tip = `${WD[dt.getDay()]} ${dt.getDate()}.${dt.getMonth() + 1}.${d.names.length ? ' · ' + d.names.join(', ') : ''} · ${val}`;
+    let bar;
+    if (d.worked >= MIN) bar = `<span class="bar" style="height:${(d.worked / maxV * 100).toFixed(2)}%">${d.ot ? `<span class="ot" style="height:${(d.ot / d.worked * 100).toFixed(2)}%"></span>` : ''}</span>`;
+    else if (d.plan) bar = `<span class="bar plan" style="height:${(d.plan / maxV * 100).toFixed(2)}%"></span>`;
+    else bar = `<span class="bar zero"></span>`;
+    return `<button type="button" class="wk-col${d.future ? ' future' : ''}${d.key === todayKey ? ' today' : ''}${d.key === sel ? ' sel' : ''}" data-day="${d.key}" data-tip="${esc(tip)}" aria-label="${esc(tip)}">${bar}<span class="lbl">${WD[dt.getDay()]}</span></button>`;
   }).join('');
   $('#wkChart').innerHTML = `<div class="wk-plot">${target ? `<div class="wk-target" style="bottom:${(target / maxV * 100).toFixed(2)}%"><span>Soll ${dur(target)}</span></div>` : ''}<div class="wk-cols">${cols}</div></div><div class="wk-tip" id="wkTip"></div>`;
 }
@@ -654,15 +815,17 @@ function renderCal(now = Date.now()) {
   let html = '';
   for (let i = 0; i < offset; i++) html += '<span></span>';
   for (let d = 1; d <= nDays; d++) {
-    const t = new Date(y, mo, d).getTime(), k = dayKey(t);
+    const t = new Date(y, mo, d).getTime(), k = dayKey(t), shs = shiftsOn(k);
     const worked = t <= now ? workedIn(t, addDays(t, 1), now) : 0;
     const cls = ['cd'];
     if (t < todayStart) cls.push('past'); else if (t > todayStart) cls.push('future');
     if (worked > 5 * MIN) cls.push('worked');
+    if (shs.some(x => isPlanned(x, now))) cls.push('plan');
     if (dues[k]) cls.push('due');
     if (t === todayStart) cls.push('today');
     if (ui.day === k) cls.push('sel');
     const parts = [`${WDL[new Date(t).getDay()]}, ${d}. ${MONL[mo]}`];
+    if (shs.length) parts.push(shs.map(x => `${x.name} ${hm(x.start)}–${hm(x.plannedEnd)}${x.extraMin ? ` (+${dur(x.extraMin * MIN)})` : ''}`).join(', '));
     if (dues[k]) parts.push(`${dues[k].length} ${dues[k].length === 1 ? 'Frist' : 'Fristen'}: ${dues[k].slice(0, 3).join(', ')}${dues[k].length > 3 ? ' …' : ''}`);
     if (worked > MIN) parts.push(`${dur(worked)} h gearbeitet`);
     const label = esc(parts.join(' · '));
@@ -687,6 +850,8 @@ function renderHero(now = Date.now()) {
   const req = open.filter(i => i.kind === 'anfrage').length;
   const overdue = open.filter(i => { const x = dueOf(i); return x != null && x < now; }).length;
   const parts = [`<span><b>${doneToday}</b> heute erledigt</span>`, `<span><b>${newToday}</b> neu</span>`, `<span><b>${req}</b> ${req === 1 ? 'Anfrage' : 'Anfragen'} offen</span>`];
+  const books = open.filter(i => i.kind === 'buchung').length;
+  if (books) parts.push(`<span><b>${books}</b> ${books === 1 ? 'Buchung' : 'Buchungen'} offen</span>`);
   if (overdue) parts.push(`<span class="warn"><b>${overdue}</b> überfällig</span>`);
   $('#heroMeta').innerHTML = parts.join('<span class="sep">•</span>');
 
@@ -732,6 +897,7 @@ function itemRow(it, now) {
   const sub = [];
   if (it.kind === 'anfrage') sub.push(it.from ? `Anfrage von ${esc(it.from)}` : 'Anfrage');
   else if (it.kind === 'aufgabe') sub.push(it.from ? `Aufgabe · ${esc(it.from)}` : 'Aufgabe');
+  else if (it.kind === 'buchung') { sub.push(it.from ? `für ${esc(it.from)}` : 'Stundenbuchung'); const bd = [it.bShift, it.bDate ? dateShort(fromKey(it.bDate)) : ''].filter(Boolean).join(' '); if (bd) sub.push(esc(bd)); }
   else sub.push(it.from ? `Todo · ${esc(it.from)}` : 'Todo');
   const d = dueOf(it);
   if (it.mode === 'repeat') sub.push(`${REPEATS[it.repeat]}${it.done ? '' : ' · ' + dueLabel(d)}`);
@@ -742,6 +908,7 @@ function itemRow(it, now) {
   const pills = [];
   if (!it.done && it.status === 'inarbeit') pills.push('<span class="pill pill-glass">in Arbeit</span>');
   if (!it.done && it.status === 'wartet') pills.push('<span class="pill pill-outline">wartet</span>');
+  if (!it.done && it.kind === 'buchung' && it.bMin) pills.push(`<span class="pill pill-blue">${ico('clockplus')}+${dur(it.bMin * MIN)}</span>`);
   pills.push(urgencyPill(it, now));
   if (it.mode === 'dauer' && !it.done) pills.push(`<button type="button" class="tbtn${it.timerStart ? ' on' : ''}" data-act="timer" aria-label="${it.timerStart ? 'Timer pausieren' : 'Timer starten'}">${ico(it.timerStart ? 'pause' : 'play')}</button>`);
 
@@ -761,7 +928,7 @@ function itemRow(it, now) {
 function renderFilters() {
   const open = state.items.filter(i => !i.done);
   const count = k => k === 'alle' ? open.length : open.filter(i => i.kind === k).length;
-  $('#filters').innerHTML = [['alle', 'Alle'], ['anfrage', 'Anfragen'], ['todo', 'Todos'], ['aufgabe', 'Aufgaben']]
+  $('#filters').innerHTML = [['alle', 'Alle'], ['anfrage', 'Anfragen'], ['todo', 'Todos'], ['aufgabe', 'Aufgaben'], ['buchung', 'Buchungen']]
     .map(([k, l]) => `<button type="button" role="tab" class="fchip" data-kind="${k}" aria-selected="${ui.kind === k}">${l}<span class="n">${count(k)}</span></button>`).join('');
   $('#openCount').textContent = open.length;
   const af = [];
@@ -846,6 +1013,7 @@ function renderAll() {
   renderHero(now);
   renderPlanner(now);
   renderFocus(now);
+  renderOvertime(now);
   renderSyncUi();
 }
 
@@ -897,7 +1065,7 @@ function ask({ title, text, password = false, placeholder = '', buttons }) {
 }
 
 /* ======================= Composer ======================= */
-const C = { id: null, kind: 'todo', mode: 'einmalig', status: 'offen', repeat: 'daily' };
+const C = { id: null, kind: 'todo', mode: 'einmalig', status: 'offen', repeat: 'daily', bMin: 0 };
 const DUE_CHIPS = [
   ['In 1 Std', () => { const t = Date.now() + HOUR; return t - t % (5 * MIN); }],
   ['Heute 17:00', () => at(0, 17)],
@@ -915,7 +1083,12 @@ function setSeg(name, v) {
 }
 function syncComposer() {
   $('#fromRow').hidden = C.kind === 'todo';
-  $('#lblFrom').textContent = C.kind === 'anfrage' ? 'Von wem?' : 'Von / für wen (optional)';
+  $('#lblFrom').textContent = C.kind === 'anfrage' ? 'Von wem?' : C.kind === 'buchung' ? 'Für wen? (Kollegin / Kollege)' : 'Von / für wen (optional)';
+  $('#bookRow').hidden = C.kind !== 'buchung';
+  $('#cTitle').placeholder = C.kind === 'buchung' ? 'Überstunden eintragen' : 'Was steht an?';
+  $('#cbMin').textContent = '+' + dur(C.bMin * MIN);
+  const bs = $('#cbShift').value.trim();
+  $$('#cbShiftChips .chip').forEach(c => c.setAttribute('aria-pressed', String(c.dataset.name === bs)));
   $$('[data-panel]').forEach(p => p.hidden = p.dataset.panel !== C.mode);
   if (C.mode === 'deadline' && !$('#cDue').value) $('#cDue').value = toLocalInput(defaultDue());
   if (C.mode === 'repeat' && !$('#cRep').value) $('#cRep').value = toLocalInput(defaultDue());
@@ -942,6 +1115,11 @@ function openComposer(item, preset = {}) {
   $('#cDue2').value = it.mode === 'dauer' ? toLocalInput(it.due) : '';
   $('#cRep').value = it.mode === 'repeat' ? toLocalInput(it.due) : '';
   $('#cDur').value = it.durMin || '';
+  $('#cbDate').value = it.bDate || dayKey(Date.now());
+  $('#cbShift').value = it.bShift || '';
+  C.bMin = it.bMin || 0;
+  $('#tplNames').innerHTML = state.tpls.map(t => `<option value="${esc(t.name)}"></option>`).join('');
+  $('#cbShiftChips').innerHTML = state.tpls.map(t => `<button type="button" class="chip tpl-chip" data-name="${esc(t.name)}" style="--c:${COLORS[t.color]}"><i></i>${esc(t.name)}</button>`).join('');
   $('#cDelete').hidden = !item;
   const stats = $('#cStats');
   if (item) {
@@ -961,6 +1139,9 @@ $$('#composer [data-seg] button').forEach(b => b.addEventListener('click', () =>
 $('#dueChips').addEventListener('click', e => { const c = e.target.closest('[data-due]'); if (!c) return; $('#cDue').value = toLocalInput(DUE_CHIPS[+c.dataset.due][1]()); syncComposer(); });
 $('#durChips').addEventListener('click', e => { const c = e.target.closest('[data-dur]'); if (!c) return; $('#cDur').value = c.dataset.dur; syncComposer(); });
 $('#cDur').addEventListener('input', syncComposer);
+$('#cbShift').addEventListener('input', syncComposer);
+$('#cbShiftChips').addEventListener('click', e => { const c = e.target.closest('[data-name]'); if (!c) return; $('#cbShift').value = c.dataset.name; syncComposer(); });
+$('#bookRow').addEventListener('click', e => { const b = e.target.closest('[data-bstep]'); if (!b) return; C.bMin = clamp(C.bMin + Number(b.dataset.bstep), 0, 24 * 60); syncComposer(); });
 $('#cDue').addEventListener('input', syncComposer);
 $('#cForm').addEventListener('submit', e => { e.preventDefault(); saveComposer(); });
 $('#cForm').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); saveComposer(); } });
@@ -968,11 +1149,13 @@ $('#cDelete').addEventListener('click', () => { const id = C.id; closeDlg($('#co
 
 function saveComposer() {
   if (!S) return;
-  const title = $('#cTitle').value.trim();
+  const title = $('#cTitle').value.trim() || (C.kind === 'buchung' ? 'Überstunden eintragen' : '');
   const fail = el => { el.classList.add('err'); el.focus(); setTimeout(() => el.classList.remove('err'), 1400); };
   if (!title) return fail($('#cTitle'));
+  if (C.kind === 'buchung' && !$('#cFrom').value.trim()) return fail($('#cFrom'));
   const now = Date.now();
-  const data = { title, notes: $('#cNotes').value.trim(), kind: C.kind, from: C.kind === 'todo' ? '' : $('#cFrom').value.trim(), mode: C.mode, status: C.status, due: null, durMin: null, repeat: null, repDay: null };
+  const data = { title, notes: $('#cNotes').value.trim(), kind: C.kind, from: C.kind === 'todo' ? '' : $('#cFrom').value.trim(), mode: C.mode, status: C.status, due: null, durMin: null, repeat: null, repDay: null,
+    bDate: C.kind === 'buchung' && isKey($('#cbDate').value) ? $('#cbDate').value : null, bShift: C.kind === 'buchung' ? $('#cbShift').value.trim() : '', bMin: C.kind === 'buchung' ? C.bMin : 0 };
   if (C.mode === 'deadline') { const t = parseLocal($('#cDue').value); if (t == null) return fail($('#cDue')); data.due = t; }
   if (C.mode === 'dauer') {
     const m = Math.round(Number($('#cDur').value));
@@ -989,62 +1172,212 @@ function saveComposer() {
     } else toast('Eintrag wurde inzwischen auf einem anderen Gerät gelöscht.');
   } else {
     state.items.push(normItem({ id: uid(), ...data, createdAt: now, updatedAt: now }));
-    toast(`${KINDS[data.kind].label} angelegt${data.from && data.kind === 'anfrage' ? ' · von ' + data.from : ''}`);
+    toast(data.kind === 'buchung' ? `Buchung für ${data.from} gemerkt${data.bMin ? ' · +' + dur(data.bMin * MIN) : ''}` : `${KINDS[data.kind].label} angelegt${data.from && data.kind === 'anfrage' ? ' · von ' + data.from : ''}`);
   }
   closeDlg($('#composer'));
   commit();
 }
 
-/* ======================= Stamp editor ======================= */
-let editStampId = null;
-function openStampEditor(id) {
-  if (!S) return;
-  editStampId = id || null;
-  const st = id ? state.stamps.find(s => s.id === id) : null;
-  const base = st ? st.in : (ui.selDay ? fromKey(ui.selDay) + 8 * HOUR : Date.now());
-  $('#sHeading').textContent = st ? 'Stempel bearbeiten' : 'Stempel nachtragen';
-  $('#sDate').value = dayKey(base);
-  $('#sIn').value = st ? hm(st.in) : (ui.selDay ? '08:00' : hm(Date.now() - HOUR));
-  $('#sOut').value = st ? (st.out != null ? hm(st.out) : '') : (ui.selDay ? '16:30' : hm(Date.now()));
-  $('#sDelete').hidden = !st;
-  openDlg($('#stampDlg'));
+/* ======================= Dienste: Dialoge & Katalog ======================= */
+const BREAKS = [0, 15, 30, 45, 60];
+function renderColors(el, sel) {
+  el.innerHTML = Object.keys(COLORS).map(c => `<button type="button" role="radio" class="color" data-color="${c}" aria-checked="${c === sel}" aria-label="${COLOR_NAMES[c]}" style="--c:${COLORS[c]}"></button>`).join('');
 }
-$('#sForm').addEventListener('submit', e => {
-  e.preventDefault();
-  const date = $('#sDate').value, tin = $('#sIn').value, tout = $('#sOut').value;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}/.test(tin)) { toast('Bitte Datum und Beginn angeben.'); return; }
-  const inT = parseLocal(`${date}T${tin}`);
-  let outT = tout ? parseLocal(`${date}T${tout}`) : null;
-  if (outT != null && outT <= inT) outT = addDays(outT, 1);
+function renderBreaks(el, sel) {
+  el.innerHTML = BREAKS.map(b => `<button type="button" data-v="${b}" aria-pressed="${b === sel}">${b ? b + ' Min' : 'Keine'}</button>`).join('');
+}
+function pressColors(el, sel) { $$('.color', el).forEach(b => b.setAttribute('aria-checked', String(b.dataset.color === sel))); }
+function pressBreaks(el, sel) { $$('button', el).forEach(b => b.setAttribute('aria-pressed', String(Number(b.dataset.v) === sel))); }
+
+/* ---------- Dienst eintragen / bearbeiten ---------- */
+const SH = { id: null, color: 'lime', breakMin: 30, extraMin: 0, canLive: false };
+function openShiftDialog(sh, opts = {}) {
+  if (!S) return;
+  closeMenu();
   const now = Date.now();
-  if (inT > now) { toast('Beginn liegt in der Zukunft.'); return; }
-  if (outT != null && outT > now + MIN) { toast('Ende liegt in der Zukunft.'); return; }
-  const others = state.stamps.filter(s => s.id !== editStampId);
-  if (outT == null && others.some(s => s.out == null)) { toast('Es läuft schon eine Session – bitte ein Ende angeben.'); return; }
-  if (outT == null && others.some(s => s.in > inT)) { toast('Eine offene Session muss die letzte sein – bitte Ende angeben.'); return; }
-  const clash = others.find(s => inT < (s.out ?? now) && (outT ?? now) > s.in);
-  if (clash) { toast(`Überschneidet sich mit ${hm(clash.in)}–${clash.out ? hm(clash.out) : 'läuft'}.`); return; }
+  SH.id = sh ? sh.id : null;
+  const base = sh || { name: '', date: opts.date || ui.selDay || dayKey(now), start: null, plannedEnd: null, breakMin: 30, extraMin: 0, color: 'lime', live: false };
+  const past = sh && !sh.live && sh.start <= now;
+  $('#shH').textContent = sh ? 'Dienst bearbeiten' : (opts.live ? 'Dienst beginnen' : 'Dienst eintragen');
+  $('#shName').value = base.name;
+  $('#shDate').value = base.date;
+  $('#shStart').value = base.start != null ? hm(base.start) : (opts.live ? hm(now) : '');
+  const effEnd = sh ? (past && sh.end != null && sh.end < sh.plannedEnd ? sh.end : sh.plannedEnd) : null;
+  $('#shEnd').value = effEnd != null ? hm(effEnd) : '';
+  $('#shEndLbl').textContent = past ? 'Ende' : 'Geplantes Ende';
+  SH.color = base.color; SH.breakMin = base.breakMin; SH.extraMin = base.extraMin;
+  renderColors($('#shColors'), SH.color);
+  renderBreaks($('#shBreak'), SH.breakMin);
+  $('#shTpls').innerHTML = state.tpls.length
+    ? state.tpls.map(tp => `<button type="button" class="chip tpl-chip" data-tpl="${tp.id}" style="--c:${COLORS[tp.color]}"><i></i>${esc(tp.name)} <span class="mono">${tp.start}–${tp.end}</span></button>`).join('')
+    : '<span class="hint">Der Katalog ist leer – Vorlagen legst du unter „Katalog“ an.</span>';
+  SH.canLive = sh ? sh.live : !liveShift();
+  $('#shLiveRow').hidden = !SH.canLive;
+  $('#shLive').checked = sh ? sh.live : !!opts.live;
+  $('#shDelete').hidden = !sh;
+  syncShiftDialog();
+  openDlg($('#shiftDlg'));
+  if (!sh && !mobileMQ.matches) setTimeout(() => $('#shName').focus(), 40);
+}
+function readShiftForm() {
+  const date = $('#shDate').value, s = $('#shStart').value, e = $('#shEnd').value;
+  if (!isKey(date) || !/^\d{2}:\d{2}/.test(s) || !/^\d{2}:\d{2}/.test(e)) return null;
+  const start = parseLocal(`${date}T${s.slice(0, 5)}`);
+  let end = parseLocal(`${date}T${e.slice(0, 5)}`);
+  if (end <= start) end = addDays(end, 1);
+  return { date, start, plannedEnd: end };
+}
+function syncShiftDialog() {
+  $('#shExtra').textContent = '+' + dur(SH.extraMin * MIN);
+  pressColors($('#shColors'), SH.color);
+  pressBreaks($('#shBreak'), SH.breakMin);
+  const f = readShiftForm(), name = $('#shName').value.trim();
+  $$('#shTpls .tpl-chip').forEach(c => { const tp = state.tpls.find(t => t.id === c.dataset.tpl); c.setAttribute('aria-pressed', String(!!tp && tp.name === name && !!f && hm(f.plannedEnd) === tp.end)); });
+  const sum = $('#shSummary'), law = $('#shLaw');
+  if (!f) { sum.textContent = 'Beginn und Ende eintragen – oder oben eine Vorlage wählen.'; law.hidden = true; return; }
+  const tmp = { start: f.start, plannedEnd: f.plannedEnd, breakMin: SH.breakMin, extraMin: SH.extraMin };
+  sum.textContent = `${dur(f.plannedEnd - f.start)} h Dienst · ${dur(plannedNet(tmp))} h netto${SH.extraMin ? ` · +${dur(SH.extraMin * MIN)} Überstunden` : ''}${sod(f.plannedEnd) > sod(f.start) ? ' · endet am Folgetag' : ''}`;
+  const msg = lawNote(tmp); law.hidden = !msg; law.textContent = msg;
+}
+$('#shTpls').addEventListener('click', e => {
+  const c = e.target.closest('[data-tpl]'); if (!c) return;
+  const tp = state.tpls.find(t => t.id === c.dataset.tpl); if (!tp) return;
+  $('#shName').value = tp.name; SH.color = tp.color; SH.breakMin = tp.breakMin;
+  const keepStart = $('#shLive').checked && !$('#shLiveRow').hidden && $('#shStart').value;
+  if (keepStart) {
+    const st = parseLocal(`${$('#shDate').value}T${$('#shStart').value.slice(0, 5)}`);
+    $('#shEnd').value = st != null ? hm(endAfter(st, tp.end, tplLen(tp))) : tp.end;
+  } else { $('#shStart').value = tp.start; $('#shEnd').value = tp.end; }
+  syncShiftDialog();
+});
+$('#shColors').addEventListener('click', e => { const b = e.target.closest('[data-color]'); if (b) { SH.color = b.dataset.color; syncShiftDialog(); } });
+$('#shBreak').addEventListener('click', e => { const b = e.target.closest('[data-v]'); if (b) { SH.breakMin = Number(b.dataset.v); syncShiftDialog(); } });
+$('#shiftDlg').addEventListener('click', e => { const b = e.target.closest('[data-shstep]'); if (b) { SH.extraMin = clamp(SH.extraMin + Number(b.dataset.shstep), 0, 24 * 60); syncShiftDialog(); } });
+['#shName', '#shDate', '#shStart', '#shEnd'].forEach(id => $(id).addEventListener('input', syncShiftDialog));
+$('#shForm').addEventListener('submit', e => { e.preventDefault(); saveShift(); });
+$('#shForm').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); saveShift(); } });
+function saveShift() {
+  if (!S) return;
+  const f = readShiftForm();
+  if (!f) { toast('Bitte Datum, Beginn und Ende angeben.'); return; }
+  const now = Date.now();
+  const name = $('#shName').value.trim() || 'Dienst';
+  const live = SH.canLive && $('#shLive').checked;
+  if (live && f.start > now + MIN) { toast('Ein laufender Dienst kann nicht in der Zukunft beginnen.'); return; }
+  if (live && f.plannedEnd <= now && !SH.id) { toast('Das Ende liegt schon in der Vergangenheit – Häkchen „im Dienst“ entfernen.'); return; }
+  const others = state.shifts.filter(x => x.id !== SH.id);
+  const clash = others.find(x => f.start < (x.live ? Math.max(now, x.plannedEnd) : Math.min(x.end ?? x.plannedEnd, x.plannedEnd)) && f.plannedEnd > x.start);
+  if (clash) { toast(`Überschneidet sich mit ${clash.name} ${dateShort(clash.start)} ${hm(clash.start)}–${hm(clash.plannedEnd)}.`); return; }
+  if (live && others.some(x => x.live)) { toast('Es läuft schon ein Dienst – erst ausdongeln.'); return; }
   const snap = snapshot();
-  if (editStampId) { const st = state.stamps.find(s => s.id === editStampId); if (st) { st.in = inT; st.out = outT; st.u = now; } }
-  else state.stamps.push({ id: uid(), in: inT, out: outT, u: now });
-  state.stamps.sort((a, b) => a.in - b.in);
-  closeDlg($('#stampDlg'));
+  const data = { date: f.date, name, color: SH.color, start: f.start, plannedEnd: f.plannedEnd, end: null, live, breakMin: SH.breakMin, extraMin: SH.extraMin, u: now };
+  if (SH.id) {
+    const sh = state.shifts.find(x => x.id === SH.id);
+    if (!sh) { toast('Dieser Dienst wurde inzwischen auf einem anderen Gerät gelöscht.'); closeDlg($('#shiftDlg')); return; }
+    Object.assign(sh, normShift({ ...sh, ...data }));
+  } else state.shifts.push(normShift({ id: uid(), ...data }));
+  closeDlg($('#shiftDlg'));
   commit();
-  toast(editStampId ? 'Stempel geändert' : 'Stempel nachgetragen', { undo: snap });
+  toast(SH.id ? 'Dienst gespeichert' : live ? `Eingedongelt · ${name} bis ${hm(f.plannedEnd)}` : f.start > now ? `${name} geplant · ${dateShort(f.start)}` : 'Dienst eingetragen', { undo: snap });
+}
+$('#shDelete').addEventListener('click', () => {
+  if (!SH.id) return;
+  const snap = snapshot(), id = SH.id;
+  state.shifts = state.shifts.filter(x => x.id !== id);
+  state.del[id] = Date.now();
+  closeDlg($('#shiftDlg')); commit();
+  toast('Dienst gelöscht', { undo: snap });
 });
-$('#sDelete').addEventListener('click', () => {
-  if (!editStampId) return;
-  const snap = snapshot();
-  state.stamps = state.stamps.filter(s => s.id !== editStampId);
-  state.del[editStampId] = Date.now();
-  closeDlg($('#stampDlg')); commit(); toast('Stempel gelöscht', { undo: snap });
+
+/* ---------- Dienst beginnen (Vorlage wählen) ---------- */
+function openStartSheet() {
+  if (!S) return;
+  const now = Date.now();
+  $('#stNow').textContent = hm(now);
+  $('#startTpls').innerHTML = state.tpls.map(tp => `<button type="button" class="tpl-btn" data-tpl="${tp.id}" style="--c:${COLORS[tp.color]}"><span class="tpl-name">${esc(tp.name)}</span><span class="tpl-time mono">${tp.start}–${tp.end}</span><span class="tpl-end">bis ${hm(endAfter(now, tp.end, tplLen(tp)))} · ${dur(tplNet(tp) * MIN)} h netto</span></button>`).join('')
+    + `<button type="button" class="tpl-btn free" data-tpl=""><span class="tpl-name">Ohne Vorlage</span><span class="tpl-time mono">${dur(state.settings.targetMin * MIN)} h + 30 Min</span><span class="tpl-end">Ende danach anpassen</span></button>`;
+  openDlg($('#startDlg'));
+}
+$('#startTpls').addEventListener('click', e => {
+  const b = e.target.closest('[data-tpl]'); if (!b) return;
+  const tp = state.tpls.find(t => t.id === b.dataset.tpl) || null;
+  closeDlg($('#startDlg'));
+  startShift(tp);
 });
+$('#startCustom').addEventListener('click', () => { closeDlg($('#startDlg')); setTimeout(() => openShiftDialog(null, { live: true, date: dayKey(Date.now()) }), mobileMQ.matches ? 320 : 200); });
+$('#startCatalog').addEventListener('click', () => { closeDlg($('#startDlg')); setTimeout(openCatalog, mobileMQ.matches ? 320 : 200); });
+
+/* ---------- Katalog ---------- */
+const TP = { id: null, color: 'lime', breakMin: 30 };
+function openCatalog() { if (!S) return; closeMenu(); showTplList(); openDlg($('#tplDlg')); }
+function showTplList() {
+  $('#tplForm').hidden = true; $('#tplListView').hidden = false;
+  $('#tplList').innerHTML = state.tpls.length ? state.tpls.map(tp => `<li><button type="button" class="tpl-row" data-tpl="${tp.id}"><i class="cdot" style="background:${COLORS[tp.color]}"></i><span class="tpl-row-name">${esc(tp.name)}</span><span class="mono dim">${tp.start}–${tp.end}</span><span class="mono dim tpl-row-net">${dur(tplNet(tp) * MIN)} h</span>${ico('edit')}</button></li>`).join('')
+    : '<li class="stamp-empty">Noch keine Vorlagen – leg deine erste Schicht an.</li>';
+}
+function editTpl(tp) {
+  TP.id = tp ? tp.id : null;
+  $('#tpName').value = tp ? tp.name : '';
+  $('#tpStart').value = tp ? tp.start : '08:00';
+  $('#tpEnd').value = tp ? tp.end : '16:30';
+  TP.color = tp ? tp.color : 'lime'; TP.breakMin = tp ? tp.breakMin : 30;
+  renderColors($('#tpColors'), TP.color); renderBreaks($('#tpBreak'), TP.breakMin);
+  $('#tpDelete').hidden = !tp;
+  $('#tplListView').hidden = true; $('#tplForm').hidden = false;
+  syncTplForm();
+  if (!mobileMQ.matches) setTimeout(() => $('#tpName').focus(), 40);
+}
+function syncTplForm() {
+  pressColors($('#tpColors'), TP.color); pressBreaks($('#tpBreak'), TP.breakMin);
+  const s = $('#tpStart').value.slice(0, 5), e = $('#tpEnd').value.slice(0, 5);
+  if (!isHM(s) || !isHM(e)) { $('#tpSummary').textContent = 'Beginn und Ende eintragen.'; return; }
+  const tp = { start: s, end: e, breakMin: TP.breakMin };
+  const t0 = atHM(Date.now(), s);
+  const note = lawNote({ start: t0, plannedEnd: t0 + tplLen(tp) * MIN, breakMin: TP.breakMin, extraMin: 0 });
+  $('#tpSummary').textContent = `${dur(tplLen(tp) * MIN)} h Dienst · ${dur(tplNet(tp) * MIN)} h netto${hmToMin(e) <= hmToMin(s) ? ' · endet am Folgetag' : ''}${note ? ' · ' + note : ''}`;
+}
+$('#tplList').addEventListener('click', e => { const b = e.target.closest('[data-tpl]'); if (b) editTpl(state.tpls.find(t => t.id === b.dataset.tpl)); });
+$('#tplNew').addEventListener('click', () => editTpl(null));
+$('#tpBack').addEventListener('click', showTplList);
+$('#tpColors').addEventListener('click', e => { const b = e.target.closest('[data-color]'); if (b) { TP.color = b.dataset.color; syncTplForm(); } });
+$('#tpBreak').addEventListener('click', e => { const b = e.target.closest('[data-v]'); if (b) { TP.breakMin = Number(b.dataset.v); syncTplForm(); } });
+['#tpStart', '#tpEnd'].forEach(id => $(id).addEventListener('input', syncTplForm));
+$('#tplForm').addEventListener('submit', e => {
+  e.preventDefault();
+  if (!S) return;
+  const name = $('#tpName').value.trim(), s = $('#tpStart').value.slice(0, 5), en = $('#tpEnd').value.slice(0, 5);
+  if (!name) { $('#tpName').classList.add('err'); $('#tpName').focus(); setTimeout(() => $('#tpName').classList.remove('err'), 1400); return; }
+  if (!isHM(s) || !isHM(en)) { toast('Bitte Beginn und Ende angeben.'); return; }
+  const now = Date.now();
+  const data = { name, start: s, end: en, breakMin: TP.breakMin, color: TP.color, u: now };
+  if (TP.id) { const tp = state.tpls.find(t => t.id === TP.id); if (tp) Object.assign(tp, data); }
+  else state.tpls.push(normTpl({ id: uid(), ...data }));
+  state = normalize(state);
+  commit(); showTplList();
+  toast(TP.id ? 'Vorlage gespeichert' : `Vorlage „${name}“ angelegt`);
+});
+$('#tpDelete').addEventListener('click', () => {
+  if (!TP.id || !S) return;
+  const snap = snapshot(), tp = state.tpls.find(t => t.id === TP.id);
+  state.tpls = state.tpls.filter(t => t.id !== TP.id);
+  state.del[TP.id] = Date.now();
+  commit(); showTplList();
+  toast(`Vorlage „${tp ? tp.name : ''}“ gelöscht`, { undo: snap });
+});
+
+/* ---------- Zeit-Karte: Ereignisse ---------- */
 $('#stampList').addEventListener('click', e => {
-  const m = e.target.closest('[data-adj]'); if (m) { addMinutes(ui.selDay || dayKey(Date.now()), Number(m.dataset.adj)); return; }
-  const b = e.target.closest('[data-stamp]'); if (b) openStampEditor(b.dataset.stamp);
+  const b = e.target.closest('[data-shift-edit]') || e.target.closest('[data-shift]');
+  if (!b) return;
+  const sh = state.shifts.find(x => x.id === (b.dataset.shiftEdit || b.dataset.shift));
+  if (sh) openShiftDialog(sh);
 });
-$('#add15').addEventListener('click', () => addMinutes(ui.selDay || dayKey(Date.now()), 15));
+$('#extraPlus').addEventListener('click', () => addExtra(15));
+$('#extraMinus').addEventListener('click', () => addExtra(-15));
+$('#addShift').addEventListener('click', () => openShiftDialog(null, { date: ui.selDay || dayKey(Date.now()) }));
+$('#openCatalog').addEventListener('click', openCatalog);
 $('#stampsToday').addEventListener('click', () => { ui.selDay = null; renderTime(); renderWeek(); });
+$('#bookBtn').addEventListener('click', () => openComposer(null, { kind: 'buchung' }));
 
 /* ======================= Dongle slider ======================= */
 const dongle = { busy: false, drag: null, suppress: false };
@@ -1054,13 +1387,13 @@ const dongle = { busy: false, drag: null, suppress: false };
   const reset = (animate = true) => { knob.style.transition = animate ? '' : 'none'; knob.style.transform = ''; };
   function finish(fromX) {
     if (dongle.busy) return;
-    if (reduceMotion.matches) { reset(false); toggleClock(); return; }
+    if (reduceMotion.matches) { reset(false); dongleAction(); return; }
     dongle.busy = true;
     const m = max();
     knob.style.transition = 'none';
     const a = knob.animate([{ transform: `translateX(${fromX}px)` }, { transform: `translateX(${m}px)` }], { duration: Math.max(110, 260 * (1 - fromX / m)), easing: 'cubic-bezier(.23,1,.32,1)', fill: 'forwards' });
     a.onfinish = () => {
-      toggleClock();
+      dongleAction();
       a.cancel(); knob.style.transform = '';
       dongle.busy = false;
       if (S) renderTime();
@@ -1096,11 +1429,11 @@ const dongle = { busy: false, drag: null, suppress: false };
   knob.addEventListener('pointercancel', end(true));
   el.addEventListener('click', e => {
     if (dongle.suppress || dongle.busy) return;
-    if (e.detail === 0) { toggleClock(); return; }
+    if (e.detail === 0) { dongleAction(); return; }
     finish(0);
   });
 })();
-$('#dockDongle').addEventListener('click', toggleClock);
+$('#dockDongle').addEventListener('click', dongleAction);
 
 /* ======================= Planner events ======================= */
 $('#list').addEventListener('click', e => {
@@ -1149,12 +1482,12 @@ $('#focusBody').addEventListener('click', e => {
 
 function parseQuick(raw) {
   let s = ` ${raw} `, kind = null, from = '', asap = false;
-  s = s.replace(/\s#(anfrage|todo|aufgabe)(?=\s)/i, (_, k) => { kind = k.toLowerCase(); return ' '; });
+  s = s.replace(/\s#(anfrage|todo|aufgabe|buchung|stunden)(?=\s)/i, (_, k) => { kind = k.toLowerCase() === 'stunden' ? 'buchung' : k.toLowerCase(); return ' '; });
   s = s.replace(/\s@([\p{L}][\p{L}\p{N}._-]*)/u, (_, n) => { from = n.replace(/[._]+/g, ' ').trim(); return ' '; });
   if (/\s!+(?=\s)/.test(s) || /!\s*$/.test(s)) { asap = true; s = s.replace(/\s!+(?=\s)/g, ' ').replace(/!+\s*$/, ' '); }
   const title = s.replace(/\s+/g, ' ').trim();
   if (!kind) kind = from ? 'anfrage' : (ui.kind !== 'alle' ? ui.kind : 'todo');
-  return { title, kind, from, mode: asap ? 'asap' : 'einmalig' };
+  return { title: title || (kind === 'buchung' ? 'Überstunden eintragen' : ''), kind, from, mode: asap ? 'asap' : 'einmalig' };
 }
 $('#quickInput').addEventListener('keydown', e => {
   if (e.key === 'Enter' && e.shiftKey) {
@@ -1199,7 +1532,7 @@ $('#calNext').addEventListener('click', () => { const d = new Date(ui.calMonth);
 $('#wkChart').addEventListener('click', e => {
   const b = e.target.closest('[data-day]'); if (!b) return;
   ui.selDay = b.dataset.day === dayKey(Date.now()) ? null : b.dataset.day;
-  renderWeek(); renderStamps(Date.now());
+  renderWeek(); renderShiftList(Date.now()); updateLive(Date.now());
   showTip($(`.wk-col[data-day="${b.dataset.day}"]`));
 });
 function showTip(col) {
@@ -1257,6 +1590,7 @@ menu.addEventListener('click', async e => {
   const a = b.dataset.menu, stamp = dayKey(Date.now());
   closeMenu();
   if (a === 'security') openSecurity();
+  else if (a === 'catalog') openCatalog();
   else if (a === 'lock') lock('manual');
   else if (a === 'export') {
     await saveChain;
@@ -1267,18 +1601,15 @@ menu.addEventListener('click', async e => {
   else if (a === 'csv') {
     const r = await ask({ title: 'Unverschlüsselter Export', text: 'Die CSV-Datei enthält deine Arbeitszeiten im Klartext. Speichere sie nur an einem sicheren Ort.', buttons: [{ label: 'Abbrechen', value: null }, { label: 'CSV erstellen', value: 'ok', cls: 'btn-accent', submit: true }] });
     if (!r) return;
-    const rows = [['Datum', 'Wochentag', 'Eingedongelt', 'Ausgedongelt', 'Dauer (h:mm)', 'Dauer (Std dezimal)']];
-    for (const st of state.stamps) {
-      const end = st.out ?? Date.now();
-      rows.push([new Date(st.in).toLocaleDateString('de-DE'), WDL[new Date(st.in).getDay()], hm(st.in), st.out ? hm(st.out) : 'läuft', dur(end - st.in), ((end - st.in) / HOUR).toFixed(2).replace('.', ',')]);
-    }
-    for (const k of Object.keys(state.adj).sort()) {
-      const m = state.adj[k].m; if (!m) continue;
-      const t = fromKey(k);
-      rows.push([new Date(t).toLocaleDateString('de-DE'), WDL[new Date(t).getDay()], 'Nachtrag', '', dur(m * MIN), (m / 60).toFixed(2).replace('.', ',')]);
+    const now = Date.now();
+    const rows = [['Datum', 'Wochentag', 'Dienst', 'Beginn', 'Ende (geplant)', 'Ausgedongelt', 'Pause (Min)', 'Überstunden (h:mm)', 'Arbeitszeit (h:mm)', 'Arbeitszeit (Std dezimal)', 'Überstunden (Std dezimal)']];
+    for (const sh of state.shifts) {
+      if (isPlanned(sh, now)) continue;
+      const w = shiftWorked(sh, now);
+      rows.push([new Date(sh.start).toLocaleDateString('de-DE'), WDL[new Date(sh.start).getDay()], sh.name.replace(/;/g, ','), hm(sh.start), hm(sh.plannedEnd), sh.live ? 'läuft' : sh.end != null ? hm(sh.end) : '', sh.breakMin, dur(sh.extraMin * MIN), dur(w), (w / HOUR).toFixed(2).replace('.', ','), (sh.extraMin / 60).toFixed(2).replace('.', ',')]);
     }
     download(`workoholic-arbeitszeiten-${stamp}.csv`, '﻿' + rows.map(r => r.join(';')).join('\r\n'), 'text/csv;charset=utf-8');
-    toast(`${rows.length - 1} Zeilen exportiert`);
+    toast(`${rows.length - 1} Dienste exportiert`);
   }
   else if (a === 'cleardone') {
     const done = state.items.filter(i => i.done);
@@ -1290,9 +1621,9 @@ menu.addEventListener('click', async e => {
   }
   else if (a === 'demo') loadDemo();
   else if (a === 'wipe') {
-    const r = await ask({ title: 'Alles löschen?', text: 'Entfernt alle Einträge und Stempel – auch auf allen synchronisierten Geräten. Der Tresor selbst und dein Passwort bleiben bestehen.', buttons: [{ label: 'Abbrechen', value: null }, { label: 'Alles löschen', value: 'ok', cls: 'btn-ghost btn-danger', submit: true }] });
+    const r = await ask({ title: 'Alles löschen?', text: 'Entfernt alle Einträge und Dienste – auch auf allen synchronisierten Geräten. Dienste-Katalog, Tresor und Passwort bleiben bestehen.', buttons: [{ label: 'Abbrechen', value: null }, { label: 'Alles löschen', value: 'ok', cls: 'btn-ghost btn-danger', submit: true }] });
     if (!r) return;
-    const snap = snapshot(); applyState(blank()); toast('Alles gelöscht', { undo: snap });
+    const snap = snapshot(); applyState({ ...blank(), tpls: state.tpls, settings: state.settings }); toast('Alles gelöscht', { undo: snap });
   }
 });
 $('#importFile').addEventListener('change', async e => {
@@ -1313,7 +1644,7 @@ $('#importFile').addEventListener('change', async e => {
     else throw new Error('format');
   } catch (er) { toast(er.code === 'wrong-password' ? 'Falsches Passwort für dieses Backup.' : 'Datei ist kein gültiges Workoholic-Backup.'); return; }
   const next = normalize(data);
-  const r = await ask({ title: 'Backup einspielen', text: `Das Backup enthält ${next.items.length} Einträge und ${next.stamps.length} Stempel. Zusammenführen behält alles Neuere; Ersetzen setzt den Stand exakt auf das Backup.`, buttons: [{ label: 'Abbrechen', value: null }, { label: 'Ersetzen', value: 'replace', cls: 'btn-ghost btn-danger' }, { label: 'Zusammenführen', value: 'merge', cls: 'btn-accent', submit: true }] });
+  const r = await ask({ title: 'Backup einspielen', text: `Das Backup enthält ${next.items.length} Einträge und ${next.shifts.length} Dienste. Zusammenführen behält alles Neuere; Ersetzen setzt den Stand exakt auf das Backup.`, buttons: [{ label: 'Abbrechen', value: null }, { label: 'Ersetzen', value: 'replace', cls: 'btn-ghost btn-danger' }, { label: 'Zusammenführen', value: 'merge', cls: 'btn-accent', submit: true }] });
   if (!r) return;
   const snap = snapshot();
   if (r.value === 'replace') applyState(next);
@@ -1323,39 +1654,51 @@ $('#importFile').addEventListener('change', async e => {
 
 /* ======================= Demo data ======================= */
 async function loadDemo() {
-  if (state.items.length || state.stamps.length) {
-    const r = await ask({ title: 'Beispieldaten laden?', text: 'Ersetzt deine aktuellen Einträge und Stempel (auch auf synchronisierten Geräten). Du kannst es direkt danach rückgängig machen.', buttons: [{ label: 'Abbrechen', value: null }, { label: 'Ersetzen', value: 'ok', cls: 'btn-accent', submit: true }] });
+  if (state.items.length || state.shifts.length) {
+    const r = await ask({ title: 'Beispieldaten laden?', text: 'Ersetzt deine aktuellen Einträge und Dienste (auch auf synchronisierten Geräten). Dein Dienste-Katalog bleibt. Du kannst es direkt danach rückgängig machen.', buttons: [{ label: 'Abbrechen', value: null }, { label: 'Ersetzen', value: 'ok', cls: 'btn-accent', submit: true }] });
     if (!r) return;
   }
   const snap = snapshot(), now = Date.now(), today = sod(now);
   const T = (dOff, h, m = 0) => { const d = new Date(today); d.setDate(d.getDate() + dOff); d.setHours(h, m, 0, 0); return d.getTime(); };
   const mk = o => normItem({ id: uid(), createdAt: now - (o.age || 0) * HOUR, updatedAt: now, ...o });
   const fri = (() => { let off = (5 - new Date(now).getDay() + 7) % 7; if (off === 0) off = 7; return off; })();
+  const yKey = dayKey(T(-1, 12));
   const items = [
     mk({ title: 'Kurzer Blick auf den Vertragsentwurf', kind: 'anfrage', from: 'Jonas Weber', mode: 'asap', age: 1, notes: 'Klausel 4.2 – Haftung' }),
     mk({ title: 'Zahlen für die Q4-Präsentation', kind: 'anfrage', from: 'Sabine Krüger', mode: 'deadline', due: Math.max(now + 2.4 * HOUR, T(0, 16)), status: 'inarbeit', age: 20 }),
-    mk({ title: 'Zugang zum Projektlaufwerk', kind: 'anfrage', from: 'Mehmet Yilmaz', mode: 'einmalig', status: 'wartet', age: 50, notes: 'Ticket bei der IT ist offen' }),
+    mk({ title: 'Überstunden eintragen', kind: 'buchung', from: 'Mehmet Yilmaz', bDate: yKey, bShift: 'Nachtdienst', bMin: 90, mode: 'deadline', due: T(fri, 12), age: 5, notes: 'Übergabe dauerte länger' }),
+    mk({ title: 'Überstunden eintragen', kind: 'buchung', from: 'Lena Hoffmann', bDate: dayKey(T(-3, 12)), bShift: 'Spätdienst', bMin: 45, mode: 'einmalig', age: 30 }),
     mk({ title: 'Feedback zum Onboarding-Konzept', kind: 'anfrage', from: 'Sabine Krüger', mode: 'deadline', due: T(fri, 12), age: 30 }),
     mk({ title: 'Quartalsbericht · Kapitel 3', kind: 'aufgabe', from: 'Lena Hoffmann', mode: 'dauer', durMin: 240, spentMs: 95 * MIN, due: T(fri, 15), age: 70 }),
     mk({ title: 'Kundentermin Müller GmbH vorbereiten', kind: 'aufgabe', mode: 'deadline', due: T(1, 10), age: 26 }),
     mk({ title: 'Reisekostenabrechnung einreichen', kind: 'todo', mode: 'deadline', due: T(-1, 17), age: 96 }),
     mk({ title: 'Postfach auf Inbox Zero', kind: 'todo', mode: 'repeat', repeat: 'weekdays', due: T(0, 17, 30), age: 300 }),
-    mk({ title: 'Wochenplanung', kind: 'todo', mode: 'repeat', repeat: 'weekly', due: T(fri, 14), age: 400 }),
     mk({ title: 'Ideen fürs Team-Event sammeln', kind: 'todo', mode: 'einmalig', age: 120 }),
-    mk({ title: 'Urlaubsantrag stellen', kind: 'todo', mode: 'einmalig', done: true, doneAt: now - 1.5 * HOUR, age: 48 }),
-    mk({ title: 'Rückruf Herr Schneider', kind: 'anfrage', from: 'Empfang', mode: 'asap', done: true, doneAt: now - 3 * HOUR, age: 5 })
+    mk({ title: 'Urlaubsantrag stellen', kind: 'todo', mode: 'einmalig', done: true, doneAt: now - 1.5 * HOUR, age: 48 })
   ];
-  const stamps = [];
-  let seed = 3; const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const tpl = id => state.tpls.find(t => t.id === id) || defaultTpls().find(t => t.id === id);
+  const shifts = [];
+  const add = (dOff, tp, extra = 0, early = 0) => {
+    const t = tpl(tp); if (!t) return;
+    const start = atHM(T(dOff, 0), t.start) + early * MIN;
+    shifts.push({ id: uid(), date: dayKey(start), name: t.name, color: t.color, start, plannedEnd: endAfter(start, t.end, tplLen(t)), breakMin: t.breakMin, extraMin: extra, u: now });
+  };
+  const plan = [['tpl-frueh', 30], ['tpl-frueh', 0], ['tpl-spaet', 45], ['tpl-spaet', 0], ['tpl-tag', 15]];
+  let j = 0;
   for (let i = 13; i >= 1; i--) {
     const d = new Date(T(-i, 0)); if (d.getDay() === 0 || d.getDay() === 6) continue;
-    const a = T(-i, 7, 35 + Math.round(r() * 30)), b = T(-i, 12, Math.round(r() * 20)), c = b + (30 + Math.round(r() * 20)) * MIN, e = T(-i, 16, 10 + Math.round(r() * 70));
-    stamps.push({ id: uid(), in: a, out: b }, { id: uid(), in: c, out: e });
+    const [tp, ex] = plan[j++ % plan.length];
+    add(-i, tp, ex);
   }
-  const s1 = T(0, 7, 42), s1e = T(0, 12, 4), s2 = T(0, 12, 38);
-  if (now > s2 + 5 * MIN) stamps.push({ id: uid(), in: s1, out: s1e }, { id: uid(), in: s2, out: null });
-  else if (now > s1 + 5 * MIN) stamps.push({ id: uid(), in: s1, out: null });
-  applyState({ items, stamps, del: {}, settings: { ...state.settings } });
+  const fr = tpl('tpl-frueh');
+  if (fr) {
+    const s0 = atHM(today, fr.start) + 2 * MIN, e0 = endAfter(s0, fr.end, tplLen(fr));
+    if (now > s0 && now < e0 + 2 * HOUR) shifts.push({ id: uid(), date: dayKey(s0), name: fr.name, color: fr.color, start: s0, plannedEnd: e0, breakMin: fr.breakMin, extraMin: 0, live: true, u: now });
+    else if (now >= e0) add(0, 'tpl-frueh', 15);
+  }
+  add(1, 'tpl-spaet');
+  add(2, 'tpl-nacht');
+  applyState({ v: 3, items, shifts, tpls: state.tpls, del: {}, settings: { ...state.settings } });
   toast('Beispieldaten geladen', { undo: snap });
 }
 
@@ -1812,7 +2155,7 @@ document.addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
   if (k === 'n') { e.preventDefault(); openComposer(); }
   else if (e.key === '/') { e.preventDefault(); if (mobileMQ.matches) searchBox.classList.add('expanded'); searchInput.focus(); }
-  else if (k === 'd' && !e.repeat) { e.preventDefault(); toggleClock(); }
+  else if (k === 'd' && !e.repeat) { e.preventDefault(); dongleAction(); }
   else if (k === 'l') { e.preventDefault(); lock('manual'); }
 });
 

@@ -498,6 +498,80 @@ details.adv[open] summary::before{content:"–"}
   .gate-h{font-size:28px}
 }
 
+/* ---------- Dienste ---------- */
+.shift-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:8px;vertical-align:1px;box-shadow:0 0 10px currentColor}
+.orb-status.over{color:var(--accent)}
+.wave-bars i.plan{height:30%;background:rgba(255,255,255,.13)}
+.wave-bars i.over{background:var(--accent)}
+.extra{display:flex;align-items:center;gap:8px;margin-top:12px;padding:10px 10px 10px 14px;border-radius:18px;background:var(--accent-soft);border:1px solid rgba(236,217,111,.18);transition:opacity .15s ease}
+.extra.off{opacity:.5}
+.extra-txt{flex:1;min-width:0}
+.extra-lbl{display:block;font-size:11px;color:rgba(236,217,111,.8);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.extra-val{display:inline-block;margin-top:2px;font-size:19px;color:var(--accent)}
+.extra-val.bump{animation:bump .24s var(--ease-out)}
+.add15.ghost{background:rgba(255,255,255,.05);border-color:var(--line);color:var(--text)}
+.adj-minus:disabled{opacity:.35;cursor:default;transform:none}
+.stamp.shift{cursor:pointer;gap:7px}
+.cdot{width:8px;height:8px;border-radius:50%;flex:none}
+.sh-name{min-width:0;max-width:42%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stamp.shift .pill{height:20px;padding:0 7px;font-size:10.5px}
+.extra-tag{color:var(--accent);font-size:12px}
+.ot-big{margin-top:16px;font:300 50px/1 var(--font);letter-spacing:-.02em;font-variant-numeric:tabular-nums;white-space:nowrap;background:repeating-linear-gradient(180deg,var(--accent) 0 1.6px,rgba(236,217,111,.18) 1.6px 2.8px);-webkit-background-clip:text;background-clip:text;color:transparent}
+.ot-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:16px}
+.ot-grid div{border-radius:14px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.045);padding:9px 11px}
+.ot-grid span{display:block;font-size:10.5px;color:var(--text-3)}
+.ot-grid b{display:block;margin-top:2px;font-size:14px;font-weight:500;color:var(--accent)}
+.ot-list{list-style:none;margin:12px 0 0;padding:0}
+.ot-list li{display:flex;align-items:center;gap:8px;height:34px;border-top:1px solid var(--line);font-size:12.5px}
+.ot-list li:first-child{border-top:0}
+.ot-list .dim{color:var(--text-3)}
+.ot-list b{color:var(--accent);font-weight:500;font-size:12.5px}
+.ot-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ot-book{width:100%;margin-top:14px;white-space:normal;height:auto;min-height:40px;padding:8px 14px;text-align:center;line-height:1.3}
+.ot-open{margin-left:4px;padding:1px 8px;border-radius:999px;background:rgba(143,179,232,.16);color:#a9c6f0;font-size:11px}
+.pill-blue{background:rgba(143,179,232,.14);color:#a9c6f0}
+.t-buchung{background:linear-gradient(160deg,#3d4b60,#1f2530);color:#d8e6f8}
+.wk-col .bar{display:flex;flex-direction:column;overflow:hidden}
+.wk-col .bar .ot{flex:none;background:var(--accent);border-bottom:2px solid #18181a}
+.wk-col .bar.plan{background:transparent;box-shadow:inset 0 0 0 1.5px rgba(198,220,122,.55)}
+.wk-col.future .bar.zero{opacity:0}
+.wk-col.future .bar{opacity:1}
+.wk-legend{display:flex;gap:14px;margin-top:30px;font-size:10.5px;color:var(--text-3)}
+.wk-legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;vertical-align:0}
+.lg-shift{background:var(--lime)}.lg-ot{background:var(--accent)}.lg-plan{box-shadow:inset 0 0 0 1.5px rgba(198,220,122,.7)}
+.wk-legend+.wk-foot{margin-top:10px}
+.cd.plan{box-shadow:inset 0 0 0 2px var(--lime)}
+.cd.due.plan{box-shadow:inset 0 0 0 2px var(--lime),0 0 12px rgba(236,217,111,.4)}
+.lg-plan2{box-shadow:inset 0 0 0 1.5px var(--lime)}
+.colors{display:flex;gap:8px;align-items:center;height:42px}
+.color{width:28px;height:28px;border-radius:50%;background:var(--c);border:2px solid transparent;box-shadow:0 0 0 1px rgba(255,255,255,.12);transition:transform .12s var(--ease-out)}
+.color:active{transform:scale(.9)}
+.color[aria-checked=true]{border-color:#18181a;box-shadow:0 0 0 2px var(--c)}
+.tpl-chip{display:inline-flex;align-items:center;gap:7px;border-style:solid}
+.tpl-chip i{width:7px;height:7px;border-radius:50%;background:var(--c);flex:none}
+.tpl-chip .mono{font-size:11px;opacity:.7}
+.stepper{display:flex;align-items:center;gap:8px}
+.step{height:38px;min-width:52px;padding:0 12px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--text);font:500 13px var(--mono);transition:transform .12s var(--ease-out),background-color .15s ease}
+.step:active{transform:scale(.93)}
+.step-val{min-width:70px;text-align:center;font-size:20px;color:var(--accent)}
+.tpl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:16px}
+.tpl-btn{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:14px 14px 13px 18px;border-radius:18px;background:rgba(255,255,255,.045);border:1px solid var(--line);text-align:left;overflow:hidden;transition:transform .14s var(--ease-out),background-color .15s ease,border-color .15s ease}
+.tpl-btn::before{content:"";position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--c)}
+.tpl-btn:active{transform:scale(.97)}
+.tpl-btn.free::before{background:repeating-linear-gradient(180deg,var(--text-3) 0 4px,transparent 4px 8px)}
+.tpl-name{font-size:15px;font-weight:500;color:var(--text)}
+.tpl-time{font-size:12px;color:var(--text-2)}
+.tpl-end{font-size:11.5px;color:var(--text-3)}
+@media (hover:hover) and (pointer:fine){.tpl-btn:hover{background:rgba(255,255,255,.08);border-color:var(--line-2)}.step:hover{background:rgba(255,255,255,.09)}}
+.tpl-list{list-style:none;margin:14px 0 12px;padding:0;display:flex;flex-direction:column;gap:6px}
+.tpl-row{display:flex;align-items:center;gap:10px;width:100%;min-height:48px;padding:0 14px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid var(--line);text-align:left;transition:background-color .15s ease}
+.tpl-row svg.i{width:15px;height:15px;color:var(--text-3)}
+.tpl-row-name{flex:1;min-width:0;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tpl-row .dim{color:var(--text-3);font-size:12px}
+@media (hover:hover) and (pointer:fine){.tpl-row:hover{background:rgba(255,255,255,.08)}}
+#bookRow .chips{margin-top:10px}
+@media (max-width:420px){.tpl-row-net{display:none}.wk-legend{gap:10px}.row-dc{grid-template-columns:1fr}.colors{height:auto;min-height:34px}}
+
 /* ---------- Responsive ---------- */
 @media (max-width:1239px){
   .grid{grid-template-columns:340px minmax(0,1fr);grid-template-areas:"left main" "right main"}
@@ -679,6 +753,7 @@ details.adv[open] summary::before{content:"–"}
         <div class="menu-field"><label for="setName">Dein Name</label><input class="input" id="setName" placeholder="optional" maxlength="40" autocomplete="off" spellcheck="false"></div>
         <div class="menu-field"><label for="setTarget">Tagessoll (Std)</label><input class="input" id="setTarget" type="number" min="0" max="24" step="0.25" inputmode="decimal"></div>
         <div class="menu-sep"></div>
+        <button class="menu-item" role="menuitem" data-menu="catalog"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="12.5" r="7.5"/><path d="M11 8.5v4l2.6 1.6"/><path d="M19.5 2.5v5M17 5h5"/></svg>Dienste-Katalog …</button>
         <button class="menu-item" role="menuitem" data-menu="security"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5.5c0 4.3-2.9 8-7 9.5-4.1-1.5-7-5.2-7-9.5V6z"/><path d="M9 12l2 2 4-4"/></svg>Sicherheit &amp; Sync …</button>
         <button class="menu-item" role="menuitem" data-menu="lock"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></svg>Jetzt sperren</button>
         <div class="menu-sep"></div>
@@ -711,12 +786,12 @@ details.adv[open] summary::before{content:"–"}
 
       <article class="card time-card pane-zeit" style="--o:2" aria-labelledby="timeTitle">
         <div class="card-head">
-          <div><span class="spaced">Stempeluhr</span><h2 class="card-title" id="timeTitle">Arbeitszeit heute</h2></div>
-          <span class="pill" id="timeState">Ausgedongelt</span>
+          <div><span class="spaced">Dienst</span><h2 class="card-title"><i class="shift-dot" id="shiftDot" hidden></i><span id="timeTitle">Kein Dienst</span></h2></div>
+          <span class="pill" id="timeState">Frei</span>
         </div>
         <div class="orb-wrap">
           <canvas class="orb" id="orb" aria-hidden="true"></canvas>
-          <div class="orb-center"><div class="orb-big" id="workedBig">0:00</div><div class="orb-sub" id="workedSub">von 8:00 h Soll</div></div>
+          <div class="orb-center"><div class="orb-big" id="workedBig">0:00</div><div class="orb-sub" id="workedSub">Heute kein Dienst eingetragen</div></div>
           <div class="orb-bar" aria-hidden="true"><i id="orbBar"></i></div>
           <div class="orb-status" id="orbStatus">Bereit zum Eindongeln …</div>
           <div class="orb-pct" id="orbPct">0%</div>
@@ -726,13 +801,18 @@ details.adv[open] summary::before{content:"–"}
           <span class="dongle-knob" id="dongleKnob"><span class="dongle-dot"></span><span id="dongleLabel">Eindongeln</span><svg class="i" viewBox="0 0 24 24"><path d="M6 7l5 5-5 5M13 7l5 5-5 5"/></svg></span>
         </button>
         <div class="tstats">
-          <div class="tstat"><span>Pause</span><b class="mono" id="stPause">0:00</b></div>
-          <div class="tstat"><span id="stEndLbl">Soll</span><b class="mono" id="stEnd">8:00</b></div>
-          <div class="tstat"><span>Woche</span><b class="mono" id="stWeek">0:00</b></div>
+          <div class="tstat"><span id="st1L">Dienstende</span><b class="mono" id="st1">–</b></div>
+          <div class="tstat"><span id="st2L">Heute</span><b class="mono" id="st2">0:00</b></div>
+          <div class="tstat"><span id="st3L">Überstd. Woche</span><b class="mono" id="st3">+0:00</b></div>
         </div>
         <div class="law" id="lawHint" hidden></div>
+        <div class="extra" id="extraBox">
+          <div class="extra-txt"><span class="extra-lbl" id="extraLbl">Länger gemacht</span><b class="extra-val mono" id="extraVal" aria-live="polite">+0:00</b></div>
+          <button class="adj-minus" id="extraMinus" type="button" aria-label="15 Minuten weniger Überstunden">−15</button>
+          <button class="add15" id="extraPlus" type="button" aria-label="15 Minuten länger gemacht">+15 Min</button>
+        </div>
         <div class="stamps">
-          <div class="stamps-head"><span class="lbl" id="stampsTitle">Heute</span><span class="stamps-act"><button class="link" id="stampsToday" type="button" hidden>Zu heute</button><button class="add15" id="add15" type="button">+15 Min</button></span></div>
+          <div class="stamps-head"><span class="lbl" id="stampsTitle">Heute</span><span class="stamps-act"><button class="link" id="stampsToday" type="button" hidden>Zu heute</button><button class="link" id="openCatalog" type="button">Katalog</button><button class="add15 ghost" id="addShift" type="button">+ Dienst</button></span></div>
           <ul class="stamp-list" id="stampList"></ul>
         </div>
       </article>
@@ -782,7 +862,7 @@ details.adv[open] summary::before{content:"–"}
         </div>
         <div class="cal-wd" aria-hidden="true"><span>M</span><span>D</span><span>M</span><span>D</span><span>F</span><span>S</span><span>S</span></div>
         <div class="cal-grid" id="calGrid"></div>
-        <div class="cal-legend"><span><i class="lg-due"></i>Frist</span><span><i class="lg-work"></i>Gearbeitet</span><span><i class="lg-fut"></i>Kommend</span></div>
+        <div class="cal-legend"><span><i class="lg-due"></i>Frist</span><span><i class="lg-work"></i>Gearbeitet</span><span><i class="lg-plan2"></i>Dienst geplant</span></div>
       </article>
       <article class="card week-card pane-zeit" style="--o:3" aria-labelledby="wkTitle">
         <div class="card-head">
@@ -790,7 +870,15 @@ details.adv[open] summary::before{content:"–"}
           <span class="pill pill-lime mono" id="wkDelta" hidden>+0%</span>
         </div>
         <div class="wk-chart" id="wkChart"></div>
-        <div class="wk-foot"><span id="wkAvg">Ø 0:00 h / Tag</span><span>Soll <b class="mono" id="wkTarget">40:00</b> h</span></div>
+        <div class="wk-legend" aria-hidden="true"><span><i class="lg-shift"></i>Dienst</span><span><i class="lg-ot"></i>Überstunden</span><span><i class="lg-plan"></i>geplant</span></div>
+        <div class="wk-foot"><span id="wkAvg">Ø 0:00 h / Tag</span><span>Überstunden <b class="mono" id="wkTarget">+0:00</b></span></div>
+      </article>
+      <article class="card ot-card pane-zeit" style="--o:4" aria-labelledby="otH">
+        <div class="card-head"><div><span class="spaced">Überstunden</span><h2 class="card-title" id="otH">Dein Konto</h2></div><span class="pill pill-accent-soft">gesamt</span></div>
+        <div class="ot-big" id="otTotal">+0:00</div>
+        <div class="ot-grid"><div><span>Woche</span><b class="mono" id="otWeek">+0:00</b></div><div><span>Monat</span><b class="mono" id="otMonth">+0:00</b></div><div><span>Jahr</span><b class="mono" id="otYear">+0:00</b></div></div>
+        <ul class="ot-list" id="otList"></ul>
+        <button type="button" class="btn btn-ghost ot-book" id="bookBtn"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="12.5" r="7.5"/><path d="M11 8.5v4l2.6 1.6"/><path d="M19.5 2.5v5M17 5h5"/></svg>Stunden für Kollegen merken<span class="ot-open" id="otBookOpen" hidden></span></button>
       </article>
     </section>
   </main>
@@ -817,12 +905,23 @@ details.adv[open] summary::before{content:"–"}
       <button type="button" data-v="anfrage"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c1.2-3.6 4-5.5 7-5.5s5.8 1.9 7 5.5"/></svg>Anfrage</button>
       <button type="button" data-v="todo"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 12.2l2.4 2.4 4.6-4.8"/></svg>Todo</button>
       <button type="button" data-v="aufgabe"><svg class="i" viewBox="0 0 24 24"><rect x="3.5" y="7" width="17" height="12.5" rx="2.5"/><path d="M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7M3.5 12.5h17"/></svg>Aufgabe</button>
+      <button type="button" data-v="buchung"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="12.5" r="7.5"/><path d="M11 8.5v4l2.6 1.6"/><path d="M19.5 2.5v5M17 5h5"/></svg>Stunden buchen</button>
     </div>
 
     <div id="fromRow">
       <label class="f-label" for="cFrom" id="lblFrom">Von wem?</label>
       <input class="input" id="cFrom" list="people" spellcheck="false" autocomplete="off" placeholder="Name der Kollegin / des Kollegen" maxlength="60">
       <datalist id="people"></datalist>
+    </div>
+
+    <div id="bookRow" hidden>
+      <div class="row2">
+        <div><label class="f-label" for="cbDate">Datum des Dienstes</label><input class="input" type="date" id="cbDate"></div>
+        <div><label class="f-label" for="cbShift">Dienst</label><input class="input" id="cbShift" list="tplNames" maxlength="40" placeholder="z. B. Spätdienst" autocomplete="off" spellcheck="false"><datalist id="tplNames"></datalist></div>
+      </div>
+      <div class="chips" id="cbShiftChips"></div>
+      <span class="f-label" id="cbLbl">Stunden dazubuchen</span>
+      <div class="stepper" role="group" aria-labelledby="cbLbl"><button type="button" class="step" data-bstep="-15" aria-label="15 Minuten weniger">−15</button><b class="mono step-val" id="cbMin">+0:00</b><button type="button" class="step" data-bstep="15" aria-label="15 Minuten mehr">+15</button><button type="button" class="step" data-bstep="60" aria-label="1 Stunde mehr">+1 h</button></div>
     </div>
 
     <span class="f-label" id="lblMode">Dringlichkeit</span>
@@ -881,24 +980,78 @@ details.adv[open] summary::before{content:"–"}
   </form>
 </dialog>
 
-<!-- Stamp editor -->
-<dialog class="dlg sheet-dlg" id="stampDlg" aria-labelledby="sHeading">
-  <form class="sheet sheet-sm" id="sForm" novalidate>
-    <div class="sheet-head"><h3 id="sHeading">Stempel</h3><button type="button" class="icon-btn sm" data-close aria-label="Schließen"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
-    <label class="f-label" for="sDate">Datum</label>
-    <input class="input" type="date" id="sDate">
-    <div class="row2">
-      <div><label class="f-label" for="sIn">Eingedongelt</label><input class="input" type="time" id="sIn"></div>
-      <div><label class="f-label" for="sOut">Ausgedongelt</label><input class="input" type="time" id="sOut"></div>
+<!-- Dienst eintragen / bearbeiten -->
+<dialog class="dlg sheet-dlg" id="shiftDlg" aria-labelledby="shH">
+  <form class="sheet" id="shForm" novalidate>
+    <div class="sheet-head"><h3 id="shH">Dienst eintragen</h3><button type="button" class="icon-btn sm" data-close aria-label="Schließen"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <span class="f-label" id="shTplLbl">Aus dem Katalog</span>
+    <div class="chips" id="shTpls" role="group" aria-labelledby="shTplLbl"></div>
+    <label class="f-label" for="shName">Schichtbezeichnung</label>
+    <input class="input" id="shName" maxlength="40" placeholder="z. B. Frühdienst" autocomplete="off" spellcheck="false">
+    <div class="row2 row-dc">
+      <div><label class="f-label" for="shDate">Datum</label><input class="input" type="date" id="shDate"></div>
+      <div><span class="f-label" id="shColLbl">Farbe</span><div class="colors" id="shColors" role="radiogroup" aria-labelledby="shColLbl"></div></div>
     </div>
-    <p class="hint" id="sHint">„Ausgedongelt“ leer lassen, wenn die Session noch läuft. Ende vor Beginn = über Mitternacht.</p>
+    <div class="row2">
+      <div><label class="f-label" for="shStart">Beginn</label><input class="input" type="time" id="shStart"></div>
+      <div><label class="f-label" for="shEnd" id="shEndLbl">Geplantes Ende</label><input class="input" type="time" id="shEnd"></div>
+    </div>
+    <span class="f-label" id="shBrLbl">Pause</span>
+    <div class="seg" id="shBreak" role="group" aria-labelledby="shBrLbl"></div>
+    <span class="f-label" id="shExLbl">Länger gemacht (Überstunden)</span>
+    <div class="stepper" role="group" aria-labelledby="shExLbl"><button type="button" class="step" data-shstep="-15" aria-label="15 Minuten weniger">−15</button><b class="mono step-val" id="shExtra">+0:00</b><button type="button" class="step" data-shstep="15" aria-label="15 Minuten mehr">+15</button><button type="button" class="step" data-shstep="60" aria-label="1 Stunde mehr">+1 h</button></div>
+    <label class="check-line" id="shLiveRow"><input type="checkbox" id="shLive"> Ich bin gerade in diesem Dienst (eingedongelt)</label>
+    <p class="hint" id="shSummary"></p>
+    <p class="law" id="shLaw" hidden></p>
     <div class="sheet-foot">
-      <button type="button" class="btn btn-ghost btn-danger btn-sm" id="sDelete" hidden>Löschen</button>
+      <button type="button" class="btn btn-ghost btn-danger btn-sm" id="shDelete" hidden>Löschen</button>
       <span class="grow"></span>
       <button type="button" class="btn btn-ghost" data-close>Abbrechen</button>
       <button type="submit" class="btn btn-accent">Speichern</button>
     </div>
   </form>
+</dialog>
+
+<!-- Dienst beginnen -->
+<dialog class="dlg sheet-dlg" id="startDlg" aria-labelledby="stH">
+  <div class="sheet">
+    <div class="sheet-head"><h3 id="stH">Dienst beginnen</h3><button type="button" class="icon-btn sm" data-close aria-label="Schließen"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <p class="ask-p">Welchen Dienst trittst du an? Beginn ist jetzt (<b id="stNow">--:--</b>). Das geplante Ende kommt aus dem Katalog und lässt sich danach anpassen.</p>
+    <div class="tpl-grid" id="startTpls"></div>
+    <div class="sheet-foot">
+      <button type="button" class="btn btn-ghost btn-sm" id="startCustom">Andere Zeiten …</button>
+      <button type="button" class="btn btn-ghost btn-sm" id="startCatalog">Katalog</button>
+      <span class="grow"></span>
+      <button type="button" class="btn btn-ghost" data-close>Abbrechen</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- Dienste-Katalog -->
+<dialog class="dlg sheet-dlg" id="tplDlg" aria-labelledby="tpH">
+  <div class="sheet">
+    <div class="sheet-head"><h3 id="tpH">Dienste-Katalog</h3><button type="button" class="icon-btn sm" data-close aria-label="Schließen"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div id="tplListView">
+      <p class="ask-p">Deine Schichtvorlagen. Änderungen gelten für neue Dienste – bereits eingetragene bleiben, wie sie sind.</p>
+      <ul class="tpl-list" id="tplList"></ul>
+      <button type="button" class="btn btn-ghost btn-sm" id="tplNew">+ Neue Vorlage</button>
+    </div>
+    <form id="tplForm" hidden novalidate>
+      <label class="f-label" for="tpName">Schichtbezeichnung</label>
+      <input class="input" id="tpName" maxlength="40" placeholder="z. B. Bereitschaft" autocomplete="off" spellcheck="false">
+      <div class="row2">
+        <div><label class="f-label" for="tpStart">Beginn</label><input class="input" type="time" id="tpStart"></div>
+        <div><label class="f-label" for="tpEnd">Ende</label><input class="input" type="time" id="tpEnd"></div>
+      </div>
+      <span class="f-label" id="tpBrLbl">Pause</span>
+      <div class="seg" id="tpBreak" role="group" aria-labelledby="tpBrLbl"></div>
+      <span class="f-label" id="tpColLbl">Farbe</span>
+      <div class="colors" id="tpColors" role="radiogroup" aria-labelledby="tpColLbl"></div>
+      <p class="hint" id="tpSummary"></p>
+      <div class="sec-actions"><button type="button" class="btn btn-ghost btn-sm btn-danger" id="tpDelete">Löschen</button><span class="grow"></span><button type="button" class="btn btn-ghost btn-sm" id="tpBack">Zurück</button><button type="submit" class="btn btn-accent btn-sm">Vorlage speichern</button></div>
+    </form>
+    <div class="sheet-foot"><span class="grow"></span><button type="button" class="btn btn-ghost" data-close>Fertig</button></div>
+  </div>
 </dialog>
 
 <!-- Sicherheit & Sync -->
