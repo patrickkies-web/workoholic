@@ -757,8 +757,8 @@ select.input option{background:#1e1e20;color:var(--text)}
 .wf-opt[aria-pressed=true] .wf-opt-dot{border-color:var(--accent)}
 .wf-opt[aria-pressed=true] .wf-opt-dot::after{transform:scale(1)}
 .wf-opt-txt{display:flex;flex-direction:column;gap:2px;min-width:0}
-.wf-opt-l{font-size:13.5px;line-height:1.3}
-.wf-opt-d{font-size:11.5px;color:var(--text-3);line-height:1.35}
+.wf-opt-l{font-size:13.5px;line-height:1.3;hyphens:auto;-webkit-hyphens:auto;overflow-wrap:anywhere}
+.wf-opt-d{font-size:11.5px;color:var(--text-3);line-height:1.35;hyphens:auto;-webkit-hyphens:auto;overflow-wrap:anywhere}
 @media (hover:hover) and (pointer:fine){.wf-opt:not([aria-pressed=true]):hover{background:rgba(255,255,255,.07);border-color:var(--line-2)}}
 .wf-box{margin-top:10px;padding:2px 14px;border-radius:18px;background:rgba(255,255,255,.03);border:1px solid var(--line)}
 .wf-sec-head+.wf-box{margin-top:0}
@@ -845,6 +845,60 @@ textarea.input.wf-text{min-height:230px;font-size:13px;line-height:1.55}
 .wf-h-empty{padding:6px 10px 12px;font-size:12.5px;line-height:1.5;color:var(--text-3)}
 .wf-foot{max-width:900px;margin:18px 4px 0;font-size:11.5px;line-height:1.6;color:var(--text-3)}
 .wf-foot b{font-weight:500;color:var(--text-2)}
+.wf-optw{display:flex;align-items:stretch;min-width:0;border-radius:16px;background:rgba(255,255,255,.035);border:1px solid var(--line);transition:background-color .15s ease,border-color .15s ease}
+.wf-optw:has(.wf-opt[aria-pressed=true]){background:rgba(236,217,111,.07);border-color:rgba(236,217,111,.34)}
+.wf-optw .wf-opt,.wf-optw .wf-opt[aria-pressed=true]{flex:1;min-width:0;background:transparent;border:0;border-radius:15px}
+.wf-optw .wf-i{align-self:center;margin:0 6px 0 0}
+@media (hover:hover) and (pointer:fine){.wf-optw:not(:has(.wf-opt[aria-pressed=true])):hover{background:rgba(255,255,255,.07);border-color:var(--line-2)}.wf-optw .wf-opt:not([aria-pressed=true]):hover{background:transparent}}
+.wf-i{display:inline-grid;place-items:center;width:36px;height:36px;margin:-6px;flex:none;padding:0;border:0;border-radius:50%;background:none;vertical-align:middle;-webkit-tap-highlight-color:transparent}
+.wf-i span{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;border:1px solid var(--line-2);background:rgba(255,255,255,.04);color:var(--text-2);font:italic 600 12px/1 Georgia,"Times New Roman",serif;letter-spacing:0;text-transform:none;transition:background-color .15s ease,color .15s ease,border-color .15s ease,transform .16s var(--ease-out)}
+.wf-i:active span{transform:scale(.92)}
+@media (hover:hover) and (pointer:fine){.wf-i:hover span{background:var(--accent-soft);border-color:rgba(236,217,111,.45);color:var(--accent)}}
+.wf-sec-head .wf-i{margin:-6px -6px -6px auto}
+.wf-toggle-l .wf-i,.f-label .wf-i,.wf-gp .wf-i{margin:-10px -6px -10px 2px}
+.wf-compact{grid-template-columns:repeat(auto-fill,minmax(180px,1fr))}
+.wf-compact .wf-opt{min-height:42px;padding:9px 12px}
+.wf-compact .wf-opt-d{display:none}
+.wf-sbs{display:flex;flex-direction:column;gap:6px}
+.wf-sb{border-radius:16px;background:rgba(255,255,255,.03);border:1px solid var(--line)}
+.wf-sb[open]{background:rgba(255,255,255,.045);border-color:var(--line-2)}
+.wf-sb summary{display:flex;align-items:center;gap:10px;min-height:48px;padding:10px 14px 10px 12px;cursor:pointer;list-style:none;border-radius:16px}
+.wf-sb summary::-webkit-details-marker{display:none}
+.wf-sb summary::after{content:"";flex:none;width:7px;height:7px;margin-left:2px;border-right:1.6px solid var(--text-3);border-bottom:1.6px solid var(--text-3);transform:translateY(-2px) rotate(45deg);transition:transform .2s var(--ease-out)}
+.wf-sb[open] summary::after{transform:translateY(2px) rotate(-135deg)}
+.wf-sb-t{flex:1;min-width:0;font-size:13.5px;line-height:1.35}
+.wf-sb-n{flex:none;max-width:42%;font-size:10.5px;line-height:1.35;text-align:right;color:var(--c)}
+.wf-sb-b{padding:0 14px 14px}
+.wf-ober{font-size:13.5px;line-height:1.55}
+.wf-gk{display:block;margin:14px 0 7px;font-size:10px;font-weight:500;letter-spacing:.16em;text-transform:uppercase;color:var(--text-3)}
+.wf-gp{font-size:13px;line-height:1.55;color:var(--text-2)}
+.wf-tb{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.wf-sb-b>.wf-ober+.wf-tb{margin-top:10px}
+.wf-tb-row{display:flex;align-items:flex-start;gap:10px;padding:9px 10px;border-radius:12px;background:rgba(0,0,0,.2)}
+.wf-tb-v{flex:none;display:grid;place-items:center;width:22px;height:22px;margin-top:1px;border-radius:50%;font:600 13px/1 var(--mono)}
+.wf-tb-v.ja{background:var(--c);color:#141414}
+.wf-tb-v.nein{background:rgba(255,255,255,.1);color:var(--text-2)}
+.wf-tb-v.offen{border:1.5px dashed var(--text-3);color:var(--text-2)}
+.wf-tb-main{display:flex;flex-direction:column;gap:3px;min-width:0}
+.wf-tb-m{font-size:13px;line-height:1.4}
+.wf-tb-s{font-size:12px;line-height:1.45;color:var(--text-3)}
+.wf-laws{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+.wf-laws-f{margin-top:12px}
+.wf-law{max-width:100%;height:26px;padding:0 10px;border-radius:999px;border:1px solid var(--line-2);background:transparent;color:var(--text-2);font:500 10.5px/24px var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:border-color .15s ease,color .15s ease}
+@media (hover:hover) and (pointer:fine){.wf-law:hover{border-color:rgba(236,217,111,.45);color:var(--accent)}}
+.wf-sb-b .wf-hints{margin-top:12px}
+.wf-info{--c:var(--accent);width:min(640px,calc(100vw - 32px))}
+.wf-info .f-label:first-child{margin-top:4px}
+.wf-q{margin:0 0 10px}
+.wf-q figcaption{margin-bottom:6px}
+.wf-q figcaption .pill{height:auto;min-height:24px;max-width:100%;padding:4px 10px;white-space:normal;line-height:1.35;overflow-wrap:anywhere}
+.wf-q blockquote{white-space:pre-line;margin:0;padding:12px 14px;border-left:2px solid var(--accent);border-radius:0 12px 12px 0;background:rgba(255,255,255,.035);font-size:13px;line-height:1.6;color:var(--text-2);overflow-wrap:break-word}
+.wf-merk li::before{content:"✓";color:var(--lime)}
+.wf-see{display:flex;flex-wrap:wrap;gap:6px}
+.wf-see-b{height:auto;min-height:32px;padding:6px 12px;text-align:left;line-height:1.3}
+#wiH{letter-spacing:.12em;line-height:1.4}
+@media (max-width:760px){.wf-info{width:100%}.wf-compact{grid-template-columns:1fr 1fr}.wf-sb-n{max-width:38%}}
+@media (max-width:360px){.wf-compact{grid-template-columns:1fr}}
 @media (max-width:1100px){.wf-layout{grid-template-columns:1fr}}
 @media (max-width:760px){
   .wf-form-card{padding:0 14px 14px}
@@ -1225,7 +1279,7 @@ textarea.input.wf-text{min-height:230px;font-size:13px;line-height:1.55}
   </section>
 
   <section class="area-pane pane-waffg" aria-labelledby="wfH">
-    <div class="area-head"><div><span class="spaced">Waffenrecht &middot; Orientierung</span><h1 class="area-h" id="wfH">WaffG-Prüfstand</h1><p class="area-sub">Straftat oder Ordnungswidrigkeit? Gegenstand, Handlung und Ort angeben – der Prüfstand ordnet nach dem Waffengesetz ein und zeigt den Prüfpfad.</p></div><button type="button" class="btn btn-ghost" id="wfReset"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3l3 3-3 3"/><path d="M4 11V9a3 3 0 0 1 3-3h13"/><path d="M7 21l-3-3 3-3"/><path d="M20 13v2a3 3 0 0 1-3 3H4"/></svg>Neue Prüfung</button></div>
+    <div class="area-head"><div><span class="spaced">Waffenrecht &middot; Orientierung</span><h1 class="area-h" id="wfH">WaffG-Prüfstand</h1><p class="area-sub">Straftat oder Ordnungswidrigkeit? Gegenstand, Umgangsart, Ort und Berechtigung angeben – geprüft wird nach dem amtlichen Wortlaut (WaffG, Stand 22.10.2026), mit Subsumtion und Wortlaut hinter jedem i.</p></div><button type="button" class="btn btn-ghost" id="wfReset"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M17 3l3 3-3 3"/><path d="M4 11V9a3 3 0 0 1 3-3h13"/><path d="M7 21l-3-3 3-3"/><path d="M20 13v2a3 3 0 0 1-3 3H4"/></svg>Neue Prüfung</button></div>
     <div class="wf-layout">
       <div class="card wf-form-card">
         <div id="wfForm"></div>
@@ -1240,7 +1294,7 @@ textarea.input.wf-text{min-height:230px;font-size:13px;line-height:1.55}
         </article>
       </div>
     </div>
-    <p class="wf-foot"><b>Keine Rechtsberatung – Orientierungshilfe.</b> Deckt Standard-Konstellationen nach dem WaffG (Stand Reform 2024/2025) ab, nicht jeden Sonderfall (BKA-Feststellungsbescheide, Erb-/Bestandsschutz, Gewerbe, Landesrecht der Verbotszonen). Im Zweifel: Fachanwalt für Waffenrecht oder Waffenbehörde. Prüflogik aus dem VUF-Werkzeugkasten.</p>
+    <p class="wf-foot"><b>Keine Rechtsberatung – Orientierungshilfe.</b> Bildet alle Umgangsarten des § 1 Abs. 3 mit den Straf- und Bußgeldnormen der §§ 51 bis 53 WaffG und § 22a KrWaffKontrG ab. Nicht abgebildet sind u. a. Altbesitz-Übergangsregeln (§ 58), Melde- und Anzeigepflichten im Detail, Sportschützen- und Sammlerregeln sowie der Inhalt einzelner Landesverordnungen und Allgemeinverfügungen. Im Zweifel: Fachanwalt für Waffenrecht, Waffenbehörde oder Feststellungsbescheid des BKA (§ 2 Abs. 5). Wortlaute: amtliche Fassung (gesetze-im-internet.de), WaffG zuletzt geändert durch Art. 12 Abs. 20 G v. 22.10.2026 (BGBl. I Nr. 318). Weiterentwicklung des VUF-Prüfstands.</p>
   </section>
 </div>
 
@@ -1427,6 +1481,15 @@ textarea.input.wf-text{min-height:230px;font-size:13px;line-height:1.55}
     <textarea class="input" id="nnText" rows="6" spellcheck="false" autocomplete="off"></textarea>
     <div class="sheet-foot"><button type="button" class="btn btn-ghost btn-danger btn-sm" id="nnDelete">Löschen</button><span class="grow"></span><button type="button" class="btn btn-ghost" data-close>Abbrechen</button><button type="submit" class="btn btn-accent">Speichern</button></div>
   </form>
+</dialog>
+
+<!-- WaffG-Erläuterung -->
+<dialog class="dlg sheet-dlg" id="wfInfoDlg" aria-labelledby="wiH">
+  <div class="sheet wf-info">
+    <div class="sheet-head"><h3 id="wiH">Erläuterung</h3><button type="button" class="icon-btn sm" data-close aria-label="Schließen"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div id="wiBody"></div>
+    <div class="sheet-foot"><span class="grow"></span><button type="button" class="btn btn-ghost" data-close>Schließen</button></div>
+  </div>
 </dialog>
 
 <!-- Datei -->

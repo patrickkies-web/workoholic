@@ -212,25 +212,67 @@ function normFile(x) {
 }
 /** WaffG-Prüfstand: erlaubte Eingaben (feste Reihenfolge = kanonische Form) */
 const WF_DEFAULT = () => ({
-  objektart: 'messer', handlung: 'fuehren', ort: 'normal', volljaehrig: true, vorsatz: true, berechtigt: false,
-  messerBauart: 'einhand', klingenlaenge: 9, beidseitig: false, springOeffnung: 'seitlich', dolch: false,
-  schusserlaubnis: 'keine', vollautomat: false, schussZustand: 'normal',
-  srsPtb: true, kwSchein: false, druckEnergie: 'f75', sonstigeItem: 'schlagstock',
-  munFrei: false, munErlaubnis: false, munKriegswaffe: false
+  obj: 'messer', messer: 'einhand', len: 9, beidseitig: false, springOeffnung: 'seitlich', springGrund: 'keiner', dolch: false, faustAusn: false,
+  schuss: 'kurzHalb', teilHalb: true, erlaubnis: 'keine', jagdZweck: false, geladen: false,
+  srs: 'ptb', kws: false, druck: 'f75', echt: true, hist: 'perk', mun: 'patrone', hieb: 'schlagstock', sonst: 'reizPtb', anschein: 'softair',
+  handlung: 'fuehren', zugriff: 'zugriff', ort: 'oeffentlich', zweck: 'keiner',
+  schussOrt: 'sonst', schiessErl: false, empfBer: false, grenze: 'rein', grenzErl: false, gewerbe: false, herstErl: false, gefahr: true,
+  alter: 'erw', vorsatz: 'vorsatz', ausnahme: false, fund: false, verbot41: false
 });
 const WF_ENUMS = {
-  objektart: ['messer', 'schuss', 'srs', 'druck', 'munition', 'anschein', 'kriegswaffe', 'sonstige'],
-  handlung: ['besitz', 'transport', 'fuehren'],
-  ort: ['normal', 'veranstaltung', 'oepnv', 'zone'],
-  messerBauart: ['spring', 'fall', 'butterfly', 'faust', 'einhand', 'feststehend', 'klapp', 'multi'],
+  obj: ['messer', 'schuss', 'srs', 'druck', 'hist', 'munition', 'hieb', 'sonst', 'anschein', 'kriegswaffe'],
+  messer: ['einhand', 'feststehend', 'klapp', 'multi', 'spring', 'fall', 'faust', 'butterfly', 'getarnt'],
   springOeffnung: ['seitlich', 'frontal'],
-  schusserlaubnis: ['keine', 'wbk', 'waffenschein'],
-  schussZustand: ['normal', 'deko', 'antik'],
-  druckEnergie: ['spielzeug', 'f75', 'ueber75'],
-  sonstigeItem: ['schlagstock', 'teleskop', 'schlagring', 'wurfstern', 'nunchaku', 'praezschleuder', 'elektro', 'armbrust', 'pfefferPtb', 'pfefferOhne']
+  springGrund: ['keiner', 'einhaendig', 'beruf'],
+  schuss: ['kurzHalb', 'kurzSonst', 'lang', 'voll', 'pump', 'getarnt', 'teil'],
+  erlaubnis: ['keine', 'wbk', 'waffenschein', 'jagd'],
+  srs: ['ptb', 'ohne'],
+  druck: ['spiel05', 'f75', 'alt70', 'ueber75'],
+  hist: ['lunte', 'perk', 'zuend', 'perkMehr', 'deko', 'salut'],
+  mun: ['patrone', 'kartusche', 'verboten', 'reizGeschoss', 'kw'],
+  hieb: ['schlagstock', 'teleskop', 'blank', 'schlagring', 'nunchaku', 'wurfstern', 'getarnt'],
+  sonst: ['reizPtb', 'reizOhne', 'tierSpray', 'eigPtb', 'eigOhne', 'taser', 'tierEig', 'armbrust', 'schleuder', 'brand', 'bogen'],
+  anschein: ['softair', 'nachbildung', 'spielzeug'],
+  handlung: ['besitz', 'erwerb', 'fuehren', 'ueberlassen', 'schiessen', 'verbringen', 'herstellen', 'handel', 'aufbewahrung'],
+  zugriff: ['zugriff', 'nicht', 'behaeltnis'],
+  ort: ['oeffentlich', 'veranstaltung', 'fernverkehr', 'zone', 'fremd', 'eigen'],
+  zweck: ['keiner', 'beruf', 'sport', 'anerkannt', 'gastro', 'film', 'rettung', 'anliefer', 'hausrecht'],
+  schussOrt: ['stand', 'besitztum', 'sonst', 'notwehr'],
+  grenze: ['rein', 'eu', 'dritt'],
+  alter: ['erw', 'jug', 'kind'],
+  vorsatz: ['vorsatz', 'fahrl']
 };
 const WF_LEVEL_KEYS = ['erlaubt', 'hinweis', 'owi', 'straftat'];
+/** Übernimmt Prüfungen aus der ersten Fassung (VUF-Felder) in das neue Schema. */
+function wfMigrate(x) {
+  const o = {};
+  const ob = x.objektart, H = x.handlung;
+  o.handlung = H === 'transport' ? 'fuehren' : H;
+  if (H === 'transport') o.zugriff = 'behaeltnis';
+  o.ort = { normal: 'oeffentlich', veranstaltung: 'veranstaltung', oepnv: 'fernverkehr', zone: 'zone' }[x.ort];
+  o.alter = x.volljaehrig === false ? 'jug' : 'erw';
+  o.vorsatz = x.vorsatz === false ? 'fahrl' : 'vorsatz';
+  if (x.berechtigt) o.zweck = 'anerkannt';
+  if (ob === 'messer') { o.obj = 'messer'; o.messer = x.messerBauart === 'multi' ? 'multi' : x.messerBauart; o.len = x.klingenlaenge; o.beidseitig = x.beidseitig; o.springOeffnung = x.springOeffnung; o.dolch = x.dolch; o.springGrund = x.berechtigt ? 'einhaendig' : 'keiner'; }
+  else if (ob === 'schuss') {
+    if (x.schussZustand === 'deko' || x.schussZustand === 'antik') { o.obj = 'hist'; o.hist = x.schussZustand === 'deko' ? 'deko' : 'perk'; }
+    else { o.obj = 'schuss'; o.schuss = x.vollautomat ? 'voll' : 'kurzSonst'; }
+    o.erlaubnis = x.schusserlaubnis;
+  } else if (ob === 'srs') { o.obj = 'srs'; o.srs = x.srsPtb === false ? 'ohne' : 'ptb'; o.kws = !!x.kwSchein; }
+  else if (ob === 'druck') { o.obj = 'druck'; o.druck = { spielzeug: 'spiel05', f75: 'f75', ueber75: 'ueber75' }[x.druckEnergie]; }
+  else if (ob === 'munition') { o.obj = 'munition'; o.mun = x.munKriegswaffe ? 'kw' : x.munFrei ? 'kartusche' : 'patrone'; o.erlaubnis = x.munErlaubnis ? 'wbk' : 'keine'; }
+  else if (ob === 'anschein') { o.obj = 'anschein'; o.anschein = 'nachbildung'; }
+  else if (ob === 'kriegswaffe') o.obj = 'kriegswaffe';
+  else if (ob === 'sonstige') {
+    const it = x.sonstigeItem;
+    const hieb = { schlagstock: 'schlagstock', teleskop: 'teleskop', schlagring: 'schlagring', wurfstern: 'wurfstern', nunchaku: 'nunchaku' }[it];
+    if (hieb) { o.obj = 'hieb'; o.hieb = hieb; }
+    else { o.obj = 'sonst'; o.sonst = { praezschleuder: 'schleuder', elektro: 'eigOhne', armbrust: 'armbrust', pfefferPtb: 'reizPtb', pfefferOhne: 'reizOhne' }[it]; }
+  }
+  return o;
+}
 function wfNormState(x) {
+  if (x && typeof x === 'object' && x.objektart && !x.obj) x = wfMigrate(x);
   const d = WF_DEFAULT(), o = {};
   for (const k of Object.keys(d)) {
     const v = x && x[k];
@@ -2625,256 +2667,491 @@ $('#fdDelete').addEventListener('click', async () => {
 });
 
 /* ======================= WaffG-Prüfstand ======================= */
-/* Prüflogik unverändert aus dem VUF-Werkzeugkasten (WaffG, Stand Reformen 2024/2025). Keine Rechtsberatung. */
-function wfLabelBauart(b) {
-  return {
-    spring: 'ein Springmesser', fall: 'ein Fallmesser', butterfly: 'ein Butterfly-/Balisongmesser',
-    faust: 'ein Faustmesser', einhand: 'ein Einhandmesser (einhändig zu öffnen, mit feststellbarer Klinge)',
-    feststehend: 'ein feststehendes Messer', klapp: 'ein zweihändig zu öffnendes Klappmesser',
-    multi: 'ein Multitool bzw. kleines Taschenmesser'
-  }[b];
+/* Wortlaute: amtliche Fassung von gesetze-im-internet.de (Archiv QuantLaw, Stand 07.11.2026), WaffG zuletzt geändert durch Art. 12 Abs. 20 G v. 22.10.2026 (BGBl. I Nr. 318). Amtliche Werke, § 5 UrhG. */
+const WF_LAW = {"waffe":{"ref":"§ 1 Abs. 2 WaffG","t":"Waffen sind 1. Schusswaffen oder ihnen gleichgestellte Gegenstände und 2. tragbare Gegenstände, a) die ihrem Wesen nach dazu bestimmt sind, die Angriffs- oder Abwehrfähigkeit von Menschen zu beseitigen oder herabzusetzen, insbesondere Hieb- und Stoßwaffen; b) die, ohne dazu bestimmt zu sein, insbesondere wegen ihrer Beschaffenheit, Handhabung oder Wirkungsweise geeignet sind, die Angriffs- oder Abwehrfähigkeit von Menschen zu beseitigen oder herabzusetzen, und die in diesem Gesetz genannt sind."},"umgang":{"ref":"§ 1 Abs. 3 WaffG","t":"Umgang mit einer Waffe oder Munition hat, wer diese erwirbt, besitzt, überlässt, führt, verbringt, mitnimmt, damit schießt, herstellt, bearbeitet, instand setzt oder damit Handel treibt. Umgang mit einer Schusswaffe hat auch, wer diese unbrauchbar macht."},"alter":{"ref":"§ 2 Abs. 1 WaffG","t":"Der Umgang mit Waffen oder Munition ist nur Personen gestattet, die das 18. Lebensjahr vollendet haben."},"jugendReiz":{"ref":"§ 3 Abs. 2 WaffG","t":"Jugendliche dürfen abweichend von § 2 Abs. 1 Umgang mit geprüften Reizstoffsprühgeräten haben."},"erwerb":{"ref":"Anlage 1 Abschnitt 2 Nr. 1 WaffG","t":"erwirbt eine Waffe oder Munition, wer die tatsächliche Gewalt darüber erlangt"},"besitz":{"ref":"Anlage 1 Abschnitt 2 Nr. 2 WaffG","t":"besitzt eine Waffe oder Munition, wer die tatsächliche Gewalt darüber ausübt"},"ueberlassen":{"ref":"Anlage 1 Abschnitt 2 Nr. 3 WaffG","t":"überlässt eine Waffe oder Munition, wer die tatsächliche Gewalt darüber einem anderen einräumt"},"fuehren":{"ref":"Anlage 1 Abschnitt 2 Nr. 4 WaffG","t":"führt eine Waffe, wer die tatsächliche Gewalt darüber außerhalb der eigenen Wohnung, Geschäftsräume, des eigenen befriedeten Besitztums oder einer Schießstätte ausübt"},"verbringen":{"ref":"Anlage 1 Abschnitt 2 Nr. 5 WaffG","t":"verbringt eine Waffe oder Munition, wer diese Waffe oder Munition über die Grenze zum dortigen Verbleib oder mit dem Ziel des Besitzwechsels in den, durch den oder aus dem Geltungsbereich des Gesetzes zu einer anderen Person oder zu sich selbst transportieren lässt oder selbst transportiert"},"mitnehmen":{"ref":"Anlage 1 Abschnitt 2 Nr. 6 WaffG","t":"nimmt eine Waffe oder Munition mit, wer diese Waffe oder Munition vorübergehend auf einer Reise ohne Aufgabe des Besitzes zur Verwendung über die Grenze in den, durch den oder aus dem Geltungsbereich des Gesetzes bringt"},"schiessen":{"ref":"Anlage 1 Abschnitt 2 Nr. 7 WaffG","t":"schießt, wer mit einer Schusswaffe Geschosse durch einen Lauf verschießt, Kartuschenmunition abschießt, mit Patronen- oder Kartuschenmunition Reiz- oder andere Wirkstoffe verschießt oder pyrotechnische Munition verschießt"},"herstellen":{"ref":"Anlage 1 Abschnitt 2 Nr. 8.1 WaffG","t":"werden Waffen oder Munition hergestellt, wenn aus Rohteilen oder Materialien ein Endprodukt oder wesentliche Teile eines Endproduktes erzeugt werden oder bei einer Waffe das führende wesentliche Teil durch ein Teil, das noch nicht in einer Waffe verbaut war, ersetzt wird; eine Schusswaffe ist hergestellt, wenn sie weißfertig im Sinne von § 2 Absatz 5 des Beschussgesetzes ist oder der Austausch des führenden wesentlichen Teils abgeschlossen ist; als Herstellen von Munition gilt auch das Wiederladen von Hülsen"},"bearbeiten":{"ref":"Anlage 1 Abschnitt 2 Nr. 8.2 WaffG","t":"wird eine Schusswaffe bearbeitet, wenn 8.2.1 sie verkürzt, in der Schussfolge verändert oder so geändert wird, dass andere Munition oder Geschosse anderer Kaliber aus ihr verschossen werden können (Umbau), 8.2.2 wesentliche Teile, zu deren Einpassung eine Nacharbeit erforderlich ist, ausgetauscht werden, sofern nicht Nummer 8.1 zutrifft, 8.2.3 Arbeiten an der Schusswaffe durchgeführt werden, die eine Beschusspflicht gemäß § 3 Absatz 2 des Beschussgesetzes auslösen, wenn nicht die Nummern 8.1, 8.2.1 oder 8.2.2 zutreffen (Instandsetzung); eine Schusswaffe wird nicht bearbeitet, wenn lediglich geringfügige Änderungen, insbesondere am Schaft oder an der Zieleinrichtung, vorgenommen werden"},"handel":{"ref":"Anlage 1 Abschnitt 2 Nr. 9 WaffG","t":"treibt Waffenhandel, wer gewerbsmäßig oder selbstständig im Rahmen einer wirtschaftlichen Unternehmung Schusswaffen oder Munition ankauft, feilhält, Bestellungen entgegennimmt oder aufsucht, anderen überlässt oder den Erwerb, den Vertrieb oder das Überlassen vermittelt"},"kinderJug":{"ref":"Anlage 1 Abschnitt 2 Nr. 10, 11 WaffG","t":"sind Kinder Personen, die noch nicht 14 Jahre alt sind, 11. sind Jugendliche Personen, die mindestens 14, aber noch nicht 18 Jahre alt sind"},"schussbereit":{"ref":"Anlage 1 Abschnitt 2 Nr. 12 WaffG","t":"ist eine Waffe schussbereit, wenn sie geladen ist, das heißt, dass Munition oder Geschosse in der Trommel, im in die Waffe eingefügten Magazin oder im Patronen- oder Geschosslager sind, auch wenn sie nicht gespannt ist"},"zugriffsbereit":{"ref":"Anlage 1 Abschnitt 2 Nr. 13 WaffG","t":"ist eine Schusswaffe zugriffsbereit, wenn sie unmittelbar in Anschlag gebracht werden kann; sie ist nicht zugriffsbereit, wenn sie in einem verschlossenen Behältnis mitgeführt wird, ein Messer ist nicht zugriffsbereit, wenn es nur mit mehr als drei Handgriffen erreicht werden kann"},"schusswaffe":{"ref":"Anlage 1 Abschnitt 1 Unterabschnitt 1 Nr. 1.1 WaffG","t":"Schusswaffen sind Gegenstände, die zum Angriff oder zur Verteidigung, zur Signalgebung, zur Jagd, zur Distanzinjektion, zur Markierung, zum Sport oder zum Spiel bestimmt sind und bei denen Geschosse durch einen Lauf getrieben werden."},"armbrustDef":{"ref":"Anlage 1 Abschnitt 1 Unterabschnitt 1 Nr. 1.2.3 WaffG","t":"bei denen bestimmungsgemäß feste Körper gezielt verschossen werden, deren Antriebsenergie durch Muskelkraft oder eine andere Energiequelle eingebracht und durch eine Sperrvorrichtung gespeichert oder gehalten werden kann (zum Beispiel Armbrüste, Pfeilabschussgeräte)"},"teile":{"ref":"Anlage 1 Abschnitt 1 Unterabschnitt 1 Nr. 1.3 WaffG","t":"Wesentliche Teile von Schusswaffen und Schalldämpfer stehen, soweit in diesem Gesetz nichts anderes bestimmt ist, den Schusswaffen gleich, für die sie bestimmt sind."},"dekoDef":{"ref":"Anlage 1 Abschnitt 1 Unterabschnitt 1 Nr. 1.4 WaffG","t":"Schusswaffen sind unbrauchbar gemacht, wenn die zuständige Behörde eines Mitgliedstaates der Europäischen Union für diese Schusswaffen eine Bescheinigung nach Artikel 3 Absatz 4 der Durchführungsverordnung (EU) 2015/2403 der Kommission vom 15. Dezember 2015 zur Festlegung gemeinsamer Leitlinien über Deaktivierungsstandards und -techniken, die gewährleisten, dass Feuerwaffen bei der Deaktivierung endgültig unbrauchbar gemacht werden (ABl. L 333 vom 19.12.2015, S. 62), die zuletzt durch die Durchführungsverordnung (EU) 2018/337 (ABl. L 65 vom 8.3.2018, S. 1) geändert worden ist, ausgestellt hat und die zuständige Behörde die Schusswaffen gemäß Artikel 5 der Durchführungsverordnung (EU) 2015/2403 gekennzeichnet hat."},"salutDef":{"ref":"Anlage 1 Abschnitt 1 Unterabschnitt 1 Nr. 1.5.1 WaffG","t":"veränderte Langwaffen, die unter anderem für Theateraufführungen, Foto-, Film- oder Fernsehaufnahmen bestimmt sind, wenn sie die nachstehenden Anforderungen erfüllen"},"anschein":{"ref":"Anlage 1 Abschnitt 1 Unterabschnitt 1 Nr. 1.6 WaffG","t":"Anscheinswaffen sind 1.6.1 Schusswaffen, die ihrer äußeren Form nach im Gesamterscheinungsbild den Anschein von Feuerwaffen (Anlage 1 Abschnitt 1 Unterabschnitt 1 Nr. 2.1) hervorrufen und bei denen zum Antrieb der Geschosse keine heißen Gase verwendet werden, 1.6.2 Nachbildungen von Schusswaffen mit dem Aussehen von Schusswaffen nach Nummer 1.6.1 oder 1.6.3 unbrauchbar gemachte Schusswaffen mit dem Aussehen von Schusswaffen nach Nummer 1.6.1. Ausgenommen sind solche Gegenstände, die erkennbar nach ihrem Gesamterscheinungsbild zum Spiel oder für Brauchtumsveranstaltungen bestimmt sind oder die Teil einer kulturhistorisch bedeutsamen Sammlung im Sinne des § 17 sind oder werden sollen oder Schusswaffen, für die gemäß § 10 Abs. 4 eine Erlaubnis zum Führen erforderlich ist. Erkennbar nach ihrem Gesamterscheinungsbild zum Spiel bestimmt sind insbesondere Gegenstände, deren Größe die einer entsprechenden Feuerwaffe um 50 Prozent über- oder unterschreiten, neonfarbene Materialien enthalten oder keine Kennzeichnungen von Feuerwaffen aufweisen."},"feuerwaffe":{"ref":"Anlage 1 Abschnitt 1 Unterabschnitt 1 Nr. 2.1 WaffG","t":"Feuerwaffen; dies sind Schusswaffen nach Nummer 1.1, bei denen ein Geschoss mittels heißer Gase durch einen oder aus einem Lauf getrieben wird."},"automatik":{"ref":"Anlage 1 Abschnitt 1 Unterabschnitt 1 Nr. 2.2 WaffG","t":"Automatische Schusswaffen; dies sind Schusswaffen, die nach Abgabe eines Schusses selbsttätig erneut schussbereit werden und bei denen aus demselben Lauf durch einmalige Betätigung des Abzuges oder einer anderen Schussauslösevorrichtung mehrere Schüsse abgegeben werden können (Vollautomaten) oder durch einmalige Betätigung des Abzuges oder einer anderen Schussauslösevorrichtung jeweils nur ein Schuss abgegeben werden kann (Halbautomaten). Als automatische Schusswaffen gelten auch Schusswaffen, die mit allgemein gebräuchlichen Werkzeugen in automatische Schusswaffen geändert werden können. Als Vollautomaten gelten auch in Halbautomaten geänderte Vollautomaten, die mit den in Satz 2 genannten Hilfsmitteln wieder in Vollautomaten zurückgeändert werden können. Double-Action-Revolver sind keine halbautomatischen Schusswaffen."},"langkurz":{"ref":"Anlage 1 Abschnitt 1 Unterabschnitt 1 Nr. 2.5 WaffG","t":"Langwaffen; dies sind Schusswaffen, deren Lauf und Verschluss in geschlossener Stellung insgesamt länger als 30 cm sind und deren kürzeste bestimmungsgemäß verwendbare Gesamtlänge 60 cm überschreitet; Kurzwaffen sind alle anderen Schusswaffen."},"srsDef":{"ref":"Anlage 1 Abschnitt 1 Unterabschnitt 1 Nr. 2.6 bis 2.8 WaffG","t":"Schreckschusswaffen; dies sind Schusswaffen mit einem Kartuschenlager, die zum Abschießen von Kartuschenmunition bestimmt sind. 2.7 Reizstoffwaffen; dies sind Schusswaffen mit einem Patronen- oder Kartuschenlager, die zum Verschießen von Reiz- oder anderen Wirkstoffen bestimmt sind. 2.8 Signalwaffen; dies sind Schusswaffen mit einem Patronen- oder Kartuschenlager oder tragbare Gegenstände nach Nummer 1.2.1, die zum Verschießen pyrotechnischer Munition bestimmt sind."},"druckDef":{"ref":"Anlage 1 Abschnitt 1 Unterabschnitt 1 Nr. 2.9 WaffG","t":"Druckluft- und Federdruckwaffen und Waffen, bei denen zum Antrieb der Geschosse kalte Treibgase verwendet werden; Federdruckwaffen sind Schusswaffen, bei denen entweder Federkraft direkt ein Geschoss antreibt (auch als Federkraftwaffen bezeichnet) oder ein federbelasteter Kolben in einem Zylinder bewegt wird und ein vom Kolben erzeugtes Luftpolster das Geschoss antreibt. Druckluftwaffen sind Schusswaffen, bei denen Luft in einen Druckbehälter vorkomprimiert und gespeichert sowie über ein Ventilsystem zum Geschossantrieb freigegeben wird."},"nachbildung":{"ref":"Anlage 1 Abschnitt 1 Unterabschnitt 1 Nr. 6 WaffG","t":"Nachbildungen von Schusswaffen sind Gegenstände, — die nicht als Schusswaffen hergestellt wurden, — die die äußere Form einer Schusswaffe haben, — aus denen nicht geschossen werden kann und — die nicht mit allgemein gebräuchlichen Werkzeugen so umgebaut oder verändert werden können, dass aus ihnen Munition, Ladungen oder Geschosse verschossen werden können."},"hieb":{"ref":"Anlage 1 Abschnitt 1 Unterabschnitt 2 Nr. 1.1 WaffG","t":"Hieb- und Stoßwaffen (Gegenstände, die ihrem Wesen nach dazu bestimmt sind, unter unmittelbarer Ausnutzung der Muskelkraft durch Hieb, Stoß, Stich, Schlag oder Wurf Verletzungen beizubringen)"},"eigDef":{"ref":"Anlage 1 Abschnitt 1 Unterabschnitt 2 Nr. 1.2.1 WaffG","t":"die unter Ausnutzung einer anderen als mechanischen Energie Verletzungen beibringen (z. B. Elektroimpulsgeräte)"},"reizDef":{"ref":"Anlage 1 Abschnitt 1 Unterabschnitt 2 Nr. 1.2.2 WaffG","t":"aus denen Reizstoffe versprüht oder ausgestoßen werden, die eine Reichweite bis zu 2 m haben (Reizstoffsprühgeräte)"},"schleuderDef":{"ref":"Anlage 1 Abschnitt 1 Unterabschnitt 2 Nr. 1.3 WaffG","t":"Schleudern, die zur Erreichung einer höchstmöglichen Bewegungsenergie eine Armstütze oder eine vergleichbare Vorrichtung besitzen oder für eine solche Vorrichtung eingerichtet sind (Präzisionsschleudern), sowie Armstützen und vergleichbare Vorrichtungen für die vorbezeichneten Gegenstände."},"springDef":{"ref":"Anlage 1 Abschnitt 1 Unterabschnitt 2 Nr. 2.1.1 WaffG","t":"deren Klingen auf Knopf- oder Hebeldruck hervorschnellen und hierdurch oder beim Loslassen der Sperrvorrichtung festgestellt werden können (Springmesser)"},"fallDef":{"ref":"Anlage 1 Abschnitt 1 Unterabschnitt 2 Nr. 2.1.2 WaffG","t":"deren Klingen beim Lösen einer Sperrvorrichtung durch ihre Schwerkraft oder durch eine Schleuderbewegung aus dem Griff hervorschnellen und selbsttätig oder beim Loslassen der Sperrvorrichtung festgestellt werden (Fallmesser)"},"faustDef":{"ref":"Anlage 1 Abschnitt 1 Unterabschnitt 2 Nr. 2.1.3 WaffG","t":"mit einem quer zur feststehenden oder feststellbaren Klinge verlaufenden Griff, die bestimmungsgemäß in der geschlossenen Faust geführt oder eingesetzt werden (Faustmesser)"},"butterflyDef":{"ref":"Anlage 1 Abschnitt 1 Unterabschnitt 2 Nr. 2.1.4 WaffG","t":"Faltmesser mit zweigeteilten, schwenkbaren Griffen (Butterflymesser)"},"v1211":{"ref":"Anlage 2 Abschnitt 1 Nr. 1.2.1.1 und 1.2.1.2 WaffG","t":"Vollautomaten im Sinne der Anlage 1 Abschnitt 1 Unterabschnitt 1 Nr. 2.2 sind oder 1.2.1.2 Vorderschaftrepetierflinten, bei denen anstelle des Hinterschaftes ein Kurzwaffengriff vorhanden ist oder die Waffengesamtlänge in der kürzest möglichen Verwendungsform weniger als 95 cm oder die Lauflänge weniger als 45 cm beträgt, sind"},"v122":{"ref":"Anlage 2 Abschnitt 1 Nr. 1.2.2 WaffG","t":"ihrer Form nach geeignet sind, einen anderen Gegenstand vorzutäuschen oder die mit Gegenständen des täglichen Gebrauchs verkleidet sind (z. B. Koppelschlosspistolen, Schießkugelschreiber, Stockgewehre, Taschenlampenpistolen)"},"v131":{"ref":"Anlage 2 Abschnitt 1 Nr. 1.3.1 WaffG","t":"Hieb- oder Stoßwaffen, die ihrer Form nach geeignet sind, einen anderen Gegenstand vorzutäuschen, oder die mit Gegenständen des täglichen Gebrauchs verkleidet sind"},"v132":{"ref":"Anlage 2 Abschnitt 1 Nr. 1.3.2 WaffG","t":"Stahlruten, Totschläger oder Schlagringe"},"v133":{"ref":"Anlage 2 Abschnitt 1 Nr. 1.3.3 WaffG","t":"sternförmige Scheiben, die nach ihrer Beschaffenheit und Handhabung zum Wurf auf ein Ziel bestimmt und geeignet sind, die Gesundheit zu beschädigen (Wurfsterne)"},"v134":{"ref":"Anlage 2 Abschnitt 1 Nr. 1.3.4 WaffG","t":"Gegenstände, bei denen leicht entflammbare Stoffe so verteilt und entzündet werden, dass schlagartig ein Brand entstehen kann; oder in denen unter Verwendung explosionsgefährlicher oder explosionsfähiger Stoffe eine Explosion ausgelöst werden kann"},"v135":{"ref":"Anlage 2 Abschnitt 1 Nr. 1.3.5 WaffG","t":"Gegenstände mit Reiz- oder anderen Wirkstoffen, es sei denn, dass die Stoffe als gesundheitlich unbedenklich amtlich zugelassen sind und die Gegenstände - in der Reichweite und Sprühdauer begrenzt sind und - zum Nachweis der gesundheitlichen Unbedenklichkeit, der Reichweiten- und der Sprühdauerbegrenzung ein amtliches Prüfzeichen tragen"},"v136":{"ref":"Anlage 2 Abschnitt 1 Nr. 1.3.6 WaffG","t":"Gegenstände, die unter Ausnutzung einer anderen als mechanischen Energie Verletzungen beibringen (z. B. Elektroimpulsgeräte), sofern sie nicht als gesundheitlich unbedenklich amtlich zugelassen sind und ein amtliches Prüfzeichen tragen zum Nachweis der gesundheitlichen Unbedenklichkeit; sowie Distanz-Elektroimpulsgeräte, die mit dem Abschuss- oder Auslösegerät durch einen leitungsfähigen Flüssigkeitsstrahl einen Elektroimpuls übertragen oder durch Leitung verbundene Elektroden zur Übertragung eines Elektroimpulses am Körper aufbringen"},"v137":{"ref":"Anlage 2 Abschnitt 1 Nr. 1.3.7 WaffG","t":"Präzisionsschleudern nach Anlage 1 Abschnitt 1 Unterabschnitt 2 Nr. 1.3 sowie Armstützen und vergleichbare Vorrichtungen für die vorbezeichneten Gegenstände"},"v138":{"ref":"Anlage 2 Abschnitt 1 Nr. 1.3.8 WaffG","t":"Gegenstände, die nach ihrer Beschaffenheit und Handhabung dazu bestimmt sind, durch Drosseln die Gesundheit zu schädigen (z. B. Nun-Chakus)"},"v141":{"ref":"Anlage 2 Abschnitt 1 Nr. 1.4.1 WaffG","t":"Spring- und Fallmesser nach Anlage 1 Abschnitt 1 Unterabschnitt 2 Nr. 2.1.1 und 2.1.2. Hiervon ausgenommen sind Springmesser, wenn die Klinge seitlich aus dem Griff herausspringt und der aus dem Griff herausragende Teil der Klinge - höchstens 8,5 cm lang ist und - nicht zweiseitig geschliffen ist, soweit ein berechtigtes Interesse besteht, das eine einhändige Nutzung erforderlich macht, oder der Umgang im Zusammenhang mit der Berufsausübung erfolgt"},"v144":{"ref":"Anlage 2 Abschnitt 1 Nr. 1.4.4 WaffG","t":"Gegenstände, die unter Ausnutzung einer anderen als mechanischen Energie Tieren Verletzungen beibringen (z. B. Elektroimpulsgeräte), sofern sie nicht als gesundheitlich unbedenklich amtlich zugelassen sind und ein amtliches Prüfzeichen tragen zum Nachweis der gesundheitlichen Unbedenklichkeit oder bestimmungsgemäß in der Tierhaltung Verwendung finden"},"v15":{"ref":"Anlage 2 Abschnitt 1 Nr. 1.5.4 WaffG","t":"Munition und Geschosse nach Anlage 1 Abschnitt 3 Nummer 1.5 sowie Munition mit Geschossen, die einen Hartkern (mindestens 400 HB 25 – Brinellhärte – bzw. 421 HV – Vickershärte –) enthalten, sowie entsprechende Geschosse, ausgenommen pyrotechnische Munition, die bestimmungsgemäß zur Signalgebung bei der Gefahrenabwehr dient"},"erlPflicht":{"ref":"Anlage 2 Abschnitt 2 Unterabschnitt 1 WaffG","t":"Der Umgang, ausgenommen das Überlassen, mit Waffen im Sinne des § 1 Absatz 2 Nummer 1 (Anlage 1 Abschnitt 1 Unterabschnitt 1 Nummer 1 bis 4.3) und der dafür bestimmten Munition bedarf der Erlaubnis, soweit solche Waffen oder Munition nicht nach Unterabschnitt 2 für die dort bezeichneten Arten des Umgangs von der Erlaubnispflicht freigestellt sind."},"frei11":{"ref":"Anlage 2 Abschnitt 2 Unterabschnitt 2 Nr. 1.1 WaffG","t":"Druckluft-, Federdruckwaffen und Waffen, bei denen zum Antrieb der Geschosse kalte Treibgase Verwendung finden, wenn den Geschossen eine Bewegungsenergie von nicht mehr als 7,5 Joule erteilt wird, und die das Kennzeichen nach Anlage 1 Abbildung 1 zur Ersten Verordnung zum Waffengesetz vom 24. Mai 1976 (BGBl. I S. 1285) in der zum Zeitpunkt des Inkrafttretens dieses Gesetzes geltenden Fassung oder ein durch Rechtsverordnung nach § 25 Nummer 1 bestimmtes Zeichen tragen, sofern a) diese nicht nach ihrer Beschaffenheit in Bezug auf Geschosse mit einer Länge von mehr als 30 mm mehrschüssig sind und b) die Bestätigung zum Aufbringen des Kennzeichens nach § 11 Absatz 6 Satz 4 der Beschussverordnung oder das Aufbringen des Kennzeichens nach § 11 Absatz 6 Satz 5 der Beschussverordnung nicht vor dem 24. Juli 2025 erfolgt ist"},"frei13":{"ref":"Anlage 2 Abschnitt 2 Unterabschnitt 2 Nr. 1.3 WaffG","t":"Schreckschuss-, Reizstoff- und Signalwaffen, a) die der zugelassenen Bauart nach § 8 des Beschussgesetzes entsprechen und das Zulassungszeichen nach Anlage 1 Abbildung 2 zur Ersten Verordnung zum Waffengesetz vom 24. Mai 1976 (BGBl. I S. 1285) in der zum Zeitpunkt des Inkrafttretens dieses Gesetzes geltenden Fassung oder ein durch Rechtsverordnung nach § 25 Nummer 1 bestimmtes Zeichen tragen oder b) die den Rechtsvorschriften eines anderen Mitgliedstaates entsprechen, die dieser der Europäischen Kommission nach Artikel 4 Absatz 2 der Durchführungsrichtlinie (EU) 2019/69 der Kommission vom 16. Januar 2019 zur Festlegung technischer Spezifikationen für Schreckschuss- und Signalwaffen gemäß der Richtlinie 91/477/EWG des Rates über die Kontrolle des Erwerbs und des Besitzes von Waffen als Maßnahme zur Umsetzung dieser Durchführungsrichtlinie mitgeteilt hat"},"freiAntik":{"ref":"Anlage 2 Abschnitt 2 Unterabschnitt 2 Nr. 1.5 bis 1.7 WaffG","t":"einläufige Einzelladerwaffen mit Zündhütchenzündung (Perkussionswaffen), deren Modell vor dem 1. Januar 1871 entwickelt worden ist; 1.6 Schusswaffen mit Lunten- oder Funkenzündung, deren Modell vor dem 1. Januar 1871 entwickelt worden ist; 1.7 Schusswaffen mit Zündnadelzündung, deren Modell vor dem 1. Januar 1871 entwickelt worden ist"},"freiFuehren":{"ref":"Anlage 2 Abschnitt 2 Unterabschnitt 2 Nr. 3 WaffG","t":"Erlaubnisfreies Führen 3.1 Schusswaffen mit Lunten- oder Funkenzündung, deren Modell vor dem 1. Januar 1871 entwickelt worden ist; 3.2 Armbrüste; 3.3 unbrauchbar gemachte Schusswaffen."},"kwsDef":{"ref":"Anlage 2 Abschnitt 2 Unterabschnitt 3 Nr. 2 WaffG","t":"Führen ohne Sachkunde-, Bedürfnis- und Haftpflichtversicherungsnachweis (§ 4 Abs. 1 Nr. 3 bis 5) - Kleiner Waffenschein 2.1 Schreckschuss-, Reizstoff- und Signalwaffen nach Unterabschnitt 2 Nr. 1.3."},"spiel":{"ref":"Anlage 2 Abschnitt 3 Unterabschnitt 2 WaffG","t":"Vom Gesetz mit Ausnahme des § 42a ausgenommene Waffen 1. Schusswaffen (Anlage 1 Abschnitt 1 Unterabschnitt 1 Nummer 1.1, ausgenommen Blasrohre), a) die zum Spiel bestimmt sind, wenn aus ihnen nur Geschosse verschossen werden können, denen eine Bewegungsenergie von nicht mehr als 0,5 Joule (J) erteilt wird, es sei denn, sie können mit allgemein gebräuchlichen Werkzeugen so geändert werden, dass die Bewegungsenergie der Geschosse über 0,5 Joule (J) steigt"},"wbk":{"ref":"§ 10 Abs. 1 Satz 1 WaffG","t":"Die Erlaubnis zum Erwerb und Besitz von Waffen wird durch eine Waffenbesitzkarte oder durch Eintragung in eine bereits vorhandene Waffenbesitzkarte erteilt."},"munErl":{"ref":"§ 10 Abs. 3 Satz 1 und 2 WaffG","t":"Die Erlaubnis zum Erwerb und Besitz von Munition wird durch Eintragung in eine Waffenbesitzkarte für die darin eingetragenen Schusswaffen erteilt. In den übrigen Fällen wird die Erlaubnis durch einen Munitionserwerbsschein für eine bestimmte Munitionsart erteilt"},"waffenschein":{"ref":"§ 10 Abs. 4 Satz 1 und 4 WaffG","t":"Die Erlaubnis zum Führen einer Waffe wird durch einen Waffenschein erteilt. Eine Erlaubnis nach Satz 1 zum Führen von Schusswaffen wird für bestimmte Schusswaffen auf höchstens drei Jahre erteilt; die Geltungsdauer kann zweimal um höchstens je drei Jahre verlängert werden, sie ist kürzer zu bemessen, wenn nur ein vorübergehendes Bedürfnis nachgewiesen wird. Der Geltungsbereich des Waffenscheins ist auf bestimmte Anlässe oder Gebiete zu beschränken, wenn ein darüber hinausgehendes Bedürfnis nicht nachgewiesen wird. Die Voraussetzungen für die Erteilung einer Erlaubnis zum Führen von Schreckschuss-, Reizstoff- und Signalwaffen sind in der Anlage 2 Abschnitt 2 Unterabschnitt 3 Nr. 2 und 2.1 genannt (Kleiner Waffenschein)."},"ausn12":{"ref":"§ 12 Abs. 1 WaffG","t":"Einer Erlaubnis zum Erwerb und Besitz einer Waffe bedarf nicht, wer diese 1. als Inhaber einer Waffenbesitzkarte von einem Berechtigten a) lediglich vorübergehend, höchstens aber für einen Monat für einen von seinem Bedürfnis umfassten Zweck oder im Zusammenhang damit, oder b) vorübergehend zum Zweck der sicheren Verwahrung oder der Beförderung erwirbt; 2. vorübergehend von einem Berechtigten zur gewerbsmäßigen Beförderung, zur gewerbsmäßigen Lagerung oder zur gewerbsmäßigen Ausführung von Verschönerungen oder ähnlicher Arbeiten an der Waffe erwirbt; 3. von einem oder für einen Berechtigten erwirbt, wenn und solange er a) auf Grund eines Arbeits- oder Ausbildungsverhältnisses, b) als Beauftragter oder Mitglied einer jagdlichen oder schießsportlichen Vereinigung, einer anderen sportlichen Vereinigung zur Abgabe von Startschüssen oder einer zur Brauchtumspflege Waffen tragenden Vereinigung, c) als Beauftragter einer in § 55 Abs. 1 Satz 1 bezeichneten Stelle, d) als Charterer von seegehenden Schiffen zur Abgabe von Seenotsignalen den Besitz über die Waffe nur nach den Weisungen des Berechtigten ausüben darf; 4. von einem anderen, a) dem er die Waffe vorübergehend überlassen hat, ohne dass es hierfür der Eintragung in die Erlaubnisurkunde bedurfte, oder b) nach dem Abhandenkommen wieder erwirbt; 5. auf einer Schießstätte (§ 27) lediglich vorübergehend zum Schießen auf dieser Schießstätte erwirbt; 6. auf einer Reise in den oder durch den Geltungsbereich des Gesetzes nach § 32 berechtigt mitnimmt."},"fremd":{"ref":"§ 12 Abs. 3 Nr. 1 WaffG","t":"diese mit Zustimmung eines anderen in dessen Wohnung, Geschäftsräumen oder befriedetem Besitztum oder dessen Schießstätte zu einem von seinem Bedürfnis umfassten Zweck oder im Zusammenhang damit führt"},"transport":{"ref":"§ 12 Abs. 3 Nr. 2 WaffG","t":"diese nicht schussbereit und nicht zugriffsbereit von einem Ort zu einem anderen Ort befördert, sofern der Transport der Waffe zu einem von seinem Bedürfnis umfassten Zweck oder im Zusammenhang damit erfolgt"},"schiessFrei":{"ref":"§ 12 Abs. 4 WaffG","t":"Einer Erlaubnis zum Schießen mit einer Schusswaffe bedarf nicht, wer auf einer Schießstätte (§ 27) schießt. Das Schießen außerhalb von Schießstätten ist darüber hinaus ohne Schießerlaubnis nur zulässig 1. durch den Inhaber des Hausrechts oder mit dessen Zustimmung im befriedeten Besitztum a) mit Schusswaffen, deren Geschossen eine Bewegungsenergie von nicht mehr als 7,5 Joule (J) erteilt wird oder deren Bauart nach § 7 des Beschussgesetzes zugelassen ist, sofern die Geschosse das Besitztum nicht verlassen können, b) mit Schusswaffen, aus denen nur Kartuschenmunition verschossen werden kann, 2. durch Personen, die den Regeln entsprechend als Teilnehmer an genehmigten Sportwettkämpfen nach Absatz 3 Nr. 3 mit einer Langwaffe an Schießständen schießen, 3. mit Schusswaffen, aus denen nur Kartuschenmunition verschossen werden kann, a) durch Mitwirkende an Theateraufführungen und diesen gleich zu achtenden Vorführungen, b) zum Vertreiben von Vögeln in landwirtschaftlichen Betrieben, 4. mit Signalwaffen bei Not- und Rettungsübungen, 5. mit Schreckschuss- oder mit Signalwaffen zur Abgabe von Start- oder Beendigungszeichen im Auftrag der Veranstalter bei Sportveranstaltungen, wenn optische oder akustische Signalgebung erforderlich ist."},"jagd":{"ref":"§ 13 Abs. 6 Satz 1 WaffG","t":"Ein Jäger darf Jagdwaffen zur befugten Jagdausübung einschließlich des Ein- und Anschießens im Revier, zur Ausbildung von Jagdhunden im Revier, zum Jagdschutz oder zum Forstschutz ohne Erlaubnis führen und mit ihnen schießen; er darf auch im Zusammenhang mit diesen Tätigkeiten die Jagdwaffen nicht schussbereit ohne Erlaubnis führen."},"ueberl34":{"ref":"§ 34 Abs. 1 Satz 1 und 2 WaffG","t":"Waffen oder Munition dürfen nur berechtigten Personen überlassen werden. Die Berechtigung muss offensichtlich sein oder nachgewiesen werden."},"aufbew":{"ref":"§ 36 Abs. 1 WaffG","t":"Wer Waffen oder Munition besitzt, hat die erforderlichen Vorkehrungen zu treffen, um zu verhindern, dass diese Gegenstände abhanden kommen oder Dritte sie unbefugt an sich nehmen."},"fund37c":{"ref":"§ 37c Abs. 1 WaffG","t":"Wer Waffen oder Munition, deren Erwerb der Erlaubnis bedarf, in Besitz nimmt 1. beim Tod eines Waffenbesitzers, als Finder oder in ähnlicher Weise, 2. als Insolvenzverwalter, Zwangsverwalter, Gerichtsvollzieher oder in ähnlicher Weise, hat dies der zuständigen Behörde unverzüglich anzuzeigen."},"ausweis38":{"ref":"§ 38 Abs. 1 Satz 1 Nr. 1 Buchst. a WaffG","t":"Wer eine Waffe führt, muss folgende Dokumente mit sich führen: 1. seinen Personalausweis oder Pass und a) wenn es einer Erlaubnis zum Erwerb bedarf, die Waffenbesitzkarte oder, wenn es einer Erlaubnis zum Führen bedarf, den Waffenschein,"},"faust40":{"ref":"§ 40 Abs. 3 Satz 1 WaffG","t":"Inhaber einer jagdrechtlichen Erlaubnis und Angehörige von Leder oder Pelz verarbeitenden Berufen dürfen abweichend von § 2 Abs. 3 Umgang mit Faustmessern nach Anlage 2 Abschnitt 1 Nr. 1.4.2 haben, sofern sie diese Messer zur Ausübung ihrer Tätigkeit benötigen."},"bka40":{"ref":"§ 40 Abs. 4 Satz 1 WaffG","t":"Das Bundeskriminalamt kann auf Antrag von den Verboten der Anlage 2 Abschnitt 1 allgemein oder für den Einzelfall Ausnahmen zulassen, wenn die Interessen des Antragstellers auf Grund besonderer Umstände das öffentliche Interesse an der Durchsetzung des Verbots überwiegen."},"fund40":{"ref":"§ 40 Abs. 5 WaffG","t":"Wer eine in Anlage 2 Abschnitt 1 bezeichnete Waffe als Erbe, Finder oder in ähnlicher Weise in Besitz nimmt, hat dies der zuständigen Behörde unverzüglich anzuzeigen. Die zuständige Behörde kann die Waffen oder Munition sicherstellen oder anordnen, dass innerhalb einer angemessenen Frist die Waffen oder Munition unbrauchbar gemacht, von Verbotsmerkmalen befreit oder einem nach diesem Gesetz Berechtigten überlassen werden, oder dass der Erwerber einen Antrag nach Absatz 4 stellt. Das Verbot des Umgangs mit Waffen oder Munition wird nicht wirksam, solange die Frist läuft oder eine ablehnende Entscheidung nach Absatz 4 dem Antragsteller noch nicht bekannt gegeben worden ist."},"verbot41":{"ref":"§ 41 Abs. 1 Satz 1 WaffG (Auszug)","t":"Die zuständige Behörde kann jemandem den Besitz von Waffen oder Munition, deren Erwerb nicht der Erlaubnis bedarf, und den Erwerb solcher Waffen oder Munition untersagen,"},"veranst":{"ref":"§ 42 Abs. 1 WaffG","t":"Wer an öffentlichen Vergnügungen, Volksfesten, Sportveranstaltungen, Messen, Ausstellungen, Märkten oder ähnlichen öffentlichen Veranstaltungen teilnimmt, darf keine Waffen im Sinne des § 1 Abs. 2 führen. Dies gilt auch, wenn für die Teilnahme ein Eintrittsgeld zu entrichten ist, sowie für Theater-, Kino-, und Diskothekenbesuche und für Tanzveranstaltungen."},"veranstAusn":{"ref":"§ 42 Abs. 4 WaffG","t":"Die Absätze 1 bis 3 sind nicht anzuwenden 1. auf die Mitwirkenden an Theateraufführungen und diesen gleich zu achtenden Vorführungen, wenn zu diesem Zweck ungeladene oder mit Kartuschenmunition geladene Schusswaffen oder Waffen im Sinne des § 1 Abs. 2 Nr. 2 geführt werden, 2. auf das Schießen in Schießstätten (§ 27), 3. soweit eine Schießerlaubnis nach § 10 Abs. 5 vorliegt, 4. auf das gewerbliche Ausstellen der in Absatz 1 genannten Waffen auf Messen und Ausstellungen."},"messer4a":{"ref":"§ 42 Abs. 4a WaffG","t":"Absatz 1 gilt entsprechend für das Führen von Messern. Ausgenommen vom Verbot des Führens von Messern sind: 1. Anlieferverkehr, 2. Gewerbetreibende und ihre Beschäftigten und von den Gewerbetreibenden Beauftragte, die Messer im Zusammenhang mit ihrer Berufsausübung führen, 3. Personen, die ein Messer nicht zugriffsbereit von einem Ort zum anderen befördern, 4. Personen, die ein Messer in oder auf bestimmten Gebäuden oder Flächen mit öffentlichem Verkehr sowie in Verkehrsmitteln und Einrichtungen des öffentlichen Personenverkehrs, in oder auf denen Menschenansammlungen auftreten können und die einem Hausrecht unterliegen mit Zustimmung des Hausrechtsbereichsinhabers führen, wenn das Führen dem Zweck des Aufenthaltes in dem Hausrechtsbereich dient oder im Zusammenhang damit steht, 5. das gewerbliche Ausstellen von Messern auf Messen, Märkten und Ausstellungen, 6. Rettungskräfte und Einsatzkräfte im Zivil- und Katastrophenschutz im Zusammenhang mit der Tätigkeit, 7. Mitwirkende an Foto-, Film- oder Fernsehaufnahmen, Theateraufführungen oder historischen Darstellungen, wenn zu diesem Zweck Messer geführt werden, 8. Personen, die Messer im Zusammenhang mit der Brauchtumspflege, der Jagd oder der Ausübung des Sports führen, 9. Inhaber gastronomischer Betriebe, ihre Beschäftigten und Beauftragten sowie deren Kundinnen und Kunden, 10. Personen, die Messer im Zusammenhang mit einem allgemein anerkannten Zweck führen."},"zone":{"ref":"§ 42 Abs. 5 Satz 1 WaffG (Auszug)","t":"Die Landesregierungen können durch Rechtsverordnung das Führen von Waffen im Sinne des § 1 Absatz 2 und von Messern verbieten oder beschränken"},"zoneAusn":{"ref":"§ 42 Abs. 5 Satz 2 und 3 WaffG","t":"In der Rechtsverordnung nach Satz 1 ist eine Ausnahme vom Verbot oder von der Beschränkung für Fälle vorzusehen, in denen für das Führen der Waffe oder des Messers ein berechtigtes Interesse vorliegt. Ein berechtigtes Interesse liegt in der Regel vor 1. für das Führen von Waffen a) für Inhaber waffenrechtlicher Erlaubnisse, mit Ausnahme einer Erlaubnis nach § 10 Absatz 4 Satz 4, b) für Personen, die eine Waffe nicht zugriffsbereit von einem Ort zum anderen befördern, c) in den Fällen des Satzes 1 Nummer 3 für Personen, die eine Waffe mit Zustimmung eines anderen in dessen Hausrechtsbereich nach Satz 1 Nummer 3 führen, wenn das Führen dem Zweck des Aufenthaltes in dem Hausrechtsbereich dient oder im Zusammenhang damit steht, d) für Rettungskräfte und Einsatzkräfte im Zivil- und Katastrophenschutz im Zusammenhang mit der Tätigkeit; 2. für das Führen von Messern in den Fällen des Absatzes 4a Satz 2."},"f42a":{"ref":"§ 42a WaffG","t":"Es ist verboten 1. Anscheinswaffen, 2. Hieb- und Stoßwaffen nach Anlage 1 Abschnitt 1 Unterabschnitt 2 Nr. 1.1 oder 3. Messer mit einhändig feststellbarer Klinge (Einhandmesser) oder feststehende Messer mit einer Klingenlänge über 12 cm zu führen. (2) Absatz 1 gilt nicht 1. für die Verwendung bei Foto-, Film- oder Fernsehaufnahmen oder Theateraufführungen, 2. für den Transport in einem verschlossenen Behältnis, 3. für das Führen der Gegenstände nach Absatz 1 Nr. 2 und 3, sofern ein berechtigtes Interesse vorliegt. Weitergehende Regelungen bleiben unberührt. (3) Ein berechtigtes Interesse nach Absatz 2 Satz 1 Nr. 3 liegt insbesondere vor, wenn das Führen der Gegenstände im Zusammenhang mit der Berufsausübung erfolgt, der Brauchtumspflege, dem Sport oder einem allgemein anerkannten Zweck dient."},"f42b":{"ref":"§ 42b Abs. 1 WaffG","t":"Es ist verboten, 1. Waffen im Sinne des § 1 Absatz 2 oder 2. Messer in Verkehrsmitteln des öffentlichen Personenfernverkehrs und in seitlich umschlossenen Einrichtungen des öffentlichen Personenfernverkehrs, insbesondere Gebäuden und Haltepunkten, zu führen, soweit nicht eine Rechtsverordnung nach Absatz 2 besteht. Satz 1 gilt nicht 1. für das Führen von Waffen in den Fällen des § 42 Absatz 5 Satz 3 Nummer 1 Buchstabe a, b und d, 2. für das Führen von Messern in den Fällen des § 42 Absatz 4a Satz 2, 3. für Personen, die eine Waffe oder ein Messer mit Zustimmung des Verkehrsunternehmens führen, wenn das Führen dem Zweck des Aufenthalts in dem Hausrechtsbereich dient oder im Zusammenhang damit steht."},"bahn42b":{"ref":"§ 42b Abs. 2 WaffG","t":"Für das Gebiet der Bahnanlagen der Eisenbahnen des Bundes wird das Bundesministerium des Innern und für Heimat ermächtigt, durch Rechtsverordnung ohne Zustimmung des Bundesrates das Führen von Waffen im Sinne des § 1 Absatz 2 und von Messern zu verbieten oder zu beschränken, wenn das Verbot oder die Beschränkung zur Abwehr von Gefahren für die öffentliche Sicherheit erforderlich ist. In der Rechtsverordnung nach Satz 1 sind Ausnahmen vom Verbot oder von der Beschränkung entsprechend Absatz 1 Satz 2 vorzusehen. Die Ermächtigung nach Satz 1 kann durch Rechtsverordnung auf das Bundespolizeipräsidium übertragen werden. Die Befugnis der Bundespolizeibehörden, das Mitführen von Waffen und gefährlichen Gegenständen durch Allgemeinverfügung zu regeln, bleibt unberührt."},"kontr42c":{"ref":"§ 42c WaffG","t":"Die zuständige Behörde kann zur Durchsetzung gesetzlicher Waffen- und Messerverbote nach § 42 Absatz 1 Satz 1, Absatz 4a Satz 1 und § 42b Absatz 1 sowie von Waffen- und Messerverbotszonen nach § 42 Absatz 5 im räumlichen Geltungsbereich dieser gesetzlichen Waffen- und Messerverbote sowie im räumlichen Geltungsbereich der Waffen- und Messerverbotszonen Personen kurzzeitig anhalten, befragen, mitgeführte Sachen in Augenschein nehmen sowie die Person durchsuchen."},"p51":{"ref":"§ 51 Abs. 1 WaffG","t":"Mit Freiheitsstrafe von einem Jahr bis zu fünf Jahren wird bestraft, wer entgegen § 2 Absatz 3 in Verbindung mit Anlage 2 Abschnitt 1 Nummer 1.2.1.1 oder 1.2.1.2, eine dort genannte Schusswaffe zum Verschießen von Patronenmunition nach Anlage 1 Abschnitt 1 Unterabschnitt 3 Nr. 1.1 erwirbt, besitzt, überlässt, führt, verbringt, mitnimmt, herstellt, bearbeitet, instand setzt oder damit Handel treibt."},"p51r":{"ref":"§ 51 Abs. 2 bis 4 WaffG","t":"In besonders schweren Fällen ist die Strafe Freiheitsstrafe von einem Jahr bis zu zehn Jahren. Ein besonders schwerer Fall liegt in der Regel vor, wenn der Täter gewerbsmäßig oder als Mitglied einer Bande, die sich zur fortgesetzten Begehung solcher Straftaten verbunden hat, unter Mitwirkung eines anderen Bandenmitgliedes handelt. (3) In minder schweren Fällen ist die Strafe Freiheitsstrafe bis zu drei Jahren oder Geldstrafe. (4) Handelt der Täter fahrlässig, so ist die Strafe Freiheitsstrafe bis zu zwei Jahren oder Geldstrafe."},"p52_1":{"ref":"§ 52 Abs. 1 Nr. 1 WaffG","t":"Mit Freiheitsstrafe von sechs Monaten bis zu fünf Jahren wird bestraft, wer 1. entgegen § 2 Absatz 3 in Verbindung mit Anlage 2 Abschnitt 1 Nr. 1.1 oder 1.3.4 eine dort genannte Schusswaffe oder einen dort genannten Gegenstand erwirbt, besitzt, überlässt, führt, verbringt, mitnimmt, herstellt, bearbeitet, instand setzt oder damit Handel treibt,"},"p52_1_2b":{"ref":"§ 52 Abs. 1 Nr. 2 Buchst. b WaffG","t":"§ 2 Abs. 2 in Verbindung mit Anlage 2 Abschnitt 2 Unterabschnitt 1 Satz 1, eine halbautomatische Kurzwaffe zum Verschießen von Patronenmunition nach Anlage 1 Abschnitt 1 Unterabschnitt 3 Nr. 1.1 erwirbt, besitzt oder führt,"},"p52_1_2c":{"ref":"§ 52 Abs. 1 Nr. 2 Buchst. c und d WaffG","t":"§ 2 Abs. 2 in Verbindung mit Anlage 2 Abschnitt 2 Unterabschnitt 1 Satz 1 in Verbindung mit § 21 Abs. 1 Satz 1 oder § 21a eine Schusswaffe oder Munition herstellt, bearbeitet, instand setzt oder damit Handel treibt, d) § 2 Abs. 2 in Verbindung mit Anlage 2 Abschnitt 2 Unterabschnitt 1 Satz 1 in Verbindung mit § 29 Absatz 1 Satz 1 oder § 32 Absatz 1 Satz 1 eine Schusswaffe oder Munition in den oder durch den Geltungsbereich dieses Gesetzes verbringt oder mitnimmt,"},"p52_3_1":{"ref":"§ 52 Abs. 3 Nr. 1 WaffG","t":"Mit Freiheitsstrafe bis zu drei Jahren oder mit Geldstrafe wird bestraft, wer 1. entgegen § 2 Absatz 3 in Verbindung mit Anlage 2 Abschnitt 1 Nummer 1.2.2 bis 1.2.4.2, 1.2.5, 1.3.1 bis 1.3.3, 1.3.5 bis 1.3.8, 1.4.1 Satz 1, Nr. 1.4.2 bis 1.4.4 oder 1.5.3 bis 1.5.7 einen dort genannten Gegenstand erwirbt, besitzt, überlässt, führt, verbringt, mitnimmt, herstellt, bearbeitet, instand setzt oder damit Handel treibt,"},"p52_3_2":{"ref":"§ 52 Abs. 3 Nr. 2 WaffG","t":"ohne Erlaubnis nach § 2 Abs. 2 in Verbindung mit Anlage 2 Abschnitt 2 Unterabschnitt 1 Satz 1 a) eine Schusswaffe erwirbt, besitzt, führt oder b) Munition erwirbt oder besitzt, wenn die Tat nicht in Absatz 1 Nr. 2 Buchstabe a oder b mit Strafe bedroht ist,"},"p52_3_3":{"ref":"§ 52 Abs. 3 Nr. 3 und 4 WaffG","t":"ohne Erlaubnis nach § 2 Abs. 2 in Verbindung mit Anlage 2 Abschnitt 2 Unterabschnitt 1 Satz 1 in Verbindung mit § 26 Abs. 1 Satz 1 eine Schusswaffe herstellt, bearbeitet oder instand setzt, 4. ohne Erlaubnis nach § 2 Absatz 2 in Verbindung mit Anlage 2 Abschnitt 2 Unterabschnitt 1 Satz 1 in Verbindung mit a) § 29 Absatz 1 Satz 1 eine dort genannte Schusswaffe oder Munition aus dem Geltungsbereich dieses Gesetzes in einen anderen Mitgliedstaat verbringt oder b) § 32 Absatz 1a Satz 1 eine dort genannte Schusswaffe oder Munition in einen anderen Mitgliedstaat mitnimmt,"},"p52_3_7":{"ref":"§ 52 Abs. 3 Nr. 7 und 7a WaffG","t":"entgegen § 34 Abs. 1 Satz 1 eine erlaubnispflichtige Schusswaffe oder erlaubnispflichtige Munition einem Nichtberechtigten überlässt, 7a. entgegen § 36 Absatz 1 Satz 1 in Verbindung mit einer Rechtsverordnung nach § 36 Absatz 5 Satz 1 eine dort genannte Vorkehrung für eine Schusswaffe nicht, nicht richtig oder nicht rechtzeitig trifft und dadurch die Gefahr verursacht, dass eine Schusswaffe oder Munition abhandenkommt oder darauf unbefugt zugegriffen wird,"},"p52_3_8":{"ref":"§ 52 Abs. 3 Nr. 8 bis 10 WaffG","t":"einer vollziehbaren Anordnung nach § 41 Abs. 1 Satz 1 oder Abs. 2 zuwiderhandelt, 9. entgegen § 42 Abs. 1 eine Waffe führt oder 10 entgegen § 57 Abs. 5 Satz 1 den Besitz über eine Schusswaffe oder Munition ausübt."},"p52_2":{"ref":"§ 52 Abs. 2 WaffG","t":"Der Versuch ist strafbar."},"p52_4":{"ref":"§ 52 Abs. 4 bis 6 WaffG","t":"Handelt der Täter in den Fällen des Absatzes 1 Nr. 1, 2 Buchstabe b, c oder d oder Nr. 3 oder des Absatzes 3 Nummer 1 bis 7, 8, 9 oder 10 fahrlässig, so ist die Strafe bei den bezeichneten Taten nach Absatz 1 Freiheitsstrafe bis zu zwei Jahren oder Geldstrafe, bei Taten nach Absatz 3 Freiheitsstrafe bis zu einem Jahr oder Geldstrafe. (5) In besonders schweren Fällen des Absatzes 1 Nr. 1 ist die Strafe Freiheitsstrafe von einem Jahr bis zu zehn Jahren. Ein besonders schwerer Fall liegt in der Regel vor, wenn der Täter gewerbsmäßig oder als Mitglied einer Bande, die sich zur fortgesetzten Begehung solcher Straftaten verbunden hat, unter Mitwirkung eines anderen Bandenmitgliedes handelt. (6) In minder schweren Fällen des Absatzes 1 ist die Strafe Freiheitsstrafe bis zu drei Jahren oder Geldstrafe."},"p53_1":{"ref":"§ 53 Abs. 1 Nr. 1 WaffG","t":"Ordnungswidrig handelt, wer vorsätzlich oder fahrlässig 1. entgegen § 2 Abs. 1 eine nicht erlaubnispflichtige Waffe oder nicht erlaubnispflichtige Munition erwirbt oder besitzt,"},"p53_3":{"ref":"§ 53 Abs. 1 Nr. 3 WaffG","t":"ohne Erlaubnis nach § 2 Abs. 2 in Verbindung mit Abs. 4, dieser in Verbindung mit Anlage 2 Abschnitt 2 Unterabschnitt 1 Satz 1, mit einer Schusswaffe schießt"},"p53_16":{"ref":"§ 53 Abs. 1 Nr. 16 WaffG","t":"entgegen § 34 Abs. 1 Satz 1 eine nicht erlaubnispflichtige Waffe oder nicht erlaubnispflichtige Munition einem Nichtberechtigten überlässt"},"p53_20":{"ref":"§ 53 Abs. 1 Nr. 20 WaffG","t":"entgegen § 38 Absatz 1 Satz 1 oder Absatz 2 ein dort genanntes Dokument nicht mit sich führt oder nicht oder nicht rechtzeitig aushändigt"},"p53_21":{"ref":"§ 53 Abs. 1 Nr. 21a bis 21c WaffG","t":"entgegen § 42 Absatz 4a Satz 1 in Verbindung mit Absatz 1 ein Messer führt, 21b. entgegen § 42a Abs. 1 eine Anscheinswaffe, eine dort genannte Hieb- oder Stoßwaffe oder ein dort genanntes Messer führt, 21c. entgegen § 42b Absatz 1 eine Waffe oder ein Messer führt"},"p53_23":{"ref":"§ 53 Abs. 1 Nr. 23 WaffG","t":"einer Rechtsverordnung nach § 15a Absatz 4, § 27 Absatz 7 Satz 2, § 36 Absatz 5, den §§ 39a, 39c Absatz 1 oder 2 Satz 1, § 42 Absatz 5 Satz 1 oder § 42b Absatz 2 Satz 1 oder § 47 oder einer vollziehbaren Anordnung auf Grund einer solchen Rechtsverordnung zuwiderhandelt, soweit die Rechtsverordnung für einen bestimmten Tatbestand auf diese Bußgeldvorschrift verweist"},"p53_2":{"ref":"§ 53 Abs. 2 WaffG","t":"Die Ordnungswidrigkeit kann mit einer Geldbuße bis zu zehntausend Euro geahndet werden."},"einzug":{"ref":"§ 54 Abs. 1 und 2 WaffG","t":"Ist eine Straftat nach den §§ 51, 52 Abs. 1, 2 oder 3 Nr. 1, 2 oder 3 oder Abs. 5 begangen worden, so werden Gegenstände, 1. auf die sich diese Straftat bezieht oder 2. die durch sie hervorgebracht oder zu ihrer Begehung oder Vorbereitung gebraucht worden oder bestimmt gewesen sind, eingezogen. (2) Ist eine sonstige Straftat nach § 52 oder eine Ordnungswidrigkeit nach § 53 begangen worden, so können in Absatz 1 bezeichnete Gegenstände eingezogen werden."},"kw57":{"ref":"§ 57 Abs. 1 Satz 1 WaffG","t":"Dieses Gesetz gilt nicht für Kriegswaffen im Sinne des Gesetzes über die Kontrolle von Kriegswaffen."},"kwDef":{"ref":"§ 1 Abs. 1 KrWaffKontrG","t":"Zur Kriegsführung bestimmte Waffen im Sinne dieses Gesetzes (Kriegswaffen) sind die in der Anlage zu diesem Gesetz (Kriegswaffenliste) aufgeführten Gegenstände, Stoffe und Organismen."},"kw22a":{"ref":"§ 22a Abs. 1 KrWaffKontrG","t":"Mit Freiheitsstrafe von einem Jahr bis zu fünf Jahren wird bestraft, wer 1. Kriegswaffen ohne Genehmigung nach § 2 Abs. 1 herstellt, 2. die tatsächliche Gewalt über Kriegswaffen ohne Genehmigung nach § 2 Abs. 2 von einem anderen erwirbt oder einem anderen überläßt, 3. im Bundesgebiet außerhalb eines abgeschlossenen Geländes Kriegswaffen ohne Genehmigung nach § 3 Abs. 1 oder 2 befördern läßt oder selbst befördert; dies gilt nicht für Selbstbeförderungen in den Fällen des § 12 Absatz 6 Nummer 1 sowie für Inhaber einer Waffenbesitzkarte für Kriegswaffen gemäß § 59 Absatz 4 des Waffengesetzes von 1972 im Rahmen von Umzugshandlungen durch den Inhaber der Erlaubnis, 4. Kriegswaffen einführt, ausführt, durch das Bundesgebiet durchführt oder aus dem Bundesgebiet verbringt, ohne daß die hierzu erforderliche Beförderung genehmigt ist, 5. mit Seeschiffen, welche die Bundesflagge führen, oder mit Luftfahrzeugen, die in die Luftfahrzeugrolle der Bundesrepublik Deutschland eingetragen sind, absichtlich oder wissentlich Kriegswaffen ohne Genehmigung nach § 4 befördert, die außerhalb des Bundesgebietes ein- und ausgeladen und durch das Bundesgebiet nicht durchgeführt werden, 6. über Kriegswaffen sonst die tatsächliche Gewalt ausübt, ohne daß a) der Erwerb der tatsächlichen Gewalt auf einer Genehmigung nach diesem Gesetz beruht oder b) eine Anzeige nach § 12 Abs. 6 Nr. 1 oder § 26a erstattet worden ist, oder 7. einen Vertrag über den Erwerb oder das Überlassen ohne Genehmigung nach § 4a Abs. 1 vermittelt oder eine Gelegenheit hierzu nachweist oder einen Vertrag ohne Genehmigung nach § 4a Abs. 2 abschließt."},"kw22ar":{"ref":"§ 22a Abs. 2 bis 4 KrWaffKontrG","t":"In besonders schweren Fällen ist die Strafe Freiheitsstrafe von einem Jahr bis zu zehn Jahren. Ein besonders schwerer Fall liegt in der Regel vor, wenn der Täter in den Fällen des Absatzes 1 Nr. 1 bis 4, 6 oder 7 gewerbsmäßig oder als Mitglied einer Bande, die sich zur fortgesetzten Begehung solcher Straftaten verbunden hat, unter Mitwirkung eines anderen Bandenmitglieds handelt. (3) In minder schweren Fällen ist die Strafe Freiheitsstrafe bis zu drei Jahren oder Geldstrafe. (4) Wer fahrlässig eine in Absatz 1 Nummer 1 bis 4, 6 oder Nummer 7 bezeichnete Handlung begeht, wird mit Freiheitsstrafe bis zu zwei Jahren oder mit Geldstrafe bestraft."},"s15":{"ref":"§ 15 StGB","t":"Strafbar ist nur vorsätzliches Handeln, wenn nicht das Gesetz fahrlässiges Handeln ausdrücklich mit Strafe bedroht."},"s16":{"ref":"§ 16 Abs. 1 StGB","t":"Wer bei Begehung der Tat einen Umstand nicht kennt, der zum gesetzlichen Tatbestand gehört, handelt nicht vorsätzlich. Die Strafbarkeit wegen fahrlässiger Begehung bleibt unberührt."},"s17":{"ref":"§ 17 StGB","t":"Fehlt dem Täter bei Begehung der Tat die Einsicht, Unrecht zu tun, so handelt er ohne Schuld, wenn er diesen Irrtum nicht vermeiden konnte. Konnte der Täter den Irrtum vermeiden, so kann die Strafe nach § 49 Abs. 1 gemildert werden."},"s23":{"ref":"§ 23 Abs. 1 StGB","t":"Der Versuch eines Verbrechens ist stets strafbar, der Versuch eines Vergehens nur dann, wenn das Gesetz es ausdrücklich bestimmt."},"s32":{"ref":"§ 32 StGB","t":"Wer eine Tat begeht, die durch Notwehr geboten ist, handelt nicht rechtswidrig. (2) Notwehr ist die Verteidigung, die erforderlich ist, um einen gegenwärtigen rechtswidrigen Angriff von sich oder einem anderen abzuwenden."},"s52":{"ref":"§ 52 Abs. 1 und 2 StGB","t":"Verletzt dieselbe Handlung mehrere Strafgesetze oder dasselbe Strafgesetz mehrmals, so wird nur auf eine Strafe erkannt. (2) Sind mehrere Strafgesetze verletzt, so wird die Strafe nach dem Gesetz bestimmt, das die schwerste Strafe androht. Sie darf nicht milder sein, als die anderen anwendbaren Gesetze es zulassen."},"o10":{"ref":"§ 10 OWiG","t":"Als Ordnungswidrigkeit kann nur vorsätzliches Handeln geahndet werden, außer wenn das Gesetz fahrlässiges Handeln ausdrücklich mit Geldbuße bedroht."},"o11":{"ref":"§ 11 OWiG","t":"Wer bei Begehung einer Handlung einen Umstand nicht kennt, der zum gesetzlichen Tatbestand gehört, handelt nicht vorsätzlich. Die Möglichkeit der Ahndung wegen fahrlässigen Handelns bleibt unberührt. (2) Fehlt dem Täter bei Begehung der Handlung die Einsicht, etwas Unerlaubtes zu tun, namentlich weil er das Bestehen oder die Anwendbarkeit einer Rechtsvorschrift nicht kennt, so handelt er nicht vorwerfbar, wenn er diesen Irrtum nicht vermeiden konnte."},"o19":{"ref":"§ 19 Abs. 1 OWiG","t":"Verletzt dieselbe Handlung mehrere Gesetze, nach denen sie als Ordnungswidrigkeit geahndet werden kann, oder ein solches Gesetz mehrmals, so wird nur eine einzige Geldbuße festgesetzt."},"o21":{"ref":"§ 21 OWiG","t":"Ist eine Handlung gleichzeitig Straftat und Ordnungswidrigkeit, so wird nur das Strafgesetz angewendet. Auf die in dem anderen Gesetz angedrohten Nebenfolgen kann erkannt werden. (2) Im Falle des Absatzes 1 kann die Handlung jedoch als Ordnungswidrigkeit geahndet werden, wenn eine Strafe nicht verhängt wird."}};
+/* WaffG-Prüfstand – Prüflogik nach dem amtlichen Wortlaut (WaffG zuletzt geändert durch Art. 12 Abs. 20 G v. 22.10.2026, BGBl. I Nr. 318).
+   Ergebnis ist eine Liste von Prüfungen (Straftat / OWi / Einzelfall / kein Verstoß) mit Tatbestandsmerkmalen für die Subsumtion. Keine Rechtsberatung. */
+const WF_STAND = 'WaffG i. d. F. vom 22.10.2026 (BGBl. 2026 I Nr. 318)';
+const WF_RANK = { erlaubt: 0, hinweis: 1, owi: 2, straftat: 3 };
+const WF_PEN = {
+  kw: { norm: '§ 22a Abs. 1 KrWaffKontrG', folge: 'Freiheitsstrafe von 1 bis 5 Jahren (Verbrechen)', rank: 70, verbrechen: true, fahrl: 'Freiheitsstrafe bis 2 Jahre oder Geldstrafe (§ 22a Abs. 4 KrWaffKontrG)', ms: 'minder schwerer Fall: bis 3 Jahre oder Geldstrafe (§ 22a Abs. 3)', bs: 'besonders schwerer Fall (gewerbsmäßig, Bande): 1 bis 10 Jahre (§ 22a Abs. 2)', law: ['kw57', 'kwDef', 'kw22a', 'kw22ar'] },
+  p51: { norm: '§ 51 Abs. 1 WaffG', folge: 'Freiheitsstrafe von 1 bis 5 Jahren (Verbrechen)', rank: 60, verbrechen: true, fahrl: 'Freiheitsstrafe bis 2 Jahre oder Geldstrafe (§ 51 Abs. 4)', ms: 'minder schwerer Fall: bis 3 Jahre oder Geldstrafe (§ 51 Abs. 3)', bs: 'besonders schwerer Fall (gewerbsmäßig, Bande): 1 bis 10 Jahre (§ 51 Abs. 2)', einz: true, law: ['p51', 'p51r', 'einzug'] },
+  p52_1_1: { norm: '§ 52 Abs. 1 Nr. 1 WaffG', folge: 'Freiheitsstrafe von 6 Monaten bis 5 Jahren', rank: 50, versuch: true, fahrl: 'Freiheitsstrafe bis 2 Jahre oder Geldstrafe (§ 52 Abs. 4)', ms: 'minder schwerer Fall: bis 3 Jahre oder Geldstrafe (§ 52 Abs. 6)', bs: 'besonders schwerer Fall (gewerbsmäßig, Bande): 1 bis 10 Jahre (§ 52 Abs. 5)', einz: true, law: ['p52_1', 'p52_2', 'p52_4', 'einzug'] },
+  p52_1_2a: { norm: '§ 52 Abs. 1 Nr. 2 Buchst. a WaffG', folge: 'Freiheitsstrafe von 6 Monaten bis 5 Jahren', rank: 50, versuch: true, fahrl: null, ms: 'minder schwerer Fall: bis 3 Jahre oder Geldstrafe (§ 52 Abs. 6)', einz: true, law: ['p52_1', 'p52_2', 'p52_4', 'einzug'] },
+  p52_1_2b: { norm: '§ 52 Abs. 1 Nr. 2 Buchst. b WaffG', folge: 'Freiheitsstrafe von 6 Monaten bis 5 Jahren', rank: 50, versuch: true, fahrl: 'Freiheitsstrafe bis 2 Jahre oder Geldstrafe (§ 52 Abs. 4)', ms: 'minder schwerer Fall: bis 3 Jahre oder Geldstrafe (§ 52 Abs. 6)', einz: true, law: ['p52_1_2b', 'p52_2', 'p52_4', 'einzug'] },
+  p52_1_2c: { norm: '§ 52 Abs. 1 Nr. 2 Buchst. c WaffG', folge: 'Freiheitsstrafe von 6 Monaten bis 5 Jahren', rank: 50, versuch: true, fahrl: 'Freiheitsstrafe bis 2 Jahre oder Geldstrafe (§ 52 Abs. 4)', ms: 'minder schwerer Fall: bis 3 Jahre oder Geldstrafe (§ 52 Abs. 6)', einz: true, law: ['p52_1_2c', 'p52_2', 'p52_4', 'einzug'] },
+  p52_1_2d: { norm: '§ 52 Abs. 1 Nr. 2 Buchst. d WaffG', folge: 'Freiheitsstrafe von 6 Monaten bis 5 Jahren', rank: 50, versuch: true, fahrl: 'Freiheitsstrafe bis 2 Jahre oder Geldstrafe (§ 52 Abs. 4)', ms: 'minder schwerer Fall: bis 3 Jahre oder Geldstrafe (§ 52 Abs. 6)', einz: true, law: ['p52_1_2c', 'p52_2', 'p52_4', 'einzug'] },
+  p52_3_1: { norm: '§ 52 Abs. 3 Nr. 1 WaffG', folge: 'Freiheitsstrafe bis 3 Jahre oder Geldstrafe', rank: 40, fahrl: 'Freiheitsstrafe bis 1 Jahr oder Geldstrafe (§ 52 Abs. 4)', einz: true, law: ['p52_3_1', 'p52_4', 'einzug'] },
+  p52_3_2a: { norm: '§ 52 Abs. 3 Nr. 2 Buchst. a WaffG', folge: 'Freiheitsstrafe bis 3 Jahre oder Geldstrafe', rank: 40, fahrl: 'Freiheitsstrafe bis 1 Jahr oder Geldstrafe (§ 52 Abs. 4)', einz: true, law: ['p52_3_2', 'p52_4', 'einzug'] },
+  p52_3_2b: { norm: '§ 52 Abs. 3 Nr. 2 Buchst. b WaffG', folge: 'Freiheitsstrafe bis 3 Jahre oder Geldstrafe', rank: 40, fahrl: 'Freiheitsstrafe bis 1 Jahr oder Geldstrafe (§ 52 Abs. 4)', einz: true, law: ['p52_3_2', 'p52_4', 'einzug'] },
+  p52_3_3: { norm: '§ 52 Abs. 3 Nr. 3 WaffG', folge: 'Freiheitsstrafe bis 3 Jahre oder Geldstrafe', rank: 40, fahrl: 'Freiheitsstrafe bis 1 Jahr oder Geldstrafe (§ 52 Abs. 4)', einz: true, law: ['p52_3_3', 'p52_4', 'einzug'] },
+  p52_3_4: { norm: '§ 52 Abs. 3 Nr. 4 WaffG', folge: 'Freiheitsstrafe bis 3 Jahre oder Geldstrafe', rank: 40, fahrl: 'Freiheitsstrafe bis 1 Jahr oder Geldstrafe (§ 52 Abs. 4)', law: ['p52_3_3', 'p52_4', 'einzug'] },
+  p52_3_7: { norm: '§ 52 Abs. 3 Nr. 7 WaffG', folge: 'Freiheitsstrafe bis 3 Jahre oder Geldstrafe', rank: 40, fahrl: 'Freiheitsstrafe bis 1 Jahr oder Geldstrafe (§ 52 Abs. 4)', law: ['p52_3_7', 'ueberl34', 'p52_4'] },
+  p52_3_7a: { norm: '§ 52 Abs. 3 Nr. 7a WaffG', folge: 'Freiheitsstrafe bis 3 Jahre oder Geldstrafe', rank: 40, fahrl: null, law: ['p52_3_7', 'aufbew'] },
+  p52_3_8: { norm: '§ 52 Abs. 3 Nr. 8 WaffG', folge: 'Freiheitsstrafe bis 3 Jahre oder Geldstrafe', rank: 40, fahrl: 'Freiheitsstrafe bis 1 Jahr oder Geldstrafe (§ 52 Abs. 4)', law: ['p52_3_8', 'verbot41', 'p52_4'] },
+  p52_3_9: { norm: '§ 52 Abs. 3 Nr. 9 WaffG', folge: 'Freiheitsstrafe bis 3 Jahre oder Geldstrafe', rank: 40, fahrl: 'Freiheitsstrafe bis 1 Jahr oder Geldstrafe (§ 52 Abs. 4)', law: ['p52_3_8', 'veranst', 'veranstAusn', 'p52_4'] }
+};
+const wfOwi = (nr, law) => ({ norm: `§ 53 Abs. 1 Nr. ${nr} WaffG`, folge: 'Geldbuße bis 10.000 € (§ 53 Abs. 2)', rank: 20, owi: true, fahrl: 'auch fahrlässig ahndbar („vorsätzlich oder fahrlässig“, § 53 Abs. 1)', law: [...law, 'p53_2'] });
+const WF_ZWECK_42A = new Set(['beruf', 'sport', 'anerkannt', 'gastro', 'rettung', 'anliefer']);
+const WF_ZWECK_4A = new Set(['beruf', 'sport', 'anerkannt', 'gastro', 'film', 'rettung', 'anliefer', 'hausrecht']);
+const WF_ZWECK_LABEL = { keiner: 'kein besonderer Zweck', beruf: 'Berufsausübung', sport: 'Sport, Jagd, Brauchtum', anerkannt: 'allgemein anerkannter Zweck', gastro: 'Gastronomie', film: 'Foto, Film, Theater', rettung: 'Rettungs- oder Einsatzkräfte', anliefer: 'Anlieferverkehr', hausrecht: 'Zustimmung des Hausrechtsinhabers' };
+const WF_H = {
+  besitz: { label: 'Besitz', verb: 'besitzt', law: 'besitz' }, erwerb: { label: 'Erwerb', verb: 'erwirbt', law: 'erwerb' },
+  fuehren: { label: 'Führen', verb: 'führt', law: 'fuehren' }, ueberlassen: { label: 'Überlassen', verb: 'überlässt', law: 'ueberlassen' },
+  schiessen: { label: 'Schießen', verb: 'schießt', law: 'schiessen' }, verbringen: { label: 'Verbringen / Mitnehmen', verb: 'verbringt', law: 'verbringen' },
+  herstellen: { label: 'Herstellen / Bearbeiten', verb: 'stellt her bzw. bearbeitet', law: 'herstellen' }, handel: { label: 'Handel treiben', verb: 'treibt damit Handel', law: 'handel' },
+  aufbewahrung: { label: 'Aufbewahrung', verb: 'bewahrt auf', law: 'aufbew' }
+};
+const WF_CAT = { verboten: 'verbotene Waffe (Anlage 2 Abschn. 1)', erlpfl: 'erlaubnispflichtig (Anlage 2 Abschn. 2 UA 1)', frei: 'Waffe, für diesen Umgang erlaubnisfrei', messer: 'Messer (keine Waffe i. S. d. § 1 Abs. 2)', ausgenommen: 'vom Gesetz bis auf § 42a ausgenommen', nicht: 'vom WaffG nicht erfasst', kw: 'Kriegswaffe (KrWaffKontrG)', verbotenOhne: 'verboten, aber ohne Straf- oder Bußgeldnorm' };
+const wfCmF = v => Number(v).toFixed(1).replace('.', ',');
+
+/** Einstufung des Gegenstands */
+function wfClass(s) {
+  const L = s.len, c = { waffe: true, schuss: false, messer: false, mun: false, f42a: null, minAge: 18, fuehrErl: null, law: [], notes: [] };
+  const V = (vnr, pen, label, acc, law, why) => Object.assign(c, { cat: 'verboten', vnr, pen, label, acc, law, why });
+  const set = o => Object.assign(c, o);
+  if (s.obj === 'messer') {
+    c.messer = true;
+    const m = s.messer;
+    if (m === 'einhand') set({ key: 'einhand', cat: 'messer', waffe: false, minAge: 0, f42a: 'messer', label: 'Einhandmesser', acc: 'ein Einhandmesser (Messer mit einhändig feststellbarer Klinge)', law: ['f42a'] });
+    else if (m === 'feststehend') {
+      if (s.dolch) set({ key: 'dolch', cat: 'frei', f42a: 'hieb', label: `Dolch / Kampfmesser, Klinge ${wfCmF(L)} cm (Hieb- und Stoßwaffe)`, acc: `einen Dolch bzw. ein als Waffe bestimmtes feststehendes Messer mit einer Klingenlänge von ${wfCmF(L)} cm`, law: ['hieb', 'waffe'] });
+      else set({ key: 'feststehend', cat: 'messer', waffe: false, minAge: 0, f42a: L > 12 ? 'messer' : null, label: `Feststehendes Messer, Klinge ${wfCmF(L)} cm`, acc: `ein feststehendes Messer mit einer Klingenlänge von ${wfCmF(L)} cm`, law: ['f42a'] });
+    } else if (m === 'klapp') set({ key: 'klapp', cat: 'messer', waffe: false, minAge: 0, label: 'Zweihand-Klappmesser', acc: 'ein zweihändig zu öffnendes Klappmesser' });
+    else if (m === 'multi') set({ key: 'multi', cat: 'messer', waffe: false, minAge: 0, label: 'Taschenmesser / Multitool', acc: 'ein Taschenmesser bzw. Multitool' });
+    else if (m === 'spring') {
+      const form = s.springOeffnung === 'seitlich' && L <= 8.5 && !s.beidseitig;
+      const acc = `ein Springmesser (Klinge springt ${s.springOeffnung === 'seitlich' ? 'seitlich' : 'frontal'} heraus, Klingenlänge ${wfCmF(L)} cm${s.beidseitig ? ', zweiseitig geschliffen' : ''})`;
+      if (form && s.springGrund !== 'keiner') set({ key: 'springFrei', cat: 'frei', f42a: 'messer', label: 'Springmesser – Ausnahme nach Nr. 1.4.1 Satz 2', acc, law: ['springDef', 'v141'], frei: 'Anlage 2 Abschnitt 1 Nr. 1.4.1 Satz 2 (seitlich, ≤ 8,5 cm, einseitig geschliffen und ' + (s.springGrund === 'beruf' ? 'Umgang im Zusammenhang mit der Berufsausübung)' : 'berechtigtes Interesse, das eine einhändige Nutzung erforderlich macht)') });
+      else V('Anlage 2 Abschnitt 1 Nr. 1.4.1 Satz 1', 'p52_3_1', 'Springmesser (verboten)', acc, ['springDef', 'v141'],
+        s.springOeffnung === 'frontal' ? 'Frontal herausspringende Klinge: Die Ausnahme in Satz 2 erfasst nur seitlich herausspringende Klingen.'
+          : !form ? `Die Ausnahme setzt eine seitlich herausspringende, höchstens 8,5 cm lange, nicht zweiseitig geschliffene Klinge voraus – hier ${L > 8.5 ? 'Klinge über 8,5 cm' : 'zweiseitig geschliffen'}.`
+            : 'Formell ausnahmefähig, aber seit 31.10.2024 nur bei einem berechtigten Interesse, das eine einhändige Nutzung erfordert, oder im Zusammenhang mit der Berufsausübung – beides liegt nach den Angaben nicht vor.');
+    } else if (m === 'fall') V('Anlage 2 Abschnitt 1 Nr. 1.4.1 Satz 1', 'p52_3_1', 'Fallmesser', 'ein Fallmesser', ['fallDef', 'v141'], 'Fallmesser sind ausnahmslos verboten.');
+    else if (m === 'faust') {
+      if (s.faustAusn) set({ key: 'faustFrei', cat: 'frei', label: 'Faustmesser – Ausnahme § 40 Abs. 3', acc: 'ein Faustmesser', law: ['faustDef', 'faust40'], frei: '§ 40 Abs. 3 Satz 1 WaffG (Jäger bzw. Leder/Pelz verarbeitende Berufe, zur Tätigkeit benötigt)' });
+      else V('Anlage 2 Abschnitt 1 Nr. 1.4.2', 'p52_3_1', 'Faustmesser', 'ein Faustmesser', ['faustDef', 'faust40'], 'Faustmesser sind verboten; Ausnahme nur für Jäger und Leder/Pelz verarbeitende Berufe zur Ausübung der Tätigkeit (§ 40 Abs. 3).');
+    } else if (m === 'butterfly') V('Anlage 2 Abschnitt 1 Nr. 1.4.3', 'p52_3_1', 'Butterflymesser', 'ein Butterflymesser (Balisong)', ['butterflyDef'], 'Butterflymesser sind ausnahmslos verboten.');
+    else V('Anlage 2 Abschnitt 1 Nr. 1.3.1', 'p52_3_1', 'Getarnte Hieb-/Stoßwaffe (z. B. Gürtelschnallenmesser)', 'eine als Alltagsgegenstand getarnte Stichwaffe (z. B. Gürtelschnallen- oder Kugelschreibermesser)', ['v131'], 'Hieb- oder Stoßwaffen, die einen anderen Gegenstand vortäuschen oder mit Alltagsgegenständen verkleidet sind, sind verboten.');
+  } else if (s.obj === 'schuss') {
+    c.schuss = true;
+    const t = s.schuss;
+    if (t === 'kurzHalb') set({ key: 'kurzHalb', cat: 'erlpfl', pen: 'p52_1_2b', label: 'Halbautomatische Kurzwaffe (Pistole)', acc: 'eine halbautomatische Kurzwaffe (Selbstladepistole) für Patronenmunition', law: ['automatik', 'langkurz', 'erlPflicht', 'p52_1_2b'] });
+    else if (t === 'kurzSonst') set({ key: 'kurzSonst', cat: 'erlpfl', pen: 'p52_3_2a', label: 'Revolver / Repetier- oder Einzellader-Kurzwaffe', acc: 'eine Kurzwaffe (Revolver bzw. Repetier- oder Einzellader-Kurzwaffe)', law: ['langkurz', 'automatik', 'erlPflicht', 'p52_3_2'] });
+    else if (t === 'lang') set({ key: 'lang', cat: 'erlpfl', pen: 'p52_3_2a', label: 'Langwaffe (Büchse, Flinte, auch halbautomatisch)', acc: 'eine Langwaffe (Büchse bzw. Flinte)', law: ['langkurz', 'erlPflicht', 'p52_3_2'] });
+    else if (t === 'voll') V('Anlage 2 Abschnitt 1 Nr. 1.2.1.1', 'p51', 'Vollautomatische Schusswaffe', 'eine vollautomatische Schusswaffe für Patronenmunition', ['automatik', 'v1211', 'p51'], 'Vollautomaten sind verbotene Waffen. Steht die Waffe in der Kriegswaffenliste (Nr. 29, 30), gilt allein das KrWaffKontrG (§ 57 Abs. 1 WaffG) – dann Objektart „Kriegswaffe“ wählen.');
+    else if (t === 'pump') V('Anlage 2 Abschnitt 1 Nr. 1.2.1.2', 'p51', 'Vorderschaftrepetierflinte mit Kurzwaffengriff bzw. verkürzt', 'eine Vorderschaftrepetierflinte mit Kurzwaffengriff anstelle des Hinterschaftes bzw. mit einer Gesamtlänge unter 95 cm oder einer Lauflänge unter 45 cm', ['v1211', 'p51'], 'Diese Vorderschaftrepetierflinten sind verboten; § 51 Abs. 1 erfasst sie ausdrücklich.');
+    else if (t === 'getarnt') V('Anlage 2 Abschnitt 1 Nr. 1.2.2 / 1.2.3', 'p52_3_1', 'Getarnte bzw. unüblich verkürzbare Schusswaffe', 'eine als anderer Gegenstand getarnte bzw. über das übliche Maß hinaus zerlegbare oder verkürzbare Schusswaffe (z. B. Kugelschreiber- oder Koppelschlosspistole)', ['v122', 'p52_3_1'], 'Schusswaffen, die einen anderen Gegenstand vortäuschen, mit Alltagsgegenständen verkleidet oder über das jagdlich-sportlich übliche Maß hinaus verkürzbar oder zerlegbar sind, sind verboten.');
+    else set({ key: 'teil', cat: 'erlpfl', pen: s.teilHalb ? 'p52_1_2b' : 'p52_3_2a', label: 'Wesentliches Teil / Schalldämpfer', acc: `ein wesentliches Teil (z. B. Lauf, Verschluss, Gehäuse) bzw. einen Schalldämpfer ${s.teilHalb ? 'einer halbautomatischen Kurzwaffe' : 'einer erlaubnispflichtigen Schusswaffe'}`, law: ['teile', 'erlPflicht', s.teilHalb ? 'p52_1_2b' : 'p52_3_2'], notes: ['Wesentliche Teile und Schalldämpfer stehen der Schusswaffe gleich, für die sie bestimmt sind (Anlage 1 Abschn. 1 UA 1 Nr. 1.3).'] });
+  } else if (s.obj === 'srs') {
+    c.schuss = true;
+    if (s.srs === 'ptb') set({ key: 'srsPtb', cat: 'frei', fuehrErl: 'kws', pen: 'p52_3_2a', label: 'SRS-Waffe mit Zulassungszeichen (PTB)', acc: 'eine Schreckschuss-, Reizstoff- oder Signalwaffe mit amtlichem Zulassungszeichen (PTB im Kreis)', law: ['srsDef', 'frei13', 'kwsDef', 'waffenschein'], frei: 'Anlage 2 Abschnitt 2 Unterabschnitt 2 Nr. 1.3 (Erwerb und Besitz)' });
+    else set({ key: 'srsOhne', cat: 'erlpfl', pen: 'p52_3_2a', label: 'SRS-Waffe ohne Zulassungszeichen', acc: 'eine Schreckschuss-, Reizstoff- oder Signalwaffe ohne amtliches Zulassungszeichen', law: ['srsDef', 'frei13', 'erlPflicht', 'p52_3_2'], notes: ['Ohne Zulassungszeichen bzw. EU-Konformität greift die Freistellung nach Nr. 1.3 nicht – der Umgang ist erlaubnispflichtig wie bei einer scharfen Schusswaffe.'] });
+  } else if (s.obj === 'druck') {
+    c.schuss = true;
+    const d = s.druck;
+    if (d === 'spiel05') {
+      c.schuss = false; c.waffe = false;
+      if (s.echt) set({ key: 'softair', cat: 'ausgenommen', f42a: 'anschein', minAge: 0, label: 'Softair bis 0,5 J (täuschend echt)', acc: 'eine Softair-Waffe mit einer Geschossenergie von höchstens 0,5 Joule, die im Gesamterscheinungsbild einer Feuerwaffe gleicht (Anscheinswaffe)', law: ['spiel', 'anschein', 'f42a'] });
+      else set({ key: 'softairSpiel', cat: 'nicht', minAge: 0, label: 'Softair-Spielzeug bis 0,5 J', acc: 'ein erkennbar als Spielzeug gestaltetes Softair-Gerät bis 0,5 Joule', law: ['spiel', 'anschein'] });
+    } else if (d === 'f75') set({ key: 'f75', cat: 'frei', fuehrErl: 'waffenschein', pen: 'p52_3_2a', label: 'Druckluft-/CO₂-/Federdruckwaffe bis 7,5 J (F im Fünfeck)', acc: 'eine Druckluft-, CO₂- bzw. Federdruckwaffe mit höchstens 7,5 Joule und F-Kennzeichen', law: ['druckDef', 'frei11', 'waffenschein'], frei: 'Anlage 2 Abschnitt 2 Unterabschnitt 2 Nr. 1.1 (nur Erwerb und Besitz)', notes: ['Freistellung nur bei „F im Fünfeck“; Einschränkungen für Mehrschüsser mit Geschossen über 30 mm und für Kennzeichnungen ab dem 24.07.2025 (Nr. 1.1 Buchst. a, b).'] });
+    else if (d === 'alt70') set({ key: 'alt70', cat: 'frei', fuehrErl: 'waffenschein', pen: 'p52_3_2a', label: 'Druckluft-/Federdruckwaffe hergestellt vor 1970', acc: 'eine vor dem 1. Januar 1970 hergestellte Druckluft- bzw. Federdruckwaffe', law: ['druckDef', 'waffenschein'], frei: 'Anlage 2 Abschnitt 2 Unterabschnitt 2 Nr. 1.2 (nur Erwerb und Besitz)' });
+    else set({ key: 'ueber75', cat: 'erlpfl', pen: 'p52_3_2a', label: 'Druckluftwaffe über 7,5 J', acc: 'eine Druckluftwaffe mit einer Geschossenergie von mehr als 7,5 Joule', law: ['druckDef', 'erlPflicht', 'p52_3_2'] });
+  } else if (s.obj === 'hist') {
+    c.schuss = true;
+    const h = s.hist;
+    if (h === 'lunte') set({ key: 'lunte', cat: 'frei', label: 'Lunten-/Funkenschlosswaffe (Modell vor 1871)', acc: 'eine Schusswaffe mit Lunten- oder Funkenzündung (Modell vor 1871)', law: ['freiAntik', 'freiFuehren'], frei: 'Anlage 2 Abschnitt 2 Unterabschnitt 2 Nr. 1.6 und 3.1 (Erwerb, Besitz und Führen)' });
+    else if (h === 'perk') set({ key: 'perk', cat: 'frei', fuehrErl: 'waffenschein', pen: 'p52_3_2a', label: 'Einläufiger Perkussions-Einzellader (Modell vor 1871)', acc: 'einen einläufigen Perkussions-Einzellader (Vorderlader mit Zündhütchenzündung, Modell vor 1871)', law: ['freiAntik', 'waffenschein'], frei: 'Anlage 2 Abschnitt 2 Unterabschnitt 2 Nr. 1.5 (nur Erwerb und Besitz)' });
+    else if (h === 'zuend') set({ key: 'zuend', cat: 'frei', fuehrErl: 'waffenschein', pen: 'p52_3_2a', label: 'Zündnadelwaffe (Modell vor 1871)', acc: 'eine Zündnadelwaffe (Modell vor 1871)', law: ['freiAntik', 'waffenschein'], frei: 'Anlage 2 Abschnitt 2 Unterabschnitt 2 Nr. 1.7 (nur Erwerb und Besitz)' });
+    else if (h === 'perkMehr') set({ key: 'perkMehr', cat: 'erlpfl', pen: 'p52_3_2a', label: 'Perkussionsrevolver / mehrläufiger Vorderlader', acc: 'einen Perkussionsrevolver bzw. mehrläufigen Vorderlader', law: ['freiAntik', 'erlPflicht', 'p52_3_2'], notes: ['Die Freistellung nach Nr. 1.5 erfasst nur einläufige Einzellader – Perkussionsrevolver sind erlaubnispflichtig.'] });
+    else if (h === 'deko') set({ key: 'deko', cat: 'frei', f42a: 'anschein', label: 'Dekowaffe (unbrauchbar gemacht, EU-Bescheinigung)', acc: 'eine unbrauchbar gemachte Schusswaffe (Dekorationswaffe) mit dem Aussehen einer Feuerwaffe', law: ['dekoDef', 'anschein', 'freiFuehren'], frei: 'Anlage 2 Abschnitt 2 Unterabschnitt 2 Nr. 2b und 3.3', notes: ['Anzeigepflicht nach § 37d (Verstoß: § 53 Abs. 1 Nr. 8). Ohne EU-Deaktivierungsbescheinigung und Kennzeichnung gilt die Waffe nicht als unbrauchbar gemacht – dann wie die ursprüngliche Schusswaffe prüfen.'] });
+    else set({ key: 'salut', cat: 'erlpfl', pen: 'p52_3_2a', label: 'Salutwaffe', acc: 'eine Salutwaffe (umgebaute Langwaffe für Kartuschenmunition)', law: ['salutDef', 'erlPflicht', 'p52_3_2'], notes: ['Bedürfnis u. a. für Theater, Film, Brauchtum (§ 39b); Kartuschenmunition dafür ist erlaubnisfrei.'] });
+  } else if (s.obj === 'munition') {
+    c.waffe = false; c.mun = true;
+    const u = s.mun;
+    if (u === 'patrone') set({ key: 'patrone', cat: 'erlpfl', pen: 'p52_3_2b', label: 'Patronenmunition für erlaubnispflichtige Schusswaffen', acc: 'Patronenmunition für erlaubnispflichtige Schusswaffen', law: ['munErl', 'erlPflicht', 'p52_3_2'] });
+    else if (u === 'kartusche') set({ key: 'kartusche', cat: 'frei', label: 'Kartuschenmunition für SRS-Waffen', acc: 'Kartuschenmunition für zugelassene Schreckschuss-, Reizstoff- bzw. Signalwaffen', law: ['frei13'], frei: 'Anlage 2 Abschnitt 2 Unterabschnitt 2 Nr. 1.4' });
+    else if (u === 'verboten') V('Anlage 2 Abschnitt 1 Nr. 1.5.3 bis 1.5.7', 'p52_3_1', 'Verbotene Munition', 'verbotene Munition (z. B. mit Hartkern-, Leuchtspur-, Brand- oder Sprenggeschossen)', ['v15', 'p52_3_1'], 'Panzerbrechende Munition, Munition mit Spreng-, Brand- oder Leuchtspursätzen, Hartkern- und Treibspiegelmunition u. a. sind verboten.');
+    else if (u === 'reizGeschoss') set({ key: 'reizGeschoss', cat: 'verbotenOhne', label: 'Reizstoff-/Betäubungsgeschosse ohne Prüfzeichen', acc: 'Reizstoff- bzw. Betäubungsgeschosse ohne amtliches Prüfzeichen', vnr: 'Anlage 2 Abschnitt 1 Nr. 1.5.1 / 1.5.2', law: ['p52_3_1'] });
+    else set({ key: 'kwMun', cat: 'kw', label: 'Munition für Kriegswaffen (Kriegswaffenliste)', acc: 'Munition für Kriegswaffen', law: ['kw57', 'kwDef', 'kw22a'] });
+  } else if (s.obj === 'hieb') {
+    const h = s.hieb;
+    if (h === 'schlagstock') set({ key: 'schlagstock', cat: 'frei', f42a: 'hieb', label: 'Schlagstock (Hieb- und Stoßwaffe)', acc: 'einen Schlagstock', law: ['hieb', 'f42a'] });
+    else if (h === 'teleskop') set({ key: 'teleskop', cat: 'frei', f42a: 'hieb', label: 'Teleskopschlagstock (Hieb- und Stoßwaffe)', acc: 'einen ausziehbaren Teleskopschlagstock', law: ['hieb', 'f42a'], notes: ['BGH, Beschl. v. 21.04.2022 – 3 StR 81/22: Hieb- und Stoßwaffe, aber kein verbotener Totschläger – § 52 Abs. 3 Nr. 1 greift nicht.'] });
+    else if (h === 'blank') set({ key: 'blank', cat: 'frei', f42a: 'hieb', label: 'Dolch, Bajonett, Schwert, Säbel, Wurfmesser', acc: 'eine Blankwaffe (Dolch, Bajonett, Schwert, Säbel bzw. Wurfmesser)', law: ['hieb', 'f42a'] });
+    else if (h === 'schlagring') V('Anlage 2 Abschnitt 1 Nr. 1.3.2', 'p52_3_1', 'Schlagring / Totschläger / Stahlrute', 'einen Schlagring bzw. Totschläger oder eine Stahlrute', ['v132', 'p52_3_1'], 'Stahlruten, Totschläger und Schlagringe sind verboten.');
+    else if (h === 'nunchaku') V('Anlage 2 Abschnitt 1 Nr. 1.3.8', 'p52_3_1', 'Nun-Chaku / Würgeholz', 'ein Nun-Chaku', ['v138', 'p52_3_1'], 'Gegenstände, die zum Drosseln bestimmt sind (z. B. Nun-Chakus), sind verboten.');
+    else if (h === 'wurfstern') V('Anlage 2 Abschnitt 1 Nr. 1.3.3', 'p52_3_1', 'Wurfstern', 'einen Wurfstern', ['v133', 'p52_3_1'], 'Wurfsterne sind verboten (Wurfmesser dagegen sind Hieb- und Stoßwaffen).');
+    else V('Anlage 2 Abschnitt 1 Nr. 1.3.1', 'p52_3_1', 'Getarnte Hieb-/Stoßwaffe (z. B. Stockdegen)', 'eine getarnte Hieb- oder Stoßwaffe (z. B. Stockdegen)', ['v131', 'p52_3_1'], 'Hieb- oder Stoßwaffen, die einen anderen Gegenstand vortäuschen oder mit Alltagsgegenständen verkleidet sind, sind verboten.');
+  } else if (s.obj === 'sonst') {
+    const o = s.sonst;
+    if (o === 'reizPtb') set({ key: 'reizPtb', cat: 'frei', minAge: 14, label: 'Reizstoffsprühgerät mit amtlichem Prüfzeichen', acc: 'ein Reizstoffsprühgerät mit amtlichem Prüfzeichen', law: ['reizDef', 'v135', 'jugendReiz'], frei: 'Anlage 2 Abschnitt 1 Nr. 1.3.5 (Ausnahme bei Zulassung und Prüfzeichen); keine Erlaubnispflicht' });
+    else if (o === 'reizOhne') V('Anlage 2 Abschnitt 1 Nr. 1.3.5', 'p52_3_1', 'Reizstoffgerät ohne Prüfzeichen', 'ein Reizstoffsprühgerät ohne amtliches Prüfzeichen', ['reizDef', 'v135', 'p52_3_1'], 'Gegenstände mit Reizstoffen ohne amtliche Zulassung, Reichweiten-/Sprühdauerbegrenzung und Prüfzeichen sind verboten.');
+    else if (o === 'tierSpray') set({ key: 'tierSpray', cat: 'nicht', waffe: false, minAge: 0, label: 'Tierabwehrspray (nur gegen Tiere bestimmt)', acc: 'ein ausschließlich zur Tierabwehr bestimmtes Abwehrspray', law: ['waffe', 'reizDef', 'v135'], notes: ['Keine Waffe nach § 1 Abs. 2 Nr. 2 Buchst. a, wenn es nach Aufmachung und Kennzeichnung allein gegen Tiere bestimmt ist. Ist es (auch) gegen Menschen bestimmt und fehlt das Prüfzeichen, ist es verboten (Nr. 1.3.5). Im Zweifel entscheidet das BKA (§ 2 Abs. 5).'] });
+    else if (o === 'eigPtb') set({ key: 'eigPtb', cat: 'frei', label: 'Elektroimpulsgerät mit Prüfzeichen', acc: 'ein Elektroimpulsgerät mit amtlichem Prüfzeichen', law: ['eigDef', 'v136'], frei: 'Anlage 2 Abschnitt 1 Nr. 1.3.6 (Ausnahme bei Zulassung und Prüfzeichen); keine Erlaubnispflicht' });
+    else if (o === 'eigOhne') V('Anlage 2 Abschnitt 1 Nr. 1.3.6', 'p52_3_1', 'Elektroimpulsgerät ohne Prüfzeichen', 'ein Elektroimpulsgerät ohne amtliches Prüfzeichen', ['eigDef', 'v136', 'p52_3_1'], 'Elektroimpulsgeräte ohne amtliche Zulassung und Prüfzeichen sind verboten.');
+    else if (o === 'taser') V('Anlage 2 Abschnitt 1 Nr. 1.3.6', 'p52_3_1', 'Distanz-Elektroimpulsgerät (Taser)', 'ein Distanz-Elektroimpulsgerät (Taser)', ['v136', 'p52_3_1'], 'Distanz-Elektroimpulsgeräte sind ausnahmslos verboten – auch mit Prüfzeichen.');
+    else if (o === 'tierEig') V('Anlage 2 Abschnitt 1 Nr. 1.4.4', 'p52_3_1', 'Elektroimpulsgerät gegen Tiere ohne Prüfzeichen', 'ein Elektroimpulsgerät gegen Tiere ohne amtliches Prüfzeichen', ['v144', 'p52_3_1'], 'Geräte, die Tieren mittels Elektroimpuls Verletzungen beibringen, sind ohne Prüfzeichen verboten – ausgenommen Geräte für Tierhaltung und Hundeausbildung (z. B. Viehtreiber).');
+    else if (o === 'armbrust') set({ key: 'armbrust', cat: 'frei', schuss: true, label: 'Armbrust', acc: 'eine Armbrust', law: ['armbrustDef', 'freiFuehren'], frei: 'Anlage 2 Abschnitt 2 Unterabschnitt 2 Nr. 1.8 und 3.2 (Erwerb, Besitz und Führen)' });
+    else if (o === 'schleuder') V('Anlage 2 Abschnitt 1 Nr. 1.3.7', 'p52_3_1', 'Präzisionsschleuder (mit Armstütze)', 'eine Präzisionsschleuder mit Armstütze', ['schleuderDef', 'v137', 'p52_3_1'], 'Schleudern mit Armstütze oder vergleichbarer Vorrichtung sowie die Armstützen selbst sind verboten.');
+    else if (o === 'brand') V('Anlage 2 Abschnitt 1 Nr. 1.3.4', 'p52_1_1', 'Brand- oder Sprengvorrichtung (z. B. Molotow-Cocktail)', 'eine Brand- bzw. Sprengvorrichtung (z. B. Molotow-Cocktail)', ['v134', 'p52_1'], 'Gegenstände, mit denen schlagartig ein Brand oder eine Explosion ausgelöst werden kann, sind verboten; schon die Anleitung zur Herstellung ist strafbar (§ 40 Abs. 1, § 52 Abs. 1 Nr. 4). Daneben ggf. Sprengstoffgesetz.');
+    else set({ key: 'bogen', cat: 'nicht', waffe: false, minAge: 0, label: 'Pfeilbogen, Blasrohr, Harpune', acc: 'einen Pfeilbogen, ein Blasrohr bzw. eine Harpune', law: ['schusswaffe', 'spiel'], notes: ['Pfeilbogen haben weder Lauf noch Sperrvorrichtung und sind keine Schusswaffen. Blasrohre sind bis auf § 42a ausgenommen (Anlage 2 Abschn. 3 UA 2 Nr. 2), Harpunengeräte bis auf § 2 Abs. 1 und § 41 (Abschn. 3 UA 1).'] });
+  } else if (s.obj === 'anschein') {
+    c.waffe = false; c.minAge = 0;
+    if (s.anschein === 'softair') set({ key: 'softair', cat: 'ausgenommen', f42a: 'anschein', label: 'Softair bis 0,5 J (täuschend echt)', acc: 'eine Softair-Waffe bis 0,5 Joule im Aussehen einer Feuerwaffe (Anscheinswaffe)', law: ['anschein', 'spiel', 'f42a'] });
+    else if (s.anschein === 'nachbildung') set({ key: 'nachbildung', cat: 'ausgenommen', f42a: 'anschein', label: 'Nachbildung / Attrappe einer Schusswaffe', acc: 'eine Nachbildung einer Schusswaffe (Anscheinswaffe)', law: ['nachbildung', 'anschein', 'f42a'] });
+    else set({ key: 'spielzeug', cat: 'nicht', label: 'Erkennbares Spielzeug', acc: 'eine erkennbar als Spielzeug gestaltete Waffennachbildung', law: ['anschein'], notes: ['Keine Anscheinswaffe, wenn das Gesamterscheinungsbild erkennbar auf Spiel hindeutet – z. B. Größe ± 50 %, Neonfarben, keine Kennzeichnungen von Feuerwaffen (Anlage 1 Abschn. 1 UA 1 Nr. 1.6).'] });
+  } else set({ key: 'kw', cat: 'kw', label: 'Kriegswaffe (Kriegswaffenliste)', acc: 'eine Kriegswaffe im Sinne der Kriegswaffenliste (z. B. Sturmgewehr, Maschinenpistole, Handgranate)', law: ['kw57', 'kwDef', 'kw22a'] });
+  return c;
 }
 
-function wfDescribe(s) {
-  var L = Number(s.klingenlaenge).toFixed(1).replace('.', ',');
-  if (s.objektart === 'messer') {
-    var t = wfLabelBauart(s.messerBauart);
-    if (s.messerBauart === 'spring') {
-      t += s.springOeffnung === 'frontal' ? ', dessen Klinge frontal aus dem Griff herausspringt (OTF)' : ', dessen Klinge seitlich aus dem Griff herausspringt';
-      t += ', mit einer Klingenlänge von ' + L + ' cm' + (s.beidseitig ? ', zweiseitig geschliffen' : ', einseitig geschliffen');
-    } else if (s.messerBauart === 'feststehend') {
-      t += ', mit einer Klingenlänge von ' + L + ' cm' + (s.dolch ? ', zweiseitig geschliffen (Dolch)' : '');
+/** Analyse: liefert alle einschlägigen Prüfungen */
+function wfAnalyze(st) {
+  const s = st, c = wfClass(s), F = [], path = [], gen = [];
+  let H = s.handlung;
+  const note = t => gen.push(t);
+  if (H === 'fuehren' && s.ort === 'eigen') { H = 'besitz'; note('In der eigenen Wohnung, den eigenen Geschäftsräumen und dem eigenen befriedeten Besitztum wird eine Waffe nicht „geführt“ (Anlage 1 Abschn. 2 Nr. 4) – geprüft wird der Besitz.'); }
+  if (c.mun && H === 'fuehren') { H = 'besitz'; note('Munition wird nicht „geführt“ – das Mitführen ist Besitz (Ausübung der tatsächlichen Gewalt).'); }
+  if (c.mun && H === 'schiessen') H = 'besitz';
+  const HV = WF_H[H];
+  path.push(c.label, WF_CAT[c.cat], HV.label + (H === 'fuehren' ? ` · ${WF_ORT_LABEL[s.ort]}` : ''));
+  const ex = (t) => path.push(t);
+  const fahrl = s.vorsatz === 'fahrl';
+  const zugriffsbereit = s.zugriff === 'zugriff';
+  const tbObj = (m) => ({ m: m || 'Tatobjekt', s: `${c.label}${c.vnr ? ' – ' + c.vnr : ''}`, law: c.law.slice(0, 3), v: 'ja' });
+  const tbAct = (verb) => ({ m: 'Tathandlung: ' + (verb || HV.verb), s: wfActPhrase(s, H), law: [WF_H[H].law], v: 'ja' });
+  const add = (level, title, o = {}) => { F.push({ level, title, pen: o.pen || null, reason: o.reason || '', tb: o.tb || [], hints: o.hints || [], law: o.law || [], key: o.key || title }); };
+  const crime = (penKey, title, reason, tb, hints = [], law = []) => { const p = WF_PEN[penKey]; add('straftat', title, { pen: p, reason, tb, hints, law: [...law, ...p.law] }); };
+  const owi = (nr, lawKey, title, reason, tb, hints = [], law = []) => { const p = wfOwi(nr, [lawKey]); add('owi', title, { pen: p, reason, tb, hints, law: [...law, ...p.law] }); };
+  const ok = (title, reason, law = [], hints = []) => add('erlaubt', title, { reason, law, hints });
+  const hint = (title, reason, law = [], hints = []) => add('hinweis', title, { reason, law, hints });
+
+  /* ---------- Kriegswaffen: allein KrWaffKontrG ---------- */
+  if (c.cat === 'kw') {
+    ex('§ 57 Abs. 1 WaffG → KrWaffKontrG');
+    if (s.ausnahme) ok('Genehmigung nach dem KrWaffKontrG', 'Mit Genehmigung (§§ 2 ff. KrWaffKontrG) ist der Umgang erlaubt.', ['kw22a']);
+    else {
+      const nr = { besitz: 'Nr. 6 (tatsächliche Gewalt ohne Genehmigung)', erwerb: 'Nr. 2 (Erwerb der tatsächlichen Gewalt)', ueberlassen: 'Nr. 2 (Überlassen)', fuehren: 'Nr. 3 und 6 (Befördern außerhalb eines abgeschlossenen Geländes, tatsächliche Gewalt)', herstellen: 'Nr. 1 (Herstellen)', verbringen: 'Nr. 4 (Ein-, Aus-, Durchfuhr)', handel: 'Nr. 2 bzw. 7 (Überlassen, Vermitteln)', schiessen: 'Nr. 6 (tatsächliche Gewalt)', aufbewahrung: 'Nr. 6 (tatsächliche Gewalt)' }[H];
+      crime('kw', 'Unerlaubter Umgang mit Kriegswaffen', `Das WaffG gilt für Kriegswaffen nicht (§ 57 Abs. 1). Strafbar nach § 22a Abs. 1 ${nr} KrWaffKontrG.`,
+        [tbObj('Tatobjekt: Kriegswaffe'), tbAct(), { m: 'Ohne Genehmigung nach dem KrWaffKontrG', s: 'Keine Genehmigung angegeben', law: ['kw22a'], v: 'ja' }],
+        ['Bei freiwilliger, unverzüglicher Ablieferung entfällt die Strafe nach § 22a Abs. 1 Nr. 3 und 4 (§ 22a Abs. 5).']);
     }
-    return t;
+    return wfFinish(s, c, H, F, path, gen);
   }
-  if (s.objektart === 'schuss') {
-    if (s.schussZustand === 'deko') return 'eine zertifiziert unbrauchbar gemachte Dekowaffe';
-    if (s.schussZustand === 'antik') return 'eine Antikwaffe (Vorderlader, Modell vor 1871)';
-    var erl = { keine: '; eine Erlaubnis liegt nicht vor', wbk: '; es liegt eine Waffenbesitzkarte (WBK), jedoch kein Waffenschein vor', waffenschein: '; es liegt ein Waffenschein vor' }[s.schusserlaubnis];
-    return 'eine scharfe Schusswaffe' + (s.vollautomat ? ' (vollautomatisch)' : '') + erl;
+
+  /* ---------- Verbotene Gegenstände (§ 2 Abs. 3, Anlage 2 Abschn. 1) ---------- */
+  if (c.cat === 'verboten') {
+    ex('Anlage 2 Abschn. 1 → § 2 Abs. 3: Umgang verboten');
+    if (s.ausnahme) ok('Ausnahme vom Verbot', 'Behördlicher Auftrag (§ 40 Abs. 2) oder Ausnahme des BKA (§ 40 Abs. 4) liegt vor.', ['bka40']);
+    else if (s.fund && (H === 'besitz' || H === 'erwerb' || H === 'aufbewahrung')) hint('Inbesitznahme als Erbe oder Finder', 'Unverzügliche Anzeige vorausgesetzt, wird das Verbot nicht wirksam, solange die behördliche Frist läuft (§ 40 Abs. 5). Danach: Unbrauchbarmachung, Abgabe oder Antrag beim BKA.', ['fund40']);
+    else crime(c.pen, `Umgang mit verbotener Waffe: ${c.label}`, c.why,
+      [tbObj('Tatobjekt: verbotener Gegenstand'), tbAct(H === 'schiessen' ? 'besitzt (und schießt)' : H === 'aufbewahrung' ? 'besitzt' : undefined),
+        { m: 'Entgegen § 2 Abs. 3 – keine Ausnahme', s: 'Kein behördlicher Auftrag (§ 40 Abs. 2), keine BKA-Ausnahme (§ 40 Abs. 4), keine laufende Frist nach Fund oder Erbe (§ 40 Abs. 5)', law: ['bka40', 'fund40'], v: 'ja' }],
+      c.pen === 'p51' ? ['§ 51 ist ein Verbrechen: Versuch stets strafbar (§ 23 Abs. 1 StGB).'] : []);
   }
-  if (s.objektart === 'srs') {
-    var t2 = 'eine Schreckschuss-, Reizstoff- oder Signalwaffe' + (s.srsPtb ? ' mit amtlichem PTB-Zulassungszeichen' : ' ohne amtliches PTB-Zulassungszeichen');
-    if (s.handlung === 'fuehren' && s.srsPtb) t2 += s.kwSchein ? '; ein kleiner Waffenschein liegt vor' : '; ein kleiner Waffenschein liegt nicht vor';
-    return t2;
+  if (c.cat === 'verbotenOhne') hint('Verbotene Munition ohne Sanktionsnorm', `${c.vnr}: Der Umgang ist verboten (§ 2 Abs. 3), § 52 Abs. 3 Nr. 1 erfasst aber nur Nr. 1.5.3 bis 1.5.7 und § 53 enthält keinen Bußgeldtatbestand. Sicherstellung und Einziehung nach Gefahrenabwehrrecht prüfen.`, ['p52_3_1']);
+
+  /* ---------- Erlaubnispflichtige Schusswaffen und Munition ---------- */
+  const jagdLang = s.erlaubnis === 'jagd' && (c.key === 'lang' || c.key === 'patrone');
+  const besitzErl = s.erlaubnis === 'wbk' || s.erlaubnis === 'waffenschein' || jagdLang || s.ausnahme;
+  const fuehrErl = s.erlaubnis === 'waffenschein' || (s.erlaubnis === 'jagd' && s.jagdZweck && c.schuss) || s.ausnahme;
+  const besitzTb = () => [tbObj('Tatobjekt: erlaubnispflichtige ' + (c.mun ? 'Munition' : 'Schusswaffe')), tbAct(),
+    { m: 'Ohne Erlaubnis', s: s.erlaubnis === 'keine' ? 'Keine WBK, kein Munitionserwerbsschein, keine Ausnahme nach § 12' : 'Die vorhandene Erlaubnis deckt diesen Umgang nicht', law: [c.mun ? 'munErl' : 'wbk', 'ausn12'], v: 'ja' }];
+  const besitzCrime = (extra) => crime(c.pen, `${extra || (H === 'erwerb' ? 'Erwerb' : 'Besitz')} ohne Erlaubnis: ${c.label}`,
+    c.key === 'kurzHalb' || (c.key === 'teil' && s.teilHalb) ? 'Halbautomatische Kurzwaffen sind in § 52 Abs. 1 Nr. 2 Buchst. b besonders erfasst (6 Monate bis 5 Jahre).' : 'Der Umgang mit erlaubnispflichtigen Schusswaffen und Munition bedarf der Erlaubnis (§ 2 Abs. 2 i. V. m. Anlage 2 Abschn. 2 UA 1).',
+    besitzTb(), c.notes || []);
+  if (c.cat === 'erlpfl') {
+    ex('Anlage 2 Abschn. 2 UA 1 → § 2 Abs. 2: Erlaubnis nötig');
+    if (H === 'besitz' || H === 'erwerb') {
+      if (besitzErl) ok(`${HV.label} mit Erlaubnis`, jagdLang ? 'Jahresjagdscheininhaber erwerben Langwaffen ohne Erlaubnis (§ 13 Abs. 3) – WBK binnen zwei Wochen beantragen (sonst § 53 Abs. 1 Nr. 7). Munition für Langwaffen: § 13 Abs. 5.' : 'Die Waffenbesitzkarte bzw. Munitionserlaubnis deckt Erwerb und Besitz (§ 10 Abs. 1, 3).', ['wbk', 'munErl']);
+      else if (s.fund) hint('Inbesitznahme als Erbe oder Finder', 'Erbe/Finder müssen die Inbesitznahme unverzüglich anzeigen (§ 37c Abs. 1); die Behörde kann sicherstellen oder Fristen setzen. Bei unverzüglicher Anzeige und Abgabe fehlt es regelmäßig am Vorsatz eines unerlaubten Besitzes – Einzelfall.', ['fund37c']);
+      else besitzCrime();
+    } else if (H === 'fuehren') {
+      const transport = !zugriffsbereit && !s.geladen;
+      if (s.ort === 'fremd' && besitzErl) ok('Führen in fremdem Hausrechtsbereich (§ 12 Abs. 3 Nr. 1)', 'Mit Zustimmung des Berechtigten in dessen Wohnung, Geschäftsräumen, befriedetem Besitztum oder Schießstätte zu einem vom Bedürfnis umfassten Zweck – keine Führerlaubnis nötig.', ['fremd']);
+      else if (transport && besitzErl) ok('Erlaubnisfreier Transport (§ 12 Abs. 3 Nr. 2)', 'Nicht schussbereit und nicht zugriffsbereit befördert – zu einem vom Bedürfnis umfassten Zweck (z. B. Schießstätte, Büchsenmacher, Jagd). Nicht zugriffsbereit ist die Schusswaffe jedenfalls im verschlossenen Behältnis (Anlage 1 Abschn. 2 Nr. 13).', ['transport', 'zugriffsbereit', 'schussbereit'], s.zugriff === 'nicht' ? ['Sicher „nicht zugriffsbereit“ ist eine Schusswaffe nur im verschlossenen Behältnis.'] : []);
+      else if (fuehrErl) ok(s.erlaubnis === 'jagd' ? 'Führen zur Jagd (§ 13 Abs. 6)' : 'Führen mit Waffenschein', s.erlaubnis === 'jagd' ? 'Jäger dürfen Jagdwaffen zur befugten Jagdausübung, zum Jagd- und Forstschutz ohne Erlaubnis führen.' : 'Der Waffenschein erlaubt das Führen (§ 10 Abs. 4).', [s.erlaubnis === 'jagd' ? 'jagd' : 'waffenschein', 'ausweis38'], ['Ausweis und Waffenschein (bzw. Jagdschein) sind mitzuführen und auf Verlangen auszuhändigen (§ 38; Verstoß: § 53 Abs. 1 Nr. 20).']);
+      else if (!besitzErl) besitzCrime('Besitz und Führen');
+      else crime(c.pen, `Führen ohne Waffenschein: ${c.label}`, 'Die WBK erlaubt nur Erwerb und Besitz. Wer die Waffe zugriffsbereit oder schussbereit außerhalb der eigenen Räume bei sich hat, führt sie und braucht einen Waffenschein (§ 10 Abs. 4).',
+        [tbObj('Tatobjekt: erlaubnispflichtige Schusswaffe'), tbAct('führt'), { m: 'Ohne Erlaubnis zum Führen', s: 'WBK vorhanden, aber kein Waffenschein; ' + (s.geladen ? 'schussbereit' : 'zugriffsbereit') + ' – Transportprivileg (§ 12 Abs. 3 Nr. 2) greift nicht', law: ['waffenschein', 'transport', 'zugriffsbereit'], v: 'ja' }],
+        ['Besitz bleibt erlaubt; strafbar ist allein das Führen.']);
+    } else if (H === 'ueberlassen') {
+      if (!besitzErl) besitzCrime('Besitz (vor dem Überlassen)');
+      if (!s.empfBer) crime('p52_3_7', 'Überlassen an Nichtberechtigten', 'Waffen und Munition dürfen nur berechtigten Personen überlassen werden; die Berechtigung muss offensichtlich sein oder nachgewiesen werden (§ 34 Abs. 1).',
+        [tbObj('Tatobjekt: erlaubnispflichtige ' + (c.mun ? 'Munition' : 'Schusswaffe')), tbAct('überlässt'), { m: 'Empfänger nicht berechtigt', s: 'Empfänger hat keine passende Erlaubnis', law: ['ueberl34'], v: 'ja' }],
+        ['Wer eine erlaubnispflichtige Schusswaffe erwirbt, um sie einem Nichtberechtigten zu überlassen, macht sich nach § 52 Abs. 1 Nr. 2 Buchst. a strafbar (6 Monate bis 5 Jahre).']);
+      else ok('Überlassen an Berechtigten', 'Zulässig, wenn die Berechtigung offensichtlich ist oder nachgewiesen wird (§ 34 Abs. 1). Überlassen ist binnen zwei Wochen anzuzeigen (§ 37a; Verstoß: § 53 Abs. 1 Nr. 8).', ['ueberl34']);
+    } else if (H === 'schiessen') {
+      if (!besitzErl) besitzCrime();
+      wfShoot(s, c, ok, owi, hint);
+      if (s.schussOrt === 'sonst' && !fuehrErl && besitzErl) crime(c.pen, `Führen ohne Waffenschein: ${c.label}`, 'Wer außerhalb der eigenen Räume schießt, führt die Waffe zugleich zugriffs- und schussbereit.', [tbObj(), tbAct('führt'), { m: 'Ohne Erlaubnis zum Führen', s: 'Kein Waffenschein', law: ['waffenschein'], v: 'ja' }]);
+    } else if (H === 'verbringen') {
+      if (s.grenze === 'dritt') hint('Verbringen in einen Drittstaat', 'Waffenrechtlich erlaubnisfrei (Anlage 2 Abschn. 2 UA 2 Nr. 8). Außenwirtschaftsrecht bleibt unberührt – Ausfuhr ohne Genehmigung nach VO (EU) 258/2012: § 53 Abs. 1a WaffG, daneben AWG.', ['verbringen']);
+      else if (s.grenzErl || s.ausnahme) ok('Verbringen mit Erlaubnis', s.grenze === 'rein' ? 'Erlaubnis nach § 29 bzw. § 32 (Europäischer Feuerwaffenpass) liegt vor; Dokumente mitführen (§ 38).' : 'Erlaubnis nach § 29 Abs. 1 bzw. § 32 Abs. 1a liegt vor.', ['verbringen', 'mitnehmen']);
+      else if (s.grenze === 'rein') crime('p52_1_2d', 'Verbringen/Mitnehmen nach Deutschland ohne Erlaubnis', 'Das Verbringen oder Mitnehmen einer erlaubnispflichtigen Schusswaffe oder Munition in oder durch den Geltungsbereich des Gesetzes bedarf der Erlaubnis (§§ 29, 32).', [tbObj(), tbAct('verbringt bzw. nimmt mit'), { m: 'Ohne Erlaubnis nach § 29 Abs. 1 bzw. § 32 Abs. 1', s: 'Keine Erlaubnis', law: ['verbringen', 'mitnehmen'], v: 'ja' }]);
+      else crime('p52_3_4', 'Verbringen/Mitnehmen in einen anderen Mitgliedstaat ohne Erlaubnis', 'Für das Verbringen bzw. Mitnehmen aus Deutschland in einen anderen EU-/Schengen-Staat ist eine Erlaubnis nötig (§ 29 Abs. 1, § 32 Abs. 1a).', [tbObj(), tbAct('verbringt bzw. nimmt mit'), { m: 'Ohne Erlaubnis', s: 'Keine Erlaubnis', law: ['verbringen', 'mitnehmen'], v: 'ja' }]);
+    } else if (H === 'herstellen' || H === 'handel') {
+      if (c.key === 'patrone' && H === 'herstellen' && !s.gewerbe) ok('Nichtgewerbsmäßiges Laden von Munition', 'Waffenrechtlich erlaubnisfrei (Anlage 2 Abschn. 2 UA 2 Nr. 6.1) – erforderlich ist aber die sprengstoffrechtliche Erlaubnis (§ 27 SprengG).', ['herstellen']);
+      else if (s.herstErl || s.ausnahme) ok(H === 'handel' ? 'Waffenhandel mit Erlaubnis' : 'Herstellung mit Erlaubnis', H === 'handel' || s.gewerbe ? 'Erlaubnis nach § 21 liegt vor.' : 'Erlaubnis nach § 26 liegt vor.', [H === 'handel' ? 'handel' : 'herstellen']);
+      else if (H === 'handel' || s.gewerbe) crime('p52_1_2c', H === 'handel' ? 'Waffenhandel ohne Erlaubnis' : 'Gewerbsmäßige Herstellung ohne Erlaubnis', 'Gewerbsmäßige Herstellung, Bearbeitung, Instandsetzung und Waffenhandel bedürfen der Erlaubnis nach § 21.', [tbObj(), tbAct(H === 'handel' ? 'treibt Waffenhandel' : 'stellt gewerbsmäßig her bzw. bearbeitet'), { m: 'Ohne Erlaubnis nach § 21', s: 'Keine Erlaubnis', law: [H === 'handel' ? 'handel' : 'herstellen', 'bearbeiten'], v: 'ja' }]);
+      else crime('p52_3_3', 'Nichtgewerbsmäßige Herstellung ohne Erlaubnis', 'Auch die private Herstellung, Bearbeitung (z. B. Umbau, Verkürzen) oder Instandsetzung einer Schusswaffe bedarf der Erlaubnis (§ 26).', [tbObj(), tbAct('stellt her bzw. bearbeitet'), { m: 'Ohne Erlaubnis nach § 26', s: 'Keine Erlaubnis', law: ['herstellen', 'bearbeiten'], v: 'ja' }]);
+    } else if (H === 'aufbewahrung') {
+      if (!besitzErl) besitzCrime();
+      if (s.gefahr) crime('p52_3_7a', 'Verletzung der Aufbewahrungspflicht mit Gefahr', 'Wer die nach § 36 i. V. m. der AWaffV vorgeschriebenen Vorkehrungen nicht trifft und dadurch die Gefahr verursacht, dass eine Schusswaffe oder Munition abhandenkommt oder Unbefugte darauf zugreifen, macht sich strafbar.',
+        [tbObj(), { m: 'Vorkehrung nach § 36 Abs. 1 i. V. m. AWaffV nicht getroffen', s: 'z. B. nicht im zertifizierten Sicherheitsbehältnis', law: ['aufbew'], v: 'ja' }, { m: 'Dadurch konkrete Gefahr des Abhandenkommens oder unbefugten Zugriffs', s: 'laut Angabe', law: ['p52_3_7'], v: 'ja' }], ['Fahrlässige Begehung ist bei Nr. 7a nicht strafbar (§ 52 Abs. 4 nennt Nr. 7a nicht).']);
+      else hint('Aufbewahrung ohne konkrete Gefahr', 'Ohne verursachte Gefahr keine Straftat nach § 52 Abs. 3 Nr. 7a. Die Behörde kann Anordnungen treffen (§ 36 Abs. 6); ein Verstoß dagegen ist ordnungswidrig (§ 53 Abs. 1 Nr. 4). Zuverlässigkeit (§ 5) prüfen.', ['aufbew']);
+    }
   }
-  if (s.objektart === 'druck') return { spielzeug: 'ein Softair-Gerät mit einer Mündungsenergie unter 0,5 Joule', f75: 'eine Druckluft-/Federdruckwaffe bis 7,5 Joule (F-im-Fünfeck-Kennzeichnung)', ueber75: 'eine Druckluftwaffe mit einer Mündungsenergie über 7,5 Joule' }[s.druckEnergie];
-  if (s.objektart === 'munition') {
-    if (s.munKriegswaffe) return 'Munition für Kriegswaffen';
-    if (s.munFrei) return 'erlaubnisfreie Munition (z. B. Kartuschenmunition für PTB-Waffen)';
-    return 'erlaubnispflichtige Munition' + (s.munErlaubnis ? '; eine entsprechende Erlaubnis liegt vor' : '; eine Erlaubnis liegt nicht vor');
+
+  /* ---------- Erlaubnisfreie Waffen ---------- */
+  if (c.cat === 'frei') {
+    ex(c.frei ? 'erlaubnisfrei: ' + c.frei : 'keine Erlaubnispflicht');
+    if (H === 'fuehren' && c.fuehrErl) {
+      const licensed = c.fuehrErl === 'kws' ? (s.kws || s.erlaubnis === 'waffenschein') : s.erlaubnis === 'waffenschein';
+      const transport = !zugriffsbereit && !s.geladen;
+      const lab = c.fuehrErl === 'kws' ? 'kleinen Waffenschein' : 'Waffenschein';
+      const labDat = c.fuehrErl === 'kws' ? 'kleinem Waffenschein' : 'Waffenschein';
+      if (s.ort === 'fremd') ok('Führen in fremdem Hausrechtsbereich (§ 12 Abs. 3 Nr. 1)', 'Mit Zustimmung des Inhabers in dessen Wohnung, Geschäftsräumen, befriedetem Besitztum oder Schießstätte keine Führerlaubnis nötig.', ['fremd']);
+      else if (transport) ok('Erlaubnisfreier Transport (§ 12 Abs. 3 Nr. 2)', 'Nicht schuss- und nicht zugriffsbereit von Ort zu Ort befördert (z. B. vom Händler nach Hause, zur Schießstätte) – keine Führerlaubnis nötig.', ['transport', 'zugriffsbereit'], ['Sicher „nicht zugriffsbereit“ ist die Waffe im verschlossenen Behältnis.']);
+      else if (licensed) ok(`Führen mit ${labDat}`, c.fuehrErl === 'kws' ? 'Der kleine Waffenschein erlaubt das Führen zugelassener SRS-Waffen (§ 10 Abs. 4 Satz 4).' : 'Der Waffenschein erlaubt das Führen (§ 10 Abs. 4).', ['waffenschein', 'ausweis38'], ['Ausweis und Waffenschein mitführen und auf Verlangen aushändigen (§ 38; Verstoß: § 53 Abs. 1 Nr. 20). Das Schießen ist damit nicht erlaubt.']);
+      else crime('p52_3_2a', `Führen ohne ${lab}: ${c.label}`, c.fuehrErl === 'kws' ? 'SRS-Waffen sind nur für Erwerb und Besitz freigestellt. Wer sie zugriffsbereit außerhalb der eigenen Räume bei sich hat, führt eine Schusswaffe ohne die nach § 10 Abs. 4 Satz 4 nötige Erlaubnis – Straftat, keine bloße Ordnungswidrigkeit.' : 'Die Freistellung umfasst nur Erwerb und Besitz (Anlage 2 Abschn. 2 UA 2 Nr. 1); zum Führen bedarf es eines Waffenscheins.',
+        [tbObj('Tatobjekt: Schusswaffe'), tbAct('führt'), { m: `Ohne Erlaubnis zum Führen (${lab})`, s: `kein ${lab}; ${s.geladen ? 'schussbereit' : 'zugriffsbereit'} – Transportprivileg greift nicht`, law: ['waffenschein', 'kwsDef', 'zugriffsbereit', 'transport'], v: 'ja' }],
+        ['Alternative: Transport nicht schuss- und nicht zugriffsbereit, z. B. im verschlossenen Behältnis (§ 12 Abs. 3 Nr. 2).']);
+    } else if (H === 'schiessen' && c.schuss) {
+      wfShoot(s, c, ok, owi, hint);
+      if (s.schussOrt === 'sonst' && c.fuehrErl && !(c.fuehrErl === 'kws' ? (s.kws || s.erlaubnis === 'waffenschein') : s.erlaubnis === 'waffenschein')) crime('p52_3_2a', `Führen ohne ${c.fuehrErl === 'kws' ? 'kleinen ' : ''}Waffenschein`, 'Wer außerhalb der eigenen Räume schießt, führt die Waffe zugleich zugriffs- und schussbereit.', [tbObj(), tbAct('führt'), { m: 'Ohne Erlaubnis zum Führen', s: 'keine Führerlaubnis', law: ['waffenschein', 'kwsDef'], v: 'ja' }]);
+    } else if (H === 'ueberlassen') {
+      if (!s.empfBer) owi(16, 'p53_16', 'Überlassen an Nichtberechtigten', 'Auch erlaubnisfreie Waffen dürfen nur Berechtigten überlassen werden – etwa nicht an Personen unter 18 (bei Reizstoffsprühgeräten unter 14) oder bei Waffenbesitzverbot (§ 34 Abs. 1).', [tbObj('Tatobjekt: nicht erlaubnispflichtige Waffe'), tbAct('überlässt'), { m: 'Empfänger nicht berechtigt', s: 'laut Angabe', law: ['ueberl34', 'alter'], v: 'ja' }]);
+      else ok('Überlassen an Berechtigten', 'Zulässig (§ 34 Abs. 1).', ['ueberl34']);
+    } else if ((H === 'herstellen' || H === 'handel') && c.schuss) {
+      const frei = c.key === 'lunte' || c.key === 'armbrust' || (H === 'handel' && ['perk', 'zuend', 'deko'].includes(c.key));
+      if (frei) ok(H === 'handel' ? 'Erlaubnisfreier Handel' : 'Erlaubnisfreie Herstellung', 'Anlage 2 Abschn. 2 UA 2 Nr. 4 bzw. 5.', [H === 'handel' ? 'handel' : 'herstellen']);
+      else if (s.herstErl || s.ausnahme) ok('Mit Erlaubnis nach § 21 bzw. § 26', 'Erlaubnis liegt vor.', ['handel']);
+      else if (H === 'handel' || s.gewerbe) crime('p52_1_2c', H === 'handel' ? 'Waffenhandel ohne Erlaubnis' : 'Gewerbsmäßige Herstellung ohne Erlaubnis', 'Auch SRS- und Druckluftwaffen sind Schusswaffen; nur Erwerb und Besitz sind freigestellt, Handel und Herstellung nicht (§ 21).', [tbObj('Tatobjekt: Schusswaffe'), tbAct(), { m: 'Ohne Erlaubnis nach § 21', s: 'Keine Erlaubnis', law: ['handel', 'herstellen'], v: 'ja' }]);
+      else crime('p52_3_3', 'Nichtgewerbsmäßige Herstellung ohne Erlaubnis', 'Herstellung, Bearbeitung und Instandsetzung von Schusswaffen bedürfen der Erlaubnis nach § 26, soweit nicht freigestellt.', [tbObj('Tatobjekt: Schusswaffe'), tbAct('stellt her bzw. bearbeitet'), { m: 'Ohne Erlaubnis nach § 26', s: 'Keine Erlaubnis', law: ['herstellen', 'bearbeiten'], v: 'ja' }]);
+    } else if (H === 'aufbewahrung') hint('Aufbewahrung erlaubnisfreier Waffen', 'Es gilt § 36 Abs. 1 (erforderliche Vorkehrungen gegen Abhandenkommen und unbefugten Zugriff, besonders gegenüber Kindern). Eine Straftat nach § 52 Abs. 3 Nr. 7a scheidet regelmäßig aus.', ['aufbew']);
   }
-  if (s.objektart === 'anschein') return 'eine Anscheinswaffe (täuschend echte Nachbildung einer Schusswaffe)';
-  if (s.objektart === 'kriegswaffe') return 'eine Kriegswaffe im Sinne des Kriegswaffenkontrollgesetzes';
-  return {
-    schlagstock: 'einen Schlagstock (Hieb-/Stoßwaffe)', teleskop: 'einen ausziehbaren Teleskopschlagstock (Hieb-/Stoßwaffe)',
-    schlagring: 'einen Schlagring bzw. Totschläger / eine Stahlrute', wurfstern: 'einen Wurfstern bzw. ein Wurfmesser',
-    elektro: 'ein Elektroimpulsgerät ohne amtliche Zulassung', armbrust: 'eine Armbrust',
-    nunchaku: 'ein Nunchaku (Würgeholz)', praezschleuder: 'eine Präzisionsschleuder (Zwille mit Armstütze)',
-    pfefferPtb: 'ein Reizstoffsprühgerät mit PTB-Zulassung (Tierabwehr)', pfefferOhne: 'ein Reizstoffsprühgerät ohne PTB-Zulassung bzw. zur Menschenabwehr'
-  }[s.sonstigeItem];
+  /* Alter (§ 2 Abs. 1, § 3) */
+  if (c.cat === 'frei' && c.minAge && ['besitz', 'erwerb', 'fuehren', 'schiessen', 'verbringen', 'aufbewahrung'].includes(H)) {
+    const age = { erw: 18, jug: 14, kind: 0 }[s.alter];
+    if (age < c.minAge && !s.ausnahme) owi(1, 'p53_1', 'Umgang unter der Altersgrenze', c.minAge === 14 ? 'Geprüfte Reizstoffsprühgeräte sind ab 14 erlaubt (§ 3 Abs. 2) – darunter nicht.' : 'Der Umgang mit Waffen ist erst ab 18 gestattet (§ 2 Abs. 1). Ausnahmen: Ausbildung oder Arbeit unter Aufsicht (§ 3 Abs. 1), behördliche Ausnahme (§ 3 Abs. 3).',
+      [tbObj('Tatobjekt: nicht erlaubnispflichtige Waffe'), { m: 'Tathandlung: erwirbt oder besitzt', s: wfActPhrase(s, H), law: ['erwerb', 'besitz'], v: 'ja' }, { m: 'Entgegen § 2 Abs. 1: Person unter ' + c.minAge, s: s.alter === 'kind' ? 'Kind (unter 14)' : 'Jugendlicher (14 bis 17)', law: ['alter', 'jugendReiz', 'kinderJug'], v: 'ja' }]);
+  }
+  /* Waffenverbot im Einzelfall (§ 41) */
+  if (s.verbot41 && (c.cat === 'frei' || c.cat === 'erlpfl') && ['besitz', 'erwerb', 'fuehren', 'schiessen', 'aufbewahrung'].includes(H)) crime('p52_3_8', 'Verstoß gegen ein Waffenverbot (§ 41)', 'Einer vollziehbaren Untersagung von Erwerb und Besitz zuwidergehandelt.', [tbObj(), tbAct(), { m: 'Vollziehbare Anordnung nach § 41 Abs. 1 oder 2', s: 'laut Angabe', law: ['verbot41'], v: 'ja' }]);
+
+  /* ---------- Führen: § 42a und Orte (§ 42, § 42b, Verbotszonen) ---------- */
+  if (H === 'fuehren') {
+    const locked = s.zugriff === 'behaeltnis', nichtZug = s.zugriff !== 'zugriff';
+    if (c.f42a) {
+      const art = { anschein: 'Anscheinswaffe (Nr. 1)', hieb: 'Hieb- und Stoßwaffe (Nr. 2)', messer: c.key === 'feststehend' ? 'feststehendes Messer mit Klinge über 12 cm (Nr. 3)' : 'Messer mit einhändig feststellbarer Klinge (Nr. 3)' }[c.f42a];
+      const ber = c.f42a !== 'anschein' && WF_ZWECK_42A.has(s.zweck);
+      if (locked) ok('§ 42a: Transport im verschlossenen Behältnis', 'Das Führverbot gilt nicht für den Transport in einem verschlossenen Behältnis (§ 42a Abs. 2 Nr. 2).', ['f42a']);
+      else if (s.zweck === 'film') ok('§ 42a: Foto, Film, Theater', 'Ausnahme nach § 42a Abs. 2 Nr. 1.', ['f42a']);
+      else if (ber) ok('§ 42a: berechtigtes Interesse', `Berechtigtes Interesse (§ 42a Abs. 2 Nr. 3, Abs. 3): ${WF_ZWECK_LABEL[s.zweck]}.`, ['f42a'], ['Das Interesse muss konkret und nachvollziehbar sein; der Zusammenhang zwischen Gegenstand und Zweck ist darzulegen.']);
+      else owi('21b', 'p53_21', `Führverbot § 42a: ${art}`, c.f42a === 'anschein' ? 'Anscheinswaffen dürfen nicht geführt werden; ein berechtigtes Interesse hilft hier nicht (§ 42a Abs. 2 Nr. 3 gilt nur für Nr. 2 und 3).' : 'Kein verschlossenes Behältnis, kein berechtigtes Interesse und kein Fall von Foto, Film oder Theater.',
+        [tbObj('Tatobjekt: ' + art), tbAct('führt'), { m: 'Keine Ausnahme nach § 42a Abs. 2', s: (s.zugriff === 'nicht' ? 'nicht zugriffsbereit, aber nicht im verschlossenen Behältnis; ' : '') + 'kein berechtigtes Interesse', law: ['f42a'], v: 'ja' }],
+        s.zugriff === 'nicht' ? ['Die Drei-Handgriffe-Regel gilt für § 42 Abs. 4a und § 42b – bei § 42a hilft nur das verschlossene Behältnis.'] : []);
+    }
+    const isWaffe = c.waffe && c.cat !== 'ausgenommen' && c.cat !== 'nicht';
+    const isMesser = c.messer && !isWaffe;
+    const erlInh = s.erlaubnis === 'wbk' || s.erlaubnis === 'waffenschein' || s.erlaubnis === 'jagd';
+    const messerAusn = nichtZug ? 'nicht zugriffsbereit befördert (Nr. 3)' : WF_ZWECK_4A.has(s.zweck) ? WF_ZWECK_LABEL[s.zweck] : null;
+    if (s.ort === 'veranstaltung') {
+      if (isWaffe) {
+        if (s.ausnahme) ok('§ 42: behördliche Ausnahme', 'Ausnahme nach § 42 Abs. 2 liegt vor; Bescheid mitführen (§ 42 Abs. 3).', ['veranst']);
+        else if (c.key === 'deko') hint('§ 42: Dekowaffe bei öffentlicher Veranstaltung', 'Unbrauchbar gemachte Schusswaffen stehen systematisch bei den Schusswaffen (Anlage 1 Abschn. 1 UA 1 Nr. 1.4); ob sie „Waffen“ i. S. d. § 42 Abs. 1 sind (dann § 52 Abs. 3 Nr. 9), ist nicht abschließend geklärt. Das Führverbot für Anscheinswaffen (§ 42a) gilt jedenfalls.', ['veranst', 'dekoDef']);
+        else crime('p52_3_9', 'Führen einer Waffe bei öffentlicher Veranstaltung', 'Wer an einer öffentlichen Veranstaltung teilnimmt, darf keine Waffen i. S. d. § 1 Abs. 2 führen. Ein Waffenschein, ein kleiner Waffenschein oder der verschlossene Transport ändern daran nichts.',
+          [tbObj('Tatobjekt: Waffe i. S. d. § 1 Abs. 2'), tbAct('führt'), { m: 'Teilnahme an einer öffentlichen Veranstaltung', s: 'Volksfest, Markt, Messe, Sportveranstaltung, Kino, Theater, Disko, Tanz u. ä.', law: ['veranst'], v: 'ja' }, { m: 'Keine Ausnahme (§ 42 Abs. 2, 4)', s: s.zweck === 'film' ? 'Ausnahme gilt nur für Mitwirkende an Theateraufführungen mit ungeladenen oder Kartuschenwaffen – prüfen' : 'keine', law: ['veranstAusn'], v: s.zweck === 'film' ? 'offen' : 'ja' }],
+          ['Tatbestandsmerkmal „teilnimmt“: Wer die Veranstaltung nur durchquert, ohne teilzunehmen, ist umstritten – Einzelfall.']);
+      } else if (isMesser) {
+        if (messerAusn) ok('§ 42 Abs. 4a: Ausnahme vom Messerverbot', `Ausnahme: ${messerAusn}.`, ['messer4a']);
+        else owi('21a', 'p53_21', 'Messer bei öffentlicher Veranstaltung', 'Seit 31.10.2024 gilt das Führverbot bei öffentlichen Veranstaltungen auch für Messer jeder Art (§ 42 Abs. 4a) – keine der zehn Ausnahmen liegt vor.', [tbObj('Tatobjekt: Messer'), tbAct('führt'), { m: 'Teilnahme an einer öffentlichen Veranstaltung', s: 'laut Angabe', law: ['veranst'], v: 'ja' }, { m: 'Keine Ausnahme nach § 42 Abs. 4a Satz 2', s: 'zugriffsbereit, kein anerkannter Zweck', law: ['messer4a', 'zugriffsbereit'], v: 'ja' }]);
+      }
+    } else if (s.ort === 'fernverkehr' || s.ort === 'zone') {
+      const fern = s.ort === 'fernverkehr';
+      const waffeAusn = erlInh ? 'Inhaber einer waffenrechtlichen Erlaubnis (außer kleiner Waffenschein)' : nichtZug ? 'nicht zugriffsbereit befördert' : s.zweck === 'rettung' ? 'Rettungs-/Einsatzkräfte' : s.zweck === 'hausrecht' ? 'Zustimmung des Hausrechtsinhabers' : null;
+      const mAusn = messerAusn || (s.zweck === 'hausrecht' ? 'Zustimmung des Hausrechtsinhabers' : null);
+      const viaMesser = isWaffe && !waffeAusn && c.messer && mAusn;
+      const ausn = isWaffe ? (waffeAusn || (viaMesser ? mAusn : null)) : isMesser ? mAusn : null;
+      if (isWaffe || isMesser) {
+        if (ausn) ok(fern ? '§ 42b: Ausnahme' : 'Verbotszone: Ausnahme (regelmäßig berechtigtes Interesse)', `Ausnahme: ${ausn}.`, [fern ? 'f42b' : 'zoneAusn'], viaMesser ? ['Der Gegenstand ist Waffe und Messer zugleich. Ob die Messer-Ausnahmen (§ 42 Abs. 4a Satz 2) auch für ihn gelten, ist nicht geklärt – hier zugunsten der Person angenommen.'] : []);
+        else if (fern) owi('21c', 'p53_21', `${isWaffe ? 'Waffe' : 'Messer'} im öffentlichen Personenfernverkehr`, 'In Fernzügen, Fernbussen und seitlich umschlossenen Einrichtungen des Fernverkehrs (Bahnhofsgebäude, Haltepunkte) gilt ein Führverbot für Waffen und Messer (§ 42b Abs. 1).',
+          [tbObj(isWaffe ? 'Tatobjekt: Waffe i. S. d. § 1 Abs. 2' : 'Tatobjekt: Messer'), tbAct('führt'), { m: 'In Verkehrsmitteln/umschlossenen Einrichtungen des Personenfernverkehrs', s: 'laut Angabe', law: ['f42b'], v: 'ja' }, { m: 'Keine Ausnahme nach § 42b Abs. 1 Satz 2', s: isWaffe ? 'kein Erlaubnisinhaber, zugriffsbereit' + (s.kws ? ' – der kleine Waffenschein ist ausdrücklich ausgenommen' : '') : 'zugriffsbereit, kein anerkannter Zweck', law: ['f42b', 'zoneAusn', 'messer4a'], v: 'ja' }],
+          ['Eine Rechtsverordnung nach § 42b Abs. 2 für Bahnanlagen des Bundes ist nicht erlassen (Stand Archiv 07.11.2026). Allgemeinverfügungen der Bundespolizei bleiben unberührt (§ 42b Abs. 2 Satz 4) – deren Inhalt gesondert prüfen. Kontrollbefugnis: § 42c.']);
+        else owi(23, 'p53_23', `${isWaffe ? 'Waffe' : 'Messer'} in einer Waffen-/Messerverbotszone`, 'Verstoß gegen eine Verbotszonen-Verordnung nach § 42 Abs. 5 (bzw. ÖPNV-Verordnung) – ordnungswidrig, soweit die Verordnung auf § 53 Abs. 1 Nr. 23 verweist.',
+          [tbObj(), tbAct('führt'), { m: 'Im räumlichen und zeitlichen Geltungsbereich einer Verbotszonen-Verordnung', s: 'konkrete Verordnung (Gebiet, Uhrzeiten) prüfen', law: ['zone'], v: 'offen' }, { m: 'Keine Ausnahme der Verordnung (regelmäßig berechtigtes Interesse)', s: 'laut Angabe', law: ['zoneAusn'], v: 'ja' }, { m: 'Verweis der Verordnung auf § 53 Abs. 1 Nr. 23', s: 'in der Verordnung nachsehen', law: ['p53_23'], v: 'offen' }],
+          ['Nahverkehr (S-Bahn, Bus, Straßenbahn) und Bahnhöfe des Nahverkehrs fallen nicht unter § 42b Abs. 1, sondern nur unter Landesverordnungen (§ 42 Abs. 5 Satz 1 Nr. 3).']);
+      }
+    }
+  }
+  return wfFinish(s, c, H, F, path, gen);
 }
 
-function wfOrtPhrase(s) {
-  return { normal: 'im öffentlichen Raum', veranstaltung: 'im Bereich einer öffentlichen Veranstaltung (z. B. Volksfest, Markt, Messe)', oepnv: 'in einem Verkehrsmittel bzw. an einem Bahnhof/Haltepunkt des öffentlichen Personen(fern)verkehrs', zone: 'innerhalb einer durch Rechtsverordnung ausgewiesenen Waffen-/Messerverbotszone' }[s.ort];
+function wfShoot(s, c, ok, owi, hint) {
+  if (s.schussOrt === 'stand') return ok('Schießen auf einer Schießstätte', 'Auf Schießstätten (§ 27) bedarf es keiner Schießerlaubnis (§ 12 Abs. 4 Satz 1).', ['schiessFrei']);
+  if (s.erlaubnis === 'jagd' && s.jagdZweck && c.schuss) return ok('Schießen zur Jagd (§ 13 Abs. 6)', 'Jäger dürfen mit Jagdwaffen zur befugten Jagdausübung schießen.', ['jagd']);
+  if (s.schiessErl || s.ausnahme) return ok('Schießen mit Schießerlaubnis', 'Erlaubnisschein nach § 10 Abs. 5 liegt vor.', ['schiessFrei']);
+  if (s.schussOrt === 'notwehr') return hint('Schuss in Notwehr', 'Das Schießen kann durch Notwehr gerechtfertigt sein (§ 32 StGB: erforderliche Verteidigung gegen einen gegenwärtigen rechtswidrigen Angriff). Besitz und Führen bleiben gesondert zu prüfen.', ['s32']);
+  if (s.schussOrt === 'besitztum') {
+    const fine = c.key === 'f75' || c.key === 'srsPtb' || c.key === 'softair';
+    if (fine) return ok('Schießen im befriedeten Besitztum (§ 12 Abs. 4 Nr. 1)', c.key === 'srsPtb' ? 'Mit Zustimmung des Hausrechtsinhabers zulässig, wenn nur Kartuschenmunition verschossen wird.' : 'Mit Zustimmung des Hausrechtsinhabers zulässig, wenn die Geschosse (≤ 7,5 J) das Besitztum nicht verlassen können.', ['schiessFrei'], ['Signal- und Leuchtmunition, die das Grundstück verlässt, ist nicht erfasst.']);
+  }
+  return owi(3, 'p53_3', 'Schießen ohne Erlaubnis', s.schussOrt === 'besitztum' ? 'Im befriedeten Besitztum ist das Schießen ohne Erlaubnis nur mit Waffen bis 7,5 J (Geschosse verlassen das Besitztum nicht) oder mit reinen Kartuschenwaffen zulässig (§ 12 Abs. 4 Nr. 1).' : 'Außerhalb von Schießstätten und befriedetem Besitztum ist das Schießen nur mit Schießerlaubnis zulässig – auch mit kleinem Waffenschein, etwa an Silvester.',
+    [{ m: 'Tatobjekt: Schusswaffe', s: c.label, law: ['schusswaffe'], v: 'ja' }, { m: 'Tathandlung: schießt', s: 'Geschosse durch einen Lauf, Kartuschen-, Reizstoff- oder pyrotechnische Munition', law: ['schiessen'], v: 'ja' }, { m: 'Ohne Erlaubnis und ohne Ausnahme nach § 12 Abs. 4', s: 'keine Schießstätte, keine Schießerlaubnis', law: ['schiessFrei'], v: 'ja' }]);
 }
 
-function wfBuildAnzeige(s, r) {
-  var objekt = wfDescribe(s);
-  var tail, ort = '';
-  if (s.handlung === 'besitz') tail = 'besaß bzw. erwarb';
-  else if (s.handlung === 'transport') tail = 'nicht schussbereit und nicht zugriffsbereit zu einem legitimen Zweck beförderte';
-  else { tail = 'zugriffsbereit führte'; ort = ' ' + wfOrtPhrase(s); }
-  if (s.objektart === 'kriegswaffe') { tail = 'unerlaubt Umgang hatte mit'; }
+const WF_ORT_LABEL = { oeffentlich: 'öffentlicher Raum', veranstaltung: 'öffentliche Veranstaltung', fernverkehr: 'Personenfernverkehr', zone: 'Verbotszone / ÖPNV-Verordnung', fremd: 'fremder Hausrechtsbereich mit Zustimmung', eigen: 'eigene Wohnung / Besitztum' };
+function wfActPhrase(s, H) {
+  if (H === 'fuehren') return `außerhalb der eigenen Räume (${WF_ORT_LABEL[s.ort]}), ${{ zugriff: 'zugriffsbereit', nicht: 'nicht zugriffsbereit', behaeltnis: 'im verschlossenen Behältnis' }[s.zugriff]}${s.geladen && ['schuss', 'srs', 'druck', 'hist'].includes(s.obj) ? ', schussbereit' : ''}`;
+  if (H === 'schiessen') return { stand: 'auf einer Schießstätte', besitztum: 'im befriedeten Besitztum', sonst: 'an einem sonstigen Ort', notwehr: 'in einer Notwehrlage' }[s.schussOrt];
+  if (H === 'verbringen') return { rein: 'nach bzw. durch Deutschland', eu: 'aus Deutschland in einen anderen Mitgliedstaat', dritt: 'in einen Drittstaat' }[s.grenze];
+  if (H === 'ueberlassen') return s.empfBer ? 'an eine berechtigte Person' : 'an eine nicht berechtigte Person';
+  return 'tatsächliche Gewalt ' + (H === 'erwerb' ? 'erlangt' : 'ausgeübt');
+}
 
-  var header = { straftat: 'STRAFANZEIGE – SACHVERHALTSDARSTELLUNG', owi: 'ANZEIGE EINER ORDNUNGSWIDRIGKEIT – SACHVERHALT', erlaubt: 'AKTENVERMERK – KEIN VERSTOSS FESTSTELLBAR', hinweis: 'PRÜFVERMERK – EINZELFALLPRÜFUNG ERFORDERLICH' }[r.level];
-  var einstufung = { straftat: 'Das festgestellte Verhalten erfüllt einen Straftatbestand.', owi: 'Das festgestellte Verhalten stellt eine Ordnungswidrigkeit dar.', erlaubt: 'Nach den angegebenen Merkmalen ist kein Verstoß gegen das Waffengesetz ersichtlich.', hinweis: 'Die waffenrechtliche Einordnung bedarf einer Einzelfallprüfung.' }[r.level];
+/** Gewichtung, Vorsatz/Fahrlässigkeit, Alter, Konkurrenzen */
+function wfFinish(s, c, H, F, path, gen) {
+  const fahrl = s.vorsatz === 'fahrl';
+  for (const f of F) {
+    if (!f.pen) continue;
+    if (f.level === 'straftat') {
+      if (fahrl) {
+        if (f.pen.fahrl) { f.folge = f.pen.fahrl; f.hints.unshift('Fahrlässige Begehung ist strafbar: ' + f.pen.fahrl + '.'); }
+        else { f.level = 'hinweis'; f.title += ' – nur vorsätzlich strafbar'; f.folge = 'keine Strafbarkeit bei Fahrlässigkeit (§ 15 StGB)'; }
+      } else f.folge = f.pen.folge;
+      if (f.pen.versuch) f.hints.push('Versuch strafbar (§ 52 Abs. 2).');
+      if (f.pen.verbrechen) f.hints.push('Verbrechen (§ 12 Abs. 1 StGB) – Versuch stets strafbar (§ 23 Abs. 1 StGB).');
+      if (f.pen.ms) f.hints.push(f.pen.ms[0].toUpperCase() + f.pen.ms.slice(1) + '.');
+      if (f.pen.bs) f.hints.push(f.pen.bs[0].toUpperCase() + f.pen.bs.slice(1) + '.');
+      if (f.pen.einz) f.hints.push('Einziehung der Tatgegenstände zwingend (§ 54 Abs. 1).');
+      else if (f.pen.norm.includes('WaffG')) f.hints.push('Einziehung möglich (§ 54 Abs. 2).');
+    } else if (f.level === 'owi') { f.folge = f.pen.folge; if (fahrl) f.hints.unshift('Auch fahrlässig ahndbar (§ 53 Abs. 1).'); f.hints.push('Einziehung möglich (§ 54 Abs. 2).'); }
+  }
+  if (s.alter === 'kind') for (const f of F) if (f.level === 'straftat' || f.level === 'owi') { f.level = 'hinweis'; f.folge = 'keine Ahndung (Kind unter 14)'; f.hints.unshift('Kind unter 14: schuldunfähig bzw. nicht vorwerfbar (§ 19 StGB, § 12 Abs. 1 OWiG). Verantwortlichkeit des Überlassenden prüfen (§ 34; § 52 Abs. 3 Nr. 7 bzw. § 53 Abs. 1 Nr. 16).'); }
+  if (s.alter === 'jug' && F.some(f => f.level === 'straftat')) gen.push('Jugendlicher (14 bis 17): Jugendgerichtsgesetz anwenden (§ 3 JGG: Verantwortlichkeit).');
+  const order = f => WF_RANK[f.level] * 100 + (f.pen ? f.pen.rank : 0);
+  F.sort((a, b) => order(b) - order(a));
+  const viol = F.filter(f => f.level === 'straftat' || f.level === 'owi');
+  if (!F.length) {
+    const why = { messer: 'Das Messer ist keine Waffe; Erwerb, Besitz und Führen sind ohne Erlaubnis zulässig, soweit keine Führverbote (§ 42a, § 42 Abs. 4a, § 42b, Verbotszone) greifen.', frei: 'Für diesen Umgang ist keine Erlaubnis nötig' + (c.frei ? ` (${c.frei})` : '') + '.', nicht: 'Der Gegenstand unterfällt dem Waffengesetz nicht.', ausgenommen: 'Der Gegenstand ist bis auf das Führverbot nach § 42a vom Gesetz ausgenommen.', erlpfl: 'Die Erlaubnis deckt den Umgang.' }[c.cat] || 'Nach den Angaben ist kein Verstoß ersichtlich.';
+    F.push({ level: 'erlaubt', title: 'Kein Verstoß ersichtlich', reason: why, tb: [], hints: c.notes ? [...c.notes] : [], law: c.law.slice(0, 3), folge: 'Kein Verstoß' });
+  }
+  if (viol.length > 1) {
+    const st = viol.filter(f => f.level === 'straftat'), ow = viol.filter(f => f.level === 'owi');
+    if (st.length > 1) gen.push('Mehrere Straftatbestände durch dieselbe Handlung: Tateinheit (§ 52 StGB) – Strafe aus dem schwersten Gesetz. Besitz und Führen derselben Waffe sind ein einheitliches Dauerdelikt.');
+    if (st.length && ow.length) gen.push('Straftat und Ordnungswidrigkeit treffen zusammen: Es wird nur das Strafgesetz angewendet (§ 21 Abs. 1 OWiG); die OWi lebt auf, wenn keine Strafe verhängt wird (§ 21 Abs. 2 OWiG).');
+    if (!st.length && ow.length > 1) gen.push('Mehrere Ordnungswidrigkeiten durch dieselbe Handlung: nur eine Geldbuße (§ 19 OWiG) nach dem Gesetz mit der höchsten Androhung.');
+  }
+  for (const f of F) if (f.level === 'erlaubt' && !f.folge) f.folge = 'Kein Verstoß';
+  for (const f of F) if (f.level === 'hinweis' && !f.folge) f.folge = 'Einzelfall prüfen';
+  const main = F[0];
+  path.push('→ ' + { straftat: 'Straftat', owi: 'Ordnungswidrigkeit', hinweis: 'Einzelfallprüfung', erlaubt: 'kein Verstoß' }[main.level]);
+  return { level: main.level, main, findings: F, path, gen, cls: c, H, verdict: main.title, paragraph: main.pen ? main.pen.norm : (main.law[0] && WF_LAW[main.law[0]] ? WF_LAW[main.law[0]].ref : '—'), folge: main.folge, reason: main.reason, hinweis: [...(c.notes && main.level !== 'erlaubt' ? c.notes : []), ...main.hints] };
+}
 
-  var sachverhalt = s.objektart === 'kriegswaffe'
-    ? 'Am [Datum] gegen [Uhrzeit] Uhr wurde am Feststellungsort [Ort/Anschrift] festgestellt, dass die betroffene Person [Personalien] unerlaubt Umgang mit ' + objekt + ' hatte.'
-    : 'Am [Datum] gegen [Uhrzeit] Uhr wurde am Feststellungsort [Ort/Anschrift] festgestellt, dass die betroffene Person [Personalien] ' + objekt + ' ' + (ort ? ort + ' ' : '') + tail + '.';
-
-  var lines = [];
-  lines.push(header); lines.push('');
-  lines.push('1. Sachverhalt'); lines.push(sachverhalt); lines.push('');
-  lines.push('2. Rechtliche Würdigung');
-  lines.push(r.reason + ' ' + einstufung);
-  lines.push('Einschlägige Vorschrift(en): ' + r.paragraph + '.');
-  if (r.level === 'straftat' && s.vorsatz === false) lines.push('Nach den Angaben liegt fahrlässiges Handeln vor; der Strafrahmen ist entsprechend reduziert (vgl. § 52 Abs. 4 WaffG).');
-  lines.push('');
-  lines.push('3. Einstufung und Rechtsfolge');
-  lines.push('Einstufung: ' + r.verdict + ' (' + { straftat: 'Straftat', owi: 'Ordnungswidrigkeit', erlaubt: 'kein Verstoß', hinweis: 'Einzelfallprüfung' }[r.level] + ').');
-  lines.push('Mögliche Rechtsfolge: ' + r.folge + '.');
-  if (r.hinweis && r.hinweis.length) { lines.push(''); lines.push('4. Hinweise'); r.hinweis.forEach(function(h) { lines.push('– ' + h); }); }
-  lines.push('');
-  lines.push('Hinweis: Diese Sachverhalts- und Rechtseinschätzung wurde orientierend mit dem WaffG-Prüfstand erstellt und ersetzt keine juristische oder behördliche Prüfung. Maßgeblich sind der konkrete Einzelfall, etwaige Feststellungsbescheide des BKA sowie das einschlägige Landesrecht.');
+/** Text für Anzeige / Vermerk */
+function wfReport(s, r) {
+  const c = r.cls, H = r.H;
+  const header = { straftat: 'STRAFANZEIGE – SACHVERHALTSDARSTELLUNG', owi: 'ANZEIGE EINER ORDNUNGSWIDRIGKEIT – SACHVERHALT', erlaubt: 'AKTENVERMERK – KEIN VERSTOSS FESTSTELLBAR', hinweis: 'PRÜFVERMERK – EINZELFALLPRÜFUNG ERFORDERLICH' }[r.level];
+  const ort = { oeffentlich: 'im öffentlichen Verkehrsraum', veranstaltung: 'als Teilnehmer einer öffentlichen Veranstaltung ([Art der Veranstaltung])', fernverkehr: 'in einem Verkehrsmittel bzw. einer umschlossenen Einrichtung des öffentlichen Personenfernverkehrs ([Zug/Bahnhof])', zone: 'im Geltungsbereich der [Verbotszonen-Verordnung]', fremd: 'in fremden Räumen bzw. auf fremdem befriedetem Besitztum mit Zustimmung des Berechtigten', eigen: 'in der eigenen Wohnung' }[s.ort];
+  const zug = { zugriff: 'zugriffsbereit', nicht: 'nicht zugriffsbereit verstaut', behaeltnis: 'in einem verschlossenen Behältnis' }[s.zugriff];
+  const tat = {
+    besitz: `${c.acc} in Besitz hatte (tatsächliche Gewalt ausübte)`, erwerb: `${c.acc} erwarb (die tatsächliche Gewalt darüber erlangte)`,
+    fuehren: `${c.acc} ${ort} ${zug}${s.geladen && c.schuss ? ' und schussbereit (geladen)' : ''} bei sich führte`,
+    ueberlassen: `${c.acc} einer ${s.empfBer ? 'berechtigten' : 'nicht berechtigten'} Person ([Personalien Empfänger]) überließ`,
+    schiessen: `${c.acc} besaß und damit ${{ stand: 'auf einer Schießstätte', besitztum: 'im befriedeten Besitztum', sonst: 'außerhalb einer Schießstätte am Feststellungsort', notwehr: 'in einer behaupteten Notwehrlage' }[s.schussOrt]} schoss`,
+    verbringen: `${c.acc} ${{ rein: 'nach bzw. durch Deutschland', eu: 'aus Deutschland in einen anderen Mitgliedstaat', dritt: 'in einen Drittstaat' }[s.grenze]} verbrachte bzw. mitnahm`,
+    herstellen: `${c.acc} ${s.gewerbe ? 'gewerbsmäßig ' : ''}herstellte, bearbeitete bzw. instand setzte`, handel: `mit Gegenständen der Art „${c.label}“ Handel trieb`,
+    aufbewahrung: `${c.acc} aufbewahrte, ohne die vorgeschriebenen Vorkehrungen zu treffen${s.gefahr ? ', wodurch die Gefahr des Abhandenkommens bzw. des unbefugten Zugriffs entstand' : ''}`
+  }[H];
+  const lines = [header, '', '1. Sachverhalt', `Am [Datum] gegen [Uhrzeit] Uhr wurde in [Ort/Anschrift] festgestellt, dass die betroffene Person [Personalien] ${tat}.`, '', '2. Rechtliche Würdigung'];
+  const viol = r.findings.filter(f => f.level !== 'erlaubt');
+  if (!viol.length) lines.push(r.main.reason);
+  viol.forEach((f, i) => {
+    lines.push(`${viol.length > 1 ? (i + 1) + ') ' : ''}${f.title}${f.pen ? ' – ' + f.pen.norm : ''}`);
+    if (f.reason) lines.push(f.reason);
+    const tb = f.tb.filter(t => t.m);
+    if (tb.length) lines.push('Tatbestand: ' + tb.map(t => `${t.m.replace(/^Tat(objekt|handlung): /, '')} (${t.v === 'ja' ? '+' : t.v === 'nein' ? '−' : '?'})`).join('; ') + '.');
+    if (f.folge) lines.push('Rechtsfolge: ' + f.folge + '.');
+  });
+  if (r.findings.some(f => f.level === 'straftat')) lines.push(s.vorsatz === 'fahrl' ? 'Subjektiv: fahrlässige Begehung.' : 'Subjektiv: vorsätzliches Handeln (Kenntnis der tatbestandlichen Umstände, z. B. Art und Beschaffenheit des Gegenstands).');
+  if (r.gen.length) { lines.push('', '3. Konkurrenzen und Hinweise'); r.gen.forEach(g => lines.push('– ' + g)); }
+  const extra = [...new Set(viol.flatMap(f => f.hints))].filter(h => !/^(Versuch|Einziehung|Verbrechen|Minder|Besonders)/i.test(h)).slice(0, 4);
+  if (extra.length) { if (!r.gen.length) lines.push('', '3. Hinweise'); extra.forEach(h => lines.push('– ' + h)); }
+  lines.push('', `Hinweis: Orientierende Einschätzung mit dem WaffG-Prüfstand (${WF_STAND}); ersetzt keine juristische oder behördliche Prüfung. Maßgeblich sind der Einzelfall, Feststellungsbescheide des BKA (§ 2 Abs. 5 WaffG) und das einschlägige Landesrecht (Verbotszonen).`);
   return lines.join('\n');
 }
 
-function wfCore(s) {
-  var path = [];
-  var step = function(t) { path.push(t); return t; };
-  var R = function(level, verdict, paragraph, folge, reason, hinweis) {
-    return { level: level, verdict: verdict, paragraph: paragraph, folge: folge, reason: reason, hinweis: hinweis || [], path: path };
-  };
-  var H = s.handlung;
-  step({ messer: 'Objekt: Messer', schuss: 'Objekt: Schusswaffe', srs: 'Objekt: SRS-Waffe', druck: 'Objekt: Druckluft/Softair', anschein: 'Objekt: Anscheinswaffe', sonstige: 'Objekt: Hieb-/Stoß & Sonstige', munition: 'Objekt: Munition', kriegswaffe: 'Objekt: Kriegswaffe' }[s.objektart]);
-  step({ besitz: 'Handlung: Besitz/Erwerb', transport: 'Handlung: Transport (§12)', fuehren: 'Handlung: Führen' }[H]);
-
-  var minorFree = function() { step('Person < 18 → OWi'); return R('owi', 'Verstoß gegen Altersgrenze', '§ 2 Abs. 1 i.V.m. § 53 WaffG', 'Bußgeld möglich', 'Der Gegenstand wäre ab 18 erlaubnisfrei — Erwerb/Besitz durch Minderjährige ist eine Ordnungswidrigkeit.'); };
-
-  var restrictedOrt = function() {
-    if (H !== 'fuehren') return null;
-    if (s.ort === 'veranstaltung') { step('Ort: öffentl. Veranstaltung → §42'); return R('owi', 'Führen bei Veranstaltung verboten', '§ 42 Abs. 1 i.V.m. § 53 WaffG', 'Bußgeld', 'Bei Volksfesten, Märkten, Messen und ähnlichen Veranstaltungen ist das Führen von Waffen und Messern jeder Art verboten.'); }
-    if (s.ort === 'oepnv') { step('Ort: ÖPNV/Fernverkehr → §42b'); return R('owi', 'Führen im ÖPNV/Fernverkehr verboten', '§ 42b i.V.m. § 53 WaffG', 'Bußgeld', 'Im öffentlichen Personen(fern)verkehr und an Bahnhöfen/Haltepunkten gilt seit 2024 ein Verbot — unabhängig von Bauart und Länge.'); }
-    if (s.ort === 'zone') { step('Ort: Verbotszone → Landesrecht'); return R('owi', 'Führen in Waffen-/Messerverbotszone', 'Landesrecht i.V.m. § 42 Abs. 5 WaffG', 'Bußgeld nach Landesrecht', 'In ausgewiesenen Verbotszonen ist das Führen jeder Waffe/jedes Messers untersagt.'); }
-    return null;
-  };
-
-  if (s.objektart === 'kriegswaffe') {
-    step('Kriegswaffe → KrWaffKG');
-    return R('straftat', 'Unerlaubter Umgang mit Kriegswaffen', '§ 22a KrWaffKG', 'Freiheitsstrafe 1 bis 5 Jahre', 'Vollautomatische Gewehre, Granaten, panzerbrechende Waffen u. Ä. sind Kriegswaffen. Umgang ist ohne staatliche Genehmigung strafbar.', ['In minder schweren Fällen Freiheitsstrafe bis 3 Jahre oder Geldstrafe; fahrlässig eigener Strafrahmen.']);
-  }
-
-  if (s.objektart === 'munition') {
-    if (s.munKriegswaffe) { step('Kriegswaffenmunition → KrWaffKG'); return R('straftat', 'Kriegswaffenmunition', '§ 22a KrWaffKG', 'Freiheitsstrafe 1 bis 5 Jahre', 'Munition für Kriegswaffen unterliegt dem Kriegswaffenkontrollgesetz.'); }
-    if (s.munFrei) { step('freie Munition (z. B. PTB-Kartuschen)'); if (!s.volljaehrig) return minorFree(); return R('erlaubt', 'Freie Munition', 'Anlage 2 Abschn. 3 WaffG', 'Kein Verstoß', 'Erlaubnisfreie Munition (z. B. Kartuschen für PTB-Waffen, Softair-BBs) darf ab 18 erworben werden.'); }
-    step('erlaubnispflichtige Munition');
-    if (s.munErlaubnis) { step('Erlaubnis vorhanden (WBK/Munitionserwerbsschein)'); return R('erlaubt', 'Munitionsbesitz im Rahmen der Erlaubnis', '§ 10 Abs. 3 WaffG', 'Kein Verstoß', 'Mit Munitionserwerbsschein oder passendem WBK-Eintrag ist Erwerb/Besitz erlaubt.'); }
-    step('keine Erlaubnis → Straftat');
-    return R('straftat', 'Munitionsbesitz ohne Erlaubnis', '§ 52 Abs. 3 Nr. 2b WaffG', 'Freiheitsstrafe bis 3 Jahre oder Geldstrafe', 'Munition für erlaubnispflichtige Schusswaffen darf ohne Erlaubnis nicht erworben oder besessen werden.');
-  }
-
-  if (s.objektart === 'messer') {
-    var L = Number(s.klingenlaenge);
-    var b = s.messerBauart;
-    var verboten = false, verbotGrund = '';
-    if (b === 'fall' || b === 'butterfly' || b === 'faust') { verboten = true; verbotGrund = 'Fall-/Faust-/Butterflymesser sind verbotene Gegenstände.'; }
-    else if (b === 'spring') {
-      if (s.springOeffnung === 'frontal') { verboten = true; verbotGrund = 'Frontal öffnende Springmesser (OTF) sind ausnahmslos verboten.'; }
-      else {
-        var exemptForm = L <= 8.5 && !s.beidseitig;
-        if (!exemptForm) { verboten = true; verbotGrund = 'Seitlich öffnende Springmesser sind verboten, wenn Klinge > 8,5 cm oder zweiseitig geschliffen.'; }
-        else if (!s.berechtigt) { verboten = true; verbotGrund = 'Seit 2024 ist selbst das kleine seitliche Springmesser nur mit berechtigtem Interesse / beruflichem Bezug erlaubt.'; }
-      }
-    }
-    var verbMsgNr = { spring: 'Nr. 1.4.1', fall: 'Nr. 1.4.2', faust: 'Nr. 1.4.3', butterfly: 'Nr. 1.4.4' }[b] || 'Nr. 1.4';
-    if (verboten) { step('Einstufung: verbotene Waffe'); return R('straftat', 'Verbotene Waffe', 'Anlage 2 Abschn. 1 ' + verbMsgNr + ' i.V.m. § 52 Abs. 3 Nr. 1 WaffG', 'Freiheitsstrafe bis 3 Jahre oder Geldstrafe', verbotGrund + ' Schon der Besitz ist strafbar.'); }
-
-    step('Einstufung: erlaubtes Messer (kein verbotener Gegenstand)');
-    if (H === 'besitz' || H === 'transport') {
-      return R('erlaubt', H === 'transport' ? 'Transport erlaubt' : 'Besitz erlaubt', '§ 42a / § 12 WaffG', 'Kein Verstoß', H === 'transport' ? 'Nicht zugriffsbereit verpackt (mehr als drei Handgriffe) darf jedes erlaubte Messer transportiert werden.' : 'Erlaubte Messer sind keine Waffen i.S.d. § 1 Abs. 2 WaffG, sondern tragbare Gegenstände nach § 42a — für Erwerb und Besitz besteht keine waffenrechtliche Altersgrenze; nur das Führen ist beschränkt.');
-    }
-    var ro = restrictedOrt();
-    var fuehrungsverbot = b === 'einhand' || b === 'spring' || (b === 'feststehend' && (L > 12 || s.dolch));
-    if (ro) {
-      if (s.berechtigt) { step('berechtigtes Interesse → enge Ausnahme?'); return R('hinweis', 'Ausnahme möglich, aber eng', ro.paragraph, 'Einzelfall', 'Bei Veranstaltungen/ÖPNV/Zonen gelten nur enge gesetzliche Ausnahmen (Beruf, Jagd, Sport, Brauchtum). Ob sie greifen, ist im Einzelfall zu prüfen.', ['Ohne einschlägige Ausnahme bleibt es eine Ordnungswidrigkeit.']); }
-      return ro;
-    }
-    step('Ort: normaler öffentlicher Raum');
-    if (fuehrungsverbot) {
-      if (s.berechtigt) { step('berechtigtes Interesse → §42a Abs. 3 greift'); return R('erlaubt', 'Führen mit berechtigtem Interesse', '§ 42a Abs. 3 WaffG', 'Kein Verstoß', 'Mit nachweisbarem berechtigten Interesse (Beruf, Sport, Brauchtum) ist das Führen zulässig — Nachweis mitführen.'); }
-      step('§42a Führungsverbot greift → OWi');
-      return R('owi', 'Führungsverbot', '§ 42a Abs. 1 i.V.m. § 53 WaffG', 'Bußgeld bis 10.000 €', b === 'feststehend' ? (s.dolch && L <= 12 ? 'Zweiseitig geschliffene feststehende Messer (Dolche) sind Hieb-/Stoßwaffen und unterliegen unabhängig von der Klingenlänge dem Führungsverbot.' : 'Feststehende Messer mit über 12 cm Klinge dürfen nicht zugriffsbereit geführt werden.') : 'Einhand-/Springmesser (einhändig, feststellbar) unterliegen dem allgemeinen Führungsverbot.', ['Zulässig nur bei berechtigtem Interesse oder nicht zugriffsbereitem Transport.']);
-    }
-    step('kein Führungsverbot → erlaubt');
-    return R('erlaubt', 'Führen erlaubt', '§ 42a WaffG (nicht erfasst)', 'Kein Verstoß', 'Zweihand-Klappmesser und feststehende Messer bis 12 cm Klinge dürfen außerhalb von Zonen/Veranstaltungen geführt werden.');
-  }
-
-  if (s.objektart === 'schuss') {
-    if (s.schussZustand === 'deko' || s.schussZustand === 'antik') {
-      step('Zustand: ' + (s.schussZustand === 'deko' ? 'Deko (zertifiziert unbrauchbar)' : 'Antik (vor 1871)') + ' → frei');
-      if (H === 'besitz' || H === 'transport') { if (!s.volljaehrig) return minorFree(); return R('erlaubt', 'Erlaubnisfrei', '§ 2 Abs. 1, Anlage 1 WaffG', 'Kein Verstoß', 'Zertifiziert unbrauchbar gemachte Dekowaffen und Antikwaffen (Vorderlader vor 1871) sind erlaubnisfrei.'); }
-      return R('owi', 'Führen ggf. eingeschränkt', '§ 42a WaffG', 'Einzelfall / Bußgeld', 'Auch bei freien Deko-/Antikwaffen kann das Führen (Anscheinswaffe!) eingeschränkt sein.');
-    }
-    if (s.vollautomat) { step('vollautomatisch → verbotene Waffe/Kriegswaffe'); return R('straftat', 'Verbotene Waffe / ggf. Kriegswaffe', '§ 52 Abs. 1 Nr. 1 WaffG, ggf. KrWaffKG', 'Freiheitsstrafe 6 Monate bis 5 Jahre', 'Vollautomatische Schusswaffen sind verbotene Gegenstände bzw. Kriegswaffen — Umgang ohne Sondererlaubnis strafbar.'); }
-    var e = s.schusserlaubnis;
-    step('Erlaubnis: ' + (e === 'keine' ? 'keine' : e === 'wbk' ? 'WBK (nur Besitz)' : 'Waffenschein'));
-    if (H === 'besitz') {
-      if (e === 'keine') { step('Besitz ohne Erlaubnis → Straftat'); return R('straftat', 'Besitz ohne Erlaubnis', '§ 52 Abs. 3 Nr. 2a WaffG', 'Freiheitsstrafe bis 3 Jahre oder Geldstrafe', 'Scharfe Schusswaffen sind erlaubnispflichtig — Besitz ohne WBK ist strafbar.'); }
-      return R('erlaubt', 'Besitz im Rahmen der Erlaubnis', '§ 2 Abs. 2, § 10 WaffG', 'Kein Verstoß', 'Mit gültiger WBK ist der Besitz der eingetragenen Waffe erlaubt (Aufbewahrung nach § 36 beachten).');
-    }
-    if (H === 'transport') {
-      if (e === 'keine') { step('Transport ohne Erlaubnis → Besitz illegal → Straftat'); return R('straftat', 'Transport ohne Erlaubnis', '§ 52 Abs. 3 Nr. 2a WaffG', 'Freiheitsstrafe bis 3 Jahre oder Geldstrafe', 'Ohne WBK ist schon der Besitz strafbar — das Transportprivileg heilt das nicht.'); }
-      step('§12 Abs. 3: nicht schuss-/zugriffsbereit, legitimer Zweck → erlaubt');
-      return R('erlaubt', 'Transport erlaubt (§ 12)', '§ 12 Abs. 3 Nr. 2 WaffG', 'Kein Verstoß', 'Ungeladen und nicht zugriffsbereit (z. B. verschlossener Waffenkoffer) zu einem vom Bedürfnis umfassten Zweck — kein Waffenschein nötig.');
-    }
-    var ro2 = restrictedOrt();
-    if (e === 'waffenschein') { if (ro2) { step('trotz Waffenschein am Ort verboten'); return ro2; } step('Führen mit Waffenschein → erlaubt'); return R('erlaubt', 'Führen mit Waffenschein', '§ 10 Abs. 4 WaffG', 'Kein Verstoß', 'Zugriffsbereites Führen ist mit gültigem Waffenschein erlaubt.'); }
-    step('Führen ohne Waffenschein → Straftat');
-    return R('straftat', 'Führen ohne Waffenschein', '§ 52 Abs. 3 Nr. 2a WaffG', 'Freiheitsstrafe bis 3 Jahre oder Geldstrafe', 'Eine WBK erlaubt nur den Besitz. Zugriffsbereites Führen ohne Waffenschein ist strafbar (statt Führen ggf. Transport nach § 12 nutzen).');
-  }
-
-  if (s.objektart === 'srs') {
-    if (!s.srsPtb) { step('kein PTB-Zeichen → wie erlaubnispflichtige Waffe'); return R('straftat', 'Ohne PTB-Zulassung wie scharfe Waffe', '§ 52 Abs. 3 Nr. 2a WaffG', 'Freiheitsstrafe bis 3 Jahre oder Geldstrafe', 'Ohne amtliches PTB-Prüfzeichen (Kreis mit „PTB“) gilt die Waffe nicht als freie SRS-Waffe.'); }
-    step('PTB-Zeichen vorhanden');
-    if (H === 'besitz' || H === 'transport') { if (!s.volljaehrig) return minorFree(); return R('erlaubt', H === 'transport' ? 'Transport erlaubt (§ 12)' : 'Besitz erlaubt (ab 18)', 'Anlage 2 Abschn. 2 / § 12 WaffG', 'Kein Verstoß', H === 'transport' ? 'Ungeladen, nicht zugriffsbereit zu legitimem Zweck darf die PTB-Waffe ohne kleinen Waffenschein transportiert werden.' : 'PTB-geprüfte SRS-Waffen dürfen ab 18 ohne WBK erworben und besessen werden.'); }
-    var ro3 = restrictedOrt();
-    if (!s.kwSchein) { step('Führen ohne kleinen Waffenschein → Straftat'); return R('straftat', 'Führen ohne kleinen Waffenschein', '§ 52 Abs. 3 Nr. 2a WaffG', 'Freiheitsstrafe bis 3 Jahre oder Geldstrafe', 'Das zugriffsbereite Führen einer SRS-Waffe erfordert einen kleinen Waffenschein (§ 10 Abs. 4 S. 4 WaffG). Fehlt er, wird eine Schusswaffe ohne Erlaubnis geführt — das ist strafbar, keine bloße Ordnungswidrigkeit (vgl. OLG Frankfurt a. M., 1 Ss 336/03).', ['Statt Führen ist der nicht zugriffsbereite Transport nach § 12 Abs. 3 erlaubnisfrei möglich.']); }
-    if (ro3) { step('trotz kl. Waffenschein am Ort verboten'); return ro3; }
-    step('Führen mit kleinem Waffenschein → erlaubt');
-    return R('erlaubt', 'Führen mit kleinem Waffenschein', '§ 10 Abs. 4 Satz 4 WaffG', 'Kein Verstoß', 'Mit gültigem kleinen Waffenschein zulässig (nicht bei Veranstaltungen/ÖPNV).');
-  }
-
-  if (s.objektart === 'druck') {
-    if (s.druckEnergie === 'spielzeug') { step('< 0,5 J → keine Waffe'); return R('erlaubt', 'Spielzeug (unter 0,5 Joule)', 'keine Waffe i.S.d. WaffG', 'Kein Verstoß', 'Softair unter 0,5 Joule gilt nicht als Waffe im Sinne des Waffengesetzes.'); }
-    if (s.druckEnergie === 'ueber75') { step('> 7,5 J → erlaubnispflichtig wie scharfe Waffe'); return R('straftat', 'Erlaubnispflichtig — Umgang ohne Erlaubnis', '§ 52 Abs. 3 Nr. 2a WaffG', 'Freiheitsstrafe bis 3 Jahre oder Geldstrafe', 'Druckluftwaffen über 7,5 Joule sind erlaubnispflichtig; ohne Erlaubnis ist der Umgang strafbar.'); }
-    step('bis 7,5 J mit F-Zeichen → erlaubnisfrei ab 18');
-    if (H === 'besitz' || H === 'transport') { if (!s.volljaehrig) return minorFree(); return R('erlaubt', H === 'transport' ? 'Transport erlaubt' : 'Besitz erlaubt (ab 18)', 'Anlage 2 Abschn. 3 WaffG', 'Kein Verstoß', 'Druckluftwaffen bis 7,5 Joule mit F-im-Fünfeck sind ab 18 erlaubnisfrei.'); }
-    var ro4 = restrictedOrt(); if (ro4) return ro4;
-    step('Führen: Schießen nur auf zugelassener Anlage');
-    return R('hinweis', 'Führen eingeschränkt', '§ 12 Abs. 3, § 42a WaffG', 'Einzelfall prüfen', 'Ungeladenes, verpacktes Mitführen ist unkritisch; Schießen nur auf zugelassenen Anlagen oder befriedetem Besitztum.');
-  }
-
-  if (s.objektart === 'anschein') {
-    if (H === 'besitz' || H === 'transport') return R('erlaubt', H === 'transport' ? 'Transport erlaubt' : 'Besitz erlaubt', '§ 42a WaffG (nur Führen erfasst)', 'Kein Verstoß', 'Besitz und nicht zugriffsbereiter Transport täuschend echter Nachbildungen sind erlaubt.');
-    step('Führen von Anscheinswaffe → OWi');
-    return R('owi', 'Führen von Anscheinswaffen verboten', '§ 42a Abs. 1 Nr. 1 i.V.m. § 53 WaffG', 'Bußgeld bis 10.000 €', 'Das Führen von Anscheinswaffen (Deko/Nachbildungen, die echten Waffen täuschend ähneln) ist in der Öffentlichkeit verboten.');
-  }
-
-  if (s.objektart === 'sonstige') {
-    var item = s.sonstigeItem;
-    if (['schlagring', 'wurfstern', 'elektro', 'nunchaku', 'praezschleuder'].indexOf(item) !== -1) {
-      step('verbotener Gegenstand');
-      var verbNr = { nunchaku: ' Nr. 1.3.8', praezschleuder: ' Nr. 1.3.7' }[item] || '';
-      var verbTxt = {
-        schlagring: 'Schlagring, Totschläger und Stahlrute sind verbotene Gegenstände — schon der Besitz ist strafbar.',
-        wurfstern: 'Wurfsterne und Wurfmesser sind verbotene Gegenstände — schon der Besitz ist strafbar.',
-        elektro: 'Elektroimpulsgeräte ohne amtliche PTB-Zulassung sind verbotene Gegenstände — schon der Besitz ist strafbar.',
-        nunchaku: 'Nunchakus (Würgehölzer) sind verbotene Gegenstände — schon der Besitz ist strafbar.',
-        praezschleuder: 'Präzisionsschleudern (Zwillen mit Armstütze) sind verbotene Gegenstände — schon der Besitz ist strafbar.'
-      }[item];
-      return R('straftat', 'Verbotene Waffe', 'Anlage 2 Abschn. 1' + verbNr + ' i.V.m. § 52 Abs. 3 Nr. 1 WaffG', 'Freiheitsstrafe bis 3 Jahre oder Geldstrafe', verbTxt);
-    }
-    if (item === 'teleskop') {
-      step('Teleskopschlagstock → Hieb-/Stoßwaffe (BGH 3 StR 81/22)');
-      if (H === 'besitz' || H === 'transport') { return R('erlaubt', H === 'transport' ? 'Transport erlaubt' : 'Besitz erlaubt (ab 18)', 'Anlage 1 Abschn. 1 UA 2 Nr. 1.1 WaffG', 'Kein Verstoß', 'Der Teleskopschlagstock ist eine Hieb-/Stoßwaffe, kein verbotener Gegenstand (BGH, Beschl. v. 21.04.2022 – 3 StR 81/22). Besitz und nicht zugriffsbereiter Transport sind ab 18 erlaubnisfrei.', ['Ein echter Totschläger/eine Stahlrute (biegsam bzw. gegliedert) wäre dagegen eine verbotene Waffe.']); }
-      var roT = restrictedOrt(); if (roT) return roT;
-      if (s.berechtigt) { step('berechtigtes Interesse → §42a Abs. 3'); return R('erlaubt', 'Führen mit berechtigtem Interesse', '§ 42a Abs. 3 WaffG', 'Kein Verstoß', 'Mit nachweisbarem berechtigten Interesse ist das Führen zulässig.'); }
-      step('Hieb-/Stoßwaffe → Führungsverbot (OWi)');
-      return R('owi', 'Führungsverbot', '§ 42a Abs. 1 Nr. 2 i.V.m. § 53 Abs. 1 Nr. 21a WaffG', 'Bußgeld bis 10.000 €', 'Der Teleskopschlagstock ist eine Hieb-/Stoßwaffe; sein zugriffsbereites Führen in der Öffentlichkeit ist nach § 42a verboten — dies ist jedoch nur eine Ordnungswidrigkeit, keine Straftat (BGH, Beschl. v. 21.04.2022 – 3 StR 81/22).', ['Der Besitz bleibt erlaubt; strafbar wäre nur ein echter Totschläger/Schlagring.']); }
-    if (item === 'armbrust') { step('Armbrust → frei ab 18'); if (H === 'besitz' || H === 'transport') { if (!s.volljaehrig) return minorFree(); return R('erlaubt', 'Erlaubnisfrei (ab 18)', '§ 2 Abs. 1, Anlage 2 WaffG', 'Kein Verstoß', 'Armbrüste sind ab 18 erlaubnisfrei zu erwerben und zu besitzen.'); } return R('hinweis', 'Führen im Einzelfall', 'Landesrecht / § 42 WaffG', 'Einzelfall', 'Ein allgemeines Führungsverbot nach § 42a besteht nicht; bei Veranstaltungen/Zonen kann Landesrecht greifen.'); }
-    if (item === 'pfefferPtb') return R('erlaubt', 'Reizstoffsprühgerät mit PTB (Tierabwehr)', 'Anlage 2 Abschn. 2 WaffG', 'Kein Verstoß', 'Reizstoffsprühgeräte mit PTB-Zeichen (Tierabwehr) dürfen ab 18 erworben, besessen und geführt werden.');
-    if (item === 'pfefferOhne') { step('Reizstoff ohne PTB / Menschenabwehr'); return R('hinweis', 'Reizstoff zur Menschenabwehr', '§ 2 Abs. 2, Anlage 2 WaffG', 'Einzelfall prüfen', 'Reizstoffsprühgeräte ohne PTB-Zeichen bzw. zur Menschenabwehr sind erlaubnispflichtig oder verboten — Kennzeichnung und Reizstoff entscheiden.'); }
-    if (H === 'besitz' || H === 'transport') return R('erlaubt', H === 'transport' ? 'Transport erlaubt' : 'Besitz erlaubt', '§ 2 Abs. 1 / § 12 WaffG', 'Kein Verstoß', 'Der Besitz/nicht zugriffsbereite Transport einer Hieb-/Stoßwaffe ist ab 18 erlaubt.');
-    var ro5 = restrictedOrt(); if (ro5) return ro5;
-    if (s.berechtigt) { step('berechtigtes Interesse → §42a Abs. 3'); return R('erlaubt', 'Führen mit berechtigtem Interesse', '§ 42a Abs. 3 WaffG', 'Kein Verstoß', 'Mit nachweisbarem berechtigten Interesse ist das Führen zulässig.'); }
-    step('Hieb-/Stoßwaffe → Führungsverbot');
-    return R('owi', 'Führungsverbot', '§ 42a Abs. 1 Nr. 2 i.V.m. § 53 Abs. 1 Nr. 21a WaffG', 'Bußgeld bis 10.000 €', 'Hieb- und Stoßwaffen dürfen in der Öffentlichkeit nicht zugriffsbereit geführt werden.');
-  }
-
-  return R('hinweis', 'Bitte Objektart wählen', '—', '—', 'Wähle oben eine Objektart aus.');
-}
-
-function wfEvaluate(s) {
-  var r = wfCore(s);
-  if (r.level === 'straftat' && s.vorsatz === false) {
-    r.folge += ' · fahrlässig: reduzierter Strafrahmen (vgl. § 52 Abs. 4 WaffG)';
-    r.path = r.path.concat(['Fahrlässigkeit → milderer Strafrahmen']);
-  }
-  return r;
-}
-
+/* ---------- Subsumtionshilfen für die i-Knöpfe ---------- */
+/* t: Titel · law: Wortlaut (Schlüssel aus WF_LAW) · merk: Tatbestandsmerkmale / Voraussetzungen · hin: Prüfhinweise, Abgrenzung · rspr: geprüfte Rechtsprechung · see: verwandte Begriffe */
+const WF_TIPS = {
+  waffe: { t: 'Waffenbegriff (§ 1 Abs. 2)', law: ['waffe'], merk: ['Nr. 1: Schusswaffen und gleichgestellte Gegenstände (Anlage 1 Abschn. 1 UA 1).', 'Nr. 2 a: tragbare Gegenstände, die ihrem Wesen nach dazu bestimmt sind, die Angriffs- oder Abwehrfähigkeit von Menschen zu beseitigen oder herabzusetzen – maßgeblich ist die objektive Zweckbestimmung durch Konstruktion und Herstellung, nicht die Verwendungsabsicht.', 'Nr. 2 b: Gegenstände, die dazu nur geeignet sind und im Gesetz ausdrücklich genannt werden (Spring-, Fall-, Faust-, Butterflymesser; Elektroimpulsgeräte gegen Tiere).'], hin: ['Gewöhnliche Messer (Küchen-, Taschen-, Einhandmesser) sind keine Waffen – für sie gelten nur die Führverbote (§ 42 Abs. 4a, § 42a Abs. 1 Nr. 3, § 42b, Verbotszonen).', 'Die Waffeneigenschaft entscheidet über § 2 Abs. 1 (Alter 18), § 42 Abs. 1 (Straftat statt OWi bei Veranstaltungen) und § 41.'], see: ['hieb', 'umgang'] },
+  umgang: { t: 'Umgang (§ 1 Abs. 3)', law: ['umgang'], merk: ['Erwerben, Besitzen, Überlassen, Führen, Verbringen, Mitnehmen, Schießen, Herstellen, Bearbeiten, Instandsetzen, Handeltreiben – abschließend aufgezählt.', 'Definitionen der einzelnen Umgangsarten: Anlage 1 Abschn. 2.'], see: ['erwerb', 'besitz', 'ueberlassen', 'fuehren', 'schiessen', 'verbringen', 'herstellen', 'handel'] },
+  erwerb: { t: 'Erwerb', law: ['erwerb'], merk: ['Erlangen der tatsächlichen Gewalt (Sachherrschaft mit Herrschaftswillen).', 'Ein Rechtsgeschäft ist nicht nötig – auch Fund, Erbe, Wegnahme oder kurzzeitige Übernahme (Verwahrung, Transport, „mal halten“).', 'Mitverfügungsgewalt genügt.'], rspr: ['BGH, Beschl. v. 06.08.2007 – 4 StR 431/06 (NStZ 2008, 158): Auch eine nur vorübergehende Erlangung der tatsächlichen Gewalt, etwa zur Verwahrung oder Beförderung, ist Erwerb; Mitverfügungsgewalt reicht.'], see: ['besitz'] },
+  besitz: { t: 'Besitz', law: ['besitz'], merk: ['Ausüben der tatsächlichen Gewalt: tatsächliche Möglichkeit, nach eigenem Willen über die Sache zu verfügen, und Herrschaftswille.', 'Eigentum ist unerheblich; Mitbesitz mehrerer ist möglich (z. B. gemeinsame Wohnung, Fahrzeug) – Wissen und Wollen der Mitverfügung festzustellen.', 'Dauerdelikt: beginnt mit dem Erwerb, endet mit Aufgabe der Sachherrschaft.'], hin: ['Wer Waffe und Munition nur in der Wohnung hat, besitzt; wer sie mitnimmt, führt zusätzlich (Tateinheit).'], rspr: ['BGH, Beschl. v. 06.08.2007 – 4 StR 431/06: Mitverfügungsgewalt genügt; ohne eigenen Zugriff kommt nur Beihilfe in Betracht.'], see: ['erwerb', 'fuehren'] },
+  ueberlassen: { t: 'Überlassen', law: ['ueberlassen', 'ueberl34'], merk: ['Einräumen der tatsächlichen Gewalt an einen anderen (Übergabe, Zugriff ermöglichen).', 'Der Überlassende muss im Zeitpunkt der Übergabe selbst die tatsächliche Gewalt haben.', 'Nur an Berechtigte: Die Berechtigung muss offensichtlich sein oder nachgewiesen werden (WBK, Alter, kein Waffenverbot).'], hin: ['Erlaubnispflichtige Waffen/Munition an Nichtberechtigte: Straftat (§ 52 Abs. 3 Nr. 7); erlaubnisfreie: OWi (§ 53 Abs. 1 Nr. 16).', 'Wer erwirbt, um an Nichtberechtigte zu überlassen: § 52 Abs. 1 Nr. 2 Buchst. a.'], see: ['erwerb'] },
+  fuehren: { t: 'Führen', law: ['fuehren'], merk: ['Ausüben der tatsächlichen Gewalt …', '… außerhalb der eigenen Wohnung, der eigenen Geschäftsräume, des eigenen befriedeten Besitztums oder einer Schießstätte.'], hin: ['Die Waffe muss nicht am Körper getragen werden: Tasche, Rucksack, Handschuhfach oder Kofferraum genügen – das Fahrzeug ist kein befriedetes Besitztum.', 'Zugriffsbereitschaft ist kein Merkmal des Führens. Sie entscheidet aber über Ausnahmen: Transport (§ 12 Abs. 3 Nr. 2), Messer (§ 42 Abs. 4a Nr. 3, § 42b), § 42a (verschlossenes Behältnis).', 'Fremde Wohnung/Grundstück: Führen liegt vor, eine Führerlaubnis ist mit Zustimmung des Inhabers entbehrlich (§ 12 Abs. 3 Nr. 1).', 'Munition wird nicht geführt – Mitnahme ist Besitz.'], see: ['zugriffsbereit', 'transport', 'fremd', 'waffenschein'] },
+  zugriffsbereit: { t: 'Zugriffsbereit / nicht zugriffsbereit', law: ['zugriffsbereit'], merk: ['Schusswaffe: zugriffsbereit, wenn sie unmittelbar in Anschlag gebracht werden kann; nicht zugriffsbereit jedenfalls im verschlossenen Behältnis.', 'Messer: nicht zugriffsbereit, wenn es nur mit mehr als drei Handgriffen erreicht werden kann (z. B. Rucksack absetzen, öffnen, Innenfach öffnen, Etui öffnen).'], hin: ['Die Drei-Handgriffe-Regel gilt für § 42 Abs. 4a Nr. 3, § 42 Abs. 5 Satz 3 und § 42b. Für das Führverbot des § 42a zählt allein der Transport im verschlossenen Behältnis.', 'Handgriffe konkret dokumentieren (Lichtbilder, Reihenfolge).'], see: ['schussbereit', 'behaeltnis'] },
+  behaeltnis: { t: 'Verschlossenes Behältnis (§ 42a Abs. 2 Nr. 2)', law: ['f42a'], merk: ['Transport in einem verschlossenen Behältnis.'], hin: ['Gesetzlich nicht definiert. Sicher erfasst: abgeschlossene Behältnisse (Schloss, Zahlenschloss, Plombe). Ob eine nur geschlossene Tasche oder ein zugezogener Reißverschluss genügt, ist nicht geklärt.', 'Für Schusswaffen bestimmt Anlage 1 Abschn. 2 Nr. 13: im verschlossenen Behältnis nicht zugriffsbereit.'], see: ['zugriffsbereit'] },
+  schussbereit: { t: 'Schussbereit', law: ['schussbereit'], merk: ['Geladen: Munition oder Geschosse in Trommel, eingefügtem Magazin oder Patronen-/Geschosslager – auch ungespannt.'], hin: ['Ein eingesetztes, gefülltes Magazin genügt, auch ohne Patrone im Lauf. Der Transport nach § 12 Abs. 3 Nr. 2 verlangt „nicht schussbereit“.'], see: ['zugriffsbereit', 'transport'] },
+  transport: { t: 'Erlaubnisfreier Transport (§ 12 Abs. 3 Nr. 2)', law: ['transport', 'zugriffsbereit', 'schussbereit'], merk: ['Nicht schussbereit (ungeladen).', 'Nicht zugriffsbereit (sicher: verschlossenes Behältnis).', 'Von einem Ort zu einem anderen Ort – Transport, kein Verweilen.', 'Zu einem vom Bedürfnis umfassten Zweck oder im Zusammenhang damit (z. B. Schießstätte, Jagd, Büchsenmacher, Waffenbehörde); bei erlaubnisfreien Waffen ein nachvollziehbarer Anlass (Kauf, Reparatur).'], hin: ['Ohne Besitzerlaubnis hilft das Transportprivileg nicht – der Besitz bleibt strafbar.', 'Das Privileg gilt nicht für das Führverbot bei öffentlichen Veranstaltungen (§ 42 Abs. 1).'], see: ['fuehren'] },
+  fremd: { t: 'Führen im fremden Hausrechtsbereich (§ 12 Abs. 3 Nr. 1)', law: ['fremd'], merk: ['Mit Zustimmung des Berechtigten.', 'In dessen Wohnung, Geschäftsräumen, befriedetem Besitztum oder Schießstätte.', 'Zu einem vom Bedürfnis umfassten Zweck oder im Zusammenhang damit.'], see: ['fuehren'] },
+  schiessen: { t: 'Schießen', law: ['schiessen', 'schiessFrei'], merk: ['Geschosse durch einen Lauf verschießen, Kartuschenmunition abschießen, Reiz-/Wirkstoffe verschießen oder pyrotechnische Munition verschießen.', 'Ohne Erlaubnis nur auf Schießstätten oder in den Fällen des § 12 Abs. 4 (u. a. befriedetes Besitztum mit Zustimmung: ≤ 7,5 J und Geschosse verlassen es nicht, oder reine Kartuschenwaffen).'], hin: ['Der kleine Waffenschein erlaubt nur das Führen – nicht das Schießen in der Öffentlichkeit (z. B. Silvester): § 53 Abs. 1 Nr. 3.', 'Wer außerhalb schießt, führt die Waffe zugleich.', 'Notwehr (§ 32 StGB) kann das Schießen rechtfertigen, nicht aber einen unerlaubten Besitz.'], see: ['s32'] },
+  verbringen: { t: 'Verbringen und Mitnehmen', law: ['verbringen', 'mitnehmen'], merk: ['Verbringen: über die Grenze zum dortigen Verbleib oder mit dem Ziel des Besitzwechsels.', 'Mitnehmen: vorübergehend auf einer Reise ohne Aufgabe des Besitzes zur Verwendung.'], hin: ['Erlaubnispflichtige Schusswaffen nach Deutschland ohne Erlaubnis: § 52 Abs. 1 Nr. 2 Buchst. d; aus Deutschland in einen Mitgliedstaat: § 52 Abs. 3 Nr. 4.', 'Erlaubnisfrei: u. a. F-Druckluftwaffen, zugelassene SRS, Dekowaffen, Armbrüste (Anlage 2 Abschn. 2 UA 2 Nr. 7) – Recht des Zielstaats beachten.', 'Europäischer Feuerwaffenpass und Erlaubnisschein mitführen (§ 38).'] },
+  herstellen: { t: 'Herstellen, Bearbeiten, Instandsetzen', law: ['herstellen', 'bearbeiten'], merk: ['Herstellen: aus Rohteilen ein Endprodukt oder wesentliche Teile erzeugen; Austausch des führenden wesentlichen Teils; Wiederladen von Hülsen.', 'Bearbeiten: Verkürzen, Ändern der Schussfolge, Umbau auf andere Munition, Austausch wesentlicher Teile mit Nacharbeit, beschusspflichtige Arbeiten.'], hin: ['Gewerbsmäßig ohne Erlaubnis (§ 21): § 52 Abs. 1 Nr. 2 Buchst. c; privat ohne Erlaubnis (§ 26): § 52 Abs. 3 Nr. 3.', 'Geringfügige Änderungen an Schaft oder Zieleinrichtung sind kein Bearbeiten.', '3D-gedruckte Schusswaffen und wesentliche Teile: Herstellen.'] },
+  handel: { t: 'Waffenhandel', law: ['handel'], merk: ['Gewerbsmäßig oder selbstständig im Rahmen einer wirtschaftlichen Unternehmung.', 'Ankaufen, Feilhalten, Bestellungen entgegennehmen oder aufsuchen, Überlassen oder Vermitteln – Schusswaffen oder Munition.'], hin: ['Ohne Erlaubnis nach § 21: § 52 Abs. 1 Nr. 2 Buchst. c (6 Monate bis 5 Jahre).', 'Handel mit tragbaren Gegenständen (Messer, Schlagstöcke) ist erlaubnisfrei – mit verbotenen Gegenständen aber strafbar (§ 52 Abs. 3 Nr. 1).'] },
+  aufbew: { t: 'Aufbewahrung (§ 36)', law: ['aufbew', 'p52_3_7'], merk: ['Erforderliche Vorkehrungen gegen Abhandenkommen und unbefugten Zugriff (Einzelheiten: AWaffV, Sicherheitsbehältnisse nach Widerstandsgrad).', 'Straftat (§ 52 Abs. 3 Nr. 7a) nur, wenn dadurch die Gefahr des Abhandenkommens oder unbefugten Zugriffs verursacht wird.'], hin: ['Nr. 7a ist nur vorsätzlich strafbar (§ 52 Abs. 4 nennt Nr. 7a nicht).', 'Auch ohne Straftat: Zweifel an der Zuverlässigkeit (§ 5 Abs. 1 Nr. 2 Buchst. b) – Widerruf der Erlaubnis prüfen.'] },
+  hieb: { t: 'Hieb- und Stoßwaffen', law: ['hieb', 'f42a'], merk: ['Gegenstände, die ihrem Wesen nach dazu bestimmt sind, durch Hieb, Stoß, Stich, Schlag oder Wurf Verletzungen beizubringen.', 'Objektive Zweckbestimmung: Konstruktion als Waffe (Dolch, Stilett, Bajonett, Schwert, Säbel, Schlagstock, Wurfmesser).'], hin: ['Werkzeuge (Küchen-, Jagd-, Arbeitsmesser) sind keine Hieb- und Stoßwaffen, auch wenn sie gefährlich sind.', 'Erlaubnisfrei ab 18; Führen verboten (§ 42a Abs. 1 Nr. 2) außer bei berechtigtem Interesse, im verschlossenen Behältnis oder für Foto/Film/Theater.', 'Bei öffentlichen Veranstaltungen: Straftat nach § 52 Abs. 3 Nr. 9.'], rspr: ['BGH, Beschl. v. 21.04.2022 – 3 StR 81/22: Der Teleskopschlagstock ist eine Hieb- und Stoßwaffe (Anlage 1 Abschn. 1 UA 2 Nr. 1.1), aber kein Totschläger – § 52 Abs. 3 Nr. 1 greift nicht.'], see: ['waffe', 'f42a'] },
+  f42a: { t: 'Führverbot § 42a', law: ['f42a', 'p53_21'], merk: ['Nr. 1: Anscheinswaffen.', 'Nr. 2: Hieb- und Stoßwaffen.', 'Nr. 3: Einhandmesser (Klinge einhändig feststellbar – jede Länge) und feststehende Messer mit Klinge über 12 cm.', 'Ausnahmen: Foto, Film, Fernsehen, Theater; Transport im verschlossenen Behältnis; berechtigtes Interesse (nur Nr. 2 und 3).'], hin: ['Berechtigtes Interesse (Abs. 3): Berufsausübung, Brauchtumspflege, Sport, allgemein anerkannter Zweck – etwa Wandern, Angeln, Picknick, Handwerk. Selbstverteidigung ist kein anerkannter Zweck.', 'Klingenlänge: Länge der Klinge ohne Griff; „einhändig feststellbar“: Öffnen und Arretieren mit einer Hand möglich (Daumenpin, Flipper, Loch).', 'Rechtsfolge: OWi nach § 53 Abs. 1 Nr. 21b, Geldbuße bis 10.000 €.'], see: ['behaeltnis', 'hieb', 'anschein'] },
+  veranst: { t: 'Öffentliche Veranstaltungen (§ 42)', law: ['veranst', 'veranstAusn', 'p52_3_8'], merk: ['Teilnahme an öffentlichen Vergnügungen, Volksfesten, Sportveranstaltungen, Messen, Ausstellungen, Märkten oder ähnlichen Veranstaltungen – auch Theater, Kino, Diskothek, Tanz.', 'Führen einer Waffe i. S. d. § 1 Abs. 2.'], hin: ['Mit einer Waffe: Straftat nach § 52 Abs. 3 Nr. 9 (auch mit Waffenschein oder kleinem Waffenschein). Mit einem Messer: OWi nach § 53 Abs. 1 Nr. 21a (Abs. 4a).', 'Kein Transportprivileg für Waffen. Ausnahmen nur durch Behörde (Abs. 2) und Abs. 4 (Theater, Schießstätte, Schießerlaubnis, gewerbliches Ausstellen).', '„Teilnehmen“: wer die Veranstaltung besucht; bloßes Durchqueren ohne Teilnahme ist Einzelfall.'], see: ['messer4a'] },
+  messer4a: { t: 'Messer bei öffentlichen Veranstaltungen (§ 42 Abs. 4a)', law: ['messer4a', 'p53_21'], merk: ['Seit 31.10.2024: Führverbot für Messer jeder Art bei öffentlichen Veranstaltungen.', 'Zehn abschließende Ausnahmen, u. a. nicht zugriffsbereite Beförderung (Nr. 3), Gastronomie (Nr. 9), allgemein anerkannter Zweck (Nr. 10).'], hin: ['Verstoß: OWi nach § 53 Abs. 1 Nr. 21a.', 'Messer, die zugleich Waffen sind (Spring-, Fall-, Faust-, Butterflymesser, Dolche), fallen unter § 42 Abs. 1 – Straftat.'], see: ['veranst', 'zugriffsbereit'] },
+  f42b: { t: 'Personenfernverkehr (§ 42b)', law: ['f42b', 'bahn42b', 'kontr42c'], merk: ['Verkehrsmittel des öffentlichen Personenfernverkehrs (ICE, IC/EC, Fernbus) und seitlich umschlossene Einrichtungen des Fernverkehrs (Bahnhofsgebäude, Haltepunkte).', 'Waffen i. S. d. § 1 Abs. 2 und Messer.'], hin: ['Ausnahmen für Waffen: Inhaber waffenrechtlicher Erlaubnisse (nicht: kleiner Waffenschein), nicht zugriffsbereite Beförderung, Rettungs- und Einsatzkräfte, Zustimmung des Verkehrsunternehmens. Für Messer zusätzlich alle Ausnahmen des § 42 Abs. 4a Satz 2.', 'Nahverkehr (S-Bahn, RE/RB, Bus, Straßenbahn) ist nicht erfasst – dort nur Landesverordnungen (§ 42 Abs. 5 Satz 1 Nr. 3).', 'Eine Verordnung des BMI nach § 42b Abs. 2 für Bahnanlagen des Bundes ist nicht erlassen (amtlicher Bestand 07.11.2026). Allgemeinverfügungen der Bundespolizei bleiben unberührt (Abs. 2 Satz 4) – ihr Inhalt ist gesondert maßgeblich.', 'Kontrollbefugnis: § 42c (anhalten, befragen, Sachen in Augenschein nehmen, durchsuchen).', 'Verstoß: OWi nach § 53 Abs. 1 Nr. 21c.'], see: ['zone', 'zugriffsbereit'] },
+  zone: { t: 'Waffen- und Messerverbotszonen (§ 42 Abs. 5)', law: ['zone', 'zoneAusn', 'p53_23'], merk: ['Landesverordnung für bestimmte Straßen, Plätze, Gebäude, Verkehrsmittel und Einrichtungen des ÖPNV, Jugend- und Bildungseinrichtungen.', 'Räumlicher und zeitlicher Geltungsbereich laut Verordnung.'], hin: ['Ordnungswidrig nur, wenn die Verordnung auf § 53 Abs. 1 Nr. 23 verweist – immer die konkrete Verordnung (Gebiet, Uhrzeiten, Ausnahmen) prüfen.', 'Die Verordnung muss Ausnahmen für berechtigte Interessen vorsehen; regelmäßig: Erlaubnisinhaber (nicht kleiner Waffenschein), nicht zugriffsbereiter Transport, Rettungskräfte, für Messer die Fälle des § 42 Abs. 4a Satz 2.'], see: ['f42b'] },
+  anschein: { t: 'Anscheinswaffen', law: ['anschein', 'nachbildung', 'f42a'], merk: ['Schusswaffen ohne heiße Gase (Softair, Druckluft) mit dem Gesamterscheinungsbild einer Feuerwaffe, Nachbildungen und unbrauchbar gemachte Schusswaffen mit diesem Aussehen.', 'Nicht: erkennbares Spielzeug (Größe ± 50 %, Neonfarben, keine Kennzeichnungen), Brauchtum, kulturhistorische Sammlung – und Waffen, für deren Führen eine Erlaubnis nötig ist (SRS, F-Druckluftwaffen).'], hin: ['Führverbot § 42a Abs. 1 Nr. 1 (OWi Nr. 21b). Ein berechtigtes Interesse hilft nicht; ausgenommen sind nur Foto/Film/Theater und der Transport im verschlossenen Behältnis.', 'Softair bis 0,5 J und Nachbildungen sind im Übrigen vom WaffG ausgenommen – § 42 und § 42b gelten für sie nicht.'], see: ['f42a'] },
+  spiel: { t: 'Vom Gesetz ausgenommene Gegenstände', law: ['spiel'], merk: ['Spielzeug-Schusswaffen bis 0,5 J (nicht mit gebräuchlichem Werkzeug steigerbar), Blasrohre, Amorces-Spielzeug, Nachbildungen – ausgenommen bis auf § 42a.'], see: ['anschein'] },
+  v141: { t: 'Spring- und Fallmesser', law: ['springDef', 'fallDef', 'v141'], merk: ['Springmesser: Klinge schnellt auf Knopf- oder Hebeldruck hervor und wird festgestellt.', 'Fallmesser: Klinge schnellt durch Schwerkraft oder Schleuderbewegung hervor.', 'Ausnahme (nur Springmesser): Klinge springt seitlich heraus, höchstens 8,5 cm, nicht zweiseitig geschliffen – und berechtigtes Interesse, das eine einhändige Nutzung erfordert, oder Umgang im Zusammenhang mit der Berufsausübung (seit 31.10.2024).'], hin: ['Frontal herausspringende Klingen (OTF) und Fallmesser: immer verboten (§ 52 Abs. 3 Nr. 1).', 'Auch das ausnahmsweise erlaubte Springmesser ist Waffe (§ 1 Abs. 2 Nr. 2 b) und einhändig feststellbar: Führverbot § 42a Abs. 1 Nr. 3, bei Veranstaltungen § 52 Abs. 3 Nr. 9.', 'Abgrenzung Einhandmesser: Die Klinge wird von Hand (Daumen, Flipper) geöffnet, nicht durch Federkraft auf Knopfdruck – „Assisted Opening“ mit Federunterstützung nach manuellem Anschub ist umstritten.'], see: ['f42a'] },
+  faustDef: { t: 'Faustmesser', law: ['faustDef', 'faust40'], merk: ['Griff quer zur Klinge; bestimmungsgemäß in der geschlossenen Faust geführt.'], hin: ['Verboten (Anlage 2 Abschn. 1 Nr. 1.4.2) – Ausnahme für Jäger und Leder/Pelz verarbeitende Berufe zur Ausübung der Tätigkeit (§ 40 Abs. 3).'] },
+  butterflyDef: { t: 'Butterflymesser', law: ['butterflyDef'], merk: ['Faltmesser mit zweigeteilten, schwenkbaren Griffen (Balisong).'], hin: ['Ausnahmslos verboten (Anlage 2 Abschn. 1 Nr. 1.4.3) – auch Trainer mit stumpfer Klinge, wenn sie die Merkmale erfüllen; Zweifel: Feststellungsbescheid BKA.'] },
+  v131: { t: 'Getarnte Hieb- und Stoßwaffen', law: ['v131'], merk: ['Täuschen ihrer Form nach einen anderen Gegenstand vor oder sind mit Alltagsgegenständen verkleidet.'], hin: ['Beispiele: Stockdegen, Gürtelschnallendolch, Kugelschreiber- oder Kreditkartenmesser, Haarbürstendolch.'] },
+  automatik: { t: 'Voll- und Halbautomaten', law: ['automatik', 'langkurz'], merk: ['Halbautomat: lädt selbsttätig nach, je Abzug ein Schuss. Vollautomat: mehrere Schüsse je Abzug.', 'Double-Action-Revolver sind keine Halbautomaten.', 'Kurzwaffe: Lauf und Verschluss bis 30 cm oder Gesamtlänge bis 60 cm.'], hin: ['Halbautomatische Kurzwaffe ohne Erlaubnis: § 52 Abs. 1 Nr. 2 Buchst. b (6 Monate bis 5 Jahre, Versuch strafbar). Ein Gesetzentwurf (BT-Drs. 21/7557), dies zum Verbrechen nach § 51 hochzustufen, ist im amtlichen Stand vom 22.10.2026 nicht enthalten.', 'Vollautomaten: § 51 (Verbrechen) bzw. KrWaffKontrG, wenn in der Kriegswaffenliste.'], see: ['langkurz'] },
+  langkurz: { t: 'Lang- und Kurzwaffen', law: ['langkurz', 'feuerwaffe'], merk: ['Langwaffe: Lauf und Verschluss zusammen länger als 30 cm und kürzeste bestimmungsgemäße Gesamtlänge über 60 cm.', 'Kurzwaffe: alle anderen Schusswaffen (Pistolen, Revolver).'] },
+  v1211: { t: 'Verbotene Schusswaffen nach § 51', law: ['v1211', 'p51'], merk: ['Vollautomaten (auch zurückänderbare umgebaute Vollautomaten).', 'Vorderschaftrepetierflinten mit Kurzwaffengriff anstelle des Hinterschaftes, Gesamtlänge unter 95 cm oder Lauf unter 45 cm.'], hin: ['§ 51 Abs. 1 ist ein Verbrechen: 1 bis 5 Jahre; Versuch stets strafbar; fahrlässig bis 2 Jahre.', 'Kriegswaffen (z. B. Sturmgewehre der KWL Nr. 29) unterfallen allein dem KrWaffKontrG (§ 57 WaffG).'], see: ['kw'] },
+  v122: { t: 'Getarnte und verkürzbare Schusswaffen', law: ['v122'], merk: ['Täuschen einen anderen Gegenstand vor (Koppelschloss-, Kugelschreiber-, Stock-, Taschenlampenpistolen).', 'Über das jagdlich-sportlich übliche Maß hinaus zusammenklappbar, -schiebbar, verkürzbar oder schnell zerlegbar (Nr. 1.2.3).'] },
+  teile: { t: 'Wesentliche Teile und Schalldämpfer', law: ['teile'], merk: ['Lauf/Gaslauf, Verschluss (Kopf und Träger), Patronenlager, Gehäuse (Ober- und Unterteil, bei Kurzwaffen: Griffstück), vorgearbeitete Teile.', 'Stehen der Schusswaffe gleich, für die sie bestimmt sind.'], hin: ['Teile einer halbautomatischen Kurzwaffe: wie die Waffe selbst nach § 52 Abs. 1 Nr. 2 Buchst. b.'] },
+  srsDef: { t: 'Schreckschuss-, Reizstoff- und Signalwaffen', law: ['srsDef', 'frei13', 'kwsDef'], merk: ['Kartuschenlager zum Abschießen von Kartuschenmunition, Reizstoffen oder pyrotechnischer Munition.', 'Erlaubnisfrei (Erwerb, Besitz ab 18) nur mit Zulassungszeichen „PTB im Kreis“ bzw. nach EU-Durchführungsrichtlinie 2019/69.'], hin: ['Führen nur mit kleinem Waffenschein (§ 10 Abs. 4 Satz 4); ohne ihn: Straftat nach § 52 Abs. 3 Nr. 2 Buchst. a.', 'Schießen nur auf Schießstätten oder im befriedeten Besitztum (§ 12 Abs. 4) – sonst OWi (§ 53 Abs. 1 Nr. 3), auch an Silvester.', 'Ohne Zulassungszeichen: erlaubnispflichtig wie eine scharfe Waffe.'], see: ['kwsDef', 'schiessen'] },
+  frei13: { t: 'SRS-Waffen mit Zulassung', law: ['frei13', 'kwsDef'], see: ['srsDef'] },
+  kwsDef: { t: 'Kleiner Waffenschein', law: ['waffenschein', 'kwsDef'], merk: ['Erlaubnis zum Führen zugelassener SRS-Waffen – ohne Sachkunde-, Bedürfnis- und Versicherungsnachweis; Zuverlässigkeit und persönliche Eignung, Alter 18.'], hin: ['Erlaubt nicht das Schießen außerhalb der Fälle des § 12 Abs. 4.', 'Kein Freibrief bei öffentlichen Veranstaltungen (§ 42 Abs. 1) und im Fernverkehr (§ 42b) – dort ausdrücklich keine Ausnahme.', 'Mitführen mit Ausweis (§ 38; OWi Nr. 20).'], see: ['srsDef'] },
+  waffenschein: { t: 'Waffenschein', law: ['waffenschein', 'ausweis38'], merk: ['Erlaubnis zum Führen bestimmter Schusswaffen, höchstens drei Jahre, ggf. örtlich oder anlassbezogen beschränkt.'], hin: ['Die WBK erlaubt nur Erwerb und Besitz – nicht das Führen.', 'Jäger führen Jagdwaffen zur Jagd ohne Waffenschein (§ 13 Abs. 6).'], see: ['wbk', 'jagd'] },
+  wbk: { t: 'Waffenbesitzkarte', law: ['wbk', 'munErl'], merk: ['Erlaubnis zum Erwerb und Besitz (Art, Anzahl, Kaliber); Erwerbserlaubnis ein Jahr, Besitz unbefristet.', 'Munition: Eintragung in der WBK für die eingetragenen Waffen, sonst Munitionserwerbsschein.'], hin: ['Vorübergehender Erwerb ohne Eintragung: § 12 Abs. 1 (z. B. bis zu einem Monat von einem Berechtigten für einen vom Bedürfnis umfassten Zweck).'], see: ['ausn12'] },
+  ausn12: { t: 'Ausnahmen von der Erlaubnispflicht (§ 12 Abs. 1)', law: ['ausn12'] },
+  jagd: { t: 'Jäger (§ 13 Abs. 6)', law: ['jagd'], merk: ['Führen und Schießen mit Jagdwaffen zur befugten Jagdausübung, zum Ein- und Anschießen im Revier, zur Hundeausbildung, zum Jagd- und Forstschutz.', 'Auf dem Weg dorthin: nicht schussbereit.'], hin: ['Jahresjagdschein: Erwerb von Langwaffen ohne Erlaubnis, WBK binnen zwei Wochen beantragen (§ 13 Abs. 3); Langwaffenmunition erlaubnisfrei (§ 13 Abs. 5).'] },
+  frei11: { t: 'Druckluft-, CO₂- und Federdruckwaffen bis 7,5 J', law: ['druckDef', 'frei11'], merk: ['Höchstens 7,5 J und Kennzeichen „F im Fünfeck“.', 'Erlaubnisfrei nur Erwerb und Besitz ab 18.'], hin: ['Führen nur mit Waffenschein – zugriffsbereit in der Öffentlichkeit: Straftat (§ 52 Abs. 3 Nr. 2 Buchst. a). Transport nicht schuss- und nicht zugriffsbereit ist erlaubt.', 'Schießen: Schießstätte oder befriedetes Besitztum mit Zustimmung, wenn die Geschosse es nicht verlassen.', 'Keine Anscheinswaffen, weil das Führen erlaubnispflichtig ist.'], see: ['transport', 'schiessen'] },
+  druckDef: { t: 'Druckluft- und Federdruckwaffen', law: ['druckDef'], see: ['frei11'] },
+  freiAntik: { t: 'Antike Schusswaffen (Modell vor 1871)', law: ['freiAntik', 'freiFuehren'], merk: ['Erlaubnisfrei Erwerb und Besitz: einläufige Perkussions-Einzellader, Lunten-/Funkenschlosswaffen, Zündnadelwaffen – jeweils Modell vor 1871 (Repliken eingeschlossen).', 'Erlaubnisfrei führen: nur Lunten- und Funkenschlosswaffen (Nr. 3.1).'], hin: ['Perkussionsrevolver und mehrläufige Perkussionswaffen sind nicht freigestellt.', 'Schwarzpulver unterfällt dem Sprengstoffgesetz.'] },
+  freiFuehren: { t: 'Erlaubnisfreies Führen', law: ['freiFuehren'], merk: ['Lunten-/Funkenschlosswaffen vor 1871, Armbrüste, unbrauchbar gemachte Schusswaffen.'], hin: ['Dekowaffen mit dem Aussehen einer Feuerwaffe bleiben Anscheinswaffen – Führverbot § 42a.'] },
+  dekoDef: { t: 'Dekorationswaffen', law: ['dekoDef'], merk: ['EU-Deaktivierungsbescheinigung und Kennzeichnung nach DVO (EU) 2015/2403.'], hin: ['Ohne Bescheinigung und Kennzeichnung: nicht unbrauchbar im Rechtssinn – wie die ursprüngliche Schusswaffe prüfen.', 'Anzeigepflicht § 37d (Verstoß: § 53 Abs. 1 Nr. 8).'], see: ['anschein'] },
+  salutDef: { t: 'Salutwaffen', law: ['salutDef'], merk: ['Umgebaute Langwaffen für Kartuschenmunition (Theater, Film, Brauchtum).'], hin: ['Erlaubnispflichtig (WBK); Bedürfnis nach § 39b.'] },
+  munErl: { t: 'Munition', law: ['munErl', 'p52_3_2'], merk: ['Patronenmunition für erlaubnispflichtige Schusswaffen: Erwerb und Besitz nur mit Eintragung in der WBK oder Munitionserwerbsschein.'], hin: ['Ohne Erlaubnis: § 52 Abs. 3 Nr. 2 Buchst. b. Munition wird nicht „geführt“.', 'Kartuschenmunition für zugelassene SRS: erlaubnisfrei ab 18.'] },
+  v15: { t: 'Verbotene Munition', law: ['v15', 'p52_3_1'], merk: ['Nr. 1.5.3 bis 1.5.7: u. a. Treibspiegel-, Hartkern-, panzerbrechende, Spreng-, Brand-, Leuchtspurmunition, bestimmte Knallkartuschen und Kleinschrot, Munition nur für Kriegswaffen/Behörden.'], hin: ['Nr. 1.5.1 und 1.5.2 (Betäubungs- und Reizstoffgeschosse ohne Prüfzeichen) sind verboten, aber nicht strafbewehrt.'] },
+  reizDef: { t: 'Reizstoffsprühgeräte', law: ['reizDef', 'v135', 'jugendReiz'], merk: ['Reizstoff-Reichweite bis 2 m.', 'Erlaubt nur mit amtlicher Zulassung, begrenzter Reichweite und Sprühdauer und amtlichem Prüfzeichen – sonst verboten (Nr. 1.3.5).'], hin: ['Geprüfte Reizstoffsprühgeräte: Umgang ab 14 (§ 3 Abs. 2), Führen erlaubt – aber nicht bei öffentlichen Veranstaltungen (Straftat § 52 Abs. 3 Nr. 9) und im Fernverkehr (§ 42b).', 'Tierabwehrsprays ohne Prüfzeichen, die ausschließlich gegen Tiere bestimmt sind, sind keine Waffen; im Zweifel BKA-Feststellung (§ 2 Abs. 5).'] },
+  eigDef: { t: 'Elektroimpulsgeräte', law: ['eigDef', 'v136', 'v144'], merk: ['Kontaktgeräte mit amtlicher Zulassung und Prüfzeichen: erlaubnisfreie Waffe ab 18.', 'Ohne Prüfzeichen: verboten (Nr. 1.3.6).', 'Distanz-Elektroimpulsgeräte (Taser): immer verboten.'] },
+  armbrustDef: { t: 'Armbrüste', law: ['armbrustDef', 'freiFuehren'], merk: ['Schusswaffen gleichgestellt; erlaubnisfrei Erwerb, Besitz und Führen ab 18.'], hin: ['Schießen außerhalb von Schießstätten ohne Erlaubnis: OWi (§ 53 Abs. 1 Nr. 3), da Armbrüste regelmäßig über 7,5 J liegen.', 'Als Waffe: Führverbot bei öffentlichen Veranstaltungen (Straftat) und im Fernverkehr.'] },
+  schusswaffe: { t: 'Schusswaffe', law: ['schusswaffe', 'armbrustDef'], merk: ['Bestimmung zu Angriff, Verteidigung, Signal, Jagd, Distanzinjektion, Markierung, Sport oder Spiel.', 'Geschosse werden durch einen Lauf getrieben.'], hin: ['Pfeilbogen haben keinen Lauf und keine Sperrvorrichtung – keine Schusswaffen.'] },
+  kw: { t: 'Kriegswaffen', law: ['kw57', 'kwDef', 'kw22a', 'kw22ar'], merk: ['Gegenstände der Kriegswaffenliste (Anlage zum KrWaffKontrG), z. B. Maschinenpistolen, Sturmgewehre, Handgranaten, Panzerfäuste.'], hin: ['Das WaffG gilt nicht (§ 57 Abs. 1); Strafbarkeit allein nach § 22a KrWaffKontrG (Verbrechen, 1 bis 5 Jahre).', 'Freiwillige, unverzügliche Ablieferung kann Straffreiheit bewirken (§ 22a Abs. 5).'] },
+  alter: { t: 'Altersgrenzen', law: ['alter', 'jugendReiz', 'kinderJug', 'p53_1'], merk: ['Umgang mit Waffen grundsätzlich ab 18 (§ 2 Abs. 1).', 'Geprüfte Reizstoffsprühgeräte ab 14 (§ 3 Abs. 2); Ausbildung/Arbeit unter Aufsicht (§ 3 Abs. 1); behördliche Ausnahmen (§ 3 Abs. 3).'], hin: ['Messer ohne Waffeneigenschaft haben keine Altersgrenze.', 'Erwerb/Besitz erlaubnisfreier Waffen unter 18: OWi § 53 Abs. 1 Nr. 1.', 'Kinder unter 14: schuldunfähig (§ 19 StGB) bzw. nicht vorwerfbar (§ 12 Abs. 1 OWiG) – Überlassenden prüfen (§ 34).'] },
+  vorsatz: { t: 'Vorsatz, Fahrlässigkeit, Irrtum', law: ['s15', 's16', 's17', 'o10', 'o11'], merk: ['Vorsatz: Wissen und Wollen aller Tatumstände – Art und Beschaffenheit des Gegenstands (Öffnungsmechanismus, Klingenlänge, Joule, Zulassungszeichen), Ort, Fehlen der Erlaubnis. Eventualvorsatz genügt.', 'Fahrlässigkeit nur strafbar, wo das Gesetz es bestimmt (§ 52 Abs. 4, § 51 Abs. 4); Ordnungswidrigkeiten nach § 53 auch fahrlässig.'], hin: ['Irrtum über Tatumstände (z. B. „dachte, die Klinge sei kürzer“): kein Vorsatz (§ 16 StGB) – Fahrlässigkeit prüfen.', 'Irrtum über das Verbot („wusste nicht, dass Butterflymesser verboten sind“): Verbotsirrtum (§ 17 StGB), in der Regel vermeidbar – Erkundigungspflicht.', 'Beweisanzeichen dokumentieren: Erwerbsweg, Verpackung, Hinweise des Verkäufers, Einlassung.'] },
+  konkurrenz: { t: 'Konkurrenzen', law: ['s52', 'o19', 'o21'], merk: ['Mehrere Straftatbestände durch dieselbe Handlung: Tateinheit, Strafe aus dem schwersten Gesetz.', 'Straftat und OWi: nur das Strafgesetz; die OWi kann geahndet werden, wenn keine Strafe verhängt wird.', 'Mehrere OWi durch dieselbe Handlung: eine Geldbuße.'], hin: ['Besitz und Führen derselben Waffe: einheitliches Dauerdelikt.'] },
+  einzug: { t: 'Einziehung (§ 54)', law: ['einzug'], merk: ['Zwingend bei §§ 51, 52 Abs. 1, 2, Abs. 3 Nr. 1 bis 3, Abs. 5.', 'Im Übrigen (sonstige Straftaten nach § 52, OWi nach § 53) möglich.'], hin: ['Sicherstellung/Beschlagnahme vor Ort nach StPO bzw. Polizeirecht.'] },
+  ausnahme: { t: 'Behördliche Ausnahmen', law: ['bka40', 'ausn12'], merk: ['Verbotene Waffen: behördlicher oder gerichtlicher Auftrag (§ 40 Abs. 2), Ausnahme des BKA (§ 40 Abs. 4).', 'Erlaubnispflicht: Ausnahmen nach § 12 Abs. 1 bis 4, Einzelfallausnahme (§ 12 Abs. 5).', 'Veranstaltungen: Ausnahme der Behörde (§ 42 Abs. 2).'] },
+  fund: { t: 'Fund und Erbe', law: ['fund40', 'fund37c'], merk: ['Verbotene Waffen: unverzügliche Anzeige; das Verbot wird während der behördlichen Frist nicht wirksam (§ 40 Abs. 5).', 'Erlaubnispflichtige Waffen: unverzügliche Anzeige (§ 37c Abs. 1); Erben: WBK binnen eines Monats beantragen (§ 20).'] },
+  verbot41: { t: 'Waffenverbot im Einzelfall (§ 41)', law: ['verbot41', 'p52_3_8'], merk: ['Vollziehbare Untersagung von Erwerb und Besitz – auch erlaubnisfreier Waffen.'], hin: ['Zuwiderhandlung: Straftat nach § 52 Abs. 3 Nr. 8; im Nationalen Waffenregister abfragen.'] },
+  s32: { t: 'Notwehr', law: ['s32'], hin: ['Rechtfertigt die Verteidigungshandlung (z. B. den Schuss), nicht den vorangehenden unerlaubten Besitz oder das Führen.'] },
+  ueberl34: { t: 'Überlassen an Berechtigte (§ 34)', law: ['ueberl34'], see: ['ueberlassen'] },
+  erlPflicht: { t: 'Erlaubnispflicht (Anlage 2 Abschn. 2 UA 1)', law: ['erlPflicht'], merk: ['Erlaubnispflichtig ist der Umgang – außer Überlassen – mit Schusswaffen und der dafür bestimmten Munition, soweit nicht freigestellt.'], hin: ['Tragbare Gegenstände (Messer, Hieb- und Stoßwaffen, Reizstoff- und Elektroimpulsgeräte) sind nie erlaubnispflichtig – sie sind erlaubnisfrei oder verboten.'] },
+  verboten: { t: 'Verbotene Waffen (Anlage 2 Abschn. 1)', law: ['p52_3_1', 'p52_1'], merk: ['Der Umgang ist verboten (§ 2 Abs. 3) – auch Besitz zu Hause.'], hin: ['Strafrahmen nach Nummer: § 51 (Vollautomaten, bestimmte Pumpguns), § 52 Abs. 1 Nr. 1 (Nr. 1.1, 1.3.4), § 52 Abs. 3 Nr. 1 (übrige).', 'Einziehung zwingend (§ 54 Abs. 1).'] }
+};
+const WF_TIP_ALIAS = { springDef: 'v141', fallDef: 'v141', v132: 'verboten', v133: 'verboten', v134: 'verboten', v135: 'reizDef', v136: 'eigDef', v137: 'verboten', v138: 'verboten', v144: 'eigDef', nachbildung: 'anschein', p52_3_1: 'verboten', faust40: 'faustDef', schiessFrei: 'schiessen', mitnehmen: 'verbringen', bearbeiten: 'herstellen', ausweis38: 'waffenschein', kwDef: 'kw', kw57: 'kw', kw22a: 'kw', s15: 'vorsatz', s16: 'vorsatz', s17: 'vorsatz', o10: 'vorsatz', o11: 'vorsatz', s52: 'konkurrenz', o19: 'konkurrenz', o21: 'konkurrenz', fund40: 'fund', fund37c: 'fund', bka40: 'ausnahme', f42b: 'f42b', bahn42b: 'f42b', zoneAusn: 'zone', veranstAusn: 'veranst', p53_21: 'f42a', p53_23: 'zone', p53_1: 'alter', jugendReiz: 'alter', kinderJug: 'alter', p53_3: 'schiessen', p53_16: 'ueberlassen', p52_3_7: 'aufbew', p52_3_8: 'verbot41', p52_3_2: 'erlPflicht', p52_1_2b: 'automatik', p51: 'v1211', frei13: 'srsDef' };
 
 /* ---------- Prüfstand: Oberfläche ---------- */
 const WF_LEVEL = {
@@ -2883,112 +3160,112 @@ const WF_LEVEL = {
   owi: { label: 'Ordnungswidrigkeit', short: 'OWi', c: COLORS.gelb },
   straftat: { label: 'Straftat', short: 'Straftat', c: COLORS.koralle }
 };
+const O = (value, label, desc, i) => ({ value, label, desc, i });
 const WF_OBJ = [
-  { value: 'messer', label: 'Messer / Klinge', desc: 'Klapp-, Einhand-, Spring-, feststehend …' },
-  { value: 'schuss', label: 'Scharfe Schusswaffe', desc: 'Pistole, Revolver, Gewehr (auch Deko/Antik)' },
-  { value: 'srs', label: 'Schreckschuss / Reizstoff / Signal', desc: 'SRS-Waffe mit/ohne PTB-Zeichen' },
-  { value: 'druck', label: 'Druckluft / Softair', desc: 'Luftgewehr, -pistole, Softair' },
-  { value: 'munition', label: 'Munition', desc: 'Patronen, Kartuschen, Geschosse' },
-  { value: 'anschein', label: 'Anscheinswaffe', desc: 'täuschend echte Nachbildung / Deko' },
-  { value: 'kriegswaffe', label: 'Kriegswaffe', desc: 'Vollautomat, Granate, panzerbrechend (KrWaffKG)' },
-  { value: 'sonstige', label: 'Hieb-/Stoßwaffe & Sonstige', desc: 'Schlagstock, Schlagring, Pfefferspray, Armbrust …' }
+  O('messer', 'Messer / Klinge', 'Einhand-, Spring-, Butterfly-, feststehende Messer …', 'waffe'),
+  O('schuss', 'Scharfe Schusswaffe', 'Pistole, Revolver, Gewehr, Vollautomat, Teile', 'erlPflicht'),
+  O('srs', 'Schreckschuss / Reizstoff / Signal', 'SRS-Waffen mit oder ohne PTB-Zeichen', 'srsDef'),
+  O('druck', 'Druckluft / CO₂ / Softair', 'Luftgewehr, Luftpistole, Softair', 'frei11'),
+  O('hist', 'Antik-, Deko- & Salutwaffen', 'Vorderlader vor 1871, Dekowaffen, Salutwaffen', 'freiAntik'),
+  O('munition', 'Munition', 'Patronen, Kartuschen, verbotene Munition', 'munErl'),
+  O('hieb', 'Hieb-, Stoß- & Schlagwaffen', 'Schlagstock, Teleskop, Dolch, Schlagring, Nun-Chaku …', 'hieb'),
+  O('sonst', 'Reizstoff, Elektroimpuls & Sonstige', 'Pfefferspray, Elektroschocker, Taser, Armbrust, Zwille, Molotow …', 'reizDef'),
+  O('anschein', 'Anscheinswaffe / Nachbildung', 'Softair bis 0,5 J, Attrappen, Spielzeug', 'anschein'),
+  O('kriegswaffe', 'Kriegswaffe', 'Sturmgewehr, MP, Handgranate (KrWaffKontrG)', 'kw')
 ];
-const WF_HANDLUNG = { besitz: 'Besitz', transport: 'Transport', fuehren: 'Führen' };
-const wf = { st: WF_DEFAULT(), res: null, gen: '', text: '', edited: false, title: '', ver: 1, drawn: 0, histHtml: null, savedSig: '', savedId: null };
+const WF_ITEMS = {
+  messer: ['messer', 'Bauart', [O('einhand', 'Einhandmesser', 'Klinge einhändig feststellbar (Daumenpin, Flipper)', 'f42a'), O('feststehend', 'Feststehendes Messer', 'Küchen-, Jagd-, Outdoor- oder Kampfmesser', 'f42a'), O('klapp', 'Zweihand-Klappmesser', 'nur beidhändig zu öffnen', 'messer4a'), O('multi', 'Taschenmesser / Multitool', 'kleines Klappmesser, Werkzeug', 'messer4a'), O('spring', 'Springmesser', 'Klinge schnellt auf Knopfdruck heraus', 'v141'), O('fall', 'Fallmesser', 'Klinge fällt durch Schwerkraft heraus', 'v141'), O('faust', 'Faustmesser', 'Griff quer zur Klinge', 'faustDef'), O('butterfly', 'Butterfly / Balisong', 'zweigeteilter, schwenkbarer Griff', 'butterflyDef'), O('getarnt', 'Getarntes Messer', 'Gürtelschnalle, Kugelschreiber, Kreditkarte', 'v131')]],
+  schuss: ['schuss', 'Waffenart', [O('kurzHalb', 'Pistole (halbautomatisch)', 'Selbstladepistole für Patronenmunition', 'automatik'), O('kurzSonst', 'Revolver / sonstige Kurzwaffe', 'Revolver, Repetier-, Einzellader-Kurzwaffe', 'langkurz'), O('lang', 'Langwaffe', 'Büchse, Flinte – auch halbautomatisch', 'langkurz'), O('voll', 'Vollautomat', 'Dauerfeuer – § 51', 'v1211'), O('pump', 'Pumpgun mit Pistolengriff', 'oder < 95 cm / Lauf < 45 cm – § 51', 'v1211'), O('getarnt', 'Getarnte / verkürzbare Schusswaffe', 'Kugelschreiber-, Koppelschloss-, Stockpistole', 'v122'), O('teil', 'Wesentliches Teil / Schalldämpfer', 'Lauf, Verschluss, Gehäuse, Griffstück', 'teile')]],
+  srs: ['srs', 'Kennzeichnung', [O('ptb', 'Mit Zulassungszeichen (PTB im Kreis)', 'oder EU-konform nach RL 2019/69', 'srsDef'), O('ohne', 'Ohne Zulassungszeichen', 'z. B. Import ohne Zulassung', 'srsDef')]],
+  druck: ['druck', 'Energie und Kennzeichnung', [O('spiel05', 'Softair bis 0,5 J', 'Spielzeug-Energie', 'spiel'), O('f75', 'Bis 7,5 J mit „F im Fünfeck“', 'erlaubnisfrei Erwerb und Besitz', 'frei11'), O('alt70', 'Hergestellt vor 1970', 'ohne F-Zeichen, Altbestand', 'druckDef'), O('ueber75', 'Über 7,5 J', 'erlaubnispflichtig', 'erlPflicht')]],
+  hist: ['hist', 'Art', [O('lunte', 'Lunten- / Funkenschloss', 'Modell vor 1871', 'freiAntik'), O('perk', 'Perkussions-Einzellader, einläufig', 'Vorderlader mit Zündhütchen, Modell vor 1871', 'freiAntik'), O('zuend', 'Zündnadelwaffe', 'Modell vor 1871', 'freiAntik'), O('perkMehr', 'Perkussionsrevolver / mehrläufig', 'nicht freigestellt', 'freiAntik'), O('deko', 'Dekowaffe', 'mit EU-Deaktivierungsbescheinigung', 'dekoDef'), O('salut', 'Salutwaffe', 'umgebaut für Kartuschen', 'salutDef')]],
+  munition: ['mun', 'Munitionsart', [O('patrone', 'Patronenmunition', 'für erlaubnispflichtige Schusswaffen', 'munErl'), O('kartusche', 'Kartuschen für SRS', 'mit Prüfzeichen', 'munErl'), O('verboten', 'Verbotene Munition', 'Hartkern, Leuchtspur, Brand, Spreng, Treibspiegel', 'v15'), O('reizGeschoss', 'Reizstoff-/Betäubungsgeschosse', 'ohne Prüfzeichen (Nr. 1.5.1/1.5.2)', 'v15'), O('kw', 'Kriegswaffenmunition', 'Kriegswaffenliste', 'kw')]],
+  hieb: ['hieb', 'Gegenstand', [O('schlagstock', 'Schlagstock', 'Hieb- und Stoßwaffe', 'hieb'), O('teleskop', 'Teleskopschlagstock', 'BGH 3 StR 81/22: kein Totschläger', 'hieb'), O('blank', 'Dolch, Bajonett, Schwert, Säbel', 'auch Wurfmesser', 'hieb'), O('schlagring', 'Schlagring / Totschläger / Stahlrute', 'verboten', 'verboten'), O('nunchaku', 'Nun-Chaku', 'Würgeholz – verboten', 'verboten'), O('wurfstern', 'Wurfstern', 'verboten', 'verboten'), O('getarnt', 'Getarnte Hieb-/Stoßwaffe', 'Stockdegen, Gürtelschnallendolch', 'v131')]],
+  sonst: ['sonst', 'Gegenstand', [O('reizPtb', 'Reizstoffsprühgerät mit Prüfzeichen', 'Pfeffer-/CS-Spray, ab 14', 'reizDef'), O('reizOhne', 'Reizstoffgerät ohne Prüfzeichen', 'gegen Menschen bestimmt – verboten', 'reizDef'), O('tierSpray', 'Tierabwehrspray', 'nur gegen Tiere bestimmt', 'reizDef'), O('eigPtb', 'Elektroschocker mit Prüfzeichen', 'Kontaktgerät', 'eigDef'), O('eigOhne', 'Elektroschocker ohne Prüfzeichen', 'verboten', 'eigDef'), O('taser', 'Distanz-Elektroimpulsgerät', 'Taser – immer verboten', 'eigDef'), O('tierEig', 'Elektroimpulsgerät gegen Tiere', 'ohne Prüfzeichen, kein Viehtreiber', 'eigDef'), O('armbrust', 'Armbrust', 'Schusswaffen gleichgestellt', 'armbrustDef'), O('schleuder', 'Präzisionsschleuder', 'Zwille mit Armstütze – verboten', 'verboten'), O('brand', 'Brand- / Sprengvorrichtung', 'Molotow-Cocktail u. ä.', 'verboten'), O('bogen', 'Bogen, Blasrohr, Harpune', 'nicht oder kaum erfasst', 'schusswaffe')]],
+  anschein: ['anschein', 'Art', [O('softair', 'Softair bis 0,5 J, täuschend echt', 'Anscheinswaffe', 'anschein'), O('nachbildung', 'Nachbildung / Attrappe', 'nicht schießfähig', 'anschein'), O('spielzeug', 'Erkennbares Spielzeug', 'Neonfarben, ±50 % Größe', 'anschein')]]
+};
+const WF_HANDLUNG_OPTS = [O('besitz', 'Besitz', 'tatsächliche Gewalt, z. B. zu Hause', 'besitz'), O('erwerb', 'Erwerb', 'tatsächliche Gewalt erlangen – auch kurz', 'erwerb'), O('fuehren', 'Führen', 'außerhalb der eigenen Räume dabeihaben', 'fuehren'), O('ueberlassen', 'Überlassen', 'einem anderen die Gewalt einräumen', 'ueberlassen'), O('schiessen', 'Schießen', 'Geschosse, Kartuschen, Reizstoff, Pyrotechnik', 'schiessen'), O('verbringen', 'Verbringen / Mitnehmen', 'über die Grenze', 'verbringen'), O('herstellen', 'Herstellen / Bearbeiten', 'bauen, umbauen, verkürzen, instand setzen', 'herstellen'), O('handel', 'Handel treiben', 'gewerbsmäßig ankaufen, feilhalten, vermitteln', 'handel'), O('aufbewahrung', 'Aufbewahrung', 'Sicherung gegen Abhandenkommen', 'aufbew')];
+const WF_ORT_OPTS = [O('oeffentlich', 'Öffentlicher Raum', 'Straße, Park, Auto', 'fuehren'), O('veranstaltung', 'Öffentliche Veranstaltung', 'Volksfest, Markt, Kino, Disko, Stadion – § 42', 'veranst'), O('fernverkehr', 'Personenfernverkehr', 'ICE/IC, Fernbus, Fernbahnhof – § 42b', 'f42b'), O('zone', 'Verbotszone / ÖPNV-Verordnung', 'Landesverordnung – § 42 Abs. 5', 'zone'), O('fremd', 'Fremde Wohnung / Grundstück', 'mit Zustimmung – § 12 Abs. 3 Nr. 1', 'fremd'), O('eigen', 'Eigene Wohnung / Grundstück', 'kein Führen, nur Besitz', 'fuehren')];
+const WF_ZUGRIFF_OPTS = [O('zugriff', 'Zugriffsbereit', 'griffbereit am Körper, in Jacke, Handschuhfach', 'zugriffsbereit'), O('nicht', 'Nicht zugriffsbereit', 'Messer: mehr als 3 Handgriffe', 'zugriffsbereit'), O('behaeltnis', 'Verschlossenes Behältnis', 'abgeschlossen (Schloss, Plombe)', 'behaeltnis')];
+const WF_ZWECK_OPTS = [O('keiner', 'Kein besonderer Zweck', '', null), O('beruf', 'Berufsausübung', 'Handwerk, Gewerbe, Dienst', 'f42a'), O('sport', 'Sport, Jagd, Brauchtum', '', 'f42a'), O('anerkannt', 'Allgemein anerkannter Zweck', 'Wandern, Angeln, Picknick, Camping', 'f42a'), O('gastro', 'Gastronomie', 'Betrieb, Personal, Gäste', 'messer4a'), O('film', 'Foto, Film, Theater', '', 'f42a'), O('rettung', 'Rettungs-/Einsatzkräfte', 'Zivil- und Katastrophenschutz', 'messer4a'), O('anliefer', 'Anlieferverkehr', '', 'messer4a'), O('hausrecht', 'Zustimmung des Hausrechtsinhabers', 'z. B. Verkehrsunternehmen', 'f42b')];
+const WF_SCHUSSORT_OPTS = [O('stand', 'Schießstätte', 'zugelassene Anlage – § 27', 'schiessen'), O('besitztum', 'Befriedetes Besitztum', 'eigener Garten mit Zustimmung', 'schiessen'), O('sonst', 'Sonstiger Ort', 'öffentlich, Feld, Silvester auf der Straße', 'schiessen'), O('notwehr', 'Notwehrlage', '§ 32 StGB', 's32')];
+const WF_GRENZE_OPTS = [O('rein', 'Nach / durch Deutschland', '', 'verbringen'), O('eu', 'Aus Deutschland in einen EU-/Schengen-Staat', '', 'verbringen'), O('dritt', 'In einen Drittstaat', '', 'verbringen')];
+const WF_ERL_OPTS = [O('keine', 'Keine Erlaubnis', '', null), O('wbk', 'WBK / Munitions\u00aderwerbs\u00adschein', 'nur Erwerb und Besitz', 'wbk'), O('waffenschein', 'Waffenschein', 'auch Führen', 'waffenschein'), O('jagd', 'Jagdschein (Jäger)', '§ 13', 'jagd')];
+const WF_HANDLUNG = Object.fromEntries(WF_HANDLUNG_OPTS.map(o => [o.value, o.label]));
+const wf = { st: WF_DEFAULT(), res: null, gen: '', text: '', edited: false, title: '', ver: 1, drawn: 0, histHtml: null, savedSig: '', savedId: null, open: new Set() };
 const wfCm = v => Number(v).toFixed(1).replace('.', ',');
-const wfCtx = st => { const o = WF_OBJ.find(x => x.value === st.objektart); return st.objektart === 'kriegswaffe' ? o.label : `${o.label} · ${WF_HANDLUNG[st.handlung]}`; };
+const wfCtx = st => { const o = WF_OBJ.find(x => x.value === st.obj) || WF_OBJ[0]; return st.obj === 'kriegswaffe' ? o.label : `${o.label} · ${WF_HANDLUNG[st.handlung] || ''}`; };
+const wfIsSchuss = s => ['schuss', 'srs', 'druck', 'hist'].includes(s.obj) || (s.obj === 'sonst' && s.sonst === 'armbrust');
 function wfRecalc() {
-  wf.res = wfEvaluate(wf.st);
-  wf.gen = wfBuildAnzeige(wf.st, wf.res);
+  wf.res = wfAnalyze(wf.st);
+  wf.gen = wfReport(wf.st, wf.res);
   if (!wf.edited) wf.text = wf.gen;
 }
 wfRecalc();
 
-const wfOpt = (key, o) => `<button type="button" class="wf-opt" data-wk="${key}" data-wv="${o.value}" aria-pressed="${wf.st[key] === o.value}"><span class="wf-opt-dot" aria-hidden="true"></span><span class="wf-opt-txt"><span class="wf-opt-l">${esc(o.label)}</span>${o.desc ? `<span class="wf-opt-d">${esc(o.desc)}</span>` : ''}</span></button>`;
+const wfI = (key, label) => key && (WF_TIPS[key] || WF_LAW[key]) ? `<button type="button" class="wf-i" data-info="${key}" aria-label="Erläuterung: ${esc(label || '')}"><span aria-hidden="true">i</span></button>` : '';
+const wfOpt = (key, o) => `<div class="wf-optw${o.i ? ' has-i' : ''}"><button type="button" class="wf-opt" data-wk="${key}" data-wv="${o.value}" aria-pressed="${wf.st[key] === o.value}"><span class="wf-opt-dot" aria-hidden="true"></span><span class="wf-opt-txt"><span class="wf-opt-l">${esc(o.label)}</span>${o.desc ? `<span class="wf-opt-d">${esc(o.desc)}</span>` : ''}</span></button>${wfI(o.i, o.label)}</div>`;
 const wfChoice = (key, opts, cls = '') => `<div class="wf-choice ${cls}" role="group">${opts.map(o => wfOpt(key, o)).join('')}</div>`;
-const wfToggle = (label, key, yes = 'Ja', no = 'Nein') => `<div class="wf-toggle"><span class="wf-toggle-l">${esc(label)}</span><div class="seg wf-seg" role="group" aria-label="${esc(label)}">${[[true, yes], [false, no]].map(([v, l]) => `<button type="button" data-wk="${key}" data-wv="${v}" aria-pressed="${wf.st[key] === v}">${esc(l)}</button>`).join('')}</div></div>`;
-const wfBox = (...parts) => `<div class="wf-box">${parts.filter(Boolean).join('')}</div>`;
-const wfThr = () => wf.st.messerBauart === 'spring' ? 8.5 : 12;
-const wfLenHtml = () => `${wfCm(wf.st.klingenlaenge)}<small> cm</small>`;
-
+const wfToggle = (label, key, info, yes = 'Ja', no = 'Nein') => `<div class="wf-toggle"><span class="wf-toggle-l">${esc(label)}${wfI(info, label)}</span><div class="seg wf-seg" role="group" aria-label="${esc(label)}">${[[true, yes], [false, no]].map(([v, l]) => `<button type="button" data-wk="${key}" data-wv="${v}" aria-pressed="${wf.st[key] === v}">${esc(l)}</button>`).join('')}</div></div>`;
+const wfEnumSeg = (label, key, opts, info) => `<div class="wf-toggle"><span class="wf-toggle-l">${esc(label)}${wfI(info, label)}</span><div class="seg wf-seg" role="group" aria-label="${esc(label)}">${opts.map(([v, l]) => `<button type="button" data-wk="${key}" data-wv="${v}" aria-pressed="${wf.st[key] === v}">${esc(l)}</button>`).join('')}</div></div>`;
+const wfBox = (...parts) => { const p = parts.filter(Boolean); return p.length ? `<div class="wf-box">${p.join('')}</div>` : ''; };
+const wfSub = t => `<span class="wf-box-l">${esc(t)}</span>`;
+const wfThr = () => wf.st.messer === 'spring' ? 8.5 : 12;
+const wfLenHtml = () => `${wfCm(wf.st.len)}<small> cm</small>`;
+function wfSlider() {
+  const s = wf.st, thr = wfThr(), over = s.len > thr;
+  return wfBox(`<div class="wf-len-top"><label for="wfLen">Klingenlänge</label><span class="wf-len mono${over ? ' over' : ''}" id="wfLenVal">${wfLenHtml()}</span></div>`,
+    `<div class="wf-range-wrap${over ? ' over' : ''}" style="--thr:${((thr - 2) / 28).toFixed(4)}"><i class="wf-thr" aria-hidden="true"></i><input type="range" class="wf-range" id="wfLen" min="2" max="30" step="0.5" value="${s.len}" style="--f:${((s.len - 2) / 28).toFixed(4)}" aria-valuetext="${wfCm(s.len)} Zentimeter"></div>`,
+    `<div class="wf-scale"><span>2</span><span>Grenze ${wfCm(thr)} cm</span><span>30</span></div>`,
+    s.messer === 'spring' ? wfToggle('Zweiseitig geschliffen?', 'beidseitig', 'v141') : wfToggle('Als Waffe konstruiert (Dolch, Stilett, Bajonett, Kampfmesser)?', 'dolch', 'hieb'));
+}
 function wfFormHtml() {
   const s = wf.st, secs = [];
-  secs.push(['Was liegt vor?', wfChoice('objektart', WF_OBJ, 'wf-objs')]);
-  if (s.objektart === 'messer') {
-    let b = wfChoice('messerBauart', [
-      { value: 'spring', label: 'Springmesser', desc: 'Klinge springt auf Knopfdruck heraus' },
-      { value: 'fall', label: 'Fallmesser' }, { value: 'butterfly', label: 'Butterfly / Balisong' },
-      { value: 'faust', label: 'Faustmesser' },
-      { value: 'einhand', label: 'Einhandmesser', desc: 'einhändig zu öffnen, feststellbar' },
-      { value: 'feststehend', label: 'Feststehendes Messer' },
-      { value: 'klapp', label: 'Zweihand-Klappmesser', desc: 'beidhändig zu öffnen' },
-      { value: 'multi', label: 'Multitool / kleines Taschenmesser' }
-    ]);
-    if (s.messerBauart === 'spring') b += wfChoice('springOeffnung', [
-      { value: 'seitlich', label: 'Klinge springt seitlich heraus', desc: 'ausnahmefähig, wenn ≤ 8,5 cm & einseitig' },
-      { value: 'frontal', label: 'Klinge springt frontal heraus (OTF)', desc: 'ausnahmslos verboten' }
-    ], 'wf-sub');
-    if (s.messerBauart === 'feststehend' || s.messerBauart === 'spring') {
-      const thr = wfThr(), over = s.klingenlaenge > thr;
-      b += wfBox(
-        `<div class="wf-len-top"><label for="wfLen">Klingenlänge</label><span class="wf-len mono${over ? ' over' : ''}" id="wfLenVal">${wfLenHtml()}</span></div>`,
-        `<div class="wf-range-wrap${over ? ' over' : ''}" style="--thr:${((thr - 2) / 28).toFixed(4)}"><i class="wf-thr" aria-hidden="true"></i><input type="range" class="wf-range" id="wfLen" min="2" max="30" step="0.5" value="${s.klingenlaenge}" style="--f:${((s.klingenlaenge - 2) / 28).toFixed(4)}" aria-valuetext="${wfCm(s.klingenlaenge)} Zentimeter"></div>`,
-        `<div class="wf-scale"><span>2</span><span>Grenze ${wfCm(thr)} cm</span><span>30</span></div>`,
-        s.messerBauart === 'spring' ? wfToggle('Zweiseitig geschliffen?', 'beidseitig') : wfToggle('Zweiseitig geschliffen (Dolch)?', 'dolch'));
+  secs.push(['Was liegt vor?', 'waffe', wfChoice('obj', WF_OBJ, 'wf-objs')]);
+  const it = WF_ITEMS[s.obj];
+  if (it) {
+    const [key, title, opts] = it;
+    let b = wfChoice(key, opts);
+    if (s.obj === 'messer') {
+      if (s.messer === 'spring') b += wfSub('Öffnung und Ausnahme') + wfChoice('springOeffnung', [O('seitlich', 'Klinge springt seitlich heraus', 'ausnahmefähig bis 8,5 cm, einseitig', 'v141'), O('frontal', 'Klinge springt frontal heraus (OTF)', 'ausnahmslos verboten', 'v141')], 'wf-sub') + wfChoice('springGrund', [O('keiner', 'Kein besonderer Grund', ''), O('einhaendig', 'Berechtigtes Interesse an einhändiger Nutzung', 'z. B. Behinderung, Rettungsdienst', 'v141'), O('beruf', 'Umgang im Zusammenhang mit der Berufsausübung', '', 'v141')], 'wf-sub');
+      if (s.messer === 'spring' || s.messer === 'feststehend') b += wfSlider();
+      if (s.messer === 'faust') b += wfBox(wfToggle('Jäger oder Leder/Pelz verarbeitender Beruf – zur Tätigkeit benötigt?', 'faustAusn', 'faustDef'));
     }
-    secs.push(['Bauart & Klinge', b]);
+    if (s.obj === 'schuss' && s.schuss === 'teil') b += wfBox(wfToggle('Teil einer halbautomatischen Kurzwaffe?', 'teilHalb', 'teile'));
+    if (s.obj === 'druck' && s.druck === 'spiel05') b += wfBox(wfToggle('Sieht täuschend echt aus (wie eine Feuerwaffe)?', 'echt', 'anschein'));
+    secs.push([title, it[2][0].i, b]);
   }
-  if (s.objektart === 'schuss') {
-    secs.push(['Erlaubnis · Typ · Zustand', wfChoice('schusserlaubnis', [
-      { value: 'keine', label: 'Keine Erlaubnis' },
-      { value: 'wbk', label: 'Waffenbesitzkarte (WBK)', desc: 'erlaubt nur Besitz + Transport' },
-      { value: 'waffenschein', label: 'Waffenschein', desc: 'erlaubt auch das Führen' }
-    ]) + wfBox(wfToggle('Vollautomatisch?', 'vollautomat'), '<span class="wf-box-l">Zustand / Bauart</span>', wfChoice('schussZustand', [
-      { value: 'normal', label: 'Funktionsfähig / scharf' },
-      { value: 'deko', label: 'Deko, zertifiziert unbrauchbar', desc: 'frei' },
-      { value: 'antik', label: 'Antik / Vorderlader vor 1871', desc: 'frei' }
-    ], 'wf-sub'))]);
-  }
-  if (s.objektart === 'srs') secs.push(['Kennzeichnung & Berechtigung', wfBox(wfToggle('PTB-Zulassungszeichen vorhanden?', 'srsPtb'), s.handlung === 'fuehren' && s.srsPtb ? wfToggle('Kleiner Waffenschein vorhanden?', 'kwSchein') : '')]);
-  if (s.objektart === 'druck') secs.push(['Energie / Kennzeichnung', wfChoice('druckEnergie', [
-    { value: 'spielzeug', label: 'Unter 0,5 Joule', desc: 'Softair-Spielzeug — keine Waffe' },
-    { value: 'f75', label: 'Bis 7,5 Joule (F-Zeichen)', desc: 'erlaubnisfrei ab 18' },
-    { value: 'ueber75', label: 'Über 7,5 Joule', desc: 'erlaubnispflichtig wie scharfe Waffe' }
-  ])]);
-  if (s.objektart === 'munition') secs.push(['Art & Erlaubnis', wfBox(wfToggle('Kriegswaffenmunition?', 'munKriegswaffe'),
-    !s.munKriegswaffe ? wfToggle('Erlaubnisfreie Munition? (z. B. PTB-Kartuschen, BBs)', 'munFrei') : '',
-    !s.munKriegswaffe && !s.munFrei ? wfToggle('Erlaubnis vorhanden? (WBK / Munitionserwerbsschein)', 'munErlaubnis') : '')]);
-  if (s.objektart === 'sonstige') secs.push(['Gegenstand', wfChoice('sonstigeItem', [
-    { value: 'schlagstock', label: 'Schlagstock (klassisch)', desc: 'Hieb-/Stoßwaffe' },
-    { value: 'teleskop', label: 'Teleskopschlagstock', desc: 'Hieb-/Stoßwaffe (BGH 3 StR 81/22)' },
-    { value: 'schlagring', label: 'Schlagring / Totschläger / Stahlrute' },
-    { value: 'wurfstern', label: 'Wurfstern / Wurfmesser' },
-    { value: 'nunchaku', label: 'Nunchaku / Würgeholz' },
-    { value: 'praezschleuder', label: 'Präzisionsschleuder (Zwille)' },
-    { value: 'elektro', label: 'Elektroimpulsgerät (ohne PTB)' },
-    { value: 'armbrust', label: 'Armbrust' },
-    { value: 'pfefferPtb', label: 'Pfefferspray mit PTB (Tierabwehr)' },
-    { value: 'pfefferOhne', label: 'Reizstoff ohne PTB / Menschenabwehr' }
-  ])]);
-  if (s.objektart !== 'kriegswaffe') secs.push(['Handlung', wfChoice('handlung', [
-    { value: 'besitz', label: 'Besitz / Erwerb', desc: 'zuhause / im befriedeten Besitztum' },
-    { value: 'transport', label: 'Transport (§ 12)', desc: 'nicht schussbereit & nicht zugriffsbereit, zu legitimem Zweck' },
-    { value: 'fuehren', label: 'Führen in der Öffentlichkeit', desc: 'zugriffsbereit dabei' }
-  ])]);
-  if (s.handlung === 'fuehren' && s.objektart !== 'kriegswaffe' && s.objektart !== 'munition') secs.push(['Ort / Situation', wfChoice('ort', [
-    { value: 'normal', label: 'Normaler öffentlicher Raum' },
-    { value: 'veranstaltung', label: 'Veranstaltung / Volksfest / Markt', desc: '§ 42 WaffG' },
-    { value: 'oepnv', label: 'ÖPNV / Bahnhof / Fernverkehr', desc: '§ 42b WaffG' },
-    { value: 'zone', label: 'Waffen-/Messerverbotszone', desc: 'Landesrecht' }
-  ])]);
-  if (s.objektart !== 'kriegswaffe') {
-    const showBer = s.objektart === 'messer' || (s.objektart === 'sonstige' && s.handlung === 'fuehren');
-    secs.push(['Person & Umstände', wfBox(
-      s.objektart !== 'anschein' ? wfToggle('Person ist volljährig (≥ 18)?', 'volljaehrig') : '',
-      showBer ? wfToggle('Berechtigtes Interesse nachweisbar? (Beruf, Jagd, Sport, Brauchtum)', 'berechtigt') : '',
-      wfToggle('Handelte die Person vorsätzlich?', 'vorsatz', 'Vorsatz', 'Fahrlässig'))]);
-  }
-  return secs.map(([t, b], i) => `<section class="wf-sec"><div class="wf-sec-head"><span class="wf-sec-n mono">${pad(i + 1)}</span><h3 class="wf-sec-t">${esc(t)}</h3></div>${b}</section>`).join('');
+  if (s.obj !== 'kriegswaffe') {
+    const hs = WF_HANDLUNG_OPTS.filter(o => (o.value !== 'schiessen' || wfIsSchuss(s)) && (o.value !== 'aufbewahrung' || wfIsSchuss(s) || s.obj === 'munition'));
+    secs.push(['Handlung (Umgangsart)', 'umgang', wfChoice('handlung', hs)]);
+  } else secs.push(['Handlung', 'kw', wfChoice('handlung', WF_HANDLUNG_OPTS.filter(o => !['schiessen', 'aufbewahrung'].includes(o.value)))]);
+  const H = s.handlung;
+  if (H === 'fuehren' && s.obj !== 'munition') {
+    let b = wfChoice('ort', WF_ORT_OPTS);
+    if (s.ort !== 'eigen') {
+      b += wfSub('Zugriff') + wfChoice('zugriff', WF_ZUGRIFF_OPTS, 'wf-sub');
+      if (wfIsSchuss(s)) b += wfBox(wfToggle('Geladen (schussbereit)?', 'geladen', 'schussbereit'));
+      b += wfSub('Zweck / Anlass') + wfChoice('zweck', WF_ZWECK_OPTS, 'wf-sub wf-compact');
+    }
+    secs.push(['Ort, Zugriff & Zweck', 'fuehren', b]);
+  } else if (H === 'schiessen') secs.push(['Wo wird geschossen?', 'schiessen', wfChoice('schussOrt', WF_SCHUSSORT_OPTS) + wfBox(wfToggle('Schießerlaubnis (§ 10 Abs. 5) vorhanden?', 'schiessErl', 'schiessen'))]);
+  else if (H === 'ueberlassen') secs.push(['Empfänger', 'ueberlassen', wfBox(wfToggle('Empfänger berechtigt (Erlaubnis, Alter, kein Waffenverbot)?', 'empfBer', 'ueberl34'))]);
+  else if (H === 'verbringen') secs.push(['Grenze', 'verbringen', wfChoice('grenze', WF_GRENZE_OPTS) + wfBox(wfToggle('Erlaubnis (§ 29, § 32, Feuerwaffenpass) vorhanden?', 'grenzErl', 'verbringen'))]);
+  else if (H === 'herstellen' || H === 'handel') secs.push(['Gewerbe & Erlaubnis', H, wfBox(H === 'herstellen' ? wfToggle('Gewerbsmäßig?', 'gewerbe', 'herstellen') : '', wfToggle(`Erlaubnis nach ${H === 'handel' || s.gewerbe ? '§ 21' : '§ 26'} vorhanden?`, 'herstErl', H))]);
+  else if (H === 'aufbewahrung') secs.push(['Aufbewahrung', 'aufbew', wfBox(wfToggle('Vorkehrungen nicht getroffen und dadurch Gefahr des Abhandenkommens oder unbefugten Zugriffs?', 'gefahr', 'aufbew'))]);
+  const erlRel = ['schuss', 'munition'].includes(s.obj) || (s.obj === 'srs' && s.srs === 'ohne') || (s.obj === 'druck' && s.druck !== 'spiel05') || (s.obj === 'hist' && s.hist !== 'lunte' && s.hist !== 'deko') || (H === 'fuehren' && ['fernverkehr', 'zone'].includes(s.ort));
+  const per = [];
+  if (erlRel && s.obj !== 'kriegswaffe') per.push(wfSub('Waffenrechtliche Erlaubnis') + wfChoice('erlaubnis', WF_ERL_OPTS, 'wf-sub wf-compact'));
+  const box = [];
+  if (s.erlaubnis === 'jagd' && erlRel && wfIsSchuss(s)) box.push(wfToggle('Im Zusammenhang mit Jagd, Jagd- oder Forstschutz?', 'jagdZweck', 'jagd'));
+  if (s.obj === 'srs' && s.srs === 'ptb' && (H === 'fuehren' || H === 'schiessen')) box.push(wfToggle('Kleiner Waffenschein vorhanden?', 'kws', 'kwsDef'));
+  box.push(wfToggle(s.obj === 'kriegswaffe' ? 'Genehmigung nach dem KrWaffKontrG?' : 'Behördliche Ausnahme / Genehmigung für genau diesen Umgang?', 'ausnahme', s.obj === 'kriegswaffe' ? 'kw' : 'ausnahme'));
+  if (['besitz', 'erwerb', 'aufbewahrung'].includes(H) && s.obj !== 'kriegswaffe') box.push(wfToggle('Als Erbe oder Finder in Besitz genommen und unverzüglich angezeigt?', 'fund', 'fund'));
+  if (s.obj !== 'kriegswaffe' && !['messer', 'anschein'].includes(s.obj)) box.push(wfToggle('Behördliches Waffenverbot (§ 41) besteht?', 'verbot41', 'verbot41'));
+  per.push(wfBox(...box));
+  secs.push(['Erlaubnisse & Ausnahmen', 'ausnahme', per.join('')]);
+  secs.push(['Person & Vorsatz', 'vorsatz', wfBox(wfEnumSeg('Alter', 'alter', [['erw', '18+'], ['jug', '14–17'], ['kind', 'unter 14']], 'alter'), wfEnumSeg('Schuldform', 'vorsatz', [['vorsatz', 'Vorsatz'], ['fahrl', 'Fahrlässig']], 'vorsatz'))]);
+  return secs.map(([t, i, b], n) => `<section class="wf-sec"><div class="wf-sec-head"><span class="wf-sec-n mono">${pad(n + 1)}</span><h3 class="wf-sec-t">${esc(t)}</h3>${wfI(i, t)}</div>${b}</section>`).join('');
 }
 
 function renderWfLive() {
@@ -2999,24 +3276,43 @@ function renderWfLive() {
   const say = `${L.label}: ${r.verdict}`, an = $('#wfSay');
   if (an.textContent !== say) an.textContent = say;
 }
-function wfStaleUi() {
-  const stale = wf.edited && wf.text !== wf.gen;
-  const b = $('#wfRegen'); if (b) b.hidden = !stale;
+function wfStaleUi() { const b = $('#wfRegen'); if (b) b.hidden = !(wf.edited && wf.text !== wf.gen); }
+const wfLawChips = keys => [...new Set(keys || [])].filter(k => WF_LAW[k]).map(k => `<button type="button" class="wf-law" data-info="${k}">${esc(WF_LAW[k].ref.replace(' WaffG', '').replace(/^Anlage (\d) Abschnitt (\d+)/, 'Anl. $1 Abschn. $2').replace('Unterabschnitt', 'UA'))}</button>`).join('');
+function wfSubsumHtml(f, i) {
+  const L = WF_LEVEL[f.level], s = wf.st, viol = f.level === 'straftat' || f.level === 'owi';
+  const norm = f.pen ? f.pen.norm : '';
+  const tat = wfActPhrase(s, wf.res.H);
+  const ober = viol ? `Die Person könnte ${f.level === 'owi' ? 'ordnungswidrig gehandelt haben' : 'sich strafbar gemacht haben'} nach <b>${esc(norm)}</b> – ${esc(f.title)}.` : esc(f.reason);
+  const rows = f.tb.map(t => `<li class="wf-tb-row"><span class="wf-tb-v ${t.v === 'ja' ? 'ja' : t.v === 'nein' ? 'nein' : 'offen'}" aria-label="${t.v === 'ja' ? 'erfüllt' : t.v === 'nein' ? 'nicht erfüllt' : 'offen'}">${t.v === 'ja' ? '+' : t.v === 'nein' ? '−' : '?'}</span><span class="wf-tb-main"><span class="wf-tb-m">${esc(t.m)}</span><span class="wf-tb-s">${esc(t.s || '')}</span>${t.law && t.law.length ? `<span class="wf-laws">${wfLawChips(t.law)}</span>` : ''}</span></li>`).join('');
+  const subj = !viol ? '' : f.level === 'owi' ? 'Vorsatz oder Fahrlässigkeit (§ 53 Abs. 1, § 10 OWiG). Irrtum über Tatumstände: § 11 Abs. 1 OWiG; fehlende Unrechtseinsicht: § 11 Abs. 2 OWiG.'
+    : s.vorsatz === 'fahrl' ? `Fahrlässigkeit: Sorgfaltspflichtverletzung bei Erkennbarkeit der Umstände – strafbar, ${esc(f.folge)}.` : 'Vorsatz (§ 15 StGB): Wissen und Wollen aller Tatumstände, Eventualvorsatz genügt. Irrtum über einen Tatumstand schließt den Vorsatz aus (§ 16 StGB); Unkenntnis des Verbots ist Verbotsirrtum (§ 17 StGB), meist vermeidbar.';
+  const body = viol ? `<p class="wf-ober">${ober}</p>
+      <span class="wf-gk">I. Objektiver Tatbestand</span><ol class="wf-tb">${rows}</ol>
+      <span class="wf-gk">II. Subjektiver Tatbestand</span><p class="wf-gp">${subj} ${wfI('vorsatz', 'Vorsatz')}</p>
+      <span class="wf-gk">III. Rechtswidrigkeit und Schuld</span><p class="wf-gp">Rechtfertigungsgründe (z. B. Notwehr, § 32 StGB) decken regelmäßig nur die Abwehrhandlung, nicht den Besitz oder das Führen. Schuld: Alter (§ 19 StGB, JGG), Verbotsirrtum (§ 17 StGB).</p>
+      <span class="wf-gk">IV. Ergebnis</span><p class="wf-gp"><b>${esc(L.label)}</b> – ${esc(f.folge || '')}.</p>`
+    : `<p class="wf-ober">${ober}</p>${rows ? `<ol class="wf-tb">${rows}</ol>` : ''}`;
+  const hints = f.hints.length ? `<ul class="wf-hints">${f.hints.map(h => `<li>${esc(h)}</li>`).join('')}</ul>` : '';
+  const laws = f.law.length ? `<span class="wf-laws wf-laws-f">${wfLawChips(f.law)}</span>` : '';
+  const open = wf.open.has(f.key) || (i === 0 && !wf.open.size);
+  return `<details class="wf-sb" data-fk="${esc(f.key)}" style="--c:${L.c}"${open ? ' open' : ''}><summary><span class="wf-h-dot" aria-hidden="true"></span><span class="wf-sb-t">${esc(f.title)}</span><span class="wf-sb-n mono">${esc(norm || L.short)}</span></summary><div class="wf-sb-b">${body}${hints}${laws}</div></details>`;
 }
 function renderWfResult() {
-  const box = $('#wfRes'), r = wf.res, L = WF_LEVEL[r.level];
+  const box = $('#wfRes'), r = wf.res, L = WF_LEVEL[r.level], m = r.main;
   const big = r.level === 'owi' ? 'Ordnungs&shy;widrigkeit' : r.level === 'hinweis' ? 'Einzelfall&shy;prüfung' : esc(L.label);
   box.dataset.level = r.level;
   box.style.setProperty('--c', L.c);
-  box.innerHTML = `<div class="card-head"><div><span class="spaced">Ergebnis</span><p class="wf-ctx">${esc(wfCtx(wf.st))}</p></div><span class="pill wf-src" title="Stand der Rechtslage">WaffG 2024/25</span></div>
+  const others = r.findings.length > 1 ? `<span class="f-label">Alle Prüfpunkte (${r.findings.length})</span>` : '<span class="f-label">Subsumtion</span>';
+  box.innerHTML = `<div class="card-head"><div><span class="spaced">Ergebnis</span><p class="wf-ctx">${esc(wfCtx(wf.st))}</p></div><span class="pill wf-src" title="${esc(WF_STAND)}">WaffG 22.10.2026</span></div>
     <div class="wf-level">${big}</div>
     <div class="wf-meter" role="img" aria-label="Einstufung: ${esc(L.label)}">${WF_LEVEL_KEYS.map(k => `<span class="${k === r.level ? 'on' : ''}" style="--c:${WF_LEVEL[k].c}"><i></i><b>${esc(WF_LEVEL[k].short)}</b></span>`).join('')}</div>
-    <h3 class="wf-verdict">${esc(r.verdict)}</h3>
-    <dl class="wf-facts"><div><dt>Vorschrift</dt><dd class="mono">${esc(r.paragraph)}</dd></div><div><dt>Rechtsfolge</dt><dd>${esc(r.folge)}</dd></div></dl>
-    <p class="wf-reason">${esc(r.reason)}</p>
-    ${r.hinweis && r.hinweis.length ? `<ul class="wf-hints">${r.hinweis.map(h => `<li>${esc(h)}</li>`).join('')}</ul>` : ''}
+    <h3 class="wf-verdict">${esc(m.title)}</h3>
+    <dl class="wf-facts"><div><dt>${m.pen ? 'Vorschrift' : 'Grundlage'}</dt><dd class="mono">${esc(r.paragraph)}</dd></div><div><dt>Rechtsfolge</dt><dd>${esc(m.folge || '')}</dd></div></dl>
+    <p class="wf-reason">${esc(m.reason)}</p>
+    ${others}<div class="wf-sbs">${r.findings.map(wfSubsumHtml).join('')}</div>
+    ${r.gen.length ? `<span class="f-label">Konkurrenzen & Hinweise${wfI('konkurrenz', 'Konkurrenzen')}</span><ul class="wf-hints">${r.gen.map(h => `<li>${esc(h)}</li>`).join('')}</ul>` : ''}
     <span class="f-label">Prüfpfad</span>
-    <ol class="wf-path">${r.path.map(p => `<li><span>${esc(String(p))}</span></li>`).join('')}<li class="fin"><span>${esc(L.label)}</span></li></ol>
+    <ol class="wf-path">${r.path.map((p, i) => `<li class="${i === r.path.length - 1 ? 'fin' : ''}"><span>${esc(String(p).replace(/^→ /, ''))}</span></li>`).join('')}</ol>
     <div class="wf-text-head"><label class="f-label" for="wfText">Text für Anzeige / Meldung</label><button type="button" class="link wf-regen" id="wfRegen" hidden>${ico('repeat')}Neu erzeugen</button></div>
     <textarea class="input wf-text" id="wfText" spellcheck="false" rows="12"></textarea>
     <p class="wf-note">Platzhalter in eckigen Klammern ([Datum], [Personalien] …) vor der Verwendung ausfüllen. Der Text ist frei bearbeitbar.</p>
@@ -3048,22 +3344,51 @@ function renderWaffg(force) {
   }
   renderWfHist();
 }
-function wfChanged() { wf.ver++; wfRecalc(); }
+function wfChanged() { wf.ver++; wf.open.clear(); wfRecalc(); }
 
-/* Eingaben */
+/* ---------- Info-Sheet (Subsumtionshilfe) ---------- */
+/** Gliedert den Wortlaut: Absätze, Nummern und Buchstaben beginnen in einer neuen Zeile. */
+const WF_NOBREAK = /^(Januar|Februar|März|April|Mai|Juni|Juli|August|September|Oktober|November|Dezember|Lebensjahr)/;
+const wfQuoteFmt = t => t
+  .replace(/ (\(\d+[a-z]?\)) /g, '\n$1 ')
+  .replace(/ (\d{1,2}(?:\.\d{1,2})*[a-z]?\.) (?=(\S+))/g, (m, n, w, off, all) => WF_NOBREAK.test(w) || /(und|oder|bis|Nr\.|Nummer|Abs\.|Absatz|Satz|§)$/.test(all.slice(Math.max(0, off - 8), off)) ? m : '\n' + n + ' ')
+  .replace(/ ([a-z]{1,2}\)) (?=[A-Za-zÄÖÜäöü„§])/g, '\n   $1 ')
+  .replace(/ - (?=[a-zäöü])/g, '\n– ');
+function wfInfoHtml(key) {
+  const tip = WF_TIPS[key] || WF_TIPS[WF_TIP_ALIAS[key]] || null;
+  const laws = [...new Set([...(tip && tip.law ? tip.law : []), ...(WF_LAW[key] && !(tip && tip.law && tip.law.includes(key)) ? [key] : [])])].filter(k => WF_LAW[k]);
+  const title = tip ? tip.t : (WF_LAW[key] ? WF_LAW[key].ref : 'Erläuterung');
+  const sec = (h, arr, cls = '') => arr && arr.length ? `<span class="f-label">${h}</span><ul class="wf-hints ${cls}">${arr.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '';
+  const quotes = laws.map(k => `<figure class="wf-q"><figcaption><span class="pill pill-outline mono">${esc(WF_LAW[k].ref)}</span></figcaption><blockquote>${esc(wfQuoteFmt(WF_LAW[k].t))}</blockquote></figure>`).join('');
+  const see = tip && tip.see ? `<span class="f-label">Siehe auch</span><div class="wf-see">${tip.see.filter(k => WF_TIPS[k]).map(k => `<button type="button" class="chip wf-see-b" data-info="${k}">${esc(WF_TIPS[k].t)}</button>`).join('')}</div>` : '';
+  return { title, html: `${tip && tip.merk ? sec('Tatbestandsmerkmale & Voraussetzungen', tip.merk, 'wf-merk') : ''}${quotes ? `<span class="f-label">Wortlaut</span>${quotes}` : ''}${tip ? sec('Prüfhinweise & Abgrenzung', tip.hin) + sec('Rechtsprechung', tip.rspr) : ''}${see}<p class="wf-note">Wortlaut: amtliche Fassung (gesetze-im-internet.de), ${esc(WF_STAND)}. Keine Rechtsberatung.</p>` };
+}
+function wfOpenInfo(key) {
+  const { title, html } = wfInfoHtml(key);
+  $('#wiH').textContent = title;
+  $('#wiBody').innerHTML = html;
+  openDlg($('#wfInfoDlg'));
+  $('#wfInfoDlg .sheet').scrollTop = 0;
+}
+$('#wiBody').addEventListener('click', e => { const b = e.target.closest('[data-info]'); if (b) { const { title, html } = wfInfoHtml(b.dataset.info); $('#wiH').textContent = title; $('#wiBody').innerHTML = html; $('#wfInfoDlg .sheet').scrollTop = 0; } });
+
+/* ---------- Eingaben ---------- */
 $('#wfForm').addEventListener('click', e => {
+  const inf = e.target.closest('[data-info]'); if (inf) { wfOpenInfo(inf.dataset.info); return; }
   const b = e.target.closest('button[data-wk]'); if (!b) return;
   const k = b.dataset.wk, raw = b.dataset.wv;
   const v = raw === 'true' ? true : raw === 'false' ? false : raw;
   if (wf.st[k] === v) return;
-  wf.st[k] = v; wfChanged(); renderWaffg();
+  wf.st[k] = v;
+  if (k === 'obj' || k === 'handlung') { const sel = wf.st; if (!wfIsSchuss(sel) && (sel.handlung === 'schiessen' || (sel.handlung === 'aufbewahrung' && sel.obj !== 'munition'))) sel.handlung = 'besitz'; if (sel.obj === 'kriegswaffe' && ['schiessen', 'aufbewahrung'].includes(sel.handlung)) sel.handlung = 'besitz'; }
+  wfChanged(); renderWaffg();
   const nb = $(`#wfForm button[data-wk="${k}"][data-wv="${raw}"]`);
   if (nb) nb.focus({ preventScroll: true });
 });
 $('#wfForm').addEventListener('input', e => {
   if (e.target.id !== 'wfLen') return;
   const v = clamp(Math.round(Number(e.target.value) * 2) / 2, 2, 30);
-  wf.st.klingenlaenge = v;
+  wf.st.len = v;
   const over = v > wfThr();
   e.target.style.setProperty('--f', ((v - 2) / 28).toFixed(4));
   e.target.setAttribute('aria-valuetext', `${wfCm(v)} Zentimeter`);
@@ -3084,13 +3409,15 @@ addEventListener('scroll', () => { if (!wfRaf) wfRaf = requestAnimationFrame(() 
 addEventListener('resize', () => wfLiveVis(), { passive: true });
 $('#wfLive').addEventListener('click', () => $('#wfRes').scrollIntoView({ behavior: reduceMotion.matches ? 'auto' : 'smooth', block: 'start' }));
 
-/* Ergebnis: Text, Speichern, Aufgabe */
+/* Ergebnis: Subsumtion, Text, Speichern, Aufgabe */
+$('#wfRes').addEventListener('toggle', e => { const d = e.target; if (!d.matches || !d.matches('details.wf-sb')) return; if (d.open) wf.open.add(d.dataset.fk); else wf.open.delete(d.dataset.fk); if (!wf.open.size && !d.open) wf.open.add('__none__'); }, true);
 $('#wfRes').addEventListener('input', e => {
   if (e.target.id === 'wfText') { wf.text = e.target.value; wf.edited = wf.text !== wf.gen; wfStaleUi(); }
   else if (e.target.id === 'wfTitle') wf.title = e.target.value;
 });
 $('#wfRes').addEventListener('keydown', e => { if (e.target.id === 'wfTitle' && e.key === 'Enter') { e.preventDefault(); wfSave(); } });
 $('#wfRes').addEventListener('click', e => {
+  const inf = e.target.closest('[data-info]'); if (inf) { e.preventDefault(); wfOpenInfo(inf.dataset.info); return; }
   const b = e.target.closest('button'); if (!b) return;
   if (b.id === 'wfCopy') wfCopy(b);
   else if (b.id === 'wfSave') wfSave();
