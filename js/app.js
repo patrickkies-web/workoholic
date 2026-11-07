@@ -1619,6 +1619,7 @@ function enterApp(notice) {
   orb.start();
   Sync.start();
   if (notice) toast(notice, { ms: 6500 });
+  try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) { /* optional */ }
 }
 
 let unlockFails = 0, waitUntil = 0;
@@ -1789,6 +1790,23 @@ document.addEventListener('visibilitychange', () => {
   lastMinute = -1; tick();
   if (S && Sync.cfg()) Sync.run();
 });
+
+/* ======================= Tastatur & sichtbarer Bereich (iOS) ======================= */
+(() => {
+  const vv = window.visualViewport; if (!vv) return;
+  const root = document.documentElement;
+  const upd = () => {
+    const kb = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop));
+    root.style.setProperty('--kb', kb + 'px');
+    root.style.setProperty('--vvh', Math.round(vv.height) + 'px');
+    root.classList.toggle('kb-open', kb > 80);
+  };
+  vv.addEventListener('resize', upd); vv.addEventListener('scroll', upd); upd();
+  document.addEventListener('focusin', e => {
+    const f = e.target.closest('.sheet input, .sheet textarea, .gate input');
+    if (f && mobileMQ.matches) setTimeout(() => { upd(); f.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 320);
+  });
+})();
 
 /* ======================= Start ======================= */
 function boot() {
