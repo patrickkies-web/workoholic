@@ -114,11 +114,16 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 - Mit Sync landen sie verschlüsselt als `files/<zufällige-ID>` im Tresor-Repo; Dateinamen stehen nur im verschlüsselten Tresor. Andere Geräte laden sie erst beim Öffnen.
 - Vorschau für Bilder, Texte, Audio/Video, dazu Herunterladen, Teilen, Ordner, Notizen und „Nur in der Cloud behalten“ (lokale Kopie löschen).
 
-**WaffG-Prüfstand (aus dem VUF-Werkzeugkasten)**
-- Straftat oder Ordnungswidrigkeit? Gegenstand (Messer, Schusswaffe, SRS, Druckluft, Munition, Anscheinswaffe, Kriegswaffe, Hieb-/Stoßwaffen), Handlung, Ort und Umstände antippen. Das Ergebnis erscheint sofort: Einstufung, Vorschrift, Rechtsfolge, Begründung und Prüfpfad.
-- Die Prüflogik ist unverändert aus VUF übernommen (WaffG, Stand Reformen 2024/2025, inklusive der dort eingearbeiteten Rechtsprechung). **Keine Rechtsberatung**, sondern eine Orientierungshilfe.
-- Daraus entsteht ein Text für Anzeige oder Meldung mit Platzhaltern (`[Datum]`, `[Personalien]` …). Du kannst ihn frei bearbeiten, kopieren oder per „Als Aufgabe“ in den Planner legen.
-- „Speichern“ legt die Prüfung mit Zeitstempel und optionalem Aktenzeichen im verschlüsselten Tresor ab (Verlauf, durchsuchbar). Ungespeicherte Eingaben bleiben nur im Arbeitsspeicher und sind nach dem Sperren weg.
+**WaffG-Prüfstand**
+- Geprüft wird nach dem amtlichen Wortlaut: WaffG zuletzt geändert durch Art. 12 Abs. 20 G v. 22.10.2026 (BGBl. I Nr. 318), dazu § 22a KrWaffKontrG sowie StGB/OWiG für Vorsatz, Irrtum, Versuch und Konkurrenzen. Die Texte stammen aus dem täglichen Archiv von gesetze-im-internet.de und sind in der App enthalten – es wird nichts nachgeladen.
+- **Gegenstände:** Messer (Einhand, feststehend mit Klingenlänge, Spring- mit Ausnahme nach Nr. 1.4.1 Satz 2, Fall-, Faust-, Butterfly-, getarnte Messer), scharfe Schusswaffen (Pistole, Revolver, Langwaffe, Vollautomat, Pumpgun, getarnte, wesentliche Teile), SRS-Waffen, Druckluft/Softair, Antik-, Deko- und Salutwaffen, Munition, Hieb-, Stoß- und Schlagwaffen, Reizstoff- und Elektroimpulsgeräte, Armbrust, Präzisionsschleuder, Brand-/Sprengvorrichtungen, Anscheinswaffen, Kriegswaffen.
+- **Umgangsarten (§ 1 Abs. 3):** Besitz, Erwerb, Führen, Überlassen, Schießen, Verbringen/Mitnehmen, Herstellen/Bearbeiten, Handel – dazu die Aufbewahrung (§ 36, § 52 Abs. 3 Nr. 7a).
+- **Umstände:** Ort (öffentlich, Veranstaltung § 42, Personenfernverkehr § 42b, Verbotszone § 42 Abs. 5, fremder oder eigener Hausrechtsbereich), Zugriff (zugriffsbereit, mehr als drei Handgriffe, verschlossenes Behältnis), geladen, Zweck (Beruf, Sport, anerkannter Zweck, Gastronomie, Film …), Erlaubnisse (WBK, Waffenschein, kleiner Waffenschein, Jagdschein, Schießerlaubnis, behördliche Ausnahmen), Fund/Erbe, Waffenverbot nach § 41, Alter, Vorsatz oder Fahrlässigkeit.
+- **Ergebnis:** alle einschlägigen Prüfpunkte mit Norm und Strafrahmen (z. B. § 51, § 52 Abs. 1 Nr. 2 Buchst. b, § 52 Abs. 3 Nr. 9, § 53 Abs. 1 Nr. 21a bis 21c), Fahrlässigkeit, Versuch, minder und besonders schwere Fälle, Einziehung, Konkurrenzen (§ 52 StGB, §§ 19, 21 OWiG).
+- **Subsumtion:** Jede Prüfung ist im Gutachtenstil aufgebaut (Obersatz, objektiver Tatbestand Merkmal für Merkmal mit +/−/?, subjektiver Tatbestand, Rechtswidrigkeit und Schuld, Ergebnis).
+- **i-Knöpfe:** Hinter jeder Auswahl, jedem Abschnitt und jeder Fundstelle stehen Wortlaut, Tatbestandsmerkmale, Prüfhinweise und Abgrenzungen sowie geprüfte Rechtsprechung (BGH 3 StR 81/22, 4 StR 431/06).
+- Text für Anzeige oder Vermerk mit Tatbestand je Prüfpunkt: frei bearbeitbar, kopierbar, als Aufgabe in den Planner. „Speichern“ legt die Prüfung verschlüsselt mit Zeitstempel ab; ältere Prüfungen werden übernommen.
+- **Keine Rechtsberatung.** Nicht abgebildet sind u. a. Altbesitz (§ 58), Melde- und Anzeigepflichten im Detail, Sportschützen- und Sammlerregeln sowie der Inhalt einzelner Landesverordnungen und Allgemeinverfügungen.
 
 **Schreiben (Schriftliche Arbeiten)**
 - **Vorgang anlegen** → Modul wählen. Bisher: **Verkehrsunfallflucht ohne Personenschaden** (29 Schritte in 8 Phasen, viele davon nur bei Bedarf).
