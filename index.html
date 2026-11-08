@@ -1001,6 +1001,34 @@ body[data-area=schreiben] .pane-schreiben{display:grid}
 .w-grad{padding:0 10px;-webkit-appearance:none;appearance:none;background-image:none}
 .w-kz{text-transform:uppercase;letter-spacing:.06em}
 .w-karo{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+/* Schadensbild: Fahrzeugskizze (Draufsicht) */
+.w-car{display:flex;flex-wrap:wrap;align-items:flex-start;gap:14px 22px;margin-top:4px}
+.w-car-pic{flex:0 0 auto;width:min(290px,100%);margin:0 auto}
+.w-car-side{flex:1 1 220px;min-width:0;display:flex;flex-direction:column;gap:10px}
+.w-car-svg{display:block;width:100%;height:auto;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+.w-car-body{fill:none;stroke:rgba(255,255,255,.22);stroke-width:1.5;pointer-events:none}
+.w-car-t{font-size:8px;font-weight:600;letter-spacing:.22em;fill:var(--text-3)}
+.w-car-l text{font-size:8.5px;text-anchor:middle;dominant-baseline:middle;fill:rgba(255,255,255,.34);pointer-events:none}
+.w-z{fill:rgba(255,255,255,.05);stroke:rgba(255,255,255,.13);stroke-width:1;cursor:pointer;transition:fill .15s ease,stroke .15s ease}
+@media (hover:hover) and (pointer:fine){.w-z:hover{fill:rgba(255,255,255,.13)}}
+.w-z:focus-visible{outline:none;stroke:var(--text);stroke-width:2}
+.w-z.on{fill:rgba(236,217,111,.42);stroke:var(--accent);stroke-width:1.5}
+.w-car-hint{margin:0;line-height:1.5}
+.w-car-hint b{color:var(--text);font-weight:500}
+.w-more-btn{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:44px;padding:0 14px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid var(--line);font-size:13px;color:var(--text-2);text-align:left}
+.w-more-btn span{font-size:16px;color:var(--text-3)}
+.w-rest{margin-top:8px}
+/* Schnellwahl */
+.w-preset{padding:12px;border-radius:16px;background:rgba(236,217,111,.04);border:1px dashed rgba(236,217,111,.22)}
+.w-preset .w-lbl{margin-bottom:8px}
+.w-pre-row{display:flex;flex-wrap:wrap;gap:6px}
+.w-pre{display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-height:44px;padding:7px 12px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid var(--line);text-align:left;transition:background-color .15s ease,border-color .15s ease,transform .14s var(--ease-out)}
+.w-pre:active{transform:scale(.97)}
+.w-pre b{font-size:13px;font-weight:500;color:var(--text)}
+.w-pre small{font-size:11px;color:var(--text-3)}
+.w-pre.on{background:rgba(236,217,111,.1);border-color:rgba(236,217,111,.45)}
+.w-pre.on b::after{content:" ✓";color:var(--accent)}
+@media (hover:hover) and (pointer:fine){.w-pre:hover{background:rgba(255,255,255,.08)}}
 .w-karo-g{display:flex;flex-direction:column;gap:5px;padding:10px;border-radius:16px;background:rgba(255,255,255,.025);border:1px solid var(--line)}
 .w-karo-l{font-size:10px;font-weight:500;letter-spacing:.22em;text-transform:uppercase;color:var(--text-3);margin:0 0 4px 2px}
 .w-karo-r{display:grid;grid-template-columns:repeat(var(--n,1),1fr);gap:5px}

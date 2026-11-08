@@ -2989,9 +2989,15 @@ $('#opTodos').addEventListener('click', e => {
 $('#composer').addEventListener('close', () => { if ($('#opDlg').open) syncOp(); });
 /** Vorbelegung für einen schriftlichen Vorgang aus Einsatz und Schicht: Zeitpunkt, Rufname, Besatzung. */
 function docPreset(o) {
-  const sh = state.shifts.find(s => s.id === o.sid), me = state.settings.name.trim();
-  const crew = [...(me.includes(' ') ? [{ name: me }] : []), ...(sh ? sh.crew.map(c => ({ name: c.name })) : [])];
-  return { einsatz: { datum: dayKey(o.start), zeit: hmIn(o.start), rufname: sh && sh.unit ? sh.unit : '', kraefte: crew } };
+  const sh = state.shifts.find(s => s.id === o.sid);
+  return { einsatz: { datum: dayKey(o.start), zeit: hmIn(o.start), ...shiftCrewPreset(sh) } };
+}
+/** Rufname und Besatzung einer Schicht für schriftliche Vorgänge (eigener Name, wenn vollständig eingetragen). */
+function shiftCrewPreset(sh) {
+  if (!sh) return {};
+  const me = state.settings.name.trim();
+  const crew = [...(me.includes(' ') ? [{ name: me }] : []), ...sh.crew.map(c => ({ name: crewName(c) }))];
+  return { rufname: sh.unit || '', kraefte: crew };
 }
 $('#opDocs').addEventListener('click', e => {
   const o = opById(OPD.id); if (!o || !window.WWriter) return;
@@ -4548,6 +4554,8 @@ window.WBridge = Object.freeze({
   snapshot: () => (S ? snapshot() : null),
   restore: snap => { if (S && snap) restore(snap); },
   name: () => (S ? state.settings.name : ''),
+  /** Vorbelegung neuer Vorgänge aus der laufenden Schicht (Rufname, Besatzung). */
+  preset: () => { if (!S) return null; const sh = liveShift(); return sh ? { einsatz: shiftCrewPreset(sh) } : null; },
   /** Offenen Punkt als Todo in den Planner übernehmen (z. B. „Lichtbildmappe fertigen“). */
   addTodo(title, notes = '') { if (!S || !String(title || '').trim()) return null; const it = normItem({ id: uid(), title: String(title).trim(), notes: String(notes || ''), kind: 'todo', mode: 'einmalig' }); state.items.push(it); commit(); return it; },
   toast, ask, openDlg, closeDlg, download, esc, uid, hm, pad, mobile: () => mobileMQ.matches,

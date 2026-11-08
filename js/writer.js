@@ -33,7 +33,7 @@
   }
 
   /* ======================= Zustand ======================= */
-  const U = { view: 'list', id: null, step: 0, tab: 'bericht', lastJson: '', vis: [] };
+  const U = { view: 'list', id: null, step: 0, tab: 'bericht', lastJson: '', vis: [], moreParts: {} };
   try { const s = JSON.parse(sessionStorage.getItem('workoholic:writer') || 'null'); if (s && typeof s === 'object') { U.view = s.view === 'result' ? 'result' : s.view === 'wizard' ? 'wizard' : 'list'; U.id = s.id || null; } } catch (e) { /* egal */ }
   const remember = () => { try { sessionStorage.setItem('workoholic:writer', JSON.stringify({ view: U.view, id: U.id })); } catch (e) { /* egal */ } };
   const doc = () => (U.id ? W().find(U.id) : null);
@@ -96,6 +96,13 @@
     const L = forId => label(f, forId, d, item);
     switch (f.t) {
       case 'info': return `<div class="w-q full"><div class="w-info">${esc(R(f.text, d, item))}</div></div>`;
+      /* Schnellwahl: ein Tipp setzt mehrere Antworten (o: [[Beschriftung, {Pfad: Wert|null}, Zusatz?]]) */
+      case 'preset': {
+        const o = (R(f.o, d, item) || []).filter(x => x && x[1]);
+        if (!o.length) return '';
+        const same = vals => Object.entries(vals).every(([kk, vv]) => JSON.stringify(getP(d, kk) ?? null) === JSON.stringify(vv ?? null));
+        return `<div class="w-q full w-preset">${f.l ? `<span class="w-lbl">${esc(R(f.l, d, item))}</span>` : ''}<div class="w-pre-row">${o.map(([lab, vals, sub]) => { const on = same(vals); return `<button type="button" class="w-pre${on ? ' on' : ''}" data-multi="${esc(JSON.stringify(vals))}" aria-pressed="${on}"><b>${esc(lab)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</button>`; }).join('')}</div></div>`;
+      }
       /* Zwischentitel: gliedert einen Schritt in Abschnitte (keine Antwort, kein Datenfeld) */
       case 'head': return `<div class="w-q full w-head"><span class="w-head-t">${esc(R(f.text, d, item))}</span>${f.h ? `<span class="w-head-h">${esc(R(f.h, d, item))}</span>` : ''}</div>`;
       case 'yn': {
@@ -188,9 +195,51 @@
   const SCHADEN = (window.WVUF_CORE && window.WVUF_CORE.SCHADEN) || {};
   const VERLAUF = [['punktuell', 'punktuell'], ['horizontal', 'horizontal'], ['vertikal', 'vertikal'], ['diagonal', 'diagonal'], ['flaechig', 'flächig']];
   const MATERIAL = [['kunststoff', 'Kunststoff'], ['gummi', 'Gummi'], ['metall', 'Metall'], ['glas', 'Glas'], ['holz', 'Holz'], ['mineral', 'Stein / Pflaster']];
+
+  /* ======================= Schadensbild: Fahrzeugskizze ======================= */
+  /** Draufsicht, Front oben, linke Fahrzeugseite links. Jede Fläche ist ein Fahrzeugteil aus dem Katalog. */
+  const CAR_ZONES = [
+    ['Frontschürze links', 46, 22, 46, 24], ['Frontschürze Mitte', 94, 22, 52, 24], ['Frontschürze rechts', 148, 22, 46, 24],
+    ['Scheinwerfer links', 46, 48, 34, 20], ['Scheinwerfer rechts', 160, 48, 34, 20],
+    ['Motorhaube', 82, 48, 76, 82],
+    ['Kotflügel vorne links', 46, 70, 34, 60], ['Kotflügel vorne rechts', 160, 70, 34, 60],
+    ['Frontscheibe', 60, 132, 120, 28],
+    ['Vordertür links', 46, 162, 30, 80], ['Vordertür rechts', 164, 162, 30, 80],
+    ['Hintertür links', 46, 244, 30, 74], ['Hintertür rechts', 164, 244, 30, 74],
+    ['Dach', 78, 162, 84, 156],
+    ['Seitenwand hinten links', 46, 320, 34, 78], ['Seitenwand hinten rechts', 160, 320, 34, 78],
+    ['Heckscheibe', 82, 320, 76, 24], ['Heckklappe', 82, 346, 76, 70],
+    ['Rückleuchte links', 46, 400, 34, 16], ['Rückleuchte rechts', 160, 400, 34, 16],
+    ['Heckschürze links', 46, 418, 46, 22], ['Heckschürze Mitte', 94, 418, 52, 22], ['Heckschürze rechts', 148, 418, 46, 22]
+  ];
+  const CAR_OUT = [
+    ['Außenspiegel links', 20, 150, 24, 14, 5], ['Außenspiegel rechts', 196, 150, 24, 14, 5],
+    ['Felge vorne links', 32, 84, 12, 38, 4], ['Felge vorne rechts', 196, 84, 12, 38, 4],
+    ['Felge hinten links', 32, 336, 12, 38, 4], ['Felge hinten rechts', 196, 336, 12, 38, 4]
+  ];
+  const CAR_PARTS = new Set([...CAR_ZONES, ...CAR_OUT].map(z => z[0]));
+  function carSvg(k, names) {
+    const z = ([n, x, y, w, h, rx = 5]) => `<rect class="w-z${names.includes(n) ? ' on' : ''}" x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" data-part="${esc(k)}" data-v="${esc(n)}" role="button" tabindex="0" aria-pressed="${String(names.includes(n))}" aria-label="${esc(n)}"><title>${esc(n)}</title></rect>`;
+    return `<svg class="w-car-svg" viewBox="0 0 240 462" role="group" aria-label="Fahrzeug von oben – beschädigte Stelle antippen">
+      <defs><clipPath id="wCarClip-${esc(k.replace(/\W/g, '_'))}"><rect x="44" y="20" width="152" height="422" rx="38"/></clipPath></defs>
+      <text class="w-car-t" x="120" y="12" text-anchor="middle">VORNE</text>
+      <text class="w-car-t" x="120" y="458" text-anchor="middle">HINTEN</text>
+      <text class="w-car-t" x="10" y="235" text-anchor="middle" transform="rotate(-90 10 235)">LINKS</text>
+      <text class="w-car-t" x="230" y="235" text-anchor="middle" transform="rotate(90 230 235)">RECHTS</text>
+      ${CAR_OUT.map(z).join('')}
+      <rect class="w-car-body" x="44" y="20" width="152" height="422" rx="38"/>
+      <g clip-path="url(#wCarClip-${esc(k.replace(/\W/g, '_'))})">${CAR_ZONES.map(z).join('')}</g>
+      <g class="w-car-l" aria-hidden="true"><text x="120" y="92">Haube</text><text x="120" y="149">Scheibe</text><text x="120" y="243">Dach</text><text x="120" y="335">Scheibe</text><text x="120" y="384">Heck</text><text x="61" y="205">Tür</text><text x="179" y="205">Tür</text><text x="61" y="284">Tür</text><text x="179" y="284">Tür</text></g>
+    </svg>`;
+  }
   function partsHtml(f, k, parts) {
     const names = parts.map(p => p && p.name);
-    const grid = KARO.map(b => `<div class="w-karo-g"><span class="w-karo-l">${esc(b.label)}</span>${b.rows.map(r => `<div class="w-karo-r" style="--n:${r.length}">${r.map(n => `<button type="button" class="w-part" data-part="${esc(k)}" data-v="${esc(n)}" aria-pressed="${String(names.includes(n))}">${esc(n)}</button>`).join('')}</div>`).join('')}</div>`).join('');
+    // Seltenere Teile (Säulen, Seitenscheiben, Schweller, Radläufe, Reifen …) als Chips, zugeklappt bis gebraucht
+    const rest = KARO.flatMap(b => b.rows.flat()).filter(n => !CAR_PARTS.has(n));
+    const restOn = rest.filter(n => names.includes(n)).length, openRest = U.moreParts[k] || restOn > 0;
+    const more = `<div class="w-car-more"><button type="button" class="w-more-btn" data-more-parts="${esc(k)}" aria-expanded="${openRest}">Weitere Teile${restOn ? ` · ${restOn} gewählt` : ''}<span aria-hidden="true">${openRest ? '−' : '+'}</span></button>${openRest ? `<div class="w-chips w-rest">${rest.map(n => `<button type="button" class="chip sm w-part-chip" data-part="${esc(k)}" data-v="${esc(n)}" aria-pressed="${String(names.includes(n))}">${esc(n)}</button>`).join('')}</div>` : ''}</div>`;
+    const sel = names.filter(Boolean);
+    const grid = `<div class="w-car"><div class="w-car-pic">${carSvg(k, names)}</div><div class="w-car-side"><p class="w-hint w-car-hint">${sel.length ? `<b>${sel.length} ${sel.length === 1 ? 'Teil' : 'Teile'}:</b> ${esc(sel.join(', '))}` : 'Auf der Skizze die beschädigten Stellen antippen – erneut tippen hebt die Auswahl auf.'}</p>${more}</div></div>`;
     const cards = parts.map((p, i) => {
       const base = `${k}.${i}`;
       const arten = Array.isArray(p.arten) ? p.arten : [];
@@ -198,8 +247,8 @@
       return `<div class="w-sub w-part-card" id="wpart-${i}"><div class="w-sub-h"><b>${esc(p.name)}</b><span class="grow"></span>${i > 0 ? `<button type="button" class="link" data-part-copy="${esc(k)}" data-i="${i}">↩ wie ${esc(parts[i - 1].name)}</button>` : ''}<button type="button" class="link danger" data-part-del="${esc(k)}" data-i="${i}">Entfernen</button></div><div class="w-grid">
         <div class="w-q full"><span class="w-lbl">Art der Beschädigung <i class="w-hint-i">(Mehrfachauswahl)</i></span><div class="w-chips">${Object.entries(SCHADEN).map(([val, s]) => `<button type="button" class="chip" data-toggle="${base}.arten" data-v="${val}" aria-pressed="${String(arten.includes(val))}">${esc(s.label)}</button>`).join('')}</div><input class="input" data-k="${base}.artFrei" value="${esc(p.artFrei ?? '')}" placeholder="Weitere Beschädigung mit Artikel, z. B. „eine Lackabplatzung“" enterkeyhint="next" autocomplete="off" maxlength="120" style="margin-top:8px"></div>
         <div class="w-q full"><span class="w-lbl">Verlauf</span><div class="w-chips">${VERLAUF.map(([val, lab]) => `<button type="button" class="chip" data-set="${base}.verlauf" data-v="${val}" aria-pressed="${String(p.verlauf === val)}">${lab}</button>`).join('')}</div></div>
-        <div class="w-q half"><label class="w-lbl" for="${fid(base + '.von')}">Anstoßhöhe von (cm)</label><div class="w-num"><button type="button" class="step" data-step="${base}.von" data-d="-5">−5</button><input class="input mono" type="number" inputmode="numeric" id="${fid(base + '.von')}" data-k="${base}.von" data-num="1" value="${esc(p.von ?? '')}" min="0" max="400" placeholder="–"><button type="button" class="step" data-step="${base}.von" data-d="5">+5</button></div></div>
-        <div class="w-q half"><label class="w-lbl" for="${fid(base + '.bis')}">bis (cm)</label><div class="w-num"><button type="button" class="step" data-step="${base}.bis" data-d="-5">−5</button><input class="input mono" type="number" inputmode="numeric" id="${fid(base + '.bis')}" data-k="${base}.bis" data-num="1" value="${esc(p.bis ?? '')}" min="0" max="400" placeholder="–"><button type="button" class="step" data-step="${base}.bis" data-d="5">+5</button></div></div>
+        <div class="w-q half"><label class="w-lbl" for="${fid(base + '.von')}">Anstoßhöhe von (cm)</label><div class="w-num"><button type="button" class="step" data-step="${base}.von" data-d="-5">−5</button><input class="input mono" type="number" inputmode="numeric" id="${fid(base + '.von')}" data-k="${base}.von" data-num="1" value="${esc(p.von ?? '')}" min="0" max="400" placeholder="–"><button type="button" class="step" data-step="${base}.von" data-d="5">+5</button></div><div class="w-quick">${[30, 40, 50, 60, 70].map(n => `<button type="button" class="chip sm" data-set="${base}.von" data-v="${n}" data-n="1" aria-pressed="${String(Number(p.von) === n)}">${n}</button>`).join('')}</div></div>
+        <div class="w-q half"><label class="w-lbl" for="${fid(base + '.bis')}">bis (cm)</label><div class="w-num"><button type="button" class="step" data-step="${base}.bis" data-d="-5">−5</button><input class="input mono" type="number" inputmode="numeric" id="${fid(base + '.bis')}" data-k="${base}.bis" data-num="1" value="${esc(p.bis ?? '')}" min="0" max="400" placeholder="–"><button type="button" class="step" data-step="${base}.bis" data-d="5">+5</button></div><div class="w-quick">${[30, 40, 50, 60, 70].map(n => `<button type="button" class="chip sm" data-set="${base}.bis" data-v="${n}" data-n="1" aria-pressed="${String(Number(p.bis) === n)}">${n}</button>`).join('')}</div></div>
         <div class="w-q half"><span class="w-lbl">Fremdlackanhaftung?</span><div class="w-seg"><button type="button" class="w-opt yes" data-set="${base}.fremdlack" data-v="ja" aria-pressed="${String(p.fremdlack === 'ja')}">Ja</button><button type="button" class="w-opt no" data-set="${base}.fremdlack" data-v="nein" aria-pressed="${String(p.fremdlack === 'nein')}">Nein</button></div></div>
         ${p.fremdlack === 'ja' ? `<div class="w-q half"><label class="w-lbl" for="${fid(base + '.farbe')}">Farbe des Fremdlacks</label><input class="input" id="${fid(base + '.farbe')}" data-k="${base}.farbe" value="${esc(p.farbe ?? '')}" placeholder="z. B. rot" autocomplete="off" maxlength="40"><div class="w-quick">${FARBEN.map(c => `<button type="button" class="chip sm" data-set="${base}.farbe" data-v="${c}" aria-pressed="${String(p.farbe === c)}">${c}</button>`).join('')}</div></div>` : '<div class="w-q half"></div>'}
         <div class="w-q full"><span class="w-lbl">Weiteres Fremdmaterial</span><div class="w-chips">${MATERIAL.map(([val, lab]) => `<button type="button" class="chip" data-toggle="${base}.material" data-v="${val}" aria-pressed="${String(mat.includes(val))}">${lab}</button>`).join('')}</div></div>
@@ -207,7 +256,7 @@
         <div class="w-q full"><label class="w-lbl" for="${fid(base + '.notiz')}">Ergänzung (optional)</label><input class="input" id="${fid(base + '.notiz')}" data-k="${base}.notiz" value="${esc(p.notiz ?? '')}" placeholder="Ganzer Satz, z. B. „Der Verlauf steigt nach hinten leicht an.“" enterkeyhint="next" autocomplete="off" maxlength="300"></div>
       </div></div>`;
     }).join('');
-    return `<div class="w-q full">${label(f)}<div class="w-karo">${grid}</div>${parts.length ? `<p class="w-hint">${parts.length} ${parts.length === 1 ? 'Teil' : 'Teile'} gewählt – Details unten. Die Anstoßhöhe immer über der Fahrbahnoberfläche messen und mit Maßstab fotografieren.</p>` : '<p class="w-hint">Beschädigte Teile antippen – danach erscheinen die Details je Teil.</p>'}${cards}</div>`;
+    return `<div class="w-q full">${label(f)}${grid}${parts.length ? `<p class="w-hint">${parts.length} ${parts.length === 1 ? 'Teil' : 'Teile'} gewählt – Details unten. Die Anstoßhöhe immer über der Fahrbahnoberfläche messen und mit Maßstab fotografieren.</p>` : '<p class="w-hint">Beschädigte Teile antippen – danach erscheinen die Details je Teil.</p>'}${cards}</div>`;
   }
 
   /* ======================= Vorgangsliste ======================= */
@@ -340,7 +389,7 @@
     if (!W() || !W().unlocked()) return;
     if (!type && Object.keys(MODULES).length > 1) { U.view = 'list'; U.id = null; renderMain(); renderList(); window.scrollTo({ top: 0 }); return; }
     const m = MODULES[type] || Object.values(MODULES)[0]; if (!m) return;
-    const pre = preset && typeof preset === 'object' ? preset : {};
+    const pre = preset && typeof preset === 'object' ? preset : ((W().preset && W().preset()) || {});
     const data = { ...pre, einsatz: { datum: todayKey(0), zeit: nowHM(), ...(pre.einsatz || {}) } };
     for (const k of Object.keys(data.einsatz)) if (data.einsatz[k] == null || data.einsatz[k] === '' || (Array.isArray(data.einsatz[k]) && !data.einsatz[k].length)) delete data.einsatz[k];
     const d = W().add({ type: m.id, title: m.name, status: 'entwurf', step: 0, data });
@@ -486,10 +535,15 @@
   /* ======================= Ereignisse ======================= */
   const root = $('#schreiben');
   if (root) {
+    root.addEventListener('keydown', e => {
+      const z = e.target.closest && e.target.closest('.w-z');
+      if (z && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); z.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
+    });
     root.addEventListener('click', e => {
       const sb = e.target.closest('.w-sent');
       if (sb && e.target.tagName !== 'TEXTAREA') { const ta = $('textarea', sb); if (ta) { ta.focus(); const n = ta.value.length; try { ta.setSelectionRange(n, n); } catch (er) { /* egal */ } } return; }
-      const b = e.target.closest('button, [data-edit]'); if (!b) return;
+      const b = e.target.closest('button, [data-edit], .w-z'); if (!b) return;
+      if (b.dataset.moreParts) { U.moreParts[b.dataset.moreParts] = b.getAttribute('aria-expanded') !== 'true'; renderMain(); return; }
       if (b.dataset.w) {
         const a = b.dataset.w;
         if (a === 'new') newDoc(b.dataset.mod);
