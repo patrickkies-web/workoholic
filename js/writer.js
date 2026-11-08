@@ -103,6 +103,11 @@
         const same = vals => Object.entries(vals).every(([kk, vv]) => JSON.stringify(getP(d, kk) ?? null) === JSON.stringify(vv ?? null));
         return `<div class="w-q full w-preset">${f.l ? `<span class="w-lbl">${esc(R(f.l, d, item))}</span>` : ''}<div class="w-pre-row">${o.map(([lab, vals, sub]) => { const on = same(vals); return `<button type="button" class="w-pre${on ? ' on' : ''}" data-multi="${esc(JSON.stringify(vals))}" aria-pressed="${on}"><b>${esc(lab)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</button>`; }).join('')}</div></div>`;
       }
+      /* Ausgabe: live erzeugter Text des Moduls (f.fn), zum Durchgeben/Kopieren direkt im Schritt */
+      case 'out': {
+        const m = mod(doc()); const txt = m && typeof m[f.fn] === 'function' ? m[f.fn](d) : '';
+        return `<div class="w-q full w-out"><div class="w-out-h"><span class="w-lbl">${esc(R(f.l, d, item) || 'Text')}</span><button type="button" class="btn btn-light btn-sm" data-copy-out="${esc(f.fn)}">Kopieren</button></div>${f.h ? `<p class="w-hint">${esc(R(f.h, d, item))}</p>` : ''}<pre class="w-out-t" data-fn="${esc(f.fn)}">${esc(txt || '– noch nichts erfasst –')}</pre></div>`;
+      }
       /* Zwischentitel: gliedert einen Schritt in Abschnitte (keine Antwort, kein Datenfeld) */
       case 'head': return `<div class="w-q full w-head"><span class="w-head-t">${esc(R(f.text, d, item))}</span>${f.h ? `<span class="w-head-h">${esc(R(f.h, d, item))}</span>` : ''}</div>`;
       case 'yn': {
@@ -132,7 +137,8 @@
       case 'number': case 'euro': {
         const step = f.step || 1, unit = f.t === 'euro' ? '€' : (f.unit || '');
         const sl = f.t === 'euro' || step % 1 ? '' : step;
-        const q = Array.isArray(f.q) ? `<div class="w-quick">${f.q.map(n => `<button type="button" class="chip sm" data-set="${esc(k)}" data-v="${n}" data-n="1" aria-pressed="${String(Number(v) === n)}">${f.t === 'euro' ? n.toLocaleString('de-DE') + ' €' : n.toLocaleString('de-DE') + (unit && unit !== '€' ? ' ' + unit : '')}</button>`).join('')}</div>` : '';
+        const qv = R(f.q, d, item);
+        const q = Array.isArray(qv) ? `<div class="w-quick">${qv.map(n => `<button type="button" class="chip sm" data-set="${esc(k)}" data-v="${n}" data-n="1" aria-pressed="${String(Number(v) === n)}">${f.t === 'euro' ? n.toLocaleString('de-DE') + ' €' : n.toLocaleString('de-DE') + (unit && unit !== '€' ? ' ' + unit : '')}</button>`).join('')}</div>` : '';
         return `${Q}${L(fid(k))}<div class="w-num"><button type="button" class="step" data-step="${esc(k)}" data-d="${-step}" aria-label="weniger">−${sl}</button><input class="input mono" type="number" inputmode="${step % 1 ? 'decimal' : 'numeric'}" id="${fid(k)}" data-k="${esc(k)}" data-num="1" value="${esc(v ?? '')}" ${f.min != null ? `min="${f.min}"` : ''} ${f.max != null ? `max="${f.max}"` : ''} step="${step}" placeholder="–">${unit ? `<span class="w-unit">${unit}</span>` : ''}<button type="button" class="step" data-step="${esc(k)}" data-d="${step}" aria-label="mehr">+${sl}</button></div>${q}</div>`;
       }
       case 'crew': {
@@ -476,7 +482,10 @@
     if (v === '__now') v = nowHM();
     if (v === '__true') v = true; else if (v === '__false') v = false;
     const cur = getP(d.data, k);
-    const off = cur === v && typeof v !== 'boolean'; // zweites Tippen hebt die Auswahl auf
+    const off = cur === v && typeof v !== 'boolean'; // zweites Tippen hebt die Auswahl auf …
+    const now = Date.now();
+    if (off && U.lastSet && U.lastSet.k === k && U.lastSet.v === v && now - U.lastSet.t < 700) return; // … aber nicht bei einem Doppel-Tipp
+    U.lastSet = { k, v, t: now };
     setP(d.data, k, off ? '' : v);
     persist(false);
     if (rerender) { renderMain(); if (!off) focusNext(k); } else schedulePreview();
@@ -490,7 +499,11 @@
   }
   function schedulePreview() {
     clearTimeout(previewTimer);
-    previewTimer = setTimeout(() => { const d = doc(), pre = $('#wPre'); if (!d || !pre) return; const st = $('.w-step'); if (!st) return; pre.textContent = mod(d).preview(st.dataset.step, d.data) || '– noch nichts erfasst –'; }, 250);
+    previewTimer = setTimeout(() => {
+      const d = doc(); if (!d) return; const m = mod(d);
+      $$('.w-out-t').forEach(el => { const fn = m && m[el.dataset.fn]; if (typeof fn === 'function') el.textContent = fn(d.data) || '– noch nichts erfasst –'; });
+      const pre = $('#wPre'); if (!pre) return; const st = $('.w-step'); if (!st) return; pre.textContent = m.preview(st.dataset.step, d.data) || '– noch nichts erfasst –';
+    }, 250);
   }
   async function del() {
     const d = doc(); if (!d) return;
@@ -500,9 +513,9 @@
     U.id = null; U.view = 'list'; renderMain(); renderList();
     W().toast('Vorgang gelöscht', { undo: snap });
   }
-  async function copy() {
+  async function copy(text) {
     const d = doc(); if (!d) return;
-    const t = currentText(d, mod(d));
+    const t = typeof text === 'string' ? text : currentText(d, mod(d));
     try { await navigator.clipboard.writeText(t); W().toast('In die Zwischenablage kopiert'); }
     catch (e) { const ta = document.createElement('textarea'); ta.value = t; document.body.append(ta); ta.select(); try { document.execCommand('copy'); W().toast('Kopiert'); } catch (er) { W().toast('Kopieren nicht möglich – Text markieren und manuell kopieren.'); } ta.remove(); }
   }
@@ -543,6 +556,7 @@
       const sb = e.target.closest('.w-sent');
       if (sb && e.target.tagName !== 'TEXTAREA') { const ta = $('textarea', sb); if (ta) { ta.focus(); const n = ta.value.length; try { ta.setSelectionRange(n, n); } catch (er) { /* egal */ } } return; }
       const b = e.target.closest('button, [data-edit], .w-z'); if (!b) return;
+      if (b.dataset.copyOut) { const d = doc(); const m = mod(d); if (d && m && typeof m[b.dataset.copyOut] === 'function') copy(m[b.dataset.copyOut](d.data)); return; }
       if (b.dataset.moreParts) { U.moreParts[b.dataset.moreParts] = b.getAttribute('aria-expanded') !== 'true'; renderMain(); return; }
       if (b.dataset.w) {
         const a = b.dataset.w;
