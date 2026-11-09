@@ -140,7 +140,9 @@
 
   /* ======================= Weichen ======================= */
   const bsY = d => ofRole(d, 'bs')[0] || null;
-  const bsDa = d => { const y = bsY(d); return !!y && y.p.da === 'ja'; };
+  /** Vor Ort oder im Nahbereich angetroffen – danach läuft alles wie bei Anwesenheit. */
+  const bsDa = d => { const y = bsY(d); return !!y && ['ja', 'nah'].includes(y.p.da); };
+  const bsHier = d => { const y = bsY(d); return !!y && y.p.da === 'ja'; };
   const bsWeg = d => { const y = bsY(d); return !!y && y.p.da === 'nein'; };
   const kinderL = d => ofRole(d, 'kind');
   const kinderDa = d => kinderL(d).length > 0;
@@ -173,19 +175,77 @@
   const TATSACHEN = { schreie: 'aus der Wohnung waren Schreie zu hören', hilfe: 'aus der Wohnung waren Hilferufe zu hören', poltern: 'aus der Wohnung waren Poltern und Kampfgeräusche zu hören', nachbarn: 'Nachbarn berichteten von einer andauernden Auseinandersetzung', notruf: 'nach dem Inhalt des Notrufs dauerte der Übergriff an', zweite: 'die zweite gemeldete Person war nicht zu sehen', kind: 'in der Wohnung weinte hörbar ein Kind', blut: 'an der Tür bzw. im Eingangsbereich war Blut zu sehen' };
   const WO = { tuer: 'an der Wohnungstür', wohnung: 'in der Wohnung', treppenhaus: 'im Treppenhaus', draussen: 'vor dem Haus', nachbarn: 'in einer Nachbarwohnung', fahrzeug: 'in einem Fahrzeug' };
   const ZUST = {
-    gs: { weint: 'weinte', angst: 'wirkte verängstigt', aufgeloest: 'wirkte aufgelöst', zittert: 'zitterte', apathisch: 'wirkte apathisch und abwesend', atem: 'war außer Atem', blutet: 'blutete', kleidung: 'trug zerrissene bzw. in Unordnung geratene Kleidung', ruhig: 'wirkte ruhig und gefasst', aufgebracht: 'war aufgebracht', aggressiv: 'verhielt sich aggressiv' },
-    bs: { ruhig: 'verhielt sich ruhig', kooperativ: 'verhielt sich kooperativ', aufgebracht: 'war aufgebracht', aggressiv: 'verhielt sich aggressiv', laut: 'schrie und war nur schwer zu beruhigen', uneinsichtig: 'zeigte sich uneinsichtig', drohend: 'sprach in Gegenwart der Einsatzkräfte Drohungen aus', angriff: x => `versuchte, zu ${x.G.dat} zu gelangen`, provokant: 'verhielt sich provozierend', atem: 'war außer Atem und verschwitzt', kleidung: 'trug in Unordnung geratene Kleidung' },
-    zeuge: { ruhig: 'wirkte ruhig', aufgeregt: 'wirkte aufgeregt', angst: 'wirkte verängstigt', weint: 'weinte' },
+    gs: { schreit: 'schrie', stockend: 'sprach nur stockend', leise: 'sprach sehr leise', kaum: 'sprach kaum', ruhigV: 'verhielt sich ruhig', weint: 'weinte', angst: 'wirkte verängstigt', aufgeloest: 'wirkte aufgelöst', zittert: 'zitterte', apathisch: 'wirkte apathisch und abwesend', atem: 'war außer Atem', blutet: 'blutete', kleidung: 'trug zerrissene bzw. in Unordnung geratene Kleidung', ruhig: 'wirkte ruhig und gefasst', aufgebracht: 'war aufgebracht', aggressiv: 'verhielt sich aggressiv' },
+    bs: { schreit: 'schrie', beruhig: 'ließ sich kaum beruhigen', beleidigt: 'beleidigte die Einsatzkräfte', umher: 'lief aufgebracht umher', faust: 'ballte die Fäuste', widerstand: 'leistete Widerstand gegen die Einsatzkräfte', ruhig: 'verhielt sich ruhig', kooperativ: 'verhielt sich kooperativ', aufgebracht: 'war aufgebracht', aggressiv: 'verhielt sich aggressiv', laut: 'schrie und war nur schwer zu beruhigen', uneinsichtig: 'zeigte sich uneinsichtig', drohend: 'sprach in Gegenwart der Einsatzkräfte Drohungen aus', angriff: x => `versuchte, zu ${x.G.dat} zu gelangen`, provokant: 'verhielt sich provozierend', atem: 'war außer Atem und verschwitzt', kleidung: 'trug in Unordnung geratene Kleidung' },
+    zeuge: { ruhigV: 'verhielt sich ruhig', aufgeregtV: 'sprach aufgeregt', ruhig: 'wirkte ruhig', aufgeregt: 'wirkte aufgeregt', angst: 'wirkte verängstigt', weint: 'weinte' },
     kind: { unauffaellig: 'wirkte unauffällig', angst: 'wirkte verängstigt', weint: 'weinte', verstoert: 'wirkte verstört', schlief: 'schlief', versteckt: 'hatte sich versteckt', schutz: x => `suchte Schutz bei ${x.G.dat}`, verletzt: 'war verletzt' }
   };
   const ZUST_UI = {
-    gs: [['weint', 'Weinte'], ['angst', 'Verängstigt'], ['aufgeloest', 'Aufgelöst'], ['zittert', 'Zitterte'], ['apathisch', 'Apathisch'], ['atem', 'Außer Atem'], ['blutet', 'Blutete'], ['kleidung', 'Kleidung zerrissen / in Unordnung'], ['ruhig', 'Ruhig, gefasst'], ['aufgebracht', 'Aufgebracht'], ['aggressiv', 'Aggressiv']],
-    bs: [['ruhig', 'Ruhig'], ['kooperativ', 'Kooperativ'], ['aufgebracht', 'Aufgebracht'], ['aggressiv', 'Aggressiv'], ['laut', 'Schrie, kaum zu beruhigen'], ['uneinsichtig', 'Uneinsichtig'], ['drohend', 'Drohte vor der Polizei'], ['angriff', 'Wollte zur geschädigten Person'], ['provokant', 'Provozierend'], ['atem', 'Außer Atem, verschwitzt'], ['kleidung', 'Kleidung in Unordnung']],
-    zeuge: [['ruhig', 'Ruhig'], ['aufgeregt', 'Aufgeregt'], ['angst', 'Verängstigt'], ['weint', 'Weinte']],
+    gs: [['weint', 'Weinte'], ['zittert', 'Zitterte'], ['schreit', 'Schrie'], ['stockend', 'Sprach nur stockend'], ['leise', 'Sprach sehr leise'], ['kaum', 'Sprach kaum'], ['blutet', 'Blutete'], ['ruhigV', 'Ruhig'], ['aggressiv', 'Aggressiv']],
+    bs: [['ruhig', 'Ruhig'], ['kooperativ', 'Kooperativ'], ['aggressiv', 'Aggressiv'], ['schreit', 'Schrie'], ['beruhig', 'Kaum zu beruhigen'], ['drohend', 'Drohte vor der Polizei'], ['beleidigt', 'Beleidigte Einsatzkräfte'], ['provokant', 'Provozierend'], ['umher', 'Lief aufgebracht umher'], ['faust', 'Ballte die Fäuste'], ['widerstand', 'Leistete Widerstand']],
+    zeuge: [['ruhigV', 'Ruhig'], ['aufgeregtV', 'Sprach aufgeregt'], ['weint', 'Weinte']],
     kind: [['unauffaellig', 'Unauffällig'], ['angst', 'Verängstigt'], ['weint', 'Weinte'], ['verstoert', 'Verstört'], ['schlief', 'Schlief'], ['versteckt', 'Hatte sich versteckt'], ['schutz', 'Suchte Schutz bei der geschädigten Person'], ['verletzt', 'Verletzt']]
   };
   const WUERG = { atem: 'Atemnot', schwindel: 'Schwindel', bewusst: 'eine kurze Bewusstlosigkeit', schluck: 'Schluckbeschwerden', stimme: 'Heiserkeit', einnaessen: 'ein unwillkürlicher Urinabgang' };
   const BES = { rausch: x => `${x.Er} war aufgrund ${x.sein}es Zustands nicht in der Lage, Belehrungen und Erklärungen zu folgen.`, sprache: x => `Eine Verständigung mit ${x.dat} in deutscher Sprache war nicht möglich.`, psych: x => `${x.Er} befand sich erkennbar in einer akuten psychischen Krise.`, minder: x => `${x.Er} ist minderjährig.`, betreut: x => `${x.Er} steht nach eigenen Angaben unter rechtlicher Betreuung.` };
+  /* ---------- Einsatzvergabe und Kräfte ---------- */
+  const STICHWORT = { hg: 'Häusliche Gewalt', familie: 'Familienstreitigkeit', streit: 'Streitigkeit', hilfe: 'Hilfeersuchen', ruhe: 'Ruhestörung', kv: 'Körperverletzung', bedrohung: 'Bedrohung' };
+  /** Wer hat gemeldet: [Chip, Satzteil nach „Die Meldung kam von …“]. Ohne Chip = frühere Version. */
+  const MITT = {
+    gs: ['Geschädigte Person selbst', x => `${x.G.dat} selbst`],
+    gsNachbar: ['Geschädigte aus einer Nachbarwohnung', x => `${x.G.dat} selbst aus einer Nachbarwohnung`],
+    kind: ['Kind aus dem Haushalt', 'einem Kind aus dem Haushalt'],
+    nebenan: ['Nachbarwohnung', 'einer Person aus einer Nachbarwohnung'],
+    oben: ['Wohnung darüber', 'einer Person aus der darüberliegenden Wohnung'],
+    unten: ['Wohnung darunter', 'einer Person aus der darunterliegenden Wohnung'],
+    gegenueber: ['Haus gegenüber', 'einer Person aus einem gegenüberliegenden Haus'],
+    haus: ['Person aus dem Haus', 'einer Person aus dem Haus'],
+    passant: ['Passant / Passantin', 'einer unbeteiligten Person auf der Straße'],
+    angehFern: ['Angehörige (nicht vor Ort)', 'einer angehörigen Person, die sich nicht vor Ort befand'],
+    bekanntFern: ['Bekannte (nicht vor Ort)', 'einer bekannten Person, die sich nicht vor Ort befand'],
+    bs: ['Beschuldigte Person selbst', x => `${x.T.dat} selbst`],
+    stelle: ['Andere Stelle', 'einer anderen Stelle'],
+    unbekannt: ['Unbekannt / anonym', ''],
+    keine: ['Keine Angabe', ''],
+    nachbar: [null, 'einer Person aus der Nachbarschaft'], angehoerig: [null, 'Angehörigen'], dritte: [null, 'einer unbeteiligten Person']
+  };
+  const MITT_TEXT = ['kind', 'nebenan', 'oben', 'unten', 'gegenueber', 'haus', 'passant', 'angehFern', 'bekanntFern', 'stelle', 'nachbar', 'angehoerig', 'dritte'];
+  const MELD = [['Lauter Streit', 'es in der Wohnung zu einer lautstarken Auseinandersetzung komme'], ['Schreie', 'aus der Wohnung Schreie zu hören seien'], ['Hilferufe', 'eine Person um Hilfe rufe'], ['Poltern', 'aus der Wohnung Poltern und Kampfgeräusche zu hören seien'], ['Schläge', 'eine Person in der Wohnung geschlagen werde'], ['Bedrohung', 'eine Person bedroht werde'], ['Messer', 'eine Person mit einem Messer bedroht werde'], ['Kinder weinen', 'in der Wohnung Kinder weinten'], ['Geflüchtet', 'eine Person aus der Wohnung geflüchtet sei'], ['Verletzt bei Nachbarn', 'sich eine verletzte Person bei Nachbarn befinde'], ['Festgehalten', 'eine Person die Wohnung nicht verlassen dürfe'], ['Aus dem Fenster', 'Gegenstände aus dem Fenster geworfen würden'], ['Notruf abgebrochen', 'der Notruf abgebrochen sei und im Hintergrund ein Streit zu hören gewesen sei'], ['Schon weg', 'die Person, von der die Gewalt ausgegangen sei, die Wohnung bereits verlassen habe']];
+  const AUFTRAG_UI = [['ort', 'Einsatzörtlichkeit aufgesucht'], ['nah', 'Nahbereich nach Beschuldigtem abgesucht'], ['unterst', 'Später zur Unterstützung'], ['aufenthalt', 'Aufenthaltsort des Beschuldigten aufgesucht'], ['frei', 'Anderer Auftrag']];
+  /** Nachname aus „Max Müller“, „Müller, Max“ oder „Max von der Heide“ – im Text steht Amtsbezeichnung + Nachname. */
+  const nachname = n => { n = str(n); if (n.includes(',')) return n.split(',')[0].trim(); const t = n.split(/\s+/); if (t.length < 2) return n; let i = t.length - 1; while (i > 1 && /^(von|van|de|der|den|zu|zur|vom|ten|ter|di|da|del|le|la)$/i.test(t[i - 1])) i--; return t.slice(i).join(' '); };
+  const kName = c => [str(c && c.grad), nachname(c && c.name)].filter(Boolean).join(' ');
+  /** Streifenwagen mit Besatzung; ältere Entwürfe: einsatz.kraefte als ein Fahrzeug. */
+  const wagenL = d => { const w = arr(get(d, 'einsatz.wagen')).map((v, i) => ({ ...(v && typeof v === 'object' ? v : {}), i })); if (w.length) return w; const k = arr(get(d, 'einsatz.kraefte')); return k.length ? [{ crew: k, i: 0 }] : []; };
+  const crewOf = w => arr(w && w.crew).filter(c => c && has(c.name));
+  const besetzung = w => joinList(crewOf(w).map(kName));
+
+  /* ---------- Angetroffene Personen ---------- */
+  const HALTUNG = { sass: 'saß', stand: 'stand', lag: 'lag auf dem Boden', kauerte: 'kauerte am Boden', umher: 'lief aufgeregt umher', eingeschl: 'hatte sich in einem Raum eingeschlossen', versteckt: 'hatte sich versteckt', kindArm: 'hielt ein Kind auf dem Arm' };
+  const HALTUNG_UI = [['sass', 'Saß'], ['stand', 'Stand'], ['lag', 'Lag am Boden'], ['kauerte', 'Kauerte am Boden'], ['umher', 'Lief umher'], ['eingeschl', 'Hatte sich eingeschlossen'], ['versteckt', 'Hatte sich versteckt'], ['kindArm', 'Kind auf dem Arm']];
+  const SICHT = { traenen: 'hatte Tränenspuren im Gesicht', haare: 'hatte zerzauste Haare', geroetet: 'hatte ein gerötetes Gesicht', atem: 'war außer Atem', schweiss: 'war verschwitzt', riss: 'trug zerrissene Kleidung', unordnung: 'trug in Unordnung geratene Kleidung', blutKleid: 'hatte Blut an der Kleidung', blutHand: 'hatte Blut an den Händen', leicht: 'war nur leicht bekleidet', barfuss: 'war barfuß' };
+  const SICHT_UI = [['traenen', 'Tränenspuren'], ['haare', 'Haare zerzaust'], ['geroetet', 'Gesicht gerötet'], ['atem', 'Außer Atem'], ['schweiss', 'Verschwitzt'], ['riss', 'Kleidung zerrissen'], ['unordnung', 'Kleidung in Unordnung'], ['blutKleid', 'Blut an der Kleidung'], ['blutHand', 'Blut an den Händen'], ['leicht', 'Nur leicht bekleidet'], ['barfuss', 'Barfuß']];
+  /** Eindruck auf die Einsatzkräfte – getrennt vom Beobachteten: „Auf … wirkte sie …“. */
+  const WIRK = {
+    gs: { angst: 'verängstigt', eingeschuechtert: 'eingeschüchtert', aufgeloest: 'aufgelöst', schock: 'wie unter Schock', apathisch: 'apathisch', erleichtert: 'erleichtert über das Eintreffen der Polizei', gefasst: 'gefasst', aufgebracht: 'aufgebracht', verwirrt: 'verwirrt' },
+    bs: { aggressiv: 'aggressiv', angespannt: 'angespannt', aufgebracht: 'aufgebracht', uneinsichtig: 'uneinsichtig', gleichgueltig: 'gleichgültig', ueberheblich: 'überheblich', ruhig: 'ruhig und kontrolliert', veraergert: 'verärgert über das Erscheinen der Polizei', verwirrt: 'verwirrt' },
+    zeuge: { aufgeregt: 'aufgeregt', besorgt: 'besorgt', angst: 'verängstigt', sachlich: 'ruhig und sachlich' }
+  };
+  const WIRK_UI = {
+    gs: [['angst', 'Verängstigt'], ['eingeschuechtert', 'Eingeschüchtert'], ['aufgeloest', 'Aufgelöst'], ['schock', 'Wie unter Schock'], ['apathisch', 'Apathisch'], ['erleichtert', 'Erleichtert über Polizei'], ['gefasst', 'Gefasst'], ['aufgebracht', 'Aufgebracht'], ['verwirrt', 'Verwirrt']],
+    bs: [['aggressiv', 'Aggressiv'], ['angespannt', 'Angespannt'], ['aufgebracht', 'Aufgebracht'], ['uneinsichtig', 'Uneinsichtig'], ['gleichgueltig', 'Gleichgültig'], ['ueberheblich', 'Überheblich'], ['ruhig', 'Ruhig, kontrolliert'], ['veraergert', 'Verärgert über Polizei'], ['verwirrt', 'Verwirrt']],
+    zeuge: [['aufgeregt', 'Aufgeregt'], ['besorgt', 'Besorgt'], ['angst', 'Verängstigt'], ['sachlich', 'Ruhig, sachlich']]
+  };
+  /** Verhalten zueinander – nur, wenn beide vor Ort sind. */
+  const ZUEIN = {
+    gs: { abstand: x => `suchte Abstand zu ${x.T.dat}`, blick: x => `blickte immer wieder ängstlich zu ${x.T.dat}`, schweigt: x => `wollte in Gegenwart ${x.T.gen} nicht sprechen`, naehe: 'suchte die Nähe der Einsatzkräfte', schutz: x => `nahm ${x.T.akk} in Schutz`, herunter: 'spielte das Geschehen herunter' },
+    bs: { zuGs: x => `versuchte, zu ${x.G.dat} zu gelangen`, einreden: x => `redete fortwährend auf ${x.G.akk} ein`, unterbricht: x => `unterbrach ${x.G.akk} fortlaufend`, vorwuerfe: x => `machte ${x.G.dat} Vorwürfe`, beleidigt: x => `beleidigte ${x.G.akk}`, droht: x => `drohte ${x.G.dat}`, blicke: x => `versuchte, ${x.G.akk} durch Blicke und Gesten einzuschüchtern` }
+  };
+  const ZUEIN_UI = {
+    gs: [['abstand', 'Suchte Abstand'], ['blick', 'Blickte ängstlich hinüber'], ['schweigt', 'Sprach nicht in dessen Gegenwart'], ['naehe', 'Suchte Nähe der Polizei'], ['schutz', 'Nahm in Schutz'], ['herunter', 'Spielte herunter']],
+    bs: [['zuGs', 'Wollte zur geschädigten Person'], ['einreden', 'Redete auf sie / ihn ein'], ['unterbricht', 'Unterbrach fortlaufend'], ['vorwuerfe', 'Machte Vorwürfe'], ['beleidigt', 'Beleidigte'], ['droht', 'Drohte'], ['blicke', 'Einschüchternde Blicke, Gesten']]
+  };
+  const ANSPR = { orientiert: 'war ansprechbar und orientiert', eingeschr: 'war nur eingeschränkt ansprechbar', nicht: 'war nicht ansprechbar' };
   const KONSUM = [['Alkoholgeruch', 'deutlicher Alkoholgeruch in der Atemluft'], ['Aussprache', 'eine verwaschene Aussprache'], ['Gang', 'ein unsicherer Gang'], ['Augen', 'gerötete, glasige Augen'], ['Pupillen', 'auffällig veränderte Pupillen'], ['Reaktion', 'verzögerte Reaktionen'], ['Stimmung', 'starke Stimmungsschwankungen']];
   const VERL = { haematom: 'ein Hämatom', roetung: 'eine Rötung', schwellung: 'eine Schwellung', kratzer: 'Kratzspuren', platzwunde: 'eine Platzwunde', blutung: 'eine blutende Wunde', wuergemale: 'Würgemale am Hals', biss: 'eine Bissverletzung', abwehr: 'Abwehrverletzungen an den Unterarmen', nase: 'Nasenbluten', petechien: 'punktförmige Einblutungen im Gesicht oder an den Augen' };
   const RTW_KIND = [['vorort', 'RTW angefordert, vor Ort versorgt'], ['kh', 'RTW, ins Krankenhaus'], ['eltern', 'Mit sorgeberechtigter Person besprochen: nicht sofort nötig'], ['arzt', 'Sorgeberechtigte Person stellt Arztbesuch sicher']];
@@ -222,7 +282,7 @@
     { k: 'wuergen', g: 'tat', l: 'Würgen / Angriff gegen den Hals', fest: x => `Am Hals ${x.G.gen} wurden Spuren festgestellt, die auf einen Angriff gegen den Hals hindeuten.`, angabe: x => `Nach Angaben ${x.G.gen} habe ${x.T.nom} ${x.G.ihn} gewürgt bzw. am Hals gepackt.`, annahme: x => `Es bestehen Anhaltspunkte dafür, dass ${x.G.nom} am Hals angegriffen wurde.`, bed: 'Angriffe gegen den Hals gelten als Warnsignal für eine Eskalation bis hin zu Tötungsdelikten; ihre Folgen können zudem verzögert auftreten.', weil: () => 'es zu einem Angriff gegen den Hals gekommen ist' },
     { k: 'kopf', g: 'tat', l: 'Schläge oder Tritte gegen den Kopf', fest: x => `Das Verletzungsbild ${x.G.gen} spricht für Schläge oder Tritte gegen den Kopf.`, angabe: x => `Nach Angaben ${x.G.gen} habe ${x.T.nom} ${x.G.ihn} gegen den Kopf geschlagen oder getreten.`, annahme: x => `Es bestehen Anhaltspunkte für Schläge oder Tritte gegen den Kopf ${x.G.gen}.`, bed: 'Schläge und Tritte gegen den Kopf können schwere, auch lebensgefährliche Verletzungen verursachen.', weil: () => 'der Angriff gegen den Kopf gerichtet war' },
     { k: 'waffe', g: 'tat', l: 'Waffe oder gefährlicher Gegenstand', fest: () => 'Am Einsatzort wurde ein gefährlicher Gegenstand vorgefunden, der im Zusammenhang mit dem Geschehen steht.', angabe: x => `Nach Angaben ${x.G.gen} habe ${x.T.nom} eine Waffe oder einen gefährlichen Gegenstand eingesetzt oder damit gedroht.`, annahme: () => 'Es bestehen Anhaltspunkte dafür, dass bei dem Geschehen ein gefährlicher Gegenstand eingesetzt oder damit gedroht wurde.', bed: 'Der Einsatz von oder die Drohung mit Waffen und gefährlichen Gegenständen zeigt eine erhebliche Gewaltbereitschaft und erhöht das Risiko schwerer Verletzungen.', weil: () => 'eine Waffe bzw. ein gefährlicher Gegenstand im Spiel war' },
-    { k: 'behandlung', g: 'tat', l: 'Verletzungen mit Behandlungsbedarf', fest: x => `${x.G.Nom} erlitt Verletzungen, die medizinisch versorgt werden mussten.`, angabe: x => `Nach Angaben ${x.G.gen} seien die Verletzungen ärztlich behandlungsbedürftig.`, annahme: x => `Es ist davon auszugehen, dass die Verletzungen ${x.G.gen} ärztlicher Behandlung bedürfen.`, bed: 'Die Schwere der Verletzungen belegt die Intensität des Angriffs.', weil: () => 'der Angriff zu behandlungsbedürftigen Verletzungen geführt hat' },
+    { k: 'behandlung', g: 'tat', l: 'Verletzungen mit Behandlungsbedarf', fest: x => { const y = ofRole(x.d, 'gs').find(q => ['kh', 'vorort', 'sofort'].includes(q.p.rtw)); const R = y ? ref(x.d, y.i, { vfg: x.vfg }) : x.G; return { kh: `${R.Nom} wurde mit einem Rettungswagen in ein Krankenhaus gebracht.`, vorort: `${R.Nom} wurde vor Ort durch den Rettungsdienst versorgt.`, sofort: `Für ${R.akk} musste sofort ein Rettungswagen angefordert werden.` }[y && y.p.rtw] || `${R.Nom} erlitt Verletzungen, die medizinisch versorgt werden mussten.`; }, angabe: x => `Nach Angaben ${x.G.gen} seien die Verletzungen ärztlich behandlungsbedürftig.`, annahme: x => `Es ist davon auszugehen, dass die Verletzungen ${x.G.gen} ärztlicher Behandlung bedürfen.`, bed: 'Die Schwere der Verletzungen belegt die Intensität des Angriffs.', weil: () => 'der Angriff zu behandlungsbedürftigen Verletzungen geführt hat' },
     { k: 'sexuell', g: 'tat', l: 'Sexuelle Gewalt', fest: () => 'Es wurden Umstände festgestellt, die auf sexuelle Gewalt hindeuten.', angabe: x => `Nach Angaben ${x.G.gen} sei es auch zu sexueller Gewalt gekommen.`, annahme: () => 'Es bestehen Anhaltspunkte für sexuelle Gewalt.', bed: 'Sexuelle Gewalt in der Beziehung ist Ausdruck massiver Grenzüberschreitung und gilt als Risikofaktor für weitere schwere Gewalt.', weil: () => 'auch sexuelle Gewalt im Raum steht' },
     { k: 'einsperren', g: 'tat', l: 'Festgehalten, eingesperrt', fest: x => `Festgestellt wurde, dass ${x.G.nom} am Verlassen der Wohnung gehindert worden war.`, angabe: x => `Nach Angaben ${x.G.gen} habe ${x.T.nom} ${x.G.ihn} festgehalten bzw. am Verlassen der Wohnung gehindert.`, annahme: x => `Es bestehen Anhaltspunkte dafür, dass ${x.G.nom} am Verlassen der Wohnung gehindert wurde.`, bed: 'Das Festhalten und Einsperren zeigt den Versuch, die gefährdete Person vollständig zu kontrollieren, und nimmt ihr die Möglichkeit, sich zu entziehen.', weil: x => `${x.G.nom} am Verlassen der Wohnung gehindert wurde` },
     { k: 'notruf', g: 'tat', l: 'Hilferuf verhindert, Telefon weggenommen', fest: x => `Festgestellt wurde, dass das Mobiltelefon ${x.G.gen} weggenommen oder beschädigt worden war.`, angabe: x => `Nach Angaben ${x.G.gen} habe ${x.T.nom} ${x.G.ihn} daran gehindert, Hilfe zu rufen, bzw. ${x.G.sein} Telefon weggenommen.`, annahme: x => `Es bestehen Anhaltspunkte dafür, dass ${x.G.nom} am Herbeirufen von Hilfe gehindert wurde.`, bed: 'Wer das Herbeirufen von Hilfe verhindert, nimmt der gefährdeten Person die Möglichkeit, sich selbst zu schützen.', weil: x => `${x.G.nom} daran gehindert wurde, Hilfe zu holen` },
@@ -240,18 +300,18 @@
     { k: 'suizid', g: 'dro', l: 'Suiziddrohung der beschuldigten Person', fest: x => `${x.T.Nom} kündigte in Gegenwart der Einsatzkräfte an, sich das Leben zu nehmen.`, angabe: x => `Nach Angaben ${x.G.gen} habe ${x.T.nom} gedroht, sich das Leben zu nehmen.`, annahme: x => `Es bestehen Anhaltspunkte für eine Suizidgefährdung ${x.T.gen}.`, bed: 'Suiziddrohungen der gewaltausübenden Person gelten als Warnsignal für einen erweiterten Suizid, der die gefährdete Person und die Kinder einschließen kann.', weil: x => `${x.T.nom} mit Suizid gedroht hat` },
     { k: 'kinderdrohung', g: 'dro', l: 'Drohung gegen Kinder', fest: x => `In Gegenwart der Einsatzkräfte richtete ${x.T.nom} Drohungen auch gegen die Kinder.`, angabe: x => `Nach Angaben ${x.G.gen} habe ${x.T.nom} auch den Kindern gedroht.`, annahme: () => 'Es ist davon auszugehen, dass sich Drohungen auch gegen die Kinder richten.', bed: 'Drohungen gegen Kinder gelten als Warnsignal für eine schwere Eskalation.', weil: () => 'sich die Drohungen auch gegen die Kinder richten' },
     { k: 'rueckkehr', g: 'dro', l: 'Kündigt an, zurückzukommen', fest: x => `${x.T.Nom} kündigte in Gegenwart der Einsatzkräfte an, zurückzukommen bzw. die Auseinandersetzung fortzusetzen.`, angabe: x => `Nach Angaben ${x.G.gen} habe ${x.T.nom} angekündigt, zurückzukommen.`, annahme: x => `Es ist davon auszugehen, dass ${x.T.nom} ohne die Maßnahme kurzfristig zurückkehren würde.`, bed: 'Die Ankündigung zeigt, dass ohne die Maßnahme mit einer kurzfristigen Rückkehr und weiteren Übergriffen zu rechnen ist.', weil: x => `${x.T.nom} angekündigt hat, zurückzukommen` },
-    { k: 'drohung', g: 'dro', l: 'Weitere Drohungen', fest: x => `${x.T.Nom} sprach in Gegenwart der Einsatzkräfte Drohungen gegen ${x.G.akk} aus.`, angabe: x => `Nach Angaben ${x.G.gen} habe ${x.T.nom} ${x.G.ihm} weitere Gewalt angedroht.`, annahme: x => `Es ist davon auszugehen, dass ${x.T.nom} weitere Gewalt angedroht hat.`, bed: 'Angekündigte Gewalt macht weitere Übergriffe in allernächster Zeit wahrscheinlich.', weil: x => `${x.T.nom} weitere Gewalt angedroht hat` },
+    { k: 'drohung', g: 'dro', l: 'Weitere Drohungen', fest: x => { const b = (bsY(x.d) || {}).p || {}; return arr(b.zuein).includes('droht') ? `${x.T.Nom} drohte ${x.G.dat} in Gegenwart der Einsatzkräfte.` : `${x.T.Nom} sprach in Gegenwart der Einsatzkräfte Drohungen aus.`; }, angabe: x => `Nach Angaben ${x.G.gen} habe ${x.T.nom} ${x.G.ihm} weitere Gewalt angedroht.`, annahme: x => `Es ist davon auszugehen, dass ${x.T.nom} weitere Gewalt angedroht hat.`, bed: 'Angekündigte Gewalt macht weitere Übergriffe in allernächster Zeit wahrscheinlich.', weil: x => `${x.T.nom} weitere Gewalt angedroht hat` },
     { k: 'abhaengig', g: 'lage', l: 'Abhängigkeit oder Isolation der gefährdeten Person', fest: x => `Festgestellt wurde, dass ${x.G.nom} von ${x.T.dat} wirtschaftlich oder sozial abhängig ist.`, angabe: x => `Nach Angaben ${x.G.gen} sei ${x.G.er} von ${x.T.dat} abhängig bzw. sozial isoliert.`, annahme: x => `Es ist von einer Abhängigkeit ${x.G.gen} von ${x.T.dat} auszugehen.`, bed: 'Abhängigkeit und Isolation erschweren es der gefährdeten Person, sich selbst zu schützen oder Hilfe zu holen.', weil: x => `${x.G.nom} sich aus eigener Kraft kaum schützen kann` },
     { k: 'neuerpartner', g: 'lage', l: 'Neue Beziehung der gefährdeten Person', fest: x => `${x.G.Nom} hat eine neue Beziehung.`, angabe: x => `Nach Angaben ${x.G.gen} habe ${x.G.er} eine neue Beziehung, was ${x.T.nom} nicht akzeptiere.`, annahme: x => `Es ist davon auszugehen, dass eine neue Beziehung ${x.G.gen} Anlass der Auseinandersetzung war.`, bed: 'Eine neue Beziehung der gefährdeten Person kann eine akute Kränkung auslösen, die eine Eskalation begünstigt.', weil: x => `${x.T.nom} eine neue Beziehung ${x.G.gen} nicht akzeptiert` },
     { k: 'stiefkind', g: 'lage', l: 'Kind aus anderer Beziehung im Haushalt', fest: x => `Im Haushalt lebt ein Kind, das nicht von ${x.T.dat} abstammt.`, angabe: x => `Nach Angaben ${x.G.gen} lebe im Haushalt ein Kind aus einer anderen Beziehung.`, annahme: () => 'Es ist davon auszugehen, dass im Haushalt ein Kind aus einer anderen Beziehung lebt.', bed: 'Ein Kind aus einer anderen Beziehung im Haushalt gilt als zusätzlicher Belastungsfaktor.', weil: () => 'im Haushalt ein Kind aus einer anderen Beziehung lebt' },
     { k: 'krise', g: 'lage', l: 'Akute Lebenskrise (Job, Schulden, Kränkung)', fest: x => `${x.T.Nom} befindet sich erkennbar in einer akuten Lebenskrise.`, angabe: x => `Nach Angaben ${x.G.gen} befinde sich ${x.T.nom} in einer akuten Lebenskrise, etwa durch Arbeitsplatzverlust, Schulden oder eine Kränkung.`, annahme: x => `Es ist von einer akuten Belastungssituation ${x.T.gen} auszugehen.`, bed: 'Akute Belastungen und Kränkungserleben begünstigen eine Eskalation.', weil: x => `${x.T.nom} sich in einer akuten Lebenskrise befindet` },
-    { k: 'alkohol', g: 'bsp', l: 'Alkohol- oder Drogeneinfluss', fest: x => { const b = (bsY(x.d) || {}).p || {}; const w = b.aat === 'ja' && has(b.aatWert) ? ` (Atemalkoholtest: ${String(b.aatWert).replace('.', ',')}${b.aatEinheit === 'mgl' ? ' mg/l' : b.aatEinheit === 'promille' ? ' ‰' : ''})` : ''; return `${x.T.Nom} war erkennbar alkoholisiert bzw. berauscht${w}.`; }, angabe: x => `Nach Angaben ${x.G.gen} trinke ${x.T.nom} regelmäßig bzw. werde unter Alkoholeinfluss gewalttätig.`, annahme: x => `Es ist davon auszugehen, dass ${x.T.nom} den Konsum in der Wohnung fortsetzen würde.`, bed: 'Alkohol und Drogen senken die Hemmschwelle; regelmäßiger Konsum lässt erwarten, dass sich solche Lagen wiederholen.', weil: x => `${x.T.nom} erheblich unter Alkohol- bzw. Drogeneinfluss stand` },
+    { k: 'alkohol', g: 'bsp', l: 'Alkohol- oder Drogeneinfluss', fest: x => { const b = (bsY(x.d) || {}).p || {}; const w = b.aat === 'ja' && has(b.aatWert) ? ` (Atemalkoholtest: ${String(b.aatWert).replace('.', ',')}${b.aatEinheit === 'mgl' ? ' mg/l' : b.aatEinheit === 'promille' ? ' ‰' : ''})` : ''; return `Bei ${x.T.dat} ergaben sich Anzeichen für eine Beeinflussung durch Alkohol, Drogen oder Medikamente${w}.`; }, angabe: x => `Nach Angaben ${x.G.gen} trinke ${x.T.nom} regelmäßig bzw. werde unter Alkoholeinfluss gewalttätig.`, annahme: x => `Es ist davon auszugehen, dass ${x.T.nom} den Konsum in der Wohnung fortsetzen würde.`, bed: 'Alkohol und Drogen senken die Hemmschwelle für weitere Gewalt.', weil: x => `${x.T.nom} erheblich unter Alkohol- bzw. Drogeneinfluss stand` },
     { k: 'waffenzugang', g: 'bsp', l: 'Waffenbesitz oder Zugang zu Waffen', fest: x => `${x.T.Nom} verfügt nach polizeilichen Erkenntnissen über Waffen bzw. eine waffenrechtliche Erlaubnis.`, angabe: x => `Nach Angaben ${x.G.gen} habe ${x.T.nom} Zugang zu Waffen.`, annahme: x => `Es ist davon auszugehen, dass ${x.T.nom} Zugang zu Waffen hat.`, bed: 'Der Einsatz von oder der Zugang zu Waffen erhöht das Risiko schwerer und tödlicher Gewalt erheblich.', weil: x => `${x.T.nom} Zugang zu Waffen hat` },
-    { k: 'aggressiv', g: 'bsp', l: 'Aggressiv auch vor der Polizei', fest: x => `${x.T.Nom} verhielt sich auch in Gegenwart der Einsatzkräfte aggressiv und ließ sich kaum beruhigen.`, angabe: x => `Nach Angaben ${x.G.gen} sei ${x.T.nom} unbeherrscht und leicht reizbar.`, annahme: x => `Es ist nicht zu erwarten, dass sich ${x.T.nom} ohne die Maßnahme beruhigt.`, bed: 'Wer sich selbst in Anwesenheit der Polizei nicht beherrscht, lässt nach deren Abzug weitere Gewalt erwarten.', weil: x => `${x.T.nom} sich selbst in Gegenwart der Polizei nicht beruhigen ließ` },
-    { k: 'uneinsichtig', g: 'bsp', l: 'Uneinsichtig, gibt der gefährdeten Person die Schuld', fest: x => `${x.T.Nom} zeigte sich uneinsichtig, spielte das Geschehen herunter und gab ${x.G.dat} die Schuld.`, angabe: x => `Nach Angaben ${x.G.gen} gebe ${x.T.nom} ${x.G.dat} regelmäßig die Schuld an den Auseinandersetzungen.`, annahme: x => `Es ist nicht zu erwarten, dass ${x.T.nom} ${x.T.sein} Verhalten aus eigenem Antrieb ändert.`, bed: 'Fehlende Einsicht spricht gegen eine Verhaltensänderung aus eigenem Antrieb.', weil: x => `${x.T.nom} keinerlei Einsicht zeigte` },
+    { k: 'aggressiv', g: 'bsp', l: 'Aggressiv auch vor der Polizei', fest: x => { const b = (bsY(x.d) || {}).p || {}, z = arr(b.zust); const t = [z.includes('aggressiv') ? 'verhielt sich auch in Gegenwart der Einsatzkräfte aggressiv' : '', z.includes('schreit') ? 'schrie' : '', z.includes('beruhig') ? 'ließ sich kaum beruhigen' : '', z.includes('laut') ? 'schrie und ließ sich kaum beruhigen' : ''].filter(Boolean); return t.length ? `${x.T.Nom} ${joinList(t)}.` : `${x.T.Nom} wirkte auch in Gegenwart der Einsatzkräfte aggressiv.`; }, angabe: x => `Nach Angaben ${x.G.gen} sei ${x.T.nom} unbeherrscht und leicht reizbar.`, annahme: x => `Es ist nicht zu erwarten, dass sich ${x.T.nom} ohne die Maßnahme beruhigt.`, bed: 'Wer sich selbst in Anwesenheit der Polizei nicht beherrscht, lässt nach deren Abzug weitere Gewalt erwarten.', weil: x => `${x.T.nom} sich selbst in Gegenwart der Polizei aggressiv verhielt` },
+    { k: 'uneinsichtig', g: 'bsp', l: 'Uneinsichtig, gibt der gefährdeten Person die Schuld', fest: x => (arr(((bsY(x.d) || {}).p || {}).zust).includes('uneinsichtig') ? `${x.T.Nom} zeigte sich gegenüber den Einsatzkräften uneinsichtig.` : `${x.T.Nom} wirkte auf die Einsatzkräfte uneinsichtig.`), angabe: x => `Nach Angaben ${x.G.gen} gebe ${x.T.nom} ${x.G.dat} regelmäßig die Schuld an den Auseinandersetzungen.`, annahme: x => `Es ist nicht zu erwarten, dass ${x.T.nom} ${x.T.sein} Verhalten aus eigenem Antrieb ändert.`, bed: 'Fehlende Einsicht spricht gegen eine Verhaltensänderung aus eigenem Antrieb.', weil: x => `${x.T.nom} sich uneinsichtig zeigte` },
     { k: 'psych', g: 'bsp', l: 'Psychische Ausnahmesituation', fest: x => `${x.T.Nom} befand sich erkennbar in einer psychischen Ausnahmesituation.`, angabe: x => `Nach Angaben ${x.G.gen} befinde sich ${x.T.nom} in einer psychischen Krise.`, annahme: x => `Es ist von einer psychischen Ausnahmesituation ${x.T.gen} auszugehen.`, bed: 'Eine akute psychische Krise macht das Verhalten schwer vorhersehbar und kann die Gefahr erhöhen.', weil: x => `${x.T.nom} sich in einer psychischen Ausnahmesituation befand` },
     { k: 'widerstand', g: 'bsp', l: 'Widerstand gegen die Einsatzkräfte', fest: x => `${x.T.Nom} leistete Widerstand gegen die Einsatzkräfte.`, angabe: x => `Nach Angaben ${x.G.gen} habe sich ${x.T.nom} schon früher gegen polizeiliche Maßnahmen gewehrt.`, annahme: x => `Es ist davon auszugehen, dass sich ${x.T.nom} polizeilichen Anordnungen widersetzt.`, bed: 'Gewalt sogar gegenüber Einsatzkräften zeigt eine sehr niedrige Hemmschwelle.', weil: x => `${x.T.nom} sich sogar gegen die Einsatzkräfte zur Wehr setzte` },
-    { k: 'angst', g: 'opf', l: 'Angst vor weiterer Gewalt', fest: x => `${x.G.Nom} wirkte erkennbar verängstigt.`, angabe: x => `${x.G.Nom} äußerte Angst vor weiteren Übergriffen.`, annahme: x => `Es ist davon auszugehen, dass ${x.G.nom} weitere Übergriffe fürchtet.`, bed: 'Die konkret geäußerte Angst vor einer Eskalation ist ein gewichtiger Hinweis auf das tatsächliche Risiko.', weil: x => `${x.G.nom} Angst vor weiteren Übergriffen hat` },
+    { k: 'angst', g: 'opf', l: 'Angst vor weiterer Gewalt', fest: x => { const w = [...new Set(ofRole(x.d, 'gs').flatMap(y => arr(y.p.wirk)).filter(k => ['angst', 'eingeschuechtert'].includes(k)))].map(k => WIRK.gs[k]); return w.length ? `${x.G.Nom} wirkte auf die Einsatzkräfte ${joinList(w)}.` : `${x.G.Nom} wirkte erkennbar verängstigt.`; }, angabe: x => `${x.G.Nom} äußerte Angst vor weiteren Übergriffen.`, annahme: x => `Es ist davon auszugehen, dass ${x.G.nom} weitere Übergriffe fürchtet.`, bed: 'Die Angst der gefährdeten Person vor weiterer Gewalt ist ein gewichtiger Hinweis auf das tatsächliche Risiko.', weil: x => `${x.G.nom} Angst vor weiteren Übergriffen hat` },
     { k: 'toetung', g: 'opf', l: 'Hält eine Tötung für möglich', fest: x => `${x.G.Nom} äußerte gegenüber den Einsatzkräften, ${x.G.er} halte ${x.T.akk} für fähig, ${x.G.ihn} zu töten.`, angabe: x => `${x.G.Nom} äußerte, ${x.G.er} halte ${x.T.akk} für fähig, ${x.G.ihn} zu töten.`, annahme: x => `Es ist davon auszugehen, dass ${x.G.nom} ${x.T.akk} für fähig hält, ${x.G.ihn} zu töten.`, bed: 'Hält die gefährdete Person eine Tötung für möglich, ist das ein gewichtiger Warnhinweis.', weil: x => `${x.G.nom} ${x.T.akk} für fähig hält, ${x.G.ihn} zu töten` },
     { k: 'ausweg', g: 'opf', l: 'Kann nicht ausweichen (Kinder, Gesundheit, Unterkunft)', fest: x => `${x.G.Nom} hat keine Möglichkeit, kurzfristig anderweitig unterzukommen.`, angabe: x => `Nach Angaben ${x.G.gen} habe ${x.G.er} keine Möglichkeit, kurzfristig anderweitig unterzukommen.`, annahme: x => `Es ist davon auszugehen, dass ${x.G.nom} nicht anderweitig unterkommen kann.`, bed: 'Der gefährdeten Person ist nicht zuzumuten, die eigene Wohnung zu verlassen, um sich zu schützen.', weil: x => `${x.G.nom} nicht ausweichen kann` }
   ];
@@ -263,12 +323,15 @@
   function autoMarks(d) {
     const a = {}, G = ofRole(d, 'gs').map(y => y.p), B = (bsY(d) || {}).p || {}, K = kinderL(d).map(y => y.p);
     if (G.some(p => arr(p.verl).some(v => ['wuergemale', 'petechien'].includes(v)))) a.wuergen = 'fest';
+    else if (G.some(p => arr(p.wuerg).length)) a.wuergen = 'angabe';
     if (G.some(p => ['vorort', 'kh', 'sofort'].includes(p.rtw))) a.behandlung = 'fest';
     if (K.some(p => p.da === 'ja')) a.kinder = 'fest';
     if (B.konsum === 'ja') a.alkohol = 'fest';
-    if (arr(B.zust).some(z => ['aggressiv', 'laut', 'angriff'].includes(z))) a.aggressiv = 'fest';
-    if (arr(B.zust).includes('drohend')) a.drohung = 'fest';
-    if (arr(B.zust).includes('uneinsichtig')) a.uneinsichtig = 'fest';
+    if (arr(B.zust).some(z => ['aggressiv', 'laut'].includes(z)) || arr(B.wirk).includes('aggressiv')) a.aggressiv = 'fest';
+    if (arr(B.zust).includes('drohend') || arr(B.zuein).includes('droht')) a.drohung = 'fest';
+    if (arr(B.zust).includes('uneinsichtig') || arr(B.wirk).includes('uneinsichtig')) a.uneinsichtig = 'fest';
+    if (arr(B.zust).includes('widerstand')) a.widerstand = 'fest';
+    if (G.some(p => arr(p.wirk).some(w => ['angst', 'eingeschuechtert'].includes(w)) || arr(p.zust).includes('angst'))) a.angst = 'fest';
     if (arr(B.bes).includes('psych')) a.psych = 'fest';
     const v = arr(get(d, 'prog.vorg'));
     if (v.includes('verstoss')) a.verstoss = 'fest';
@@ -277,7 +340,7 @@
     if (v.includes('anzeigen')) a.frueher = 'fest';
     const g0 = G[0] || {};
     if (!a.frueher && g0.frueher === 'ja') a.frueher = 'angabe';
-    if (g0.angst === 'ja') a.angst = 'angabe';
+    if (!a.angst && g0.angst === 'ja') a.angst = 'angabe';
     if (['gsWill', 'bsWill', 'vollzogen'].includes(get(d, 'lage.trennung'))) a.trennung = 'angabe';
     return a;
   }
@@ -306,6 +369,12 @@
   const frei = (k, pre, ph, extra) => ({ k, t: 'text', l: 'Weiteres in eigenen Worten (optional)', pre, ph, max: 240, ...extra });
   const satzFeld = (k, l, ph, extra) => ({ k, t: 'text', l: l + ' (optional, ganzer Satz)', ph, max: 240, ...extra });
   const zw = it => ({ w: 'Zeugin', m: 'Zeuge', d: 'Zeugin / Zeuge' }[gOf(it)]);
+  /** Wer war an der Einsatzörtlichkeit? Besatzungen mit Auftrag „Einsatzörtlichkeit“, sonst das erste Fahrzeug. */
+  const vorOrt = d => { const W = wagenL(d).filter(w => besetzung(w)); const a = W.filter(w => w.auftrag === 'ort'); const g = a.length ? a : W.filter(w => !['unterst', 'nah', 'aufenthalt'].includes(w.auftrag)).slice(0, 1); const n = g.reduce((s0, w) => s0 + crewOf(w).length, 0); return g.length ? { txt: joinList(g.map(besetzung)), pl: n > 1 } : { txt: 'die Einsatzkräfte', pl: true }; };
+  /** Wer hat die Person angetroffen? Bei „im Nahbereich angetroffen“ die betreffende Besatzung. */
+  const nahWagenOf = (d, p) => { const W = wagenL(d).filter(w => besetzung(w)); if (has(p && p.nahWagen)) return W.find(w => String(w.i) === String(p.nahWagen)) || null; return W.find(w => ['nah', 'aufenthalt'].includes(w.auftrag)) || null; };
+  const vorOrtFuer = (d, p) => { if (p && p.rolle === 'bs' && p.da === 'nah') { const w = nahWagenOf(d, p); if (w) return { txt: besetzung(w), pl: crewOf(w).length > 1 }; } return vorOrt(d); };
+  const beideHier = d => ofRole(d, 'gs').some(y => y.p.da === 'ja') && bsHier(d);
   const halsAng = (d, it) => it.rolle !== 'bs' && (arr(it.verl).some(v => ['wuergemale', 'petechien'].includes(v)) || (it.rolle === 'gs' && !!markOf(d, 'wuergen')));
   const present = it => it.da !== 'nein';
   const statementOf = it => ['gs', 'zeuge'].includes(it.rolle) && present(it);
@@ -322,25 +391,30 @@
   const STEPS = [
     /* ---------- Einsatz ---------- */
     {
-      id: 'einsatz', phase: 'Einsatz', title: 'Einsatzanlass', lead: 'Wann, auf welchem Weg und mit welcher Meldung kam der Einsatz – und wohin?', gen: ['einsatz'],
+      id: 'einsatz', phase: 'Einsatz', title: 'Einsatzanlass', lead: 'Wann kam der Einsatz, mit welchem Stichwort, was wurde gemeldet – und wohin?', gen: ['einsatz'],
       fields: [
         { k: 'einsatz.datum', t: 'date', l: 'Datum', w: 'half', q: 'heute', req: true },
-        { k: 'einsatz.zeit', t: 'time', l: 'Uhrzeit der Einsatzübernahme', w: 'half', q: 'jetzt', req: true },
-        { k: 'einsatz.meldeweg', t: 'choice', l: 'Meldeweg', o: [['leitstelle', 'Leitstelle (Notruf 110)'], ['telefon', 'Telefonisch bei der Wache'], ['wache', 'Persönlich auf der Wache'], ['streife', 'Eigene Wahrnehmung im Streifendienst']] },
-        { k: 'einsatz.mitteiler', t: 'choice', l: 'Wer hat gemeldet?', o: [['gs', 'Geschädigte Person selbst'], ['kind', 'Kind aus dem Haushalt'], ['nachbar', 'Nachbarschaft'], ['angehoerig', 'Angehörige'], ['dritte', 'Andere Person'], ['bs', 'Beschuldigte Person selbst'], ['unbekannt', 'Unbekannt']], when: d => get(d, 'einsatz.meldeweg') !== 'streife' },
-        { k: 'einsatz.mitteilerText', t: 'text', l: 'Wer genau? (optional)', pre: 'Die Meldung kam von', ph: 'der Schwester der geschädigten Person', max: 120, when: d => ['dritte', 'angehoerig'].includes(get(d, 'einsatz.mitteiler')) },
-        { k: 'einsatz.meldung', t: 'text', l: 'Was wurde gemeldet?', pre: 'Gemeldet wurde, dass', ph: 'es in der Wohnung zu einer lautstarken Auseinandersetzung komme und eine Frau um Hilfe rufe', lint: 'konj', join: ' und ', sugg: [['Streit', 'es in der Wohnung zu einer lautstarken Auseinandersetzung komme'], ['Hilferufe', 'aus der Wohnung Hilferufe zu hören seien'], ['Schläge', 'eine Person in der Wohnung geschlagen werde'], ['Bedrohung', 'eine Person in der Wohnung bedroht werde'], ['Kind ruft an', 'ein Kind angerufen habe, weil sich die Erwachsenen stritten']] },
+        { k: 'einsatz.zeit', t: 'time', l: 'Uhrzeit der Einsatzvergabe', w: 'half', q: 'jetzt', req: true },
+        { k: 'einsatz.meldeweg', t: 'choice', l: 'Wie kam der Einsatz?', o: [['leitstelle', 'Über die Leitstelle'], ['telefon', 'Anruf auf der Wache'], ['wache', 'Persönlich auf der Wache'], ['streife', 'Eigene Wahrnehmung im Streifendienst']] },
+        { k: 'einsatz.stichwort', t: 'choice', l: 'Einsatzstichwort', o: O(STICHWORT), when: d => get(d, 'einsatz.meldeweg') !== 'streife' },
+        { k: 'einsatz.stichwortText', t: 'text', l: 'Anderes Stichwort (optional)', ph: 'z. B. Person in Not', w: 'half', max: 60, when: d => get(d, 'einsatz.meldeweg') !== 'streife' },
+        { k: 'einsatz.meldung', t: 'text', l: 'Was wurde gemeldet?', pre: 'Gemeldet wurde, dass', ph: 'es in der Wohnung zu einer lautstarken Auseinandersetzung komme und eine Person um Hilfe rufe', lint: 'konj', join: ' und ', max: 600, sugg: MELD, when: d => get(d, 'einsatz.meldeweg') !== 'streife' },
+        { k: 'einsatz.mitteiler', t: 'choice', l: 'Wer hat gemeldet?', h: '„Keine Angabe“: Dazu steht nichts im Text.', o: Object.entries(MITT).filter(([, v]) => v[0]).map(([k, v]) => [k, v[0]]), when: d => get(d, 'einsatz.meldeweg') !== 'streife' },
+        { k: 'einsatz.mitteilerText', t: 'text', l: 'Genauer (optional)', pre: 'Die Meldung kam von', ph: 'der Nachbarin aus der darunterliegenden Wohnung', max: 160, when: d => MITT_TEXT.includes(get(d, 'einsatz.mitteiler')) },
         { k: 'ort.strasse', t: 'text', l: 'Straße', ph: 'Musterstraße', w: 'half', req: true },
         { k: 'ort.hausnr', t: 'text', l: 'Hausnummer', ph: '5', w: 'half' },
         { k: 'ort.stadt', t: 'text', l: 'PLZ und Ort', ph: 'z. B. 48431 Rheine', recent: true, req: true }
       ]
     },
     {
-      id: 'kraefte', phase: 'Einsatz', title: 'Eingesetzte Kräfte', lead: 'Rufname und Besatzung – wie bei den anderen schriftlichen Arbeiten. Ein Tipp übernimmt die Besatzung vom letzten Vorgang.', gen: ['einsatz'],
+      id: 'kraefte', phase: 'Einsatz', title: 'Eingesetzte Kräfte', lead: 'Je Streifenwagen eine Karte: Besatzung aus der Teamliste antippen, Auftrag wählen. Rufnamen stehen nicht im Text.', gen: ['einsatz'],
       fields: [
-        { k: 'einsatz.rufname', t: 'text', l: 'Rufname / Einsatzmittel', ph: 'z. B. Stf 21/03', w: 'half', recent: true },
-        { k: 'einsatz.kraefte', t: 'crew', l: 'Besatzung', max: 6 },
-        { k: 'einsatz.weitere', t: 'text', l: 'Weitere Kräfte (optional)', pre: 'Zur Unterstützung waren außerdem eingesetzt:', ph: 'Stf 21/05 (PK Weber, PKin Aydin) und ein Rettungswagen' }
+        { k: 'einsatz.wagen', t: 'list', l: '', item: (it, i) => `Streifenwagen ${i + 1}`, add: 'Weiteres Fahrzeug', min1: true, max: 6, sub: [
+          { k: 'crew', t: 'crew', l: 'Besatzung', max: 4 },
+          { k: 'auftrag', t: 'choice', l: 'Auftrag', o: AUFTRAG_UI },
+          { k: 'ziel', t: 'text', l: 'Welcher Ort?', pre: 'Aufgesucht wurde', ph: 'die Anschrift der Eltern des Beschuldigten in Emsdetten', max: 160, when: (d, it) => it.auftrag === 'aufenthalt' },
+          { k: 'auftragText', t: 'text', l: 'Auftrag in eigenen Worten', pre: (d, it) => besetzung(it) || 'Die Besatzung', ph: 'sicherten die Rückseite des Hauses', max: 200, when: (d, it) => it.auftrag === 'frei' }
+        ] }
       ]
     },
 
@@ -359,7 +433,9 @@
           { k: 'kbez', t: 'choice', l: 'Wessen Kind?', o: O(KBEZ_UI), when: (d, it) => it.rolle === 'kind' },
           { k: 'kbezText', t: 'text', l: 'Genauer', ph: 'z. B. Enkelin der geschädigten Person', max: 80, when: (d, it) => it.rolle === 'kind' && it.kbez === 'anders' },
           { k: 'alter', t: 'number', l: (d, it) => (it.rolle === 'kind' ? 'Alter' : 'Alter (nur bei Minderjährigen)'), unit: 'Jahre', min: 0, max: 120, w: 'half', when: (d, it) => ['kind', 'gs'].includes(it.rolle) },
-          { k: 'da', t: 'yn', l: 'Beim Eintreffen vor Ort?', o: [['ja', 'Vor Ort'], ['nein', 'Nicht vor Ort']], w: 'half', when: (d, it) => has(it.rolle) },
+          { k: 'da', t: 'yn', l: 'Beim Eintreffen vor Ort?', o: (d, it) => (it.rolle === 'bs' ? [['ja', 'Vor Ort'], ['nah', 'Im Nahbereich angetroffen'], ['nein', 'Nicht angetroffen']] : [['ja', 'Vor Ort'], ['nein', 'Nicht vor Ort']]), when: (d, it) => has(it.rolle) },
+          { k: 'nahOrt', t: 'text', l: 'Wo angetroffen?', pre: 'Angetroffen', ph: 'in der Bahnhofstraße, etwa 200 m von der Wohnung entfernt', max: 160, when: (d, it) => it.rolle === 'bs' && it.da === 'nah' },
+          { k: 'nahWagen', t: 'choice', l: 'Durch welche Besatzung?', o: d => wagenL(d).filter(w => besetzung(w)).map(w => [String(w.i), besetzung(w)]), when: (d, it) => it.rolle === 'bs' && it.da === 'nah' && wagenL(d).filter(w => besetzung(w)).length > 1 },
           { k: 'verletzt', t: 'yn', l: 'Verletzt?', w: 'half', when: (d, it) => has(it.rolle) }
         ] },
         { t: 'info', when: d => plist(d).length > 0 && !ofRole(d, 'bs').length, text: 'Noch keine beschuldigte Person erfasst. Auch wer nicht mehr vor Ort ist, wird hier angelegt (Rolle „Beschuldigt“, „Nicht vor Ort“).' }
@@ -370,8 +446,8 @@
     {
       id: 'eintreffen', phase: 'Eintreffen', title: 'Eintreffen und Zutritt', lead: 'Was war beim Eintreffen zu hören, wer öffnete – und auf welcher Grundlage habt ihr die Wohnung betreten?', gen: ['eintreffen'],
       fields: [
-        { k: 'einsatz.eintreffZeit', t: 'time', l: 'Eintreffzeit', w: 'half', q: 'jetzt' },
-        { k: 'eintreff.wahrn', t: 'multi', l: 'Vor der Wohnung zu hören', o: [...O(WAHRN), ['ruhig', 'Nichts – ruhige Lage']] },
+        { k: 'eintreff.vorher', t: 'yn', l: 'Wurden vor dem Betreten Feststellungen gemacht?', h: 'Was vor der Tür zu hören oder zu sehen war.' },
+        { k: 'eintreff.vorherText', t: 'area', rows: 3, l: 'Feststellungen', pre: d => `Bereits vor dem Betreten der Wohnung ${vorOrt(d).pl ? 'nahmen' : 'nahm'} ${vorOrt(d).txt} wahr, dass`, ph: 'aus der Wohnung laute Schreie einer Frau und das Weinen eines Kindes zu hören waren', max: 1200, when: d => get(d, 'eintreff.vorher') === 'ja' },
         { k: 'zutritt.art', t: 'choice', l: 'Zutritt', req: true, o: [['einw', 'Geöffnet und eingelassen'], ['verweigert', 'Geöffnet, Zutritt verweigert'], ['niemand', 'Niemand öffnete'], ['draussen', 'Außerhalb der Wohnung angetroffen']] },
         { k: 'zutritt.wer', t: 'choice', l: 'Wer öffnete?', o: d => [...plist(d).map((p, i) => [p, i]).filter(([p]) => isP(p) && present(p)).map(([p, i]) => [String(i), pl(p, i)]), ['andere', 'Andere Person']], when: d => ['einw', 'verweigert'].includes(get(d, 'zutritt.art')) },
         { k: 'zutritt.werText', t: 'text', l: 'Wer genau?', pre: 'Die Tür wurde geöffnet von', ph: 'dem Bruder des Beschuldigten', max: 120, when: d => get(d, 'zutritt.wer') === 'andere' },
@@ -381,19 +457,38 @@
         { k: 'zutritt.zwang', t: 'choice', l: 'Wie wurde der Zutritt durchgesetzt?', o: d => (get(d, 'zutritt.art') === 'niemand' ? [['gewalt', 'Tür nach Androhung gewaltsam geöffnet'], ['sofort', 'Tür sofort gewaltsam geöffnet (Sofortvollzug)'], ['schluessel', 'Durch Dritte mit Schlüssel geöffnet']] : [['aufforderung', 'Nach Aufforderung geduldet'], ['angedroht', 'Nach Androhung von Zwang geduldet'], ['gewalt', 'Nach Androhung durchgesetzt']]), when: zutrittGegen },
         { k: 'zutritt.gesucht', t: 'yn', l: 'Wurde in der Wohnung gegen den Willen nach einer Person gesucht?', h: 'Raum für Raum nach der zweiten Person sehen ist rechtlich eine Durchsuchung (§§ 41, 42 PolG NRW).', when: zutrittGegen },
         { k: 'zutritt.durchs', t: 'multi', l: 'Dazu erledigt', o: [['gefahr', 'Gefahr im Verzug – Richter nicht abwartbar'], ['grund', 'Grund dem Inhaber genannt'], ['niederschrift', 'Niederschrift gefertigt']], when: d => zutrittGegen(d) && get(d, 'zutritt.gesucht') === 'ja' },
-        satzFeld('zutritt.text', 'Ergänzung zum Zutritt', 'Die Feuerwehr stand zur Türöffnung bereit.')
+        satzFeld('zutritt.text', 'Ergänzung zum Zutritt', 'Die Feuerwehr stand zur Türöffnung bereit.'),
+        { t: 'head', text: 'Erste Maßnahmen' },
+        { k: 'eintreff.sofort', t: 'multi', l: 'Direkt nach dem Betreten', o: d => [...(bsHier(d) ? [['getrennt', 'Beteiligte räumlich getrennt']] : []), ['idf', 'Identitäten festgestellt'], ['abgleich', 'Datenabgleich'], ...(bsDa(d) ? [['eigen', 'Durchsuchung zur Eigensicherung']] : []), ['waffen', 'Waffen / gefährliche Gegenstände sichergestellt'], ...(inc(d, 'eintreff.sofort', 'waffen') ? [['besch', 'Bescheinigung über die Sicherstellung ausgehändigt']] : []), ['absuche', 'Nahbereich abgesucht']] },
+        satzFeld('eintreff.sofortText', 'Weitere Maßnahmen', 'Die Wohnung wurde nach weiteren Personen abgesucht.')
       ]
     },
     {
       id: 'angetroffen', phase: 'Eintreffen', title: 'Angetroffene Personen', lead: 'Für jede anwesende Person: wo angetroffen, Zustand, Auffälligkeiten, ungefragte Äußerungen. Kinder folgen im Schritt „Kinder“.', gen: ['angetroffen'],
       fields: [
         { k: 'pers', t: 'list', fixed: true, l: '', item: (it, i) => pl(it, i), only: (d, it) => it.rolle !== 'kind' && present(it), empty: 'Noch keine anwesende Person erfasst – erst im Schritt „Beteiligte Personen“ anlegen.', sub: [
-          { k: 'wo', t: 'choice', l: 'Wo angetroffen?', o: O(WO) },
-          { k: 'woText', t: 'text', l: 'Genauer (optional)', ph: 'im Schlafzimmer, auf dem Boden sitzend', max: 120 },
-          { k: 'zust', t: 'multi', l: (d, it) => (it.rolle === 'bs' ? 'Verhalten und Zustand' : 'Zustand'), o: (d, it) => ZUST_UI[it.rolle] || ZUST_UI.zeuge },
-          { k: 'zustFrei', t: 'text', l: 'Weiteres in eigenen Worten (optional)', pre: (d, it) => ErP(it), ph: 'hielt sich die linke Wange und sprach nur stockend', max: 240 },
-          { k: 'bes', t: 'multi', l: 'Besonderheiten', o: [['rausch', 'Nicht aufnahmefähig'], ['sprache', 'Keine Verständigung ohne Dolmetscher'], ['psych', 'Akute psychische Krise'], ['minder', 'Unter 18 Jahre'], ['betreut', 'Unter rechtlicher Betreuung']], when: (d, it) => it.rolle === 'bs' },
-          { t: 'info', when: (d, it) => it.rolle === 'bs' && arr(it.bes).some(b => ['rausch', 'sprache'].includes(b)), text: 'Belehrung, Anhörung und Verfügung, die nicht verstanden werden, sind angreifbar. Zustand als Tatsache festhalten, Verfügung schriftlich mitgeben, Belehrung und Anhörung nachholen. Als Dolmetscher scheiden die geschädigte Person, ihre Angehörigen und Kinder aus.' },
+          { t: 'head', text: 'Ort und Haltung' },
+          { k: 'wo', t: 'choice', l: 'Wo angetroffen?', o: O(WO), when: (d, it) => !(it.rolle === 'bs' && it.da === 'nah') },
+          { k: 'woText', t: 'text', l: 'Genauer (optional)', ph: 'im Schlafzimmer', max: 120, when: (d, it) => !(it.rolle === 'bs' && it.da === 'nah') },
+          { k: 'haltung', t: 'multi', l: 'Haltung', o: HALTUNG_UI },
+          { k: 'haltungFrei', t: 'text', l: 'In eigenen Worten (optional)', pre: (d, it) => ErP(it), ph: 'hielt sich die linke Wange', max: 200 },
+          { t: 'head', text: 'Sichtbares' },
+          { k: 'sicht', t: 'multi', l: 'Äußeres Erscheinungsbild', o: SICHT_UI },
+          { k: 'sichtFrei', t: 'text', l: 'In eigenen Worten (optional)', pre: (d, it) => ErP(it), ph: 'hatte eine ausgerissene Haarsträhne in der Hand', max: 200 },
+          { t: 'head', text: 'Verhalten' },
+          { k: 'zust', t: 'multi', l: 'Was war zu beobachten?', o: (d, it) => ZUST_UI[it.rolle] || ZUST_UI.zeuge },
+          { k: 'zustFrei', t: 'text', l: 'In eigenen Worten (optional)', pre: (d, it) => ErP(it), ph: 'sprach mit zitternder Stimme', max: 240 },
+          { k: 'zuein', t: 'multi', l: (d, it) => (it.rolle === 'bs' ? 'Gegenüber der geschädigten Person' : 'Gegenüber der beschuldigten Person'), o: (d, it) => ZUEIN_UI[it.rolle] || [], when: (d, it) => ['gs', 'bs'].includes(it.rolle) && beideHier(d) },
+          { k: 'zueinFrei', t: 'text', l: 'In eigenen Worten (optional)', pre: (d, it) => ErP(it), ph: 'stellte sich zwischen die Einsatzkräfte und die Tür', max: 200, when: (d, it) => ['gs', 'bs'].includes(it.rolle) && beideHier(d) },
+          { k: 'anspr', t: 'choice', l: 'Ansprechbarkeit', o: [['orientiert', 'Ansprechbar, orientiert'], ['eingeschr', 'Eingeschränkt ansprechbar'], ['nicht', 'Nicht ansprechbar']] },
+          { k: 'sprache', t: 'choice', l: 'Verständigung', o: [['deutsch', 'Auf Deutsch'], ['eingeschr', 'Nur eingeschränkt auf Deutsch'], ['dolm', 'Nur mit Dolmetscher/in']] },
+          { k: 'spracheText', t: 'text', l: 'Sprache / wer übersetzte (optional)', ph: 'Türkisch; übersetzt durch die Nachbarin', max: 120, when: (d, it) => ['eingeschr', 'dolm'].includes(it.sprache) },
+          { k: 'bes', t: 'multi', l: 'Besonderheiten', o: [['rausch', 'Nicht aufnahmefähig'], ['psych', 'Akute psychische Krise'], ['minder', 'Unter 18 Jahre'], ['betreut', 'Unter rechtlicher Betreuung']], when: (d, it) => it.rolle === 'bs' },
+          { t: 'info', when: (d, it) => it.rolle === 'bs' && (arr(it.bes).includes('rausch') || it.sprache === 'dolm'), text: 'Belehrung, Anhörung und Verfügung, die nicht verstanden werden, sind angreifbar. Zustand als Tatsache festhalten, Verfügung schriftlich mitgeben, Belehrung und Anhörung nachholen. Als Dolmetscher scheiden Beteiligte und Kinder aus.' },
+          { t: 'head', text: 'Wirkung auf die Einsatzkräfte' },
+          { k: 'wirk', t: 'multi', l: (d, it) => `Auf ${vorOrtFuer(d, it).txt} wirkte ${erP(it)} …`, o: (d, it) => WIRK_UI[it.rolle] || WIRK_UI.zeuge },
+          { k: 'wirkFrei', t: 'text', l: 'In eigenen Worten (optional)', pre: (d, it) => `Auf ${vorOrtFuer(d, it).txt} wirkte ${erP(it)}`, ph: 'trotz der Verletzungen auffallend ruhig', max: 200 },
+          { t: 'head', text: 'Alkohol, Drogen und Äußerungen' },
           { k: 'konsum', t: 'yn', l: 'Anzeichen für Alkohol-, Drogen- oder Medikamenteneinfluss?' },
           { k: 'konsumText', t: 'text', l: 'Welche Anzeichen?', pre: 'Festgestellt wurden', ph: 'deutlicher Alkoholgeruch in der Atemluft und eine verwaschene Aussprache', join: ' und ', sugg: KONSUM, when: (d, it) => it.konsum === 'ja' },
           { k: 'aat', t: 'choice', l: 'Atemalkoholtest (freiwillig)', o: [['ja', 'Durchgeführt'], ['verweigert', 'Abgelehnt'], ['nein', 'Nicht durchgeführt']], when: (d, it) => it.konsum === 'ja' },
@@ -403,13 +498,11 @@
           { k: 'spontan', t: 'text', l: 'Ungefragte Äußerung (wörtlich, optional)', h: 'Ungefragte Äußerungen bleiben verwertbar, auch wenn später das Zeugnis verweigert wird – deshalb wörtlich und mit Uhrzeit.', pre: (d, it) => `${ErP(it)} äußerte ungefragt:`, ph: (d, it) => (it.rolle === 'bs' ? '„Die hat mich provoziert.“' : '„Er hat mich wieder geschlagen.“'), max: 300 },
           { k: 'spontanZeit', t: 'time', l: 'Uhrzeit der Äußerung', w: 'half', q: 'jetzt', when: (d, it) => has(it.spontan) }
         ] },
-        { k: 'abw.verbleib', t: 'text', l: 'Wo ist die beschuldigte Person? (nicht vor Ort)', pre: d => `Nach Angaben ${gsGen(d)}`, ph: 'habe er die Wohnung kurz vor Eintreffen der Polizei zu Fuß in unbekannte Richtung verlassen', lint: 'konj', sugg: d => [['kurz zuvor gegangen', `habe ${erBs(d)} die Wohnung kurz vor Eintreffen der Polizei verlassen`], ['unbekannt', `sei ${seinBs(d)} Aufenthaltsort unbekannt`]], when: bsWeg },
-        { k: 'eintreff.sofort', t: 'multi', l: 'Erste Maßnahmen', o: d => [...(bsDa(d) ? [['getrennt', 'Beteiligte räumlich getrennt']] : []), ['idf', 'Identitäten festgestellt'], ['abgleich', 'Datenabgleich'], ...(bsDa(d) ? [['eigen', 'Durchsuchung zur Eigensicherung']] : []), ['waffen', 'Waffen / gefährliche Gegenstände sichergestellt'], ...(inc(d, 'eintreff.sofort', 'waffen') ? [['besch', 'Bescheinigung über die Sicherstellung ausgehändigt']] : []), ['absuche', 'Nahbereich abgesucht']] },
-        satzFeld('eintreff.sofortText', 'Weitere Maßnahmen', 'Ein zweites Einsatzmittel wurde zur Unterstützung angefordert.')
+        { k: 'abw.verbleib', t: 'text', l: 'Wo ist die beschuldigte Person? (nicht vor Ort)', pre: d => `Nach Angaben ${gsGen(d)}`, ph: 'habe er die Wohnung kurz vor Eintreffen der Polizei zu Fuß in unbekannte Richtung verlassen', lint: 'konj', sugg: d => [['kurz zuvor gegangen', `habe ${erBs(d)} die Wohnung kurz vor Eintreffen der Polizei verlassen`], ['unbekannt', `sei ${seinBs(d)} Aufenthaltsort unbekannt`]], when: bsWeg }
       ]
     },
     {
-      id: 'verletzungen', phase: 'Eintreffen', title: 'Verletzungen und Versorgung', lead: 'Für jede verletzte Person: Verletzungen, Frage nach dem Rettungswagen mit Antwort, Lichtbilder.', gen: ['verletzungen'], when: d => verletzte(d).length > 0,
+      id: 'verletzungen', phase: 'Eintreffen', title: 'Verletzungen und Versorgung', lead: 'Für jede verletzte Person: Verletzungen, Frage nach dem Rettungswagen mit Antwort, Lichtbilder.', gen: ['angetroffen', 'kinder'], when: d => verletzte(d).length > 0,
       fields: [
         { k: 'pers', t: 'list', fixed: true, l: '', item: (it, i) => pl(it, i), only: (d, it) => it.verletzt === 'ja', empty: 'Keine verletzte Person erfasst.', sub: [
           { k: 'verl', t: 'multi', l: 'Sichtbare Verletzungen', o: [...O(VERL), ['keine', 'Keine sichtbaren']] },
@@ -475,7 +568,7 @@
         { k: 'pers', t: 'list', fixed: true, l: '', item: (it, i) => pl(it, i), only: (d, it) => statementOf(it), empty: 'Keine anwesende geschädigte Person und keine Zeugen erfasst – im Schritt „Beteiligte Personen“ ergänzen.', sub: [
           { t: 'info', text: (d, it) => zvrHint(d, it), when: (d, it) => !!zvrHint(d, it) && !has(it.bel) },
           { k: 'bel', t: 'choice', l: 'Belehrt als', o: (d, it) => [['52', `${zw(it)} mit § 52 (Angehörige)`], ['57', `${zw(it)} ohne § 52`], ['bs', 'Beschuldigte/r (wechselseitige Vorwürfe)'], ['nein', 'Nicht zur Sache befragt']] },
-          { k: 'belVon', t: 'crewpick', l: 'Belehrt durch', when: (d, it) => belAktiv(it) },
+          { k: 'belVon', t: 'crewpick', kurz: true, l: 'Belehrt durch', when: (d, it) => belAktiv(it) },
           { k: 'belZeit', t: 'time', l: 'Uhrzeit der Belehrung', q: 'jetzt', w: 'half', when: (d, it) => belAktiv(it) },
           { t: 'preset', l: 'Schnellwahl', o: (d, it, base) => [['Vollständig nach Vordruck', { [`${base}.belInh`]: it.bel === 'bs' ? BEL_B_STD.slice() : belZStd(it) }, it.bel === 'bs' ? '§ 136 Abs. 1 StPO' : 'alle Pflichtinhalte']], when: (d, it) => belAktiv(it) },
           { k: 'belInh', t: 'multi', l: 'Was wurde belehrt?', o: (d, it) => belOpts(it), when: (d, it) => belAktiv(it) },
@@ -505,7 +598,7 @@
       id: 'beschuldigt', phase: 'Schilderungen', title: 'Beschuldigte Person', lead: 'Zwei getrennte Schritte: Beschuldigtenbelehrung mit Einlassung – dann die Anhörung zur Wohnungsverweisung.', gen: ['beschuldigt'], when: bsDa,
       fields: [
         { t: 'head', text: 'Beschuldigtenbelehrung', h: 'Vor der ersten Frage zum Geschehen (§ 163a Abs. 4, § 136 Abs. 1 StPO).' },
-        { k: 'bsb.von', t: 'crewpick', l: 'Belehrt durch' },
+        { k: 'bsb.von', t: 'crewpick', kurz: true, l: 'Belehrt durch' },
         { k: 'bsb.zeit', t: 'time', l: 'Uhrzeit', q: 'jetzt', w: 'half' },
         { t: 'preset', l: 'Schnellwahl', o: () => [['Vollständig nach Vordruck', { 'bsb.inh': BEL_B_STD.slice() }, 'Tatvorwurf, Schweigen, Verteidiger, Notdienst, Beweisanträge, Pflichtverteidiger']] },
         { k: 'bsb.inh', t: 'multi', l: 'Was wurde belehrt?', o: O(BEL_B) },
@@ -516,7 +609,7 @@
         { k: 'bsb.modus', t: 'choice', l: 'Einlassung', o: MODUS, when: d => get(d, 'bsb.reaktion') === 'aeussert' && get(d, 'bsb.vert') !== 'ja' },
         { k: 'bsb.text', t: 'area', rows: 3, l: 'Einlassung in indirekter Rede', pre: d => `${ErBs(d)} gab an,`, lint: 'konj', ph: d => `es habe lediglich einen lauten Streit gegeben; geschlagen habe ${erBs(d)} niemanden`, when: d => get(d, 'bsb.reaktion') === 'aeussert' && get(d, 'bsb.modus') === 'jetzt' && get(d, 'bsb.vert') !== 'ja' },
         { t: 'head', text: 'Anhörung zur Wohnungsverweisung', h: '§ 28 Abs. 1 VwVfG NRW – eigener Schritt neben der Belehrung, vor der Entscheidung (OVG NRW 5 A 3548/20).' },
-        { k: 'anh.von', t: 'crewpick', l: 'Angehört durch' },
+        { k: 'anh.von', t: 'crewpick', kurz: true, l: 'Angehört durch' },
         { k: 'anh.zeit', t: 'time', l: 'Uhrzeit', q: 'jetzt', w: 'half' },
         { t: 'preset', l: 'Schnellwahl', o: () => [['Vollständig', { 'anh.inh': ANH_STD.slice() }, 'Vorwürfe, Maßnahme, Hinweise, Fragen']] },
         { k: 'anh.inh', t: 'multi', l: 'Inhalt der Anhörung', o: O(ANH) },
@@ -568,7 +661,7 @@
         { t: 'info', when: d => wvJa(d) && ['besuch', 'bsAuszug'].includes(get(d, 'lage.wohnt')), text: 'Die Person wohnt nach deiner Angabe nicht in der Wohnung. § 34a ist dann unsicher – sicherer sind Platzverweis und Betretungsverbot nach § 34 PolG NRW.' },
         { t: 'info', when: d => wvJa(d) && bsDa(d) && !inc(d, 'anh.inh', 'vorwurf'), text: 'Die Anhörung ist noch nicht vermerkt. Erst die Vorwürfe mitteilen und Gelegenheit zur Äußerung geben, dann anordnen (OVG NRW 5 A 3548/20).' },
         { t: 'info', when: d => wvJa(d) && ofRole(d, 'gs').some(y => y.p.bleibt === 'weg'), text: 'Die geschädigte Person hat die Wohnung dauerhaft verlassen. Dann fehlt die Erforderlichkeit; § 34a schützt die Person in der Wohnung, in der sie wohnt.' },
-        { k: 'wv.von', t: 'crewpick', l: 'Angeordnet durch', when: wvJa },
+        { k: 'wv.von', t: 'crewpick', kurz: true, l: 'Angeordnet durch', when: wvJa },
         { k: 'wv.datum', t: 'date', l: 'Tag der Anordnung', w: 'half', q: 'heute', when: wvJa },
         { k: 'wv.zeit', t: 'time', l: 'Uhrzeit der Anordnung', w: 'half', q: 'jetzt', req: true, when: wvJa },
         { k: 'wv.orte', t: 'multi', l: 'Räumlicher Bereich', req: true, h: 'Äußere Grenze ist die Wohnung mit ihrer unmittelbaren Umgebung. Straße, Kita oder Arbeitsplatz der geschädigten Person deckt § 34a nicht.', o: [['wohnung', 'Wohnung'], ['flur', 'Hausflur / Treppenhaus'], ['keller', 'Keller'], ['speicher', 'Dachboden'], ['garage', 'Garage / Stellplatz'], ['garten', 'Garten'], ['grundstueck', 'Gesamtes Grundstück mit Zuwegung']], when: wvJa },
@@ -719,7 +812,7 @@
   root.WHG_CORE = {
     get, str, has, arr, inc, cap, endDot, slot, satz, mit, joinList, fmtDate, fmtTime, PH, um, addDays, hasObj, pick, val,
     NOUN, PRON, plist, isP, ofRole, gOf, ref, main, pl, kdesc, zvrOf, zvrNr, bsY, bsDa, bsWeg, kinderL, kinderDa, verletzte, nurVerbal, zutrittGegen,
-    halsAngriff: halsAng, wvJa, wvNein, gewahrsam, zwang, wvTag, wvEnde, wvMax, nachtEr, nachtAbw, nachtErArt, nachtAbwArt, nach, minderj, weekday, angehoerig, WUERG, DELIKT_ORDER, autoMarks, markOf, marked, anyMark,
+    halsAngriff: halsAng, STICHWORT, MITT, HALTUNG, SICHT, WIRK, ZUEIN, ANSPR, nachname, kName, wagenL, crewOf, besetzung, vorOrt, vorOrtFuer, nahWagenOf, beideHier, bsHier, wvJa, wvNein, gewahrsam, zwang, wvTag, wvEnde, wvMax, nachtEr, nachtAbw, nachtErArt, nachtAbwArt, nach, minderj, weekday, angehoerig, WUERG, DELIKT_ORDER, autoMarks, markOf, marked, anyMark,
     GEWALT, WAHRN, WAHRN_PL, VORG_PL, TATSACHEN, WO, ZUST, BES, VERL, RAUM, KIND_WO, SPUREN, ORTE, VORG, STUETZEN, DELIKT, DELIKT_TAT, BEL_Z, BEL_B, ANH, ER, OS, FAK, FAK_BY, BST_BY, WARN_ALT
   };
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -751,45 +844,90 @@
     const G = main(d, 'gs', { vfg }), T = main(d, 'bs', { vfg });
     const or = get(d, 'ort') || {};
     const adr = [[str(or.strasse), str(or.hausnr)].filter(has).join(' '), str(or.stadt)].filter(has).join(', ');
-    return { d, vfg, G, T, adr, da: C.bsDa(d), weg: C.bsWeg(d), wv: C.wvJa(d), ende: C.wvEnde(d), max: C.wvMax(d), R: i => ref(d, i, { vfg }) };
+    return { d, vfg, G, T, adr, da: C.bsDa(d), weg: C.bsWeg(d), wv: C.wvJa(d), ende: C.wvEnde(d), max: C.wvMax(d), R: i => ref(d, i, { vfg }), genannt: new Set() };
   }
   const people = (d, fn) => plist(d).map((p, i) => ({ p, i })).filter(y => isP(y.p) && fn(y.p));
+  /** Mehrere Besatzungen: „A und B sowie C und D“, ab drei „A/B, C/D und E/F“. */
+  function gruppe(ws) {
+    const g = ws.filter(w => C.besetzung(w));
+    if (!g.length) return { txt: '', n: 0 };
+    const n = g.reduce((s0, w) => s0 + C.crewOf(w).length, 0);
+    if (g.length === 1) return { txt: C.besetzung(g[0]), n };
+    if (g.length === 2) return { txt: `${C.besetzung(g[0])} sowie ${C.besetzung(g[1])}`, n };
+    return { txt: 'die Besatzungen ' + joinList(g.map(w => C.crewOf(w).map(C.kName).join('/'))), n };
+  }
+  const swText = e => { const t = has(e.stichwortText) ? slot(e.stichwortText) : (C.STICHWORT[e.stichwort] || ''); if (!t) return ''; return /^häusliche gewalt$/i.test(t) ? 'wegen häuslicher Gewalt' : `mit dem Stichwort „${t}“`; };
+  /** Wurde das Antreffen der beschuldigten Person schon beim Auftrag einer Besatzung erzählt? */
+  const nahErzaehlt = d => { const y = C.bsY(d); return !!y && y.p.da === 'nah' && !!C.nahWagenOf(d, y.p); };
+  /** „Auf POK Müller und PKin Schmidt wirkte …“ – beim ersten Mal mit Namen, danach „die Einsatzkräfte“. */
+  function wer(x, p) {
+    const v = C.vorOrtFuer(x.d, p);
+    if (v.txt === 'die Einsatzkräfte') return v.txt;
+    if (x.genannt.has(v.txt)) return 'die Einsatzkräfte';
+    x.genannt.add(v.txt); return v.txt;
+  }
 
   /* ---------- 1 Einsatzanlass ---------- */
   function s1(d, x) {
-    const e = get(d, 'einsatz') || {};
-    const crew = crewText(e.kraefte);
-    const wer = has(e.rufname) ? `die Besatzung des Funkstreifenwagens ${str(e.rufname)}${crew ? ', besetzt mit ' + crew + ',' : ''}` : (crew ? `die Streifenwagenbesatzung ${crew}` : `die Streifenwagenbesatzung ${PH('Rufname, Besatzung')}`);
+    const e = get(d, 'einsatz') || {}, W = C.wagenL(d), T = x.T, t = [];
+    const erst = W.filter(w => w.auftrag !== 'unterst'), gr = gruppe(erst.length ? erst : W);
+    const crew = gr.txt || PH('Streifenwagenbesatzung'), pl = gr.n !== 1;
     const wann = `Am ${has(e.datum) ? fmtDate(e.datum) : PH('Datum')} gegen ${has(e.zeit) ? fmtTime(e.zeit) : PH('Uhrzeit')}`;
-    const adr = x.adr || PH('Anschrift');
-    const weg = { leitstelle: 'über die Leitstelle', telefon: 'nach telefonischer Mitteilung bei der Wache', wache: 'nach persönlicher Mitteilung auf der Wache' }[e.meldeweg] || '';
-    const t = [];
-    if (e.meldeweg === 'streife') t.push(`${wann} wurde ${wer} im Streifendienst auf eine Auseinandersetzung an der Anschrift ${adrMitte(adr)} aufmerksam.`);
-    else t.push(`${wann} erhielt ${wer}${weg ? ' ' + weg : ''} den Einsatz „Häusliche Gewalt“ zur Anschrift ${adr}.`);
-    if (has(e.meldung)) t.push(`Gemeldet wurde, dass ${endDot(slot(e.meldung))}`);
-    else if (has(e.meldungAlt)) t.push(`Gemeldet wurde: ${endDot(slot(e.meldungAlt))}`);
-    if (e.meldeweg !== 'streife') t.push({ gs: `Die Meldung kam von ${x.G.dat} selbst.`, kind: 'Die Meldung kam von einem Kind aus dem Haushalt.', nachbar: 'Die Meldung kam aus der Nachbarschaft.', angehoerig: has(e.mitteilerText) ? `Die Meldung kam von ${slot(e.mitteilerText)}.` : 'Die Meldung kam von Angehörigen.', dritte: has(e.mitteilerText) ? `Die Meldung kam von ${slot(e.mitteilerText)}.` : 'Die Meldung kam von einer unbeteiligten Person.', bs: `Die Meldung kam von ${x.T.dat} selbst.`, unbekannt: 'Wer die Meldung abgesetzt hat, ist nicht bekannt.' }[e.mitteiler] || '');
+    const adr = x.adr || PH('Anschrift'), sw = swText(e);
+    const einsatz = art => `${art} Einsatz${sw ? ' ' + sw : ''}`;
+    t.push({
+      streife: `${wann} ${pl ? 'wurden' : 'wurde'} ${crew} im Streifendienst an der Anschrift ${adrMitte(adr)} auf eine Auseinandersetzung aufmerksam.`,
+      leitstelle: `${wann} ${pl ? 'wurden' : 'wurde'} ${crew} durch die Leitstelle zu ${einsatz('einem')} zur Anschrift ${adrMitte(adr)} entsandt.`,
+      telefon: `${wann} ${pl ? 'übernahmen' : 'übernahm'} ${crew} nach einer telefonischen Mitteilung auf der Wache ${einsatz('einen')} zur Anschrift ${adr}.`,
+      wache: `${wann} ${pl ? 'übernahmen' : 'übernahm'} ${crew} nach einer persönlichen Mitteilung auf der Wache ${einsatz('einen')} zur Anschrift ${adr}.`
+    }[e.meldeweg] || `${wann} ${pl ? 'wurden' : 'wurde'} ${crew} zu ${einsatz('einem')} zur Anschrift ${adrMitte(adr)} entsandt.`);
+    if (e.meldeweg !== 'streife') {
+      if (has(e.meldung)) t.push(`Gemeldet wurde, dass ${endDot(slot(e.meldung))}`);
+      else if (has(e.meldungAlt)) t.push(`Gemeldet wurde: ${endDot(slot(e.meldungAlt))}`);
+      if (e.mitteiler === 'unbekannt') t.push('Wer die Meldung abgesetzt hat, ist nicht bekannt.');
+      else if (e.mitteiler !== 'keine' && C.MITT[e.mitteiler]) { const ph = has(e.mitteilerText) ? slot(e.mitteilerText) : C.val(C.MITT[e.mitteiler][1], x); if (ph) t.push(`Die Meldung kam von ${ph}.`); }
+    }
+    // Aufträge der Besatzungen; Ergebnis der Suche nach der beschuldigten Person ergibt sich aus deren Personenkarte
+    const y = C.bsY(d), bp = y ? y.p : {}, nw = y && bp.da === 'nah' ? C.nahWagenOf(d, bp) : null;
+    const mehrere = W.filter(w => C.besetzung(w)).length > 1;
+    for (const w of W) {
+      const c = C.besetzung(w); if (!c) continue;
+      const v = C.crewOf(w).length > 1;
+      if (w.auftrag === 'ort' && mehrere) t.push(`${c} ${v ? 'suchten' : 'suchte'} die Einsatzörtlichkeit auf.`);
+      else if (w.auftrag === 'nah' || w.auftrag === 'aufenthalt') {
+        const was = w.auftrag === 'nah' ? `${v ? 'suchten' : 'suchte'} den Nahbereich nach ${T.dat} ab` : `${v ? 'suchten' : 'suchte'} ${has(w.ziel) ? slot(w.ziel) : PH('Aufenthaltsort')} auf`;
+        let erg = '';
+        if (nw && nw.i === w.i) erg = ` und ${v ? 'trafen' : 'traf'} ${w.auftrag === 'nah' ? T.ihn : T.akk} ${has(bp.nahOrt) ? slot(bp.nahOrt) : (w.auftrag === 'nah' ? 'im Nahbereich' : 'dort')} an`;
+        else if (bp.da === 'nein') erg = `; ${T.nom} wurde ${w.auftrag === 'nah' ? 'dabei' : 'dort'} nicht angetroffen`;
+        t.push(`${c} ${was}${erg}.`);
+      } else if (w.auftrag === 'unterst') t.push(`Zur Unterstützung ${v ? 'kamen' : 'kam'} ${c} hinzu.`);
+      else if (w.auftrag === 'frei' && has(w.auftragText)) t.push(`${c} ${endDot(slot(w.auftragText))}`);
+    }
     if (has(e.weitere)) t.push(`Zur Unterstützung wurden außerdem folgende Kräfte eingesetzt: ${endDot(slot(e.weitere))}`);
     return P(...t);
   }
 
   /* ---------- 2 Eintreffsituation ---------- */
   function s21(d, x) {
-    const e = get(d, 'einsatz') || {}, z = get(d, 'zutritt') || {}, t = [];
-    if (has(e.eintreffZeit)) t.push(`Die Einsatzkräfte trafen um ${fmtTime(e.eintreffZeit)} an der Einsatzörtlichkeit ein.`);
-    const w = arr(get(d, 'eintreff.wahrn'));
-    const wk = w.filter(k => k !== 'ruhig' && C.WAHRN[k]), wl = pick(C.WAHRN, wk);
-    if (wl.length) t.push(`Bereits vor der Wohnung ${wl.length > 1 || C.WAHRN_PL[wk[0]] ? 'waren' : 'war'} ${joinList(wl)} zu hören.`);
-    else if (w.includes('ruhig')) t.push('Beim Eintreffen war aus der Wohnung nichts Auffälliges zu hören.');
+    const z = get(d, 'zutritt') || {}, ein = get(d, 'eintreff') || {}, t = [];
+    if (ein.vorher === 'ja') {
+      const v = C.vorOrt(d);
+      if (has(ein.vorherText)) { t.push(`Bereits vor dem Betreten der Wohnung ${v.pl ? 'nahmen' : 'nahm'} ${v.txt} wahr, dass ${endDot(slot(ein.vorherText))}`); x.genannt.add(v.txt); }
+      else t.push(PH('Feststellungen vor dem Betreten der Wohnung'));
+    } else if (!has(ein.vorher)) {
+      // frühere Entwürfe: Auswahl „vor der Wohnung zu hören“
+      const w = arr(ein.wahrn), wk = w.filter(k => k !== 'ruhig' && C.WAHRN[k]), wl = pick(C.WAHRN, wk);
+      if (wl.length) t.push(`Bereits vor der Wohnung ${wl.length > 1 || C.WAHRN_PL[wk[0]] ? 'waren' : 'war'} ${joinList(wl)} zu hören.`);
+    }
     const werI = /^\d+$/.test(str(z.wer)) ? Number(z.wer) : -1;
-    const wer = werI >= 0 && isP(plist(d)[werI]) ? x.R(werI).dat : z.wer === 'andere' ? (has(z.werText) ? slot(z.werText) : 'einer weiteren Person') : '';
+    const wer0 = werI >= 0 && isP(plist(d)[werI]) ? x.R(werI).dat : z.wer === 'andere' ? (has(z.werText) ? slot(z.werText) : 'einer weiteren Person') : '';
     const tats = mit(pick(C.TATSACHEN, arr(z.tatsachen)), z.tatsachenFrei);
     const grund = tats.length ? `Für eine gegenwärtige Gefahr sprachen folgende Tatsachen: ${tats.join('; ')}.` : PH('Tatsachen für die gegenwärtige Gefahr');
     const betreten = 'Die Wohnung wurde daraufhin zur Abwehr einer gegenwärtigen Gefahr für Leib, Leben oder Freiheit einer Person betreten (§ 41 Abs. 1 Satz 1 Nr. 4 PolG NRW).';
-    if (z.art === 'einw') t.push(`Die Wohnungstür wurde ${wer ? 'von ' + wer + ' ' : ''}geöffnet; den Einsatzkräften wurde der Zutritt zur Wohnung gestattet.`);
+    if (z.art === 'einw') t.push(`Die Wohnungstür wurde ${wer0 ? 'von ' + wer0 + ' ' : ''}geöffnet; der Zutritt zur Wohnung wurde gestattet.`);
     else if (z.art === 'draussen') t.push('Die Beteiligten wurden außerhalb der Wohnung angetroffen; ein Betreten der Wohnung war nicht erforderlich.');
     else if (z.art === 'verweigert') {
-      t.push(`Die Wohnungstür wurde ${wer ? 'von ' + wer + ' ' : ''}geöffnet; der Zutritt wurde verweigert.`, grund);
+      t.push(`Die Wohnungstür wurde ${wer0 ? 'von ' + wer0 + ' ' : ''}geöffnet; der Zutritt wurde verweigert.`, grund);
       t.push({ aufforderung: 'Nach Aufforderung wurde das Betreten geduldet.', angedroht: 'Nach Androhung unmittelbaren Zwangs (§ 61 Abs. 1 Satz 1 PolG NRW) wurde das Betreten geduldet.', gewalt: 'Nach Androhung unmittelbaren Zwangs (§ 61 Abs. 1 Satz 1 PolG NRW) wurde der Zutritt gegen den Widerstand durchgesetzt.' }[z.zwang] || '', betreten);
     } else if (z.art === 'niemand') {
       t.push('Auf Klingeln und Klopfen wurde nicht geöffnet.', grund);
@@ -800,21 +938,34 @@
       t.push('In der Wohnung wurde gegen den Willen des Inhabers nach der gemeldeten Person gesucht (Durchsuchung, §§ 41, 42 PolG NRW).' + (du.includes('gefahr') ? ' Eine richterliche Anordnung konnte wegen Gefahr im Verzug nicht abgewartet werden.' : '') + (du.includes('grund') ? ' Der Grund der Durchsuchung wurde dem Inhaber bekanntgegeben.' : '') + (du.includes('niederschrift') ? ' Über die Durchsuchung wurde eine Niederschrift gefertigt.' : ''));
     }
     t.push(satz(z.text));
-    return P(...t);
+    // Erste Maßnahmen direkt nach dem Betreten
+    const so = arr(ein.sofort).filter(k => (k === 'getrennt' ? C.bsHier(d) : k === 'eigen' ? x.da : true));
+    const sm = pick({ getrennt: 'Die Beteiligten wurden räumlich voneinander getrennt.', idf: 'Die Identitäten der anwesenden Personen wurden festgestellt.', abgleich: 'Ein Datenabgleich wurde durchgeführt.', eigen: `${x.T.Nom} wurde zur Eigensicherung nach Waffen und gefährlichen Gegenständen durchsucht (§ 39 Abs. 2 PolG NRW).`, waffen: `Waffen bzw. gefährliche Gegenstände wurden sichergestellt (§ 43 Nr. 1 PolG NRW)${so.includes('besch') ? '; über die Sicherstellung wurde eine Bescheinigung ausgehändigt (§ 44 Abs. 2 PolG NRW)' : ''}.`, absuche: 'Der Nahbereich wurde abgesucht.' }, so);
+    const p2 = P(...sm, satz(ein.sofortText));
+    return B(P(...t), p2);
   }
   function konsum(p, r, mitTest) {
     const t = [];
     if (p.konsum === 'ja') {
-      t.push(`Bei ${r.dat} ergaben sich Anzeichen für eine Beeinflussung durch Alkohol, Drogen oder Medikamente.` + (has(p.konsumText) ? ` Festgestellt wurden ${slot(p.konsumText)}.` : ''));
+      t.push(`Bei ${r.dat} ergaben sich Anzeichen für eine Beeinflussung durch Alkohol, Drogen oder Medikamente.` + (has(p.konsumText) ? ` Festgestellt ${/,|\sund\s/.test(slot(p.konsumText)) ? 'wurden' : 'wurde'} ${slot(p.konsumText)}.` : ''));
       if (mitTest && p.aat === 'ja') t.push(`Ein freiwilliger Atemalkoholtest${um(p.aatZeit)} ergab einen Wert von ${has(p.aatWert) ? String(p.aatWert).replace('.', ',') + (p.aatEinheit === 'mgl' ? ' mg/l' : p.aatEinheit === 'promille' ? ' ‰' : ' ' + PH('Einheit')) : PH('Wert')}.`);
       else if (mitTest && p.aat === 'verweigert') t.push(`Einen Atemalkoholtest lehnte ${r.er} ab.`);
       else if (mitTest && p.aat === 'nein') t.push('Ein Atemalkoholtest wurde nicht durchgeführt.');
     } else if (p.konsum === 'nein') t.push(`Anhaltspunkte für eine Beeinflussung ${r.gen} durch Alkohol, Drogen oder Medikamente ergaben sich nicht.`);
     return t.join(' ');
   }
+  /** Je Person ein Absatz: Ort und Haltung, Sichtbares, Verhalten, Verhalten zueinander, Ansprechbarkeit, Alkohol, Äußerung, Wirkung – dann Verletzungen. */
+  /** „hatte A“, „hatte B“, „trug C“ → „hatte A sowie B und trug C“; Freitexte bleiben unverändert. */
+  function verdichte(list) {
+    const g = [], by = {};
+    for (const it of list) { const m = !it.frei && /^(war|hatte|trug) (.+)$/.exec(String(it)); if (m) { if (!by[m[1]]) { by[m[1]] = []; g.push(by[m[1]]); by[m[1]].v = m[1]; } by[m[1]].push(m[2]); } else g.push(it); }
+    const multi = g.length > 1;
+    return g.map(e => (Array.isArray(e) ? `${e.v} ${e.length < 2 ? e[0] : multi ? e.slice(0, -1).join(', ') + ' sowie ' + e[e.length - 1] : joinList(e)}` : e));
+  }
   function s22(d, x) {
     const out = [];
     const order = [...people(d, p => p.rolle === 'gs'), ...people(d, p => p.rolle === 'bs'), ...people(d, p => p.rolle === 'zeuge')];
+    const beide = C.beideHier(d);
     for (const { p, i } of order) {
       const r = x.R(i);
       if (p.da === 'nein') {
@@ -822,23 +973,33 @@
         continue;
       }
       const t = [];
-      const wo = C.WO[p.wo];
       const first = r.r === 'zeuge' && has(p.bez) ? `${r.Nom} (${str(p.bez)})${r.name ? `, ${r.name},` : ''}` : r.First;
-      if (wo) t.push(`${first} wurde ${wo}${has(p.woText) ? ', ' + slot(p.woText) + ',' : ''} angetroffen.`);
+      const sub = () => (t.length ? r.Er : first);
+      if (p.rolle === 'bs' && p.da === 'nah') { if (!nahErzaehlt(d)) t.push(`${first} wurde ${has(p.nahOrt) ? slot(p.nahOrt) : 'im Nahbereich'} angetroffen.`); }
+      else { const wo = C.WO[p.wo]; if (wo || has(p.woText)) t.push(`${first} wurde ${wo || ''}${wo && has(p.woText) ? ', ' + slot(p.woText) + ',' : has(p.woText) ? slot(p.woText) : ''} angetroffen.`.replace(/\s+/g, ' ')); }
+      const ha = mit(pick(C.HALTUNG, arr(p.haltung)), p.haltungFrei), si = mit(pick(C.SICHT, arr(p.sicht)), p.sichtFrei);
+      if (ha.length + si.length <= 3 && ha.length && si.length) t.push(`${sub()} ${joinList(verdichte([...ha, ...si]))}.`);
+      else { if (ha.length) t.push(`${sub()} ${joinList(verdichte(ha))}.`); if (si.length) t.push(`${sub()} ${joinList(verdichte(si))}.`); }
       const zl = mit(pick(C.ZUST[p.rolle] || C.ZUST.zeuge, arr(p.zust), x), p.zustFrei);
-      if (zl.length) t.push(`${t.length ? r.Er : first} ${joinList(zl)}.`);
+      if (zl.length) t.push(`${sub()} ${joinList(verdichte(zl))}.`);
+      const zu = beide && ['gs', 'bs'].includes(p.rolle) ? mit(pick(C.ZUEIN[p.rolle], arr(p.zuein), x), p.zueinFrei) : [];
+      if (zu.length) t.push(`${sub()} ${joinList(zu)}.`);
+      if (C.ANSPR[p.anspr]) t.push(`${sub()} ${C.ANSPR[p.anspr]}.`);
+      const spr = has(p.spracheText) ? ` (${slot(p.spracheText)})` : '';
+      if (p.sprache === 'eingeschr') t.push(`${sub()} verständigte sich nur eingeschränkt in deutscher Sprache${spr}.`);
+      else if (p.sprache === 'dolm') t.push(`Eine Verständigung mit ${r.dat} war nur mit Hilfe einer dolmetschenden Person möglich${spr}.`);
       if (p.rolle === 'bs') t.push(...pick(C.BES, arr(p.bes), r), satz(p.besText));
-      const k = konsum(p, r, true);
-      if (k) t.push(k);
-      if (has(p.spontan)) t.push(`${t.length ? r.Er : first} äußerte${um(p.spontanZeit)} ungefragt: ${quote(p.spontan)}`);
-      if (t.length) out.push(P(...t));
-      else if (p.da === 'ja') out.push(`${first} war ${out.length ? 'ebenfalls ' : ''}vor Ort.`);
+      const k = konsum(p, r, true); if (k) t.push(k);
+      if (has(p.spontan)) t.push(`${sub()} äußerte${um(p.spontanZeit)} ungefragt: ${quote(p.spontan)}`);
+      const wk = mit(pick(C.WIRK[p.rolle] || C.WIRK.zeuge, arr(p.wirk)), p.wirkFrei);
+      if (wk.length) t.push(`Auf ${wer(x, p)} wirkte ${r.er} ${joinList(wk)}.`);
+      if (p.verletzt === 'ja') t.push(verlBlock(d, x, p, i, !t.length));
+      const fl = t.filter(has);
+      if (fl.length) out.push(P(...fl));
+      else out.push(`${first} war ${out.length ? 'ebenfalls ' : ''}vor Ort.`);
     }
     const kids = people(d, p => p.rolle === 'kind' && p.da === 'ja').length;
     if (kids) out.push(`In der Wohnung ${kids === 1 ? 'befand sich außerdem ein Kind' : `befanden sich außerdem ${ZAHL[kids] || kids} Kinder`}.`);
-    const so = arr(get(d, 'eintreff.sofort')).filter(k => x.da || !['getrennt', 'eigen'].includes(k));
-    const sm = pick({ getrennt: 'Die Beteiligten wurden räumlich voneinander getrennt.', idf: 'Die Identitäten der anwesenden Personen wurden festgestellt.', abgleich: 'Ein Datenabgleich wurde durchgeführt.', eigen: `${x.T.Nom} wurde zur Eigensicherung nach Waffen und gefährlichen Gegenständen durchsucht (§ 39 Abs. 2 PolG NRW).`, waffen: `Waffen bzw. gefährliche Gegenstände wurden sichergestellt (§ 43 Nr. 1 PolG NRW)${so.includes('besch') ? '; über die Sicherstellung wurde eine Bescheinigung ausgehändigt (§ 44 Abs. 2 PolG NRW)' : ''}.`, absuche: 'Der Nahbereich wurde abgesucht.' }, so);
-    out.push(P(...sm, satz(get(d, 'eintreff.sofortText'))));
     return B(...out);
   }
   function verletzungSatz(p, r) {
@@ -847,37 +1008,36 @@
     if (real.length === 1) return `${r.Nom} wies ${has(p.verlWo) ? slot(p.verlWo) + ' ' : ''}${real[0]} auf.`;
     return `${r.Nom} wies folgende sichtbare Verletzungen auf: ${joinList(real)}.` + (has(p.verlWo) ? ` Die Verletzungen befinden sich ${slot(p.verlWo)}.` : '');
   }
-  function s23(d, x) {
-    return B(...C.verletzte(d).map(({ p, i }) => {
-      const r = x.R(i), t = [verletzungSatz(p, r)];
-      if (has(p.schmerz)) t.push(`${r.Er} klagte über ${slot(p.schmerz)}.`);
-      const wu = pick(C.WUERG, arr(p.wuerg));
-      if (wu.length) t.push(`Nach eigenen Angaben ${wu.length > 1 ? 'traten' : 'trat'} bei ${r.dat} nach dem Angriff gegen den Hals ${joinList(wu)} auf.`);
-      if (p.wuergArzt === 'ja') t.push(`Wegen der Gefahr verzögert auftretender Folgen eines Angriffs gegen den Hals wurde ${r.dat} eine zeitnahe ärztliche Untersuchung dringend empfohlen.`);
-      const bes = has(p.rtwBes) ? ` (${str(p.rtwBes)})` : '';
-      const nachKh = `in ${has(p.kh) ? 'das ' + str(p.kh) : 'ein Krankenhaus'}`;
-      const frage = `${r.Nom} wurde gefragt, ob ${r.er} einen Rettungswagen oder ärztliche Hilfe benötige.`;
-      if (p.rolle === 'kind') t.push({
-        vorort: `Für ${r.akk} wurde ein Rettungswagen${bes} angefordert; ${r.er} wurde vor Ort ambulant versorgt.`,
-        kh: `Für ${r.akk} wurde ein Rettungswagen${bes} angefordert, der ${r.akk} ${nachKh} brachte.`,
-        eltern: `Eine sofortige ärztliche Versorgung ${r.gen} hielt die sorgeberechtigte Person nach Rücksprache nicht für erforderlich.`,
-        arzt: `Die sorgeberechtigte Person sagte zu, ${r.akk} zeitnah ärztlich untersuchen zu lassen.`
-      }[p.rtw] || PH(`ärztliche Versorgung ${r.gen}`));
-      else t.push({
-        vorort: `${frage} ${r.Er} bejahte dies; daraufhin wurde ein Rettungswagen${bes} angefordert. ${r.Er} wurde vor Ort ambulant versorgt.`,
-        kh: `${frage} ${r.Er} bejahte dies; daraufhin wurde ein Rettungswagen${bes} angefordert, der ${r.akk} ${nachKh} brachte.`,
-        selbst: `${frage} ${r.Er} lehnte einen Rettungswagen ab und erklärte, sich im Nachgang selbstständig um eine ärztliche Versorgung zu kümmern.`,
-        abgelehnt: `${frage} ${r.Er} lehnte einen Rettungswagen und jede ärztliche Behandlung ab.`,
-        unnoetig: `${frage} Nach ${r.sein}en Angaben war dies nicht erforderlich.`,
-        sofort: `Wegen ${r.sein}es Zustands wurde sofort ein Rettungswagen${bes} angefordert.`
-      }[p.rtw] || (p.rolle === 'bs' ? '' : PH(`Frage nach Rettungswagen / ärztlicher Hilfe und Antwort ${r.gen}`)));
-      if (has(p.rtwText)) t.push(`Die Besatzung des Rettungswagens ${endDot(slot(p.rtwText))}`);
-      if (p.rolle === 'bs') t.push({ ja: `Die Verletzungen ${r.gen} wurden fotografisch dokumentiert (§ 81b Abs. 1 StPO); die Lichtbilder werden der Strafanzeige beigefügt.`, abgelehnt: `Die Fertigung von Lichtbildern lehnte ${r.er} ab.`, spaeter: 'Lichtbilder der Verletzungen werden nachgefertigt.', nein: 'Lichtbilder wurden nicht gefertigt.' }[p.foto] || '');
-      else if (p.rolle === 'kind' && p.foto === 'ja') t.push(({ selbst: `${r.Nom} wurde altersgerecht über ${r.sein} Weigerungsrecht belehrt und willigte in die Lichtbilder ein (§ 81c Abs. 3 StPO).`, vertreter: `Die Lichtbilder wurden mit Einwilligung der allein sorgeberechtigten, nicht beschuldigten Person gefertigt (§ 81c Abs. 3 StPO).`, richter: 'Die Lichtbilder wurden zur Beweissicherung auf richterliche Anordnung gefertigt (§ 81c Abs. 3 StPO).' }[p.fotoKind] || `Die Verletzungen ${r.gen} wurden fotografisch dokumentiert.`) + ' Die Lichtbilder werden der Strafanzeige beigefügt.');
-      else t.push({ ja: `Die Verletzungen wurden ${p.fotoBel === 'ja' ? 'nach Belehrung über das Weigerungsrecht (§ 81c Abs. 3 StPO) und ' : ''}mit Einwilligung ${r.gen} fotografisch dokumentiert; die Lichtbilder werden der Strafanzeige beigefügt.`, abgelehnt: `Die Fertigung von Lichtbildern lehnte ${r.er} ab.`, spaeter: 'Lichtbilder der Verletzungen werden nachgefertigt.', nein: 'Lichtbilder wurden nicht gefertigt.' }[p.foto] || '');
-      if (p.attest === 'ja') t.push(`${r.Nom} wurde auf die Möglichkeit hingewiesen, die Verletzungen ärztlich dokumentieren zu lassen.`);
-      return P(...t);
-    }));
+  /** Verletzungen, Rettungswagen, Lichtbilder einer Person – steht im Absatz der Person. */
+  function verlBlock(d, x, p, i) {
+    const r = x.R(i), t = [verletzungSatz(p, r)];
+    if (has(p.schmerz)) t.push(`${r.Er} klagte über ${slot(p.schmerz)}.`);
+    const wu = pick(C.WUERG, arr(p.wuerg));
+    if (wu.length) t.push(`Nach eigenen Angaben ${wu.length > 1 ? 'traten' : 'trat'} bei ${r.dat} nach dem Angriff gegen den Hals ${joinList(wu)} auf.`);
+    if (p.wuergArzt === 'ja') t.push(`Wegen der Gefahr verzögert auftretender Folgen eines Angriffs gegen den Hals wurde ${r.dat} eine zeitnahe ärztliche Untersuchung dringend empfohlen.`);
+    const bes = has(p.rtwBes) ? ` (${str(p.rtwBes)})` : '';
+    const nachKh = `in ${has(p.kh) ? 'das ' + str(p.kh) : 'ein Krankenhaus'}`;
+    const frage = `${r.Nom} wurde gefragt, ob ${r.er} einen Rettungswagen oder ärztliche Hilfe benötige.`;
+    if (p.rolle === 'kind') t.push({
+      vorort: `Für ${r.akk} wurde ein Rettungswagen${bes} angefordert; ${r.er} wurde vor Ort ambulant versorgt.`,
+      kh: `Für ${r.akk} wurde ein Rettungswagen${bes} angefordert, der ${r.akk} ${nachKh} brachte.`,
+      eltern: `Eine sofortige ärztliche Versorgung ${r.gen} hielt die sorgeberechtigte Person nach Rücksprache nicht für erforderlich.`,
+      arzt: `Die sorgeberechtigte Person sagte zu, ${r.akk} zeitnah ärztlich untersuchen zu lassen.`
+    }[p.rtw] || PH(`ärztliche Versorgung ${r.gen}`));
+    else t.push({
+      vorort: `${frage} ${r.Er} bejahte dies; daraufhin wurde ein Rettungswagen${bes} angefordert. ${r.Er} wurde vor Ort ambulant versorgt.`,
+      kh: `${frage} ${r.Er} bejahte dies; daraufhin wurde ein Rettungswagen${bes} angefordert, der ${r.akk} ${nachKh} brachte.`,
+      selbst: `${frage} ${r.Er} lehnte einen Rettungswagen ab und erklärte, sich im Nachgang selbstständig um eine ärztliche Versorgung zu kümmern.`,
+      abgelehnt: `${frage} ${r.Er} lehnte einen Rettungswagen und jede ärztliche Behandlung ab.`,
+      unnoetig: `${frage} Nach ${r.sein}en Angaben war dies nicht erforderlich.`,
+      sofort: `Wegen ${r.sein}es Zustands wurde sofort ein Rettungswagen${bes} angefordert.`
+    }[p.rtw] || (p.rolle === 'bs' ? '' : PH(`Frage nach Rettungswagen / ärztlicher Hilfe und Antwort ${r.gen}`)));
+    if (has(p.rtwText)) t.push(`Die Besatzung des Rettungswagens ${endDot(slot(p.rtwText))}`);
+    if (p.rolle === 'bs') t.push({ ja: `Die Verletzungen ${r.gen} wurden fotografisch dokumentiert (§ 81b Abs. 1 StPO); die Lichtbilder werden der Strafanzeige beigefügt.`, abgelehnt: `Die Fertigung von Lichtbildern lehnte ${r.er} ab.`, spaeter: 'Lichtbilder der Verletzungen werden nachgefertigt.', nein: 'Lichtbilder wurden nicht gefertigt.' }[p.foto] || '');
+    else if (p.rolle === 'kind' && p.foto === 'ja') t.push(({ selbst: `${r.Nom} wurde altersgerecht über ${r.sein} Weigerungsrecht belehrt und willigte in die Lichtbilder ein (§ 81c Abs. 3 StPO).`, vertreter: `Die Lichtbilder wurden mit Einwilligung der allein sorgeberechtigten, nicht beschuldigten Person gefertigt (§ 81c Abs. 3 StPO).`, richter: 'Die Lichtbilder wurden zur Beweissicherung auf richterliche Anordnung gefertigt (§ 81c Abs. 3 StPO).' }[p.fotoKind] || `Die Verletzungen ${r.gen} wurden fotografisch dokumentiert.`) + ' Die Lichtbilder werden der Strafanzeige beigefügt.');
+    else t.push({ ja: `Die Verletzungen wurden ${p.fotoBel === 'ja' ? 'nach Belehrung über das Weigerungsrecht (§ 81c Abs. 3 StPO) und ' : ''}mit Einwilligung ${r.gen} fotografisch dokumentiert; die Lichtbilder werden der Strafanzeige beigefügt.`, abgelehnt: `Die Fertigung von Lichtbildern lehnte ${r.er} ab.`, spaeter: 'Lichtbilder der Verletzungen werden nachgefertigt.', nein: 'Lichtbilder wurden nicht gefertigt.' }[p.foto] || '');
+    if (p.attest === 'ja') t.push(`${r.Nom} wurde auf die Möglichkeit hingewiesen, die Verletzungen ärztlich dokumentieren zu lassen.`);
+    return P(...t);
   }
 
   /* ---------- 3 Tatörtlichkeit und Umstände ---------- */
@@ -922,6 +1082,7 @@
       t.push(parts.length ? `${name} ${joinList(parts)}.` : `${name} war während des Einsatzes in der Wohnung.`);
       t.push({ gesehen: `Nach eigener Äußerung hat ${r.er} das Geschehen gesehen.`, wohnung: `${r.Er} hielt sich während des Geschehens in der Wohnung auf.`, nein: `Nach den Feststellungen hat ${r.er} von dem Geschehen nichts mitbekommen.` }[p.miterlebt] || '');
       if (has(p.spontan)) t.push(`Ungefragt äußerte ${r.er}${um(p.spontanZeit)}: ${quote(p.spontan)}`);
+      if (p.verletzt === 'ja') t.push(verlBlock(d, x, p, i));
     }
     t.push({ nein: `Zur Tat ${n === 1 ? 'wurde das Kind' : 'wurden die Kinder'} nicht befragt.`, spontan: 'Festgehalten wurden nur ungefragte Äußerungen; zur Tat wurden die Kinder nicht befragt.' }[get(d, 'kind.befragt')] || '');
     return P(...t);
@@ -1280,7 +1441,7 @@
     const x = ctx(d);
     const ch = [
       ['Einsatzanlass', [[null, s1(d, x), 'einsatz']]],
-      ['Eintreffsituation', [['Eintreffen und Zutritt', s21(d, x), 'eintreffen'], ['Angetroffene Personen', s22(d, x), 'angetroffen'], ['Verletzungen und medizinische Versorgung', s23(d, x), 'verletzungen']]],
+      ['Eintreffsituation', [['Eintreffen und Zutritt', s21(d, x), 'eintreffen'], ['Angetroffene Personen', s22(d, x), 'angetroffen']]],
       ['Tatörtlichkeit und Umstände vor Ort', [['Örtlichkeit und Spuren', s31(d, x), 'umstaende'], ['Beziehung und Wohnverhältnisse', s32(d, x), 'umstaende'], ['Kinder im Haushalt', s33(d, x), 'kinder']]],
       ['Schilderungen', aussagen(d, x)],
       ['Gefahrenprognose', [[null, s5(d, x), 'prognose']]],
@@ -1333,7 +1494,7 @@
     const was = x.da ? 'eine Wohnungsverweisung mit Rückkehrverbot' : 'ein Rückkehrverbot';
     const a1 = P(anordnung(d, x, was), `Stellt ${G.nom} während der Dauer der Maßnahme einen Antrag auf zivilrechtlichen Schutz mit dem Ziel des Erlasses einer einstweiligen Anordnung, endet die Maßnahme mit dem Tag der gerichtlichen Entscheidung, spätestens jedoch mit Ablauf des ${fmtDate(x.max)} (§ 34a Abs. 5 Satz 2 PolG NRW).`);
     const gsZ = people(d, q => ['gs', 'zeuge'].includes(q.rolle) && q.da !== 'nein').map(({ i }) => { const tx = aussageGs(d, x, i, { ohneBel: true }); return has(tx) ? `Angaben ${x.R(i).gen}: ${tx}` : ''; });
-    const a2 = B(s1(d, x), s22(d, x), s23(d, x), s31(d, x), s32(d, x), s33(d, x), ...gsZ);
+    const a2 = B(s1(d, x), s22(d, x), s31(d, x), s32(d, x), s33(d, x), ...gsZ);
     const ein = x.da ? aussageBs(d, x, { ohneBel: true }) : '';
     const a3 = x.da ? B(anhoerung(d, x) || PH('Anhörung'), has(ein) ? `Zur Sache: ${ein}` : '') : s61weg(d, x).split('\n\n')[1] || '';
     const a4 = s5(d, x);
@@ -1400,6 +1561,10 @@
       if (p.rolle === 'gs') add(!has(get(p, 'p.nachname')), 'Personalien der geschädigten Person erfassen (Reiter Personalien).');
       if (p.rolle === 'bs') add(!has(get(p, 'p.nachname')), 'Personalien der beschuldigten Person erfassen.');
     }
+    // Kräfte und Eintreffen
+    add(!C.wagenL(d).some(w => C.besetzung(w)), 'Streifenwagenbesatzung erfassen (Schritt „Eingesetzte Kräfte“).');
+    add(get(d, 'eintreff.vorher') === 'ja' && !has(get(d, 'eintreff.vorherText')), 'Feststellungen vor dem Betreten ausformulieren.');
+    { const y = C.bsY(d); add(!!y && y.p.da === 'nah' && !has(y.p.nahOrt), 'Ort angeben, an dem die beschuldigte Person angetroffen wurde.'); }
     // Zutritt
     add(C.zutrittGegen(d) && !arr(z.tatsachen).length && !has(z.tatsachenFrei), 'Tatsachen für die gegenwärtige Gefahr beim Betreten festhalten (§ 41 Abs. 1 Satz 1 Nr. 4 PolG NRW).');
     if (C.zutrittGegen(d) && z.gesucht === 'ja') {
@@ -1522,7 +1687,21 @@
   }
 
   /* ---------- Ältere Vorgänge (Version 1) in das neue Format überführen ---------- */
-  function upgrade(data) {
+  /** Besatzung aus früheren Entwürfen bzw. aus der laufenden Schicht (einsatz.kraefte) wird zum ersten Streifenwagen. */
+  const RANK_RE = /^(E?P[HO]?K|P[HO]?M|PKA|E?K[HO]?K|KKA|KA|P?OR|PR|PD|LPD|KR|KOR|KD|LKD)(in)?$/;
+  function wagenUp(data) {
+    if (!data || typeof data !== 'object') return null;
+    const k = arr(get(data, 'einsatz.kraefte')).filter(c => c && has(c.name));
+    if (!k.length || arr(get(data, 'einsatz.wagen')).length) return null;
+    const team = (root.WBridge && typeof root.WBridge.team === 'function' && root.WBridge.team()) || [];
+    const rank = n => { const t = team.find(m => str(m.name).toLowerCase() === str(n).toLowerCase()); return t ? (arr(t.roles).find(r => RANK_RE.test(str(r))) || '') : ''; };
+    const o = JSON.parse(JSON.stringify(data));
+    o.einsatz.wagen = [{ crew: k.map(c => ({ grad: str(c.grad) || rank(c.name), name: str(c.name) })) }];
+    delete o.einsatz.kraefte;
+    return o;
+  }
+  function upgrade(data) { const a = upgrade1(data); const b = wagenUp(a || data); return b || a; }
+  function upgrade1(data) {
     if (!data || typeof data !== 'object' || Array.isArray(data.pers) || get(data, 'meta.v') === 2) return null;
     const v1 = data.gs || data.bs || data.kinder || data.zeugen || data.gsa || data.bel || get(data, 'lage.bs') || data.verl;
     if (!v1) { const n = JSON.parse(JSON.stringify(data)); n.meta = { ...(n.meta || {}), v: 2 }; return n; }
