@@ -60,7 +60,7 @@
   const ANREDE = [['m', 'Herr'], ['w', 'Frau'], ['d', 'Divers']];
 
   /** Feldeigenschaften dürfen Funktionen sein (d = Antworten, item = Listeneintrag) – so passt sich z. B. „Er/Sie habe …“ an. */
-  const R = (x, d, item) => (typeof x === 'function' ? x(d || {}, item) : x);
+  const R = (x, d, item, base) => (typeof x === 'function' ? x(d || {}, item, base) : x);
   const label = (f, forId, d, item) => { const l = R(f.l, d, item), h = R(f.h, d, item); return (l ? `<label class="w-lbl" ${forId ? `for="${forId}"` : ''}>${esc(l)}${f.req ? ' <i class="w-req" title="Für den Text wichtig">•</i>' : ''}</label>` : '') + (h ? `<p class="w-hint">${esc(h)}</p>` : ''); };
   const answered = v => (Array.isArray(v) ? v.length > 0 : v && typeof v === 'object' ? Object.keys(v).length > 0 : has(v));
   /** Werte desselben Feldes aus früheren Vorgängen (neueste zuerst) – zum Antippen statt Tippen. */
@@ -101,7 +101,7 @@
       case 'info': return `<div class="w-q full"><div class="w-info">${esc(R(f.text, d, item))}</div></div>`;
       /* Schnellwahl: ein Tipp setzt mehrere Antworten (o: [[Beschriftung, {Pfad: Wert|null}, Zusatz?]]) */
       case 'preset': {
-        const o = (R(f.o, d, item) || []).filter(x => x && x[1]);
+        const o = (R(f.o, d, item, base) || []).filter(x => x && x[1]);
         if (!o.length) return '';
         const same = vals => Object.entries(vals).every(([kk, vv]) => JSON.stringify(getP(d, kk) ?? null) === JSON.stringify(vv ?? null));
         return `<div class="w-q full w-preset">${f.l ? `<span class="w-lbl">${esc(R(f.l, d, item))}</span>` : ''}<div class="w-pre-row">${o.map(([lab, vals, sub]) => { const on = same(vals); return `<button type="button" class="w-pre${on ? ' on' : ''}" data-multi="${esc(JSON.stringify(vals))}" aria-pressed="${on}"><b>${esc(lab)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</button>`; }).join('')}</div></div>`;
@@ -123,7 +123,8 @@
         if (f.pre || f.t === 'area') return sentenceHtml(f, k, v, d, item, half, ans);
         const ph = R(f.ph, d, item) || '';
         const recent = f.recent ? recentFrom(Array.isArray(f.recent) ? f.recent : [k]).map(r => `<button type="button" class="chip sm w-recent" data-multi="${esc(JSON.stringify(r.vals))}">↺ ${esc(r.lab)}</button>`) : [];
-        return `${Q}${L(fid(k))}<input class="input" id="${fid(k)}" data-k="${esc(k)}" value="${esc(v ?? '')}" placeholder="${esc(ph)}" autocomplete="off" spellcheck="false" enterkeyhint="next" ${f.inputmode ? `inputmode="${f.inputmode}"` : ''} maxlength="${f.max || 200}">${chipRow(recent)}</div>`;
+        const sugg = (R(f.sugg, d, item, base) || []).filter(x => x && has(x[1])).map(([l, val]) => `<button type="button" class="chip sm" data-sugg="${esc(k)}" data-v="${esc(val)}"${f.join ? ` data-join="${esc(f.join)}"` : ''} aria-pressed="${String(v === val)}">${esc(l)}</button>`);
+        return `${Q}${L(fid(k))}<input class="input" id="${fid(k)}" data-k="${esc(k)}" value="${esc(v ?? '')}" placeholder="${esc(ph)}" autocomplete="off" spellcheck="false" enterkeyhint="next" ${f.inputmode ? `inputmode="${f.inputmode}"` : ''} maxlength="${f.max || 200}">${chipRow(recent.concat(sugg))}</div>`;
       }
       case 'crewpick': {
         const crew = (getP(d, 'einsatz.kraefte') || []).filter(c => c && has(c.name)).map(c => [c.grad, c.name].filter(Boolean).join(' '));
@@ -177,12 +178,30 @@
       case 'parts': return partsHtml(f, k, Array.isArray(v) ? v : []);
       case 'list': {
         const items = Array.isArray(v) ? v : [];
+        // fixed: zeigt nur schon erfasste Einträge (z. B. die Personen aus einem früheren Schritt) – ohne Hinzufügen/Entfernen
+        const fixed = !!f.fixed;
         // min1: die erste Karte steht sofort da – Tippen legt den Eintrag an, kein „Hinzufügen“ nötig
-        const rows = items.length ? items : (f.min1 ? [{}] : []);
-        const head = (it, i) => (typeof f.item === 'function' ? f.item(it || {}, i) : `${f.item || 'Eintrag'} ${i + 1}`);
-        const cards = rows.map((it, i) => `<div class="w-sub w-item-card"><div class="w-sub-h"><b>${esc(head(it, i))}</b><span class="grow"></span>${items.length ? `<button type="button" class="link danger" data-list-del="${esc(k)}" data-i="${i}">Entfernen</button>` : ''}</div><div class="w-grid">${f.sub.filter(sf => !sf.when || sf.when(d, it || {})).map(sf => fieldHtml(sf, d, `${k}.${i}`)).join('')}</div></div>`).join('');
-        const add = rows.length < (f.max || 8) ? `<button type="button" class="btn btn-ghost btn-sm" data-list-add="${esc(k)}"${f.min1 ? ' data-min1="1"' : ''}>+ ${esc(f.add || (f.item && typeof f.item === 'string' ? f.item + ' hinzufügen' : 'Eintrag hinzufügen'))}</button>` : '';
-        return `<div class="w-q full">${L()}${cards}${add}${!rows.length ? `<p class="w-hint">Noch keine ${esc(R(f.l, d) || 'Einträge')} erfasst.</p>` : ''}</div>`;
+        const rows = items.length ? items : (!fixed && f.min1 ? [{}] : []);
+        const shown = rows.map((it, i) => [it, i]).filter(([it, i]) => !f.only || (it && typeof it === 'object' && f.only(d, it, i)));
+        const head = (it, i) => (typeof f.item === 'function' ? f.item(it || {}, i, d) : `${f.item || 'Eintrag'} ${i + 1}`);
+        const cards = shown.map(([it, i]) => `<div class="w-sub w-item-card"><div class="w-sub-h"><b>${esc(head(it, i))}</b><span class="grow"></span>${items.length && !fixed ? `<button type="button" class="link danger" data-list-del="${esc(k)}" data-i="${i}">Entfernen</button>` : ''}</div><div class="w-grid">${f.sub.filter(sf => !sf.when || sf.when(d, it || {})).map(sf => fieldHtml(sf, d, `${k}.${i}`)).join('')}</div></div>`).join('');
+        const add = !fixed && rows.length < (f.max || 8) ? `<button type="button" class="btn btn-ghost btn-sm" data-list-add="${esc(k)}"${f.min1 ? ' data-min1="1"' : ''}>+ ${esc(f.add || (f.item && typeof f.item === 'string' ? f.item + ' hinzufügen' : 'Eintrag hinzufügen'))}</button>` : '';
+        const none = shown.length ? '' : `<p class="w-hint">${esc(R(f.empty, d) || `Noch keine ${R(f.l, d) || 'Einträge'} erfasst.`)}</p>`;
+        return `<div class="w-q full">${L()}${cards}${add}${none}</div>`;
+      }
+      /* Markierung je Umstand: Antippen wechselt durch die Zustände (z. B. festgestellt → geschildert → angenommen → aus).
+         auto(d) liefert Vorbelegungen aus früheren Antworten; „nein“ hebt eine Vorbelegung auf. */
+      case 'marks': {
+        const val = v && typeof v === 'object' ? v : {};
+        const auto = typeof f.auto === 'function' ? (f.auto(d) || {}) : {};
+        const S = f.states || [['fest', 'festgestellt'], ['angabe', 'geschildert'], ['annahme', 'angenommen']];
+        const sl = Object.fromEntries(S);
+        const groups = R(f.groups, d, item) || [];
+        const legend = `<div class="w-mk-legend">${S.map(([s, l]) => `<span><i class="w-mk-dot" data-s="${esc(s)}"></i>${esc(l)}</span>`).join('')}</div>`;
+        return `<div class="w-q full w-marks" data-q="${esc(k)}">${L()}${legend}${groups.map(([gt, opts]) => `<div class="w-mk-g"><span class="w-mk-gt">${esc(gt)}</span><div class="w-chips">${opts.map(([key, l]) => {
+          const u = val[key], s = u === 'nein' ? '' : (u || auto[key] || ''), isAuto = !u && !!auto[key];
+          return `<button type="button" class="chip w-mk${isAuto ? ' auto' : ''}" data-mark="${esc(k)}" data-v="${esc(key)}" data-auto="${esc(auto[key] || '')}" data-s="${esc(s)}" aria-pressed="${String(!!s)}"><span>${esc(l)}</span>${s ? `<small>${esc(sl[s] || (s === 'ja' ? 'liegt vor' : s))}${isAuto ? ' · übernommen' : ''}</small>` : ''}</button>`;
+        }).join('')}</div></div>`).join('')}</div>`;
       }
       default: return '';
     }
@@ -291,6 +310,7 @@
     if (!d || U.view === 'list') { U.view = 'list'; remember(); host.innerHTML = introHtml(); return; }
     const m = mod(d);
     if (!m) { host.innerHTML = `<div class="empty w-empty"><h3>Unbekanntes Modul „${esc(d.type)}“</h3><p>Dieser Vorgang stammt aus einer neueren Version.</p></div>`; return; }
+    if (typeof m.upgrade === 'function') { const nd = m.upgrade(d.data); if (nd && typeof nd === 'object') { d.data = nd; persist(true); } }
     U.lastJson = stable(d.data);
     if (U.view === 'result') { host.innerHTML = resultHtml(d, m); remember(); return; }
     const steps = visibleSteps(m, d.data);
@@ -603,6 +623,15 @@
         for (const [k, v] of Object.entries(o)) setP(d.data, k, JSON.parse(JSON.stringify(v)));
         persist(false); renderMain(); W().toast('Übernommen');
         return;
+      }
+      if (b.dataset.mark) {
+        const d = doc(); if (!d) return;
+        const S = ['fest', 'angabe', 'annahme'];
+        const path = b.dataset.mark + '.' + b.dataset.v, u = getP(d.data, path), auto = b.dataset.auto || '';
+        const eff = u === 'nein' ? '' : (u || auto), i = S.indexOf(eff);
+        const next = !eff ? S[0] : i < 0 ? S[0] : (i < S.length - 1 ? S[i + 1] : '');
+        setP(d.data, path, next || (auto ? 'nein' : undefined));
+        persist(false); renderMain(); return;
       }
       if (b.dataset.set) { setVal(b.dataset.set, b.dataset.n ? Number(b.dataset.v) : b.dataset.v); return; }
       if (b.dataset.toggle) { toggleVal(b.dataset.toggle, b.dataset.v); return; }

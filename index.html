@@ -1043,6 +1043,20 @@ body[data-area=schreiben] .pane-schreiben{display:grid}
 @media (hover:hover) and (pointer:fine){.w-part:not([aria-pressed=true]):hover{background:rgba(255,255,255,.09);color:var(--text)}}
 .w-part-card{margin-top:12px}
 .w-item-card{margin-bottom:10px}
+.w-mk-legend{display:flex;flex-wrap:wrap;gap:4px 14px;margin:-2px 0 6px;font-size:11.5px;color:var(--text-3)}
+.w-mk-legend span{display:inline-flex;align-items:center;gap:6px}
+.w-mk-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.2)}
+.w-mk-dot[data-s=fest]{background:var(--lime)}
+.w-mk-dot[data-s=angabe]{background:var(--accent)}
+.w-mk-dot[data-s=annahme]{background:#9fbbe8}
+.w-mk-g{margin-top:12px}
+.w-mk-gt{display:block;margin:0 0 7px 2px;font-size:10px;font-weight:500;letter-spacing:.2em;text-transform:uppercase;color:var(--text-3)}
+.w-chips .chip.w-mk{height:auto;min-height:38px;padding:6px 13px;display:inline-flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;text-align:left;line-height:1.25}
+.w-mk small{font-size:10.5px;font-weight:500;letter-spacing:.02em;opacity:.95}
+.w-chips .chip.w-mk[data-s=fest]{background:rgba(198,220,122,.13);border-color:rgba(198,220,122,.55);color:var(--lime)}
+.w-chips .chip.w-mk[data-s=angabe]{background:var(--accent-soft);border-color:rgba(236,217,111,.5);color:var(--accent)}
+.w-chips .chip.w-mk[data-s=annahme],.w-chips .chip.w-mk[data-s=ja]{background:rgba(143,179,232,.12);border-color:rgba(143,179,232,.5);color:#b9cff0}
+.w-chips .chip.w-mk.auto{border-style:dashed}
 .w-preview{margin-top:22px;border-radius:16px;background:rgba(255,255,255,.03);border:1px dashed var(--line-2)}
 .w-preview summary{cursor:pointer;list-style:none;padding:12px 14px;font-size:12px;font-weight:500;letter-spacing:.2em;text-transform:uppercase;color:var(--text-3);display:flex;align-items:center;gap:8px}
 .w-preview summary::-webkit-details-marker{display:none}

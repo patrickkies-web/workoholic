@@ -1,8 +1,14 @@
-# Masterplan · Häusliche Gewalt
+# Masterplan · Häusliche Gewalt (Version 2)
 
-Aufnahmemodus im Bereich **Schriftliche Arbeiten** von Workoholic. Ziel: am Einsatzort unter Zeitdruck antippen statt tippen, dabei an alle Pflichten erinnert werden – und am Ende steht der **Sachverhalt** für die Anzeige, die **Begründung der Wohnungsverweisung** nach § 34a PolG NRW und eine Liste **„Noch zu erledigen“**. Alles Ende-zu-Ende verschlüsselt, jeder Schritt sofort gesichert.
+Aufnahmemodus im Bereich **Schriftliche Arbeiten** von Workoholic. Ziel: am Einsatzort unter Zeitdruck antippen statt tippen, dabei an alle Pflichten erinnert werden – und am Ende steht der **Sachverhalt** für die Anzeige, die **Begründung der Wohnungsverweisung** nach § 34a PolG NRW, eine **Kurzfassung** und die Liste **„Noch zu erledigen“**. Alles Ende-zu-Ende verschlüsselt, jeder Schritt sofort gesichert.
 
 Stand: November 2026 · Dateien: `js/hg.js` (Fragen + Text), `js/writer.js` (Assistent), `index.html` (Ansicht), `js/app.js` (Tresor-Brücke)
+
+---
+
+## 0 · Grundsatz
+
+**Im Text steht nur, was angetippt oder eingetragen wurde.** Fehlt etwas, steht dort ein `[Platzhalter]` und ein Eintrag in „Noch zu erledigen“. Kein Satz unterstellt einen Ablauf, der nicht bestätigt ist („wird in einer gesonderten Vernehmung nachgeholt“, „nicht in Gegenwart …“, „auf Befragen keine Einwände“). „Text folgt“ bei einer Schilderung heißt nur: Hier fehlt noch Text.
 
 ---
 
@@ -10,54 +16,43 @@ Stand: November 2026 · Dateien: `js/hg.js` (Fragen + Text), `js/writer.js` (Ass
 
 | Quelle | Was daraus übernommen wurde |
 | --- | --- |
-| **§ 34a PolG NRW** (Fassung seit 13.12.2025) | Gegenwärtige Gefahr für Leib, Leben oder Freiheit; Wohnung und unmittelbare Umgebung; räumlicher Bereich genau bezeichnen; Dauer 14 Tage, Verlängerung bei Antrag auf zivilgerichtlichen Schutz bis zur Entscheidung, längstens weitere 14 Tage; Mitnahme dringend benötigter Gegenstände; Anschrift oder zustellungsbevollmächtigte Person; Hinweis auf Gewaltschutzgesetz und Beratungsstellen; Kontrolle des Rückkehrverbots. |
-| **§ 28 VwVfG NRW**, OVG NRW 5 A 3548/20 | Anhörung zur Wohnungsverweisung ist ein eigener Schritt neben der Beschuldigtenbelehrung: Vorwürfe mitteilen, Gelegenheit zur Äußerung, erst dann anordnen. Der Assistent warnt, solange die Anhörung fehlt. |
-| **§ 41, § 42 PolG NRW**, OLG Köln 7 U 147/20 | Betreten der Wohnung gegen den Willen nur mit konkreten Tatsachen für eine gegenwärtige Gefahr; Betreten und Durchsuchen werden getrennt erfasst. |
-| **§ 52 Abs. 3, § 163a Abs. 4, § 136 Abs. 1 StPO**, BGH 3 StR 435/12 | Belehrungen mit Uhrzeit; Spontanäußerungen vor der ersten Frage wörtlich und mit Uhrzeit, getrennt von der späteren Vernehmung. |
-| **§ 81c Abs. 3 StPO** | Lichtbilder der Verletzungen bei Angehörigen nur nach Belehrung über das Weigerungsrecht und mit Einwilligung. |
-| **§§ 43, 44 PolG NRW** | Sicherstellung der Haus- und Wohnungsschlüssel mit Bescheinigung. |
-| **§§ 53, 54, 56 PolG NRW** | Androhung des Zwangsgeldes mit bestimmtem Betrag, Hinweis auf Ersatzzwangshaft. |
-| **§ 5 Abs. 3 LZG NRW** | Zustellung nachts, sonn- und feiertags nur mit schriftlicher Erlaubnis der Behördenleitung – wird abgefragt, sobald die Uhrzeit der Anordnung in diesen Zeitraum fällt. |
-| **§ 27 Abs. 2 PolG NRW** | Mitteilung an das Jugendamt, wenn Kinder im Haushalt leben. |
-| **§§ 406i, 406j StPO** | Unterrichtung der geschädigten Person über ihre Rechte. |
-| **Warnsignale für Eskalation** (Greuel u. a.) | Trennung, Todesdrohungen, Angriff gegen den Hals, Waffen, Kontrollverhalten, Suiziddrohungen, Zunahme der Übergriffe – als Ankreuzliste in der Gefahrenprognose. |
-
-Die ausführliche Herleitung mit Entscheidungspunkten E1–E12 steht in der Ausarbeitung „Polizeiliches Vorgehen bei häuslicher Gewalt in NRW“ und im Einsatzpfad; das Modul bildet dieselbe Reihenfolge ab.
+| **§ 34a PolG NRW** (Fassung seit 13.12.2025) | Gegenwärtige Gefahr für Leib, Leben oder Freiheit; Wohnung und unmittelbare Umgebung; Bereich genau bezeichnen (Abs. 1 Satz 2); Mitnahme dringend benötigter Gegenstände (Abs. 2); Anschrift oder Zustellungsbevollmächtigte (Abs. 3); Hinweise und Datenweitergabe an Beratungsstellen (Abs. 4); 14 Tage, Verlängerung bei Gerichtsantrag längstens um weitere 14 Tage (Abs. 5); Unterrichtung über die Dauer (Abs. 6 Satz 2); Kontrolle (Abs. 7). |
+| **§ 28 VwVfG NRW**, OVG NRW 5 A 3548/20 | Anhörung zur Wohnungsverweisung als eigener Schritt neben der Beschuldigtenbelehrung, mit Inhalten (Vorwürfe, frühere Vorfälle, beabsichtigte Maßnahme, Hinweise, Fragen nach Unterkunft, Bindung, Einwänden). |
+| **§ 163a Abs. 4, 5, § 136 Abs. 1 Satz 2–6, § 168b Abs. 3 StPO** | Beschuldigtenbelehrung mit belehrender Person, Uhrzeit und den genannten Inhalten (Tatvorwurf, Aussagefreiheit, Verteidiger, Kontaktdaten und Notdienst, Beweisanträge, Pflichtverteidiger mit Kostenfolge, ggf. schriftliche Äußerung, Täter-Opfer-Ausgleich, Dolmetscher); Entscheidung über die Verteidigerkonsultation. |
+| **§§ 52, 55, 57, 68 Abs. 2, 68b, 163 Abs. 3 StPO** | Zeugenbelehrung je Person: Zeugnisverweigerungsrecht mit Nummer nach der angegebenen Beziehung, Widerruf des Verzichts, Auskunftsverweigerungsrecht, Wahrheitspflicht, Zeugenbeistand, andere ladungsfähige Anschrift; Erklärung nach der Belehrung. |
+| **§ 81b, § 81c Abs. 3 StPO** | Lichtbilder der Verletzungen; bei Angehörigen nach Belehrung über das Weigerungsrecht. |
+| **§ 41, § 42 PolG NRW**, OLG Köln 7 U 147/20 | Betreten gegen den Willen nur mit Tatsachen für eine gegenwärtige Gefahr; Durchsuchung getrennt erfasst. |
+| **§§ 43, 44 Abs. 2 PolG NRW** | Sicherstellung der Schlüssel, Bescheinigung. |
+| **§§ 51, 53, 54 Abs. 1, 56 PolG NRW** | Zwangsgeld in bestimmter Höhe für jeden Fall der Zuwiderhandlung; Hinweis auf Ersatzzwangshaft (sonst später nicht anordenbar); Androhung ist zuzustellen. |
+| **§ 35 Abs. 1 Nr. 4 PolG NRW** | Hinweis auf Gewahrsam zur Durchsetzung. |
+| **§§ 3, 5 LZG NRW i. V. m. §§ 179–181 ZPO** | Aushändigung gegen Empfangsbekenntnis, Annahmeverweigerung, Ersatzzustellung (Briefkasten), Niederlegung auf der Wache mit Mitteilung an der Wohnungstür und drei Monaten Abholfrist; Erlaubnis der Behördenleitung zur Nachtzeit und an Sonn- und Feiertagen. |
+| **Gefahrenprognose** | Kriterien der IM-Broschüre (2007), Warnsignale der LKA-NRW-Studie (Greuel u. a. 2010: Trennung, Todesdrohung, Würgen, Waffen, Kontrolle/Stalking, Suiziddrohung, Zunahme, Angst der Frau), ergänzt um gängige Items standardisierter Instrumente (Schwangerschaft, Kind aus anderer Beziehung, Hilferuf verhindert, Einschätzung der gefährdeten Person). |
 
 ---
 
 ## 2 · Ablauf am Einsatzort
 
-Acht Phasen, vorweg die Weichen-Fragen („Worum geht es?“). Es erscheinen nur Schritte, die zum Fall passen.
-
 | Phase | Schritte | Worum es geht |
 | --- | --- | --- |
-| **Lage** | Worum geht es? | Beschuldigte Person angetroffen oder nicht, Beziehung, gemeinsame Wohnung, Art der Gewalt, Verletzte, Kinder. Diese Antworten schalten spätere Schritte ein oder aus. |
-| **Einsatz** | Einsatzanlass · Eingesetzte Kräfte | Datum, Uhrzeit, Meldeweg, Meldung, Anschrift; Rufname und Besatzung wie in den anderen Modulen. |
-| **Vor Ort** | Zutritt · Lage beim Eintreffen · Verletzungen und Versorgung | Wer öffnet, Zutritt freiwillig oder gegen den Willen (mit Tatsachen); Zustand der Beteiligten und der Wohnung; Spontanäußerungen; Verletzungen, Frage nach Rettungswagen mit Antwort (auch Ablehnung und selbstständige ärztliche Versorgung), Lichtbilder zur Anzeige. |
-| **Personen** | Geschädigte Person · Beschuldigte Person · Kinder im Haushalt | Personalien; Alkohol, Drogen, Medikamente mit Auffälligkeiten und Atemalkoholtest; je Kind Alter, Anwesenheit, Zustand, Äußerungen; Betreuung und Jugendamt. |
-| **Schilderungen** | Angaben der geschädigten Person · Belehrung, Einlassung und Anhörung · Zeugen | Belehrung mit Uhrzeit; Schilderung **jetzt**, **später nachtragen** oder **keine Angaben**; frühere Vorfälle; Wille der geschädigten Person; Anhörung zur Wohnungsverweisung mit Reaktion und Unterkunft. |
-| **Prognose** | Gefahrenprognose | Vorerkenntnisse, Muster, Stützen der Aussage, Warnsignale, Ergebnis – jeweils als Ankreuzliste, dazu ein Satz zur Begründung. |
-| **Maßnahmen** | Wohnungsverweisung und Rückkehrverbot · Vollzug · Beschuldigte Person nicht angetroffen · Zwang und Gewahrsam · Strafverfahren und Beweise | Bereich als Ankreuzliste plus weitere Örtlichkeiten mit Grund; Dauer mit Fristrechner; milderes Mittel; Gegenstände, Zustellanschrift, Schlüssel, Zwangsgeld, schriftliche Bestätigung (vor Ort ausgehändigt, verweigert, Abholung auf der Wache, Zustellung per Post); bei Abwesenheit Mitteilung an der Wohnungstür und Abholung auf der Wache. |
-| **Abschluss** | Opferschutz · Verlassen des Einsatzortes | Hinweise, Beratungsstelle mit Einwilligung, Verbleib, Übergabe, Einsatzende. |
+| **Einsatz** | Einsatzanlass · Eingesetzte Kräfte | Datum, Uhrzeit, Meldeweg, Meldung, Anschrift; Rufname und Besatzung wie in den anderen Modulen (auch aus der laufenden Schicht). |
+| **Personen** | Beteiligte Personen | Jede Person einmal: Rolle (geschädigt, beschuldigt, Kind, Zeugin/Zeuge), Geschlecht, Beziehung zur beschuldigten Person (Tippvorschläge, freie Eingabe), Alter, vor Ort, verletzt. Daraus: Hinweis auf das Zeugnisverweigerungsrecht, welche Karten später erscheinen. |
+| **Eintreffen** | Eintreffen und Zutritt · Angetroffene Personen · Verletzungen und Versorgung | Was zu hören war, wer öffnete, Zutritt mit Tatsachen; je anwesender Person: wo angetroffen, Zustand, Besonderheiten, Alkohol/Drogen (wie Verkehrsunfallflucht), ungefragte Äußerung; je verletzter Person: Verletzungen, Frage nach Rettungswagen mit Antwort, Befund der RTW-Besatzung, Krankenhaus, Lichtbilder, Attest. |
+| **Umstände** | Örtlichkeit und Beziehung · Kinder im Haushalt | Gebäude, Lage, Spuren mit Ort; Wohnverhältnisse, Trennung, Beziehung; je Kind: wo, Zustand, mitbekommen, Äußerung; Befragung. |
+| **Schilderungen** | Geschädigte und Zeugen · Beschuldigte Person | Je Person: Belehrungsart, belehrt durch, Uhrzeit, Inhalte (Schnellwahl „Vollständig nach Vordruck“), Erklärung, Schilderung jetzt / Text folgt / keine Angaben, Vorgeschichte und Haltung. Beschuldigte Person: Belehrung, Verteidigerentscheidung, Einlassung; danach Anhörung mit Inhalten. |
+| **Prognose** | Gefahrenprognose | Datenabgleich, Einordnung, Stützen, Würdigung; 35 Umstände in sechs Gruppen, je **festgestellt / geschildert / angenommen**; aus früheren Antworten übernommene Umstände sind vormarkiert; Textbausteine für besondere Lagen; Ergebnis mit Begründungsvorschlägen aus den markierten Umständen. |
+| **Maßnahmen** | Wohnungsverweisung · Eröffnung und Vollzug · Bekanntgabe und Zustellung · Zwang und Gewahrsam · Strafverfahren | Anordnung mit Bereich, weiteren Örtlichkeiten, Dauer, Fristrechner, milderem Mittel; Eröffnung als Checkliste (Schnellwahl „Vollständig nach Vordruck“) mit Zwangsgeld, Schlüsseln, schriftlicher Bestätigung, Reaktion, Verlassen; bei Abwesenheit Erreichbarkeit, Anhörung, Bekanntgabe, Zustellung (persönlich, Briefkasten, Niederlegung mit Mitteilung an der Tür, nur Hinweis, Post). |
+| **Abschluss** | Opferschutz und Kinder · Personalien und Abschluss | Hinweise (Schnellwahl), Beratungsstelle, Einwilligung, Verbleib, Kinderbetreuung, Jugendamt; Personalien je Person, Erledigtes, Einsatzende, Bemerkungen, Klarnamen. |
 
 ---
 
 ## 3 · Bedienkonzept
 
-**Ankreuzen, aber nie abschließend.** Fast alles läuft über Ja/Nein, Auswahl und Mehrfachauswahl. Die Listen sind Schnellwahl, keine abschließende Aufzählung: Unter den Listen zu Zustand, Verhalten, Verletzungen, Tatsachen für den Zutritt, Kindern, Vorerkenntnissen, Stützen, Warnsignalen und Delikten steht ein Feld „Weiteres in eigenen Worten“, das den Satz der Liste fortsetzt – mit festem Satzanfang und einem grauen Beispiel. Wo eine Auswahl „Sonstige“ kennt, fragt ein Feld „Wer genau?“. Für alles Übrige gibt es je Abschnitt ein optionales Feld für einen ganzen Satz (Zutritt, Maßnahmen, Versorgung, Vollzug, Zwang, Beweise, Opferschutz) und am Ende „Bemerkungen“ (Abschnitt 6.3).
-
-**Schilderung statt Chips.** Was geschehen sein soll, steht in der Schilderung in eigenen Worten, nicht in einer Auswahlliste. Nur wenn die Schilderung nachgetragen wird, fragt der Assistent nach dem Kern des Vorwurfs in einem Satz – damit Sachverhalt und Begründung am Einsatztag tragen.
-
-**Schilderungen nachtragen.** Bei der geschädigten Person, der beschuldigten Person und jedem Zeugen lässt sich wählen: jetzt aufnehmen, später nachtragen, keine Angaben. „Später“ setzt im Text einen Platzhalter in eckigen Klammern und einen Eintrag in „Noch zu erledigen“.
-
-**Alkohol und Auffälligkeiten.** Wie die Personenbeschreibung im Modul Verkehrsunfallflucht: Ja/Nein, dann Auffälligkeiten als Tippvorschläge (Alkoholgeruch, verwaschene Aussprache, schwankender Gang, gerötete Augen …), auf Wunsch Atemalkoholwert. Im Text steht das bei den Feststellungen zur Person.
-
-**Vorschau.** Unter jedem Schritt steht „So steht es im Bericht“ mit dem Wortlaut, den die Antworten gerade erzeugen. Geschlecht, Ein- und Mehrzahl und indirekte Rede passen sich an.
-
-**Hinweise statt Sperren.** Fehlt etwas Wesentliches (Anhörung vor der Anordnung, Erlaubnis für die Zustellung zur Nachtzeit), erscheint ein Hinweis im Schritt. Weitergehen ist immer möglich.
-
-**Fristrechner.** Aus dem Tag der Anordnung errechnet der Schritt das Ende des Rückkehrverbots (Ablauf des 14. Tages) und das späteste Ende bei Verlängerung.
+- **Personen zuerst.** Eine Liste am Anfang; alle späteren Schritte zeigen nur die passenden Karten (z. B. Verletzungen nur für verletzte Personen). Mehrere Verletzte und mehrere Geschädigte sind möglich („die Geschädigte zu 1“, „der Geschädigte zu 2“).
+- **Ankreuzen, nie abschließend.** Auswahllisten sind Schnellwahl; darunter steht immer ein Freifeld, das den Satz fortsetzt, oder ein Feld für einen ganzen Satz.
+- **Schnellwahl.** Belehrung, Anhörung, Eröffnung und Opferschutz lassen sich mit einem Tipp „vollständig nach Vordruck“ setzen und dann einzeln abwählen.
+- **Markieren statt Ankreuzen** in der Gefahrenprognose: Antippen wechselt festgestellt → geschildert → angenommen → aus. Vormarkierungen aus früheren Antworten sind gestrichelt.
+- **Vorschau** unter jedem Schritt, Satzführung nach Geschlecht, Rolle, Ein- und Mehrzahl, indirekter Rede.
+- **Hinweise statt Sperren** (fehlende Anhörung, Zeugnisverweigerungsrecht, Nachtzustellung, Ersatzzustellung).
 
 ---
 
@@ -65,24 +60,25 @@ Acht Phasen, vorweg die Weichen-Fragen („Worum geht es?“). Es erscheinen nur
 
 | Reiter | Inhalt |
 | --- | --- |
-| **Sachverhalt** | 1 Einsatz · 2 Feststellungen vor Ort · 3 Schilderungen · 4 Bewertung · 5 Maßnahmen · 6 Sonstiges (mit Bemerkungen). Rollen statt Namen („die Geschädigte“, „der Beschuldigte“); Klarnamen nur auf ausdrücklichen Wunsch. |
-| **Begründung § 34a** | Erscheint, wenn die Wohnungsverweisung angeordnet wurde: Anordnung mit Bereich und Enddatum · Sachverhalt · Anhörung · Gefahrenprognose · Ermessen und Verhältnismäßigkeit · Zwangsmittel und Hinweise. In der Sprache des Gefahrenabwehrrechts („Betroffener“, „gefährdete Person“). |
-| **Kurzfassung** | Wenige Sätze für Übergabe und Lagemeldung. |
-| **Noch zu erledigen** | Fehlende Pflichten mit Norm, abhakbar und als Todos in den Planner übernehmbar. |
-| **Personalien** | Gesondert, damit der Sachverhalt ohne Klarnamen kopiert werden kann. |
+| **Sachverhalt** | 1 Einsatzanlass · 2 Eintreffsituation (Eintreffen und Zutritt, angetroffene Personen, Verletzungen und Versorgung) · 3 Tatörtlichkeit und Umstände vor Ort (Örtlichkeit und Spuren, Beziehung, Kinder) · 4 Schilderungen (je Person, Anhörung) · 5 Gefahrenprognose · 6 Maßnahmen (Wohnungsverweisung bzw. Rückkehrverbot, Zwang, Strafverfolgung, Opferschutz) · 7 Abschluss. Leere Abschnitte entfallen, die Nummern rücken nach. |
+| **Begründung § 34a** | Anordnung · Sachverhalt (ohne Belehrungsabsätze) · Anhörung · Gefahrenprognose · Ermessen und Verhältnismäßigkeit · Zwangsmittel und Hinweise. Sprache der Gefahrenabwehr („gefährdete Person“, „Betroffener“). |
+| **Kurzfassung** | Nur bestätigte Angaben. |
+| **Noch zu erledigen** | Fehlende Pflichten mit Norm, je Person; als Todos übernehmbar. |
+| **Personalien** | Gesondert vom Sachverhalt. |
 
-„Kopieren“ kopiert immer den Reiter, der gerade offen ist.
+Ältere Vorgänge (Version 1) werden beim Öffnen automatisch in das neue Format überführt; Belehrungsinhalte, die früher nicht erfasst wurden, erscheinen als Platzhalter.
 
 ---
 
 ## 5 · Grenzen
 
-- **Keine Rechtsberatung, kein Vordruck.** Das Modul ersetzt weder die Vordrucke der Behörde noch die Rechtsbehelfsbelehrung; dafür steht im Text ein Platzhalter.
-- **Begründung gegenlesen.** Die Begründung entsteht aus den Antworten. Sie trägt nur, wenn die Antworten den Einzelfall treffen – besonders die Sätze zur Prognose und zum milderen Mittel.
-- **Erlasslage.** Der als Verschlusssache eingestufte Runderlass zur häuslichen Gewalt vom 01.03.2024 und örtliche Dienstanweisungen sind nicht eingearbeitet. Wo sie abweichen, gehen sie vor.
-- **Mitteilung an der Tür.** Sie wird erfasst, ersetzt aber nicht die Bekanntgabe der Verfügung; „Noch zu erledigen“ weist darauf hin.
-- **Schutzanschrift.** Eine neue Anschrift der geschädigten Person wird bewusst nicht abgefragt und erscheint in keinem Text.
-- **Daten.** Personenbezogene Daten nur eintragen, soweit das dienstlich zulässig ist. Der Tresor ist verschlüsselt; kopierter oder als Datei gespeicherter Text ist Klartext.
+- **Keine Rechtsberatung, kein Vordruck.** Rechtsbehelfsbelehrung und Vordrucke der Behörde gehen vor; im Text steht ein Platzhalter.
+- **Gegenlesen.** Begründung und Prognose tragen nur, wenn die Antworten den Einzelfall treffen. Die Textbausteine sind Vorschläge.
+- **Ersatzzustellung** in der Wohnung, aus der die Person verwiesen ist, ist gerichtlich nicht geklärt; der Assistent weist darauf hin und empfiehlt die persönliche Aushändigung beim Antreffen.
+- **Erlasslage.** Der als Verschlusssache eingestufte Runderlass vom 01.03.2024 und örtliche Dienstanweisungen sind nicht eingearbeitet.
+- **Eine beschuldigte Person je Vorgang.** Wechselseitige Vorwürfe lassen sich abbilden (geschädigte Person zusätzlich als Beschuldigte belehrt); eine zweite Verfügung gegen eine weitere Person ist als eigener Vorgang anzulegen.
+- **Schutzanschrift** wird nicht abgefragt und erscheint in keinem Text.
+- **Daten** nur, soweit dienstlich zulässig; kopierter Text ist Klartext.
 
 ---
 
