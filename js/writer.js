@@ -10,7 +10,11 @@
   'use strict';
   const W = () => window.WBridge;
   const MODULES = {};
-  if (window.WVUF) MODULES[window.WVUF.id] = window.WVUF;
+  [window.WVUF, window.WHG].forEach(m => { if (m && m.id) MODULES[m.id] = m; });
+  /** Beschriftungen, Hinweise und Zusatzreiter der Ergebnisansicht kommen – wenn vorhanden – aus dem Modul. */
+  const tabL = (m, k, def) => (m.tabs && m.tabs[k]) || def;
+  const hintOf = (m, k, def) => (m.hints && m.hints[k] != null ? m.hints[k] : def);
+  const extraTabs = (m, data) => (m.extraTabs || []).filter(t => !t.when || t.when(data));
 
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -212,7 +216,7 @@
     const q = (($('#search') || {}).value || '').trim().toLocaleLowerCase('de');
     const rows = docs.slice().sort((a, b) => (b.u || b.updatedAt || 0) - (a.u || a.updatedAt || 0)).filter(d => !q || (d.title + ' ' + (mod(d) ? mod(d).subtitle(d.data) : '')).toLocaleLowerCase('de').includes(q));
     $('#wCount').textContent = docs.length;
-    if (!rows.length) { host.innerHTML = `<div class="empty w-empty"><h3>${docs.length ? 'Nichts gefunden' : 'Noch kein Vorgang'}</h3><p>${docs.length ? 'Suche anpassen.' : 'Ein Vorgang führt dich Schritt für Schritt durch die Aufnahme – alles wird verschlüsselt gespeichert, du kannst jederzeit unterbrechen.'}</p>${docs.length ? '' : '<div class="row"><button type="button" class="btn btn-accent btn-sm" data-w="new">Neue Verkehrsunfallflucht</button></div>'}</div>`; return; }
+    if (!rows.length) { host.innerHTML = `<div class="empty w-empty"><h3>${docs.length ? 'Nichts gefunden' : 'Noch kein Vorgang'}</h3><p>${docs.length ? 'Suche anpassen.' : 'Ein Vorgang führt dich Schritt für Schritt durch die Aufnahme – alles wird verschlüsselt gespeichert, du kannst jederzeit unterbrechen.'}</p>${docs.length ? '' : '<div class="row"><button type="button" class="btn btn-accent btn-sm" data-w="new">Neuer Vorgang</button></div>'}</div>`; return; }
     host.innerHTML = `<ul class="w-docs">${rows.map(d => {
       const m = mod(d); const total = m ? visibleSteps(m, d.data).length : 1;
       const pct = d.status === 'fertig' ? 100 : Math.round(Math.min(d.step, total) / total * 100);
@@ -268,8 +272,8 @@
     return `<div class="w-intro">
       <span class="spaced">Schriftliche Arbeiten</span>
       <h2 class="w-intro-h">Aufnehmen, ohne zu tippen.</h2>
-      <p class="w-intro-p">Fragen beantworten – Ja/Nein, antippen, Zahlen – und am Ende steht ein vollständiger Verkehrsunfallbefundbericht in sauberer Satzführung. Es erscheinen nur Fragen, die zu deinem Fall passen; jede lässt sich überspringen. Alles bleibt verschlüsselt in deinem Tresor; jeder Schritt wird sofort gesichert, du kannst jederzeit unterbrechen.</p>
-      <div class="w-mods">${mods.map(m => `<button type="button" class="w-mod" data-w="new" data-mod="${esc(m.id)}"><span class="w-mod-tile">${esc(m.kurz)}</span><span><b>${esc(m.name)}</b><small>${new Set(m.steps.map(s => s.phase)).size} Phasen, nur passende Fragen · Befundbericht nach Anlage 6, Kurzsachverhalt, Fahndungstext, offene Punkte</small></span></button>`).join('')}</div>
+      <p class="w-intro-p">Fragen beantworten – Ja/Nein, antippen, Zahlen – und am Ende steht der fertige Text in sauberer Satzführung. Es erscheinen nur Fragen, die zu deinem Fall passen; jede lässt sich überspringen. Alles bleibt verschlüsselt in deinem Tresor; jeder Schritt wird sofort gesichert, du kannst jederzeit unterbrechen.</p>
+      <div class="w-mods">${mods.map(m => `<button type="button" class="w-mod" data-w="new" data-mod="${esc(m.id)}"><span class="w-mod-tile">${esc(m.kurz)}</span><span><b>${esc(m.name)}</b><small>${new Set(m.steps.map(s => s.phase)).size} Phasen, nur passende Fragen · ${esc(m.blurb || 'Befundbericht nach Anlage 6, Kurzsachverhalt, Fahndungstext, offene Punkte')}</small></span></button>`).join('')}</div>
       <p class="w-hint">Tastatur: <b class="kbd">N</b> neuer Vorgang · <b class="kbd">S</b> Bereich wechseln (<b class="kbd">6</b>) · <b class="kbd">⌘/Strg ⏎</b> weiter</p>
     </div>`;
   }
@@ -279,14 +283,17 @@
     const sec = m.text(d.data);
     const offen = m.offen(d.data);
     const fah = m.fahndung(d.data);
-    const tabs = [['bericht', 'Befundbericht'], ['kurz', 'Kurzsachverhalt'], ...(fah ? [['fahndung', 'Fahndung']] : []), ['offen', `Offene Punkte${offen.length ? ' · ' + offen.length : ''}`], ['pers', 'Personalien']];
+    const extras = extraTabs(m, d.data);
+    const tabs = [['bericht', tabL(m, 'bericht', 'Befundbericht')], ...extras.map(t => [t.k, t.l]), ['kurz', tabL(m, 'kurz', 'Kurzsachverhalt')], ...(fah ? [['fahndung', 'Fahndung']] : []), ['offen', `${tabL(m, 'offen', 'Offene Punkte')}${offen.length ? ' · ' + offen.length : ''}`], ['pers', tabL(m, 'pers', 'Personalien')]];
+    const extra = extras.find(t => t.k === U.tab);
     if (!tabs.some(t => t[0] === U.tab)) U.tab = 'bericht';
     let body = '';
     if (U.tab === 'bericht') body = `<div class="w-report">${sec.map(([n, t, txt, sid]) => txt == null ? `<h3 class="w-rh">${n} ${esc(t)}</h3>` : `<div class="w-rs"><h4 class="w-rsh">${n} ${esc(t)}<button type="button" class="link" data-edit="${esc(stepForSection(m, sid, d.data))}">Bearbeiten</button></h4><div class="w-rb${/\[[^\]]+\]/.test(txt) ? ' has-ph' : ''}">${reportHtml(txt)}</div></div>`).join('')}</div>`;
-    else if (U.tab === 'kurz') body = `<div class="w-report"><p class="w-hint">Für die Kurzbeschreibung im Vorgang und die Unfallmitteilung. Vor dem Nachsenden der Unfallmitteilung ist der Kurzsachverhalt aus der ViVA-Kurzbeschreibung zu löschen (DA 1.1).</p><div class="w-rb">${reportHtml(m.kurzText(d.data))}</div></div>`;
+    else if (extra) { const tx = extra.text(d.data) || ''; body = `<div class="w-report">${extra.hint ? `<p class="w-hint">${esc(extra.hint)}</p>` : ''}<div class="w-rb${/\[[^\]]+\]/.test(tx) ? ' has-ph' : ''}">${reportHtml(tx)}</div></div>`; }
+    else if (U.tab === 'kurz') body = `<div class="w-report"><p class="w-hint">${esc(hintOf(m, 'kurz', 'Für die Kurzbeschreibung im Vorgang und die Unfallmitteilung. Vor dem Nachsenden der Unfallmitteilung ist der Kurzsachverhalt aus der ViVA-Kurzbeschreibung zu löschen (DA 1.1).'))}</p><div class="w-rb">${reportHtml(m.kurzText(d.data))}</div></div>`;
     else if (U.tab === 'fahndung') body = `<div class="w-report"><p class="w-hint">Für die Leitstelle / Funkfahndung – kurz und sendefähig.</p><div class="w-rb">${esc(fah)}</div></div>`;
-    else if (U.tab === 'offen') body = `<div class="w-report">${offen.length ? `<ul class="w-offen">${offen.map((o, i) => `<li><label class="check-line"><input type="checkbox" data-offen="${i}"> <span>${esc(o)}</span></label></li>`).join('')}</ul><p class="w-hint">Angehakte Punkte landen als Todos im Planner.</p><button type="button" class="btn btn-ghost btn-sm" data-w="todos">Ausgewählte als Todos anlegen</button>` : '<div class="empty w-empty"><h3>Nichts offen</h3><p>Alle Pflichtpunkte aus Erlass und Dienstanweisung sind abgedeckt.</p></div>'}</div>`;
-    else body = `<div class="w-report"><p class="w-hint">Gesondert vom Befundbericht – Telefonnummern nur auf dem Original (DA 1.1). Nicht in den Berichtstext kopieren.</p><div class="w-rb mono-sm">${esc(m.personalien(d.data))}</div></div>`;
+    else if (U.tab === 'offen') body = `<div class="w-report">${offen.length ? `<ul class="w-offen">${offen.map((o, i) => `<li><label class="check-line"><input type="checkbox" data-offen="${i}"> <span>${esc(o)}</span></label></li>`).join('')}</ul><p class="w-hint">${esc(hintOf(m, 'offen', 'Angehakte Punkte landen als Todos im Planner.'))}</p><button type="button" class="btn btn-ghost btn-sm" data-w="todos">Ausgewählte als Todos anlegen</button>` : `<div class="empty w-empty"><h3>Nichts offen</h3><p>${esc(hintOf(m, 'offenLeer', 'Alle Pflichtpunkte aus Erlass und Dienstanweisung sind abgedeckt.'))}</p></div>`}</div>`;
+    else body = `<div class="w-report"><p class="w-hint">${esc(hintOf(m, 'pers', 'Gesondert vom Befundbericht – Telefonnummern nur auf dem Original (DA 1.1). Nicht in den Berichtstext kopieren.'))}</p><div class="w-rb mono-sm">${esc(m.personalien(d.data))}</div></div>`;
     const phCount = sec.reduce((n, s) => n + (s[2] ? (s[2].match(/\[[^\]]+\]/g) || []).length : 0), 0);
     return `
       <div class="w-top">
@@ -316,6 +323,8 @@
   /** Berichtstext → HTML: Platzhalter markieren, Zwischenzeilen (Fahrzeug UB 01, UB 02, Z 01) hervorheben. */
   const reportHtml = t => esc(t).replace(/^(Fahrzeug UB \d{2}|UB \d{2}|Z \d{2})$/gm, '<b class="w-rlab">$1</b>').replace(/\[([^\]]+)\]/g, '<mark>[$1]</mark>');
   function currentText(d, m) {
+    const extra = extraTabs(m, d.data).find(t => t.k === U.tab);
+    if (extra) return extra.text(d.data) || '';
     if (U.tab === 'kurz') return m.kurzText(d.data);
     if (U.tab === 'fahndung') return m.fahndung(d.data);
     if (U.tab === 'offen') return m.offen(d.data).map(o => '– ' + o).join('\n');
@@ -330,9 +339,16 @@
     renderMain(); renderList();
     window.scrollTo({ top: 0 });
   }
-  function newDoc(type = 'vuf') {
+  function newDoc(type) {
     if (!W() || !W().unlocked()) return;
-    const m = MODULES[type] || Object.values(MODULES)[0]; if (!m) return;
+    const all = Object.values(MODULES);
+    // Mehrere Module: ohne Vorgabe erst die Auswahl zeigen (Modulkarten in der Übersicht)
+    if (!type && all.length > 1) {
+      U.view = 'list'; U.id = null; renderMain(); renderList();
+      const b = $('#wMain .w-mod'); if (b) { b.scrollIntoView({ block: 'center' }); if (!W().mobile()) b.focus(); }
+      return;
+    }
+    const m = MODULES[type] || all[0]; if (!m) return;
     const d = W().add({ type: m.id, title: m.name, status: 'entwurf', step: 0, data: { einsatz: { datum: todayKey(0), zeit: nowHM() } } });
     if (!d) { W().toast('Vorgang konnte nicht angelegt werden.'); return; }
     open(d.id, 'wizard');
@@ -452,7 +468,7 @@
     if (!r) return;
     const m = mod(d);
     const name = (d.title || m.name).replace(/[^\wäöüÄÖÜß.-]+/g, '_').slice(0, 60) + '.txt';
-    W().download(name, m.plain(d.data) + '\n\n---\nKurzsachverhalt\n' + m.kurzText(d.data) + (m.fahndung(d.data) ? '\n\n---\nFahndung\n' + m.fahndung(d.data) : '') + '\n\n---\nPersonalien (nur Original)\n' + m.personalien(d.data) + '\n', 'text/plain;charset=utf-8');
+    W().download(name, m.plain(d.data) + extraTabs(m, d.data).map(t => '\n\n---\n' + t.l + '\n' + (t.text(d.data) || '')).join('') + '\n\n---\n' + tabL(m, 'kurz', 'Kurzsachverhalt') + '\n' + m.kurzText(d.data) + (m.fahndung(d.data) ? '\n\n---\nFahndung\n' + m.fahndung(d.data) : '') + '\n\n---\nPersonalien (nur Original)\n' + m.personalien(d.data) + '\n', 'text/plain;charset=utf-8');
   }
   function todos() {
     const d = doc(); if (!d) return;
@@ -481,7 +497,7 @@
       const b = e.target.closest('button, [data-edit]'); if (!b) return;
       if (b.dataset.w) {
         const a = b.dataset.w;
-        if (a === 'new') newDoc(b.dataset.mod || 'vuf');
+        if (a === 'new') newDoc(b.dataset.mod);
         else if (a === 'list') { U.view = 'list'; U.id = null; renderMain(); renderList(); }
         else if (a === 'prev') go(-1);
         else if (a === 'next') { hintMissing(); go(1); }
