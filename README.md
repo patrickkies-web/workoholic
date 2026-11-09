@@ -1,6 +1,6 @@
 # Workoholic
 
-Arbeitsseite für Anfragen von Kollegen, eigene Todos und Aufgaben, mit Stempeluhr zum **Eindongeln / Ausdongeln**, Terminen, Routinen, Team, Ablage, WaffG-Prüfstand – und dem Bereich **Schreiben** zum Aufnehmen von Vorgängen per Antippen (derzeit: Verkehrsunfallflucht ohne Personenschaden).
+Arbeitsseite für Anfragen von Kollegen, eigene Todos und Aufgaben, mit Stempeluhr zum **Eindongeln / Ausdongeln**, Terminen, Routinen, Team, Ablage, WaffG-Prüfstand – und dem Bereich **Schreiben** zum Aufnehmen von Vorgängen per Antippen (derzeit: Verkehrsunfallflucht ohne Personenschaden und Häusliche Gewalt).
 Alle Daten sind **Ende-zu-Ende verschlüsselt**. Synchronisiert wird über ein eigenes privates GitHub-Repo, das nur Chiffretext enthält.
 
 ---
@@ -126,7 +126,7 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 - **Keine Rechtsberatung.** Nicht abgebildet sind u. a. Altbesitz (§ 58), Melde- und Anzeigepflichten im Detail, Sportschützen- und Sammlerregeln sowie der Inhalt einzelner Landesverordnungen und Allgemeinverfügungen.
 
 **Schreiben (Schriftliche Arbeiten)**
-- **Vorgang anlegen** → Modul wählen. Bisher: **Verkehrsunfallflucht ohne Personenschaden**. Der Assistent beginnt mit „Worum geht es?“ (Weichen-Fragen) und führt dann in neun Phasen durch die Aufnahme: Einsatz → Geschädigte → Unfallort → Schaden → Spuren → Zeugen → Verursacher → Maßnahmen → Bewertung. Es erscheinen nur Fragen, die zum Fall passen – auch für Sonderfälle wie „geschädigte Person nicht erreicht“, weitere Geschädigte, Selbstmeldung, Alkohol, Führerscheinmaßnahmen oder Wohnsitz im Ausland.
+- **Vorgang anlegen** → Modul wählen: **Verkehrsunfallflucht ohne Personenschaden** oder **Häusliche Gewalt**. Für die Verkehrsunfallflucht gilt: Der Assistent beginnt mit „Worum geht es?“ (Weichen-Fragen) und führt dann in neun Phasen durch die Aufnahme: Einsatz → Geschädigte → Unfallort → Schaden → Spuren → Zeugen → Verursacher → Maßnahmen → Bewertung. Es erscheinen nur Fragen, die zum Fall passen – auch für Sonderfälle wie „geschädigte Person nicht erreicht“, weitere Geschädigte, Selbstmeldung, Alkohol, Führerscheinmaßnahmen oder Wohnsitz im Ausland.
 - **Satzbausteine:** Jedes Textfeld zeigt den festen Satzanfang aus dem Bericht und ein graues Beispiel, wie es grammatisch weitergeht („Die Unfallstelle befindet sich *in der zweiten Parkreihe …*“). Satzanfänge und Beispiele passen sich an Geschlecht und Rolle an; bei Ich-Form oder fehlender indirekter Rede gibt es einen Hinweis.
 - Nach jeder Antwort springt die Ansicht zur nächsten offenen Frage; Kräfte, Rufname und Ort lassen sich aus dem letzten Vorgang übernehmen. Die Phasenleiste oben ist antippbar, Listen (Zeugen, weitere Schäden) zeigen die erste Karte sofort, und fehlende Pflichtangaben werden bei „Weiter“ nur kurz genannt, nie blockiert.
 - Fragen per Ja/Nein, Chips, Zahlen mit ±, Schnellwerten („Jetzt“, „Heute“, 50 km/h, 1.500 €); Karosserie-Picker für das Schadensbild; Personen- und Zeugenblöcke.
@@ -134,6 +134,8 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 - Ergebnis: **Verkehrsunfallbefundbericht** exakt nach Anlage 6 des Erlasses (1.1 Einsatzübernahme … 6.3 Einsatzende, mit Fahrzeug UB 01/UB 02/UB 03 ff. in 2.3 und UB 01 vor UB 02 in 3.1) mit passender Satzführung (Rolle, Geschlecht, Ein-/Mehrzahl, Zeitpunkt/Zeitraum, indirekte Rede), dazu **Kurzsachverhalt**, **Fahndungstext**, **Offene Punkte** (als Todos in den Planner übernehmbar) und ein gesonderter **Personalienblock**.
 - Kopieren in die Zwischenablage oder als `.txt` speichern (mit Warnung – Klartext). Platzhalter in `[eckigen Klammern]` zeigen, was noch fehlt.
 - Konzept, Rechtsgrundlagen und Fragenkatalog: [`docs/VUF-MASTERPLAN.md`](docs/VUF-MASTERPLAN.md).
+- **Häusliche Gewalt (NRW):** acht Phasen Lage → Einsatz → Vor Ort → Personen → Schilderungen → Prognose → Maßnahmen → Abschluss. Abgefragt werden Zutritt, Zustand der Beteiligten und der Wohnung, Verletzungen mit Frage nach dem Rettungswagen, Alkohol und Auffälligkeiten, Kinder im Haushalt, Belehrungen mit Uhrzeit, Schilderungen (jetzt eintragen oder später nachtragen), Anhörung, Gefahrenprognose als Ankreuzliste, Wohnungsverweisung mit Rückkehrverbot (Bereich, weitere Örtlichkeiten, Fristrechner), Schlüssel, Zwangsgeld, Aushändigung oder Zustellung der schriftlichen Bestätigung, Mitteilung an der Wohnungstür bei Abwesenheit, Strafverfahren und Opferschutz.
+- Ergebnis dort: **Sachverhalt**, **Begründung § 34a** (Anordnung, Sachverhalt, Anhörung, Prognose, Ermessen, Zwangsmittel), **Kurzfassung**, **Noch zu erledigen** (fehlende Pflichten mit Norm, als Todos übernehmbar) und **Personalien**. „Kopieren“ kopiert den geöffneten Reiter. Keine Rechtsberatung; Vordrucke, Rechtsbehelfsbelehrung und Erlasslage der Behörde gehen vor. Konzept und Grenzen: [`docs/HG-MASTERPLAN.md`](docs/HG-MASTERPLAN.md).
 
 **Tastatur:** `N` neu (je nach Bereich) · `/` suchen · `1`–`6` Bereiche · `S` schreiben · `D` dongeln · `L` sperren · `Strg/⌘ + Enter` speichern bzw. weiter
 
@@ -156,7 +158,9 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 | `js/app.js` | App-Logik (Planner, Dienste, Termine, Routinen, Team, Ablage, WaffG-Prüfstand), Sync und Zusammenführen, Sperre |
 | `js/writer.js` | Bereich „Schreiben“: Vorgangsliste, Aufnahme-Assistent, Berichtsansicht |
 | `js/vuf.js` | Modul Verkehrsunfallflucht: Fragenkatalog und Textgenerator |
+| `js/hg.js` | Modul Häusliche Gewalt: Fragenkatalog, Sachverhalt und Begründung § 34a |
 | `docs/VUF-MASTERPLAN.md` | Masterplan: Grundlagen, Ablauf, Fragen, Satzführung, Sicherheit, Ausbau |
+| `docs/HG-MASTERPLAN.md` | Masterplan Häusliche Gewalt: Grundlagen, Ablauf, Bedienung, Ausgaben, Grenzen |
 | `vendor/hash-wasm/` | Argon2id (hash-wasm 4.12.0, MIT), unverändert aus npm |
 | `fonts/` | Inter Tight & Geist Mono (SIL Open Font License) |
 | `assets/`, `icons/`, `manifest.webmanifest` | Bild, App-Icons, Home-Bildschirm |
