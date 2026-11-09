@@ -35,9 +35,9 @@ Stand: November 2026 · Dateien: `js/hg.js` (Fragen + Text), `js/writer.js` (Ass
 
 | Phase | Schritte | Worum es geht |
 | --- | --- | --- |
-| **Einsatz** | Einsatzanlass · Eingesetzte Kräfte | Datum, Uhrzeit, Meldeweg, Meldung, Anschrift; Rufname und Besatzung wie in den anderen Modulen (auch aus der laufenden Schicht). |
+| **Einsatz** | Einsatzanlass · Eingesetzte Kräfte | Datum, Uhrzeit der Einsatzvergabe, Meldeweg, Einsatzstichwort, Meldung (mit Vorschlägen), Wer hat gemeldet (räumlich gedacht, „keine Angabe“ möglich), Anschrift. Je Streifenwagen eine Karte: Besatzung aus der Teamliste (Amtsbezeichnung aus der Rolle, im Text Amtsbezeichnung + Nachname), Auftrag (Einsatzörtlichkeit, Nahbereich, Unterstützung, Aufenthaltsort, frei). Keine Rufnamen, keine Eintreffzeit im Text. |
 | **Personen** | Beteiligte Personen | Jede Person einmal: Rolle (geschädigt, beschuldigt, Kind, Zeugin/Zeuge), Geschlecht, Beziehung zur beschuldigten Person (Tippvorschläge, freie Eingabe), Alter, vor Ort, verletzt. Daraus: Hinweis auf das Zeugnisverweigerungsrecht, welche Karten später erscheinen. |
-| **Eintreffen** | Eintreffen und Zutritt · Angetroffene Personen · Verletzungen und Versorgung | Was zu hören war, wer öffnete, Zutritt mit Tatsachen; je anwesender Person: wo angetroffen, Zustand, Besonderheiten, Alkohol/Drogen (wie Verkehrsunfallflucht), ungefragte Äußerung; je verletzter Person: Verletzungen, Frage nach Rettungswagen mit Antwort, Befund der RTW-Besatzung, Krankenhaus, Lichtbilder, Attest. |
+| **Eintreffen** | Eintreffen und Zutritt · Angetroffene Personen · Verletzungen und Versorgung | Feststellungen vor dem Betreten (Ja/Nein, Satzanfang mit den Namen der Besatzung), Zutritt mit Tatsachen, erste Maßnahmen direkt danach. Je Person ein Absatz: Ort und Haltung, Sichtbares, Verhalten, Verhalten zueinander, Ansprechbarkeit und Sprache, Alkohol, ungefragte Äußerung, getrennt davon die Wirkung auf die Einsatzkräfte, dann Verletzungen und Rettungswagen. Beschuldigte Person auch „im Nahbereich angetroffen“ (Ort, Besatzung). |
 | **Umstände** | Örtlichkeit und Beziehung · Kinder im Haushalt | Gebäude, Lage, Spuren mit Ort; Wohnverhältnisse, Trennung, Beziehung; je Kind: wo, Zustand, mitbekommen, Äußerung; Befragung. |
 | **Schilderungen** | Geschädigte und Zeugen · Beschuldigte Person | Je Person: Belehrungsart, belehrt durch, Uhrzeit, Inhalte (Schnellwahl „Vollständig nach Vordruck“), Erklärung, Schilderung jetzt / Text folgt / keine Angaben, Vorgeschichte und Haltung. Beschuldigte Person: Belehrung, Verteidigerentscheidung, Einlassung; danach Anhörung mit Inhalten. |
 | **Prognose** | Gefahrenprognose | Datenabgleich, Einordnung, Stützen, Würdigung; 35 Umstände in sechs Gruppen, je **festgestellt / geschildert / angenommen**; aus früheren Antworten übernommene Umstände sind vormarkiert; Textbausteine für besondere Lagen; Ergebnis mit Begründungsvorschlägen aus den markierten Umständen. |
@@ -55,6 +55,7 @@ Stand: November 2026 · Dateien: `js/hg.js` (Fragen + Text), `js/writer.js` (Ass
 - **Vorschau** unter jedem Schritt, Satzführung nach Geschlecht, Rolle, Ein- und Mehrzahl, indirekter Rede.
 - **Hinweise statt Sperren** (fehlende Anhörung, Zeugnisverweigerungsrecht, Minderjährige, Nachtzustellung, Ersatzzustellung, Wochenende als Fristende).
 - **Nur Bestätigtes im Text.** Was nicht angetippt oder eingetragen ist, erscheint als Platzhalter in eckigen Klammern oder als Punkt unter „Noch zu erledigen“ – nie als angenommene Tatsache.
+- **Antworten wirken weiter, ohne Deutung.** Was angetippt ist und unmittelbar in einen späteren Punkt gehört, wird dort übernommen (z. B. Rettungswagen ins Krankenhaus → Verletzungen mit Behandlungsbedarf in der Prognose; „wirkte verängstigt“ → Angst; Alkohol, Kinder, aggressives Verhalten). Die übernommenen Sätze geben nur wieder, was angetippt wurde – nichts wird hinzugedacht.
 
 ---
 
