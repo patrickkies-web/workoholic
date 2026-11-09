@@ -136,11 +136,13 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 - Text für Anzeige oder Vermerk mit Tatbestand je Prüfpunkt: frei bearbeitbar, kopierbar, als Aufgabe in den Planner. „Speichern“ legt die Prüfung verschlüsselt mit Zeitstempel ab; ältere Prüfungen werden übernommen.
 - **Keine Rechtsberatung.** Nicht abgebildet sind u. a. Altbesitz (§ 58), Melde- und Anzeigepflichten im Detail, Sportschützen- und Sammlerregeln sowie der Inhalt einzelner Landesverordnungen und Allgemeinverfügungen.
 
-**FE-Prüfung (Freiheitsentziehung, NRW)**
-- Lage auf der Straße eingeben – mehrere Anlässe gleichzeitig (Straftat, Identität, Ordnungswidrigkeit, Störer, Blutprobe, bevorstehende Tat, hilflose Person, Platzverweis, Wohnungsverweisung, § 34b, Vorladung, Minderjährige, jugendgefährdender Ort, psychische Krise, Haft-/Vorführungs-/Unterbringungsbefehl, Entwichene, Ausländerrecht, Infektionsschutz) und ob Polizei oder Privatperson handelt.
-- Geprüft werden **alle Wege**: Vollzug richterlicher Entscheidungen (§§ 114 ff., 230, 457 StPO, § 96 OWiG, § 62 AufenthG, Unterbringung), Strafverfolgung (§ 127 Abs. 1 und 2, § 127b, § 163b Abs. 1 und 2, § 164, § 81a StPO), Bußgeldverfahren (Sperre nach § 46 Abs. 3 OWiG, Identität über § 46 Abs. 1), Gefahrenabwehr (§ 35 Abs. 1 Nr. 1–4, § 34b, § 35 Abs. 2 und 3, § 12 Abs. 2 S. 3, § 10 Abs. 3 PolG NRW) und Sonderrecht (PsychKG NRW, § 8 JuSchG, § 42 SGB VIII, § 62 Abs. 5 AufenthG, § 30 IfSG).
-- Jede Befugnis mit Tatbestandsmerkmalen (+/−/?), Rechtsfolge und Verfahren; Ergebnis „greift / offen / ausgeschlossen / greift nicht“, Hinweise (Gemengelage, Verhältnismäßigkeit, JGG, Freiheitsbeschränkung), Verfahrens-Checkliste (Belehrung, Benachrichtigung, Richter, Fristen, Fixierung) und **Vermerk zum Kopieren**.
-- **Gesamtkarte:** Flussdiagramm aller 30 Wege (Freiheitsentziehung? → richterliche Entscheidung? → Zweck → Befugnis → Verfahren); farbig, was die aktuelle Lage prüft. Jede Kachel und jeder i-Knopf öffnet Voraussetzungen, Wortlaut, Prüfhinweise und Rechtsprechung.
+**FE-Prüfung (Freiheitsentziehung, NRW) – Entscheidungsbaum**
+- **Eine Frage pro Blatt:** Zuerst die Ausgangslage (Straftat, Ordnungswidrigkeit, drohende Tat, hilflose Person, psychische Krise, missachtete Anordnung, unklare Identität, Kind/Jugendliche, Fahndungstreffer/Befehl, weitere Fälle). Jedes weitere Blatt zeigt nur die Wege, in die sich die Freiheitsentziehung dann noch auffächert – z. B. Straftat → Täter sichern → frische Tat, Haftgründe, schwere Straftat (§ 112 Abs. 3), beschleunigtes Verfahren.
+- **An jeder Abzweigung**, was dafür vorliegen muss („Dafür muss vorliegen“), plus i-Knopf mit Voraussetzungen, Wortlaut, Prüfhinweisen und Rechtsprechung.
+- **Ergebnis:** „Freiheitsentziehung rechtmäßig“ mit Rechtsgrundlage, erfüllten Voraussetzungen des gegangenen Weges, Rechtsfolge und Formvorschriften (Belehrung, Benachrichtigung, Richter, Fristen) – oder „nicht rechtmäßig“ mit Grund, Abbruchstelle und Alternativen – oder ein anderer Weg ohne Freiheitsentziehung (z. B. Sicherheitsleistung § 127a, Haftbefehl beantragen, Platzverweis). „Zusätzlich prüfen“ / „Stattdessen prüfen“ zweigen direkt weiter ab; **Vermerk kopieren** übernimmt Weg und Ergebnis.
+- 67 Fragen, 72 Ergebnisse, 35 Rechtsgrundlagen (StPO, OWiG, PolG NRW, PsychKG NRW, BGB, JuSchG, SGB VIII, AufenthG, IfSG); bis zu 11 Fragen bis zum Ergebnis. Polizei oder Privatperson umschaltbar (Privatpersonen nur § 127 Abs. 1 StPO).
+- **Dein Weg:** Am Desktop Seitenleiste mit allen Schritten und erfüllten Voraussetzungen, am Handy einzeilige Wegleiste – jeder Schritt antippbar zum Neu-Abzweigen.
+- **Alle Wege:** Übersicht, aus demselben Baum erzeugt, nach Ausgangslage aufgeklappt; jede Frage und jedes Ergebnis springt mit vollständigem Weg in die Entscheidung.
 - Bundesrecht im amtlichen Wortlaut (Stand 07.11.2026); **PolG NRW, PsychKG NRW und Art. 5 EMRK sinngemäß** – Nummerierung und Höchstdauern vor Verwendung am aktuellen Wortlaut prüfen. Keine Rechtsberatung.
 
 **Schreiben (Schriftliche Arbeiten)**
@@ -184,7 +186,7 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 | `js/vuf.js` | Modul Verkehrsunfallflucht: Fragenkatalog und Textgenerator |
 | `js/vermisst.js` | Modul Vermisste Person: Fragenkatalog, Übersicht, Kurzsachverhalt, Fahndung, offene Punkte |
 | `js/hg.js` | Modul Häusliche Gewalt: Fragenkatalog, Sachverhalt und Begründung § 34a |
-| `js/fe.js` | Bereich FE-Prüfung: Prüflogik Freiheitsentziehung, Normtexte, Gesamtkarte |
+| `js/fe.js` | Bereich FE-Prüfung: Entscheidungsbaum Freiheitsentziehung, Normtexte, Übersicht „Alle Wege“ |
 | `docs/VUF-MASTERPLAN.md` | Masterplan: Grundlagen, Ablauf, Fragen, Satzführung, Sicherheit, Ausbau |
 | `docs/HG-MASTERPLAN.md` | Masterplan Häusliche Gewalt: Grundlagen, Ablauf, Bedienung, Ausgaben, Grenzen |
 | `vendor/hash-wasm/` | Argon2id (hash-wasm 4.12.0, MIT), unverändert aus npm |
