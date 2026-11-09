@@ -1007,15 +1007,15 @@
 
   root.WHG = Object.freeze({
     id: 'hg', name: 'Häusliche Gewalt', short: 'Häusliche Gewalt', kurz: 'HG',
-    blurb: 'Lage, Schilderungen, Prognose, § 34a mit Bereich und Frist · Sachverhalt, Begründung der Verfügung, Liste „Noch zu erledigen“',
-    steps: root.WHG_STEPS, text, plain, preview, kurzText: kurz, fahndung: () => '', offen, personalien, title, subtitle, begruendung, ctx,
-    tabs: { bericht: 'Sachverhalt', kurz: 'Kurzfassung', offen: 'Noch zu erledigen', pers: 'Personalien' },
-    hints: {
-      kurz: 'Für die Kurzbeschreibung im Vorgang.',
-      offen: 'Was nach Gesetz und Handlungsanweisung noch fehlt – jeweils mit Norm. Angehakte Punkte landen als Todos im Planner.',
-      offenLeer: 'Alle abgefragten Pflichtpunkte sind erledigt. Der Erlass vom 01.03.2024 und Dienstanweisungen deiner Behörde gehen vor.',
-      pers: 'Gesondert vom Sachverhalt. Eine Schutzanschrift der geschädigten Person gehört weder hierher noch in die Akte.'
+    desc: 'Sachverhalt, Begründung § 34a, Kurzfassung, Liste „Noch zu erledigen“',
+    labels: {
+      bericht: 'Sachverhalt', kurz: 'Kurzfassung', offen: 'Noch zu erledigen', newBtn: 'Häusliche Gewalt',
+      kurzHint: 'Für die Kurzbeschreibung im Vorgang.',
+      offenHint: 'Was nach Gesetz und Handlungsanweisung noch fehlt – jeweils mit Norm. Angehakte Punkte landen als Todos im Planner.',
+      offenEmpty: 'Alle abgefragten Pflichtpunkte sind erledigt. Der Erlass vom 01.03.2024 und Dienstanweisungen deiner Behörde gehen vor.',
+      persHint: 'Gesondert vom Sachverhalt. Eine Schutzanschrift der geschädigten Person gehört weder hierher noch in die Akte.'
     },
+    steps: root.WHG_STEPS, text, plain, preview, kurzText: kurz, fahndung: () => '', offen, personalien, title, subtitle, begruendung, ctx,
     extraTabs: [{ k: 'begr', l: 'Begründung § 34a', when: C.wvJa, hint: 'Für die schriftliche Bestätigung der Verfügung: Anordnung, Sachverhalt, Anhörung, Prognose, Ermessen. Spricht von „gefährdeter Person“ und „Betroffenem“. Vor der Übernahme gegenlesen.', text: begruendung }]
   });
 })(typeof window !== 'undefined' ? window : globalThis);
