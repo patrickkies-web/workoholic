@@ -107,9 +107,9 @@ const defaultTpls = () => [
   { id: 'tpl-nacht', name: 'Nachtdienst', start: '22:00', end: '06:00', breakMin: 45, color: 'blau', u: 1 },
   { id: 'tpl-tag', name: 'Tagdienst', start: '08:00', end: '16:30', breakMin: 30, color: 'lime', u: 1 }
 ];
-const blank = () => ({ v: 3, items: [], shifts: [], tpls: defaultTpls(), appts: [], routines: [], runs: [], people: [], notes: [], files: [], checks: [], docs: [], del: {}, settings: { targetMin: 480, name: '', u: 0 } });
+const blank = () => ({ v: 3, items: [], shifts: [], tpls: defaultTpls(), appts: [], routines: [], runs: [], people: [], notes: [], files: [], checks: [], docs: [], ops: [], del: {}, settings: { targetMin: 480, name: '', u: 0 } });
 const RHYTHMS = { manual: 'Bei Bedarf', daily: 'Täglich', weekdays: 'Werktags', weekly: 'Wöchentlich', monthly: 'Monatlich' };
-const COLLECTIONS = ['items', 'shifts', 'tpls', 'appts', 'routines', 'runs', 'people', 'notes', 'files', 'checks', 'docs'];
+const COLLECTIONS = ['items', 'shifts', 'tpls', 'appts', 'routines', 'runs', 'people', 'notes', 'files', 'checks', 'docs', 'ops'];
 const keyOf = g => g === 'items' ? 'updatedAt' : 'u';
 const num = v => (typeof v === 'number' && Number.isFinite(v)) ? v : null;
 const isKey = k => typeof k === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(k);
@@ -138,6 +138,9 @@ function normItem(x) {
     bDate: isKey(x.bDate) ? x.bDate : null,
     bShift: String(x.bShift || '').slice(0, 40),
     bMin: clamp(Math.round(Number(x.bMin) || 0), 0, 24 * 60),
+    imp: !!x.imp,
+    op: x.op ? String(x.op).slice(0, 40) : null,
+    doc: x.doc ? String(x.doc).slice(0, 40) : null,
     createdAt: num(x.createdAt) || now,
     updatedAt: num(x.updatedAt) || now
   };
@@ -153,6 +156,11 @@ function normShift(x) {
   if (start == null) return null;
   let pe = num(x.plannedEnd); if (pe == null || pe < start) pe = start;
   const end = num(x.end);
+  const crew = [];
+  for (const c of (Array.isArray(x.crew) ? x.crew : [])) {
+    const name = String((c && c.name) || '').replace(/\s+/g, ' ').trim().slice(0, 80);
+    if (name && crew.length < 6 && !crew.some(y => y.name.toLowerCase() === name.toLowerCase())) crew.push({ id: c.id ? String(c.id).slice(0, 40) : null, name });
+  }
   return {
     id: String(x.id || uid()),
     date: isKey(x.date) ? x.date : dayKey(start),
@@ -163,6 +171,9 @@ function normShift(x) {
     live: !!x.live,
     breakMin: clamp(Math.round(Number(x.breakMin) || 0), 0, 240),
     extraMin: clamp(Math.round(Number(x.extraMin) || 0), 0, 24 * 60),
+    tpl: x.tpl ? String(x.tpl).slice(0, 40) : null,
+    unit: String(x.unit || '').replace(/\s+/g, ' ').trim().slice(0, 40),
+    crew,
     u: num(x.u) || 1
   };
 }
@@ -186,7 +197,9 @@ function normRoutine(x) {
     let id = String(st.id || uid()); if (seen.has(id)) id = uid(); seen.add(id);
     return { id, text: str(st.text, 300) };
   });
-  return { id: String(x.id || uid()), name: str(x.name, 60).trim() || 'Routine', color: COLORS[x.color] ? x.color : 'lime', rhythm: RHYTHMS[x.rhythm] ? x.rhythm : 'manual', steps, note: str(x.note, 1000), u: num(x.u) || 1 };
+  return { id: String(x.id || uid()), name: str(x.name, 60).trim() || 'Routine', color: COLORS[x.color] ? x.color : 'lime', rhythm: RHYTHMS[x.rhythm] ? x.rhythm : 'manual', steps, note: str(x.note, 1000),
+    tpls: [...new Set((Array.isArray(x.tpls) ? x.tpls : []).map(v => String(v).slice(0, 40)).filter(Boolean))].slice(0, 20).sort(),
+    units: [...new Set((Array.isArray(x.units) ? x.units : []).map(v => String(v).replace(/\s+/g, ' ').trim().slice(0, 40)).filter(Boolean))].slice(0, 10), u: num(x.u) || 1 };
 }
 function normRun(x) {
   const started = num(x && x.started);
@@ -315,6 +328,14 @@ function normDoc(x) {
   if (JSON.stringify(d.data).length > DOC_MAX) return null;
   return d;
 }
+/** Einsatz in einer Schicht. `end` = beendet; Abschluss über Ergebnis, „keine Maßnahmen“ oder verknüpfte To-dos (item.op). */
+function normOp(x) {
+  const start = num(x && x.start);
+  if (start == null || !x.sid) return null;
+  const end = num(x.end);
+  return { id: String(x.id || uid()), sid: String(x.sid).slice(0, 40), n: clamp(Math.round(Number(x.n) || 1), 1, 999), start, end: end != null && end >= start ? end : null,
+    title: str(x.title, 80).trim(), place: str(x.place, 120).trim(), note: str(x.note, 4000), outcome: str(x.outcome, 4000), none: !!x.none, u: num(x.u) || 1 };
+}
 function normList(arr, fn) {
   const m = new Map();
   for (const x of (Array.isArray(arr) ? arr : [])) {
@@ -400,6 +421,12 @@ function normalize(s) {
   b.files = normList(s.files, normFile).filter(live).sort((a, c) => a.added - c.added || cmp(a.id, c.id));
   b.checks = normList(s.checks, normCheck).filter(live).sort((a, c) => a.at - c.at || cmp(a.id, c.id));
   b.docs = normList(s.docs, normDoc).filter(live).sort((a, c) => a.createdAt - c.createdAt || cmp(a.id, c.id));
+  const sids = new Set(b.shifts.map(x => x.id));
+  b.ops = normList(s.ops, normOp).filter(live).filter(o => sids.has(o.sid)).sort((a, c) => a.start - c.start || cmp(a.id, c.id));
+  const oids = new Set(b.ops.map(o => o.id));
+  for (const it of b.items) if (it.op && !oids.has(it.op)) it.op = null;
+  const dids = new Set(b.docs.map(d => d.id));
+  for (const it of b.items) if (it.doc && !dids.has(it.doc)) it.doc = null;
   b.tpls = b.tpls.filter(x => !(b.del[x.id] >= x.u)).sort((a, c) => cmp(a.start, c.start) || cmp(a.name, c.name) || cmp(a.id, c.id));
   const se = s.settings || {};
   const t = Number(se.targetMin);
@@ -587,29 +614,38 @@ function dongleAction() {
   const planned = state.shifts
     .filter(s => !s.live && s.end == null && s.start > now - HOUR && s.start < now + 4 * HOUR && s.plannedEnd > now)
     .sort((a, b) => Math.abs(a.start - now) - Math.abs(b.start - now))[0];
-  if (planned) {
-    const snap = snapshot();
-    planned.live = true; planned.start = now; planned.date = dayKey(now); planned.end = null; planned.u = now;
-    commit();
-    toast(`Eingedongelt · ${planned.name} bis ${hm(planned.plannedEnd)}`, { undo: snap });
-    if (navigator.vibrate) navigator.vibrate(12);
-    return;
-  }
+  if (planned) { openStartSheet({ planned: planned.id }); return; }
   openStartSheet();
 }
-function startShift(tpl) {
-  if (!S || liveShift()) return;
-  const now = Date.now(), snap = snapshot();
+function startShift(tpl, extra = {}) {
+  if (!S || liveShift()) return null;
+  const now = Date.now(), snap = extra.snap || snapshot();
   const len = tpl ? tplLen(tpl) : state.settings.targetMin + 30;
   const sh = normShift({ id: uid(), date: dayKey(now), name: tpl ? tpl.name : 'Dienst', color: tpl ? tpl.color : 'lime', start: now,
-    plannedEnd: tpl ? endAfter(now, tpl.end, len) : now + len * MIN, breakMin: tpl ? tpl.breakMin : 30, extraMin: 0, live: true, u: now });
+    plannedEnd: tpl ? endAfter(now, tpl.end, len) : now + len * MIN, breakMin: tpl ? tpl.breakMin : 30, extraMin: 0, live: true,
+    tpl: tpl ? tpl.id : null, crew: extra.crew || [], unit: extra.unit || '', u: now });
   state.shifts.push(sh);
   commit();
   toast(`Eingedongelt · ${sh.name} bis ${hm(sh.plannedEnd)}`, { undo: snap });
   if (navigator.vibrate) navigator.vibrate(12);
+  return sh;
 }
 async function endShift(id) {
   const sh = state.shifts.find(s => s.id === id); if (!sh || !sh.live) return;
+  const openOps = state.ops.filter(o => o.sid === id && o.end == null);
+  const noClose = state.ops.filter(o => o.sid === id && o.end != null && opState(o).k === 'missing');
+  const rtOpen = routinesFor(sh).filter(r => r.steps.length).map(r => { const run = runInShift(r, sh); return run && run.finished ? null : `${r.name} (${run ? `${r.steps.filter(x => run.done[x.id]).length}/${r.steps.length}` : 'nicht begonnen'})`; }).filter(Boolean);
+  if (openOps.length || noClose.length || rtOpen.length) {
+    const lines = [];
+    if (openOps.length) lines.push(`${openOps.map(o => 'E' + o.n).join(', ')} ${openOps.length === 1 ? 'läuft' : 'laufen'} noch und ${openOps.length === 1 ? 'wird' : 'werden'} mit dem Dienstende beendet.`);
+    if (noClose.length) lines.push(`Ohne Abschluss: ${noClose.map(o => `E${o.n}${o.title ? ' ' + o.title : ''}`).join(', ')}.`);
+    if (rtOpen.length) lines.push(`Routinen offen: ${rtOpen.join(', ')}.`);
+    lines.push('Abschluss und Maßnahmen kannst du auch danach noch eintragen.');
+    const first = openOps[0] || noClose[0];
+    const r0 = await ask({ title: openOps.length ? (openOps.length === 1 ? `Einsatz E${openOps[0].n} läuft noch` : `${openOps.length} Einsätze laufen noch`) : 'Noch offen in dieser Schicht', text: lines.join(' '), buttons: [{ label: 'Abbrechen', value: null }, ...(first ? [{ label: 'Einsätze ansehen', value: 'show' }] : []), { label: 'Ausdongeln', value: 'go', cls: 'btn-accent', submit: true }] });
+    if (!r0) return;
+    if (r0.value === 'show') { openOp(first.id); return; }
+  }
   const snap = snapshot();
   let endAt = Date.now();
   if (endAt - sh.plannedEnd > 4 * HOUR) {
@@ -622,6 +658,7 @@ async function endShift(id) {
   const running = state.items.some(i => i.timerStart);
   stopTimers(Date.now());
   cur.live = false; cur.end = endAt; cur.u = Date.now();
+  for (const o of state.ops) if (o.sid === cur.id && o.end == null) { o.end = Math.max(o.start, endAt); o.u = Date.now(); }
   commit();
   if (navigator.vibrate) navigator.vibrate(12);
   const over = Math.floor((cur.end - cur.plannedEnd) / MIN) - cur.extraMin;
@@ -659,6 +696,10 @@ function nextOcc(t, rep, repDay) {
 }
 
 function rank(it, now) {
+  const r = baseRank(it, now);
+  return it.imp ? [r[0] - 0.5, r[1]] : r;
+}
+function baseRank(it, now) {
   if (it.mode === 'asap') return [0, it.createdAt];
   if (it.timerStart) return [1, 0];
   const d = dueOf(it);
@@ -672,12 +713,13 @@ const byRank = now => (a, b) => { const x = rank(a, now), y = rank(b, now); retu
 
 function groupOf(it, now) {
   if (it.done) return 'done';
+  if (it.imp) return 'imp';
   if (it.mode === 'asap') return 'asap';
   const d = dueOf(it);
   if (d != null) { if (d < now) return 'overdue'; if (d < eod(now)) return 'today'; return 'soon'; }
   return 'open';
 }
-const GROUPS = [['asap', 'Schnellstmöglich'], ['overdue', 'Überfällig'], ['today', 'Heute'], ['soon', 'Demnächst'], ['open', 'Ohne Termin'], ['done', 'Erledigt']];
+const GROUPS = [['imp', 'Wichtig'], ['asap', 'Schnellstmöglich'], ['overdue', 'Überfällig'], ['today', 'Heute'], ['soon', 'Demnächst'], ['open', 'Ohne Termin'], ['done', 'Erledigt']];
 
 function completeItem(id) {
   const it = find(id); if (!it) return;
@@ -903,6 +945,7 @@ function renderWave(now) {
   $('#waveRange').textContent = `${pad(new Date(start).getHours())}–${pad(new Date(end).getHours() || 24)} Uhr`;
 }
 
+const opCountTag = sid => { const n = state.ops.filter(o => o.sid === sid).length; return n ? `<span class="pill pill-quiet mono op-count" title="${n} ${n === 1 ? 'Einsatz' : 'Einsätze'}">${n} E</span>` : ''; };
 function renderShiftList(now) {
   const key = ui.selDay || dayKey(now), t = fromKey(key), isToday = key === dayKey(now);
   const list = shiftsOn(key).sort((a, b) => a.start - b.start);
@@ -912,7 +955,7 @@ function renderShiftList(now) {
   $('#stampList').innerHTML = list.length ? list.map(sh => {
     const planned = isPlanned(sh, now);
     const endTxt = sh.live ? `<span class="run"><i class="pulse"></i>läuft</span>` : `<span class="mono">${hm(sh.end != null && sh.end < sh.plannedEnd ? sh.end : sh.plannedEnd)}</span>`;
-    return `<li class="stamp shift" data-shift="${sh.id}"><i class="cdot" style="background:${COLORS[sh.color]}"></i><span class="sh-name">${esc(sh.name)}</span><span class="mono dim">${hm(sh.start)}–</span>${endTxt}${planned ? '<span class="pill pill-quiet">geplant</span>' : ''}<span class="grow"></span>${sh.extraMin ? `<span class="mono extra-tag">+${dur(sh.extraMin * MIN)}</span>` : ''}<button class="icon-btn sm" type="button" data-shift-edit="${sh.id}" aria-label="${esc(sh.name)} ${hm(sh.start)} bearbeiten">${ico('edit')}</button></li>`;
+    return `<li class="stamp shift" data-shift="${sh.id}"><i class="cdot" style="background:${COLORS[sh.color]}"></i><span class="sh-name">${esc(sh.name)}</span><span class="mono dim">${hm(sh.start)}–</span>${endTxt}${planned ? '<span class="pill pill-quiet">geplant</span>' : ''}<span class="grow"></span>${opCountTag(sh.id)}${sh.extraMin ? `<span class="mono extra-tag">+${dur(sh.extraMin * MIN)}</span>` : ''}<button class="icon-btn sm" type="button" data-shift-edit="${sh.id}" aria-label="${esc(sh.name)} ${hm(sh.start)} bearbeiten">${ico('edit')}</button></li>`;
   }).join('') : `<li class="stamp-empty">${t > now ? 'Noch kein Dienst geplant.' : isToday ? 'Noch kein Dienst – eindongeln oder „+ Dienst“.' : 'Kein Dienst an diesem Tag.'}</li>`;
 }
 
@@ -1055,7 +1098,7 @@ function matches(it) {
   if (ui.kind !== 'alle' && it.kind !== ui.kind) return false;
   if (ui.person && it.from !== ui.person) return false;
   if (ui.day) { const d = dueOf(it); if (d == null || dayKey(d) !== ui.day) return false; }
-  if (ui.q) { const q = norm(ui.q); if (!norm(`${it.title} ${it.notes} ${it.from}`).includes(q)) return false; }
+  if (ui.q) { const q = norm(ui.q), o = it.op ? state.ops.find(x => x.id === it.op) : null; if (!norm(`${it.title} ${it.notes} ${it.from} ${o ? o.title + ' ' + o.place : ''}`).includes(q)) return false; }
   return true;
 }
 
@@ -1092,6 +1135,8 @@ function itemRow(it, now) {
   const pills = [];
   if (!it.done && it.status === 'inarbeit') pills.push('<span class="pill pill-glass">in Arbeit</span>');
   if (!it.done && it.status === 'wartet') pills.push('<span class="pill pill-outline">wartet</span>');
+  const iop = it.op ? state.ops.find(x => x.id === it.op) : null;
+  if (iop) pills.push(`<button type="button" class="pill pill-outline op-pill" data-act="op" data-op="${esc(iop.id)}" aria-label="Einsatz ${iop.n} öffnen">E${iop.n}${iop.title ? ' · ' + esc(iop.title.length > 18 ? iop.title.slice(0, 17) + '…' : iop.title) : ''}</button>`);
   if (!it.done && it.kind === 'buchung' && it.bMin) pills.push(`<span class="pill pill-blue">${ico('clockplus')}+${dur(it.bMin * MIN)}</span>`);
   pills.push(urgencyPill(it, now));
   if (it.mode === 'dauer' && !it.done) pills.push(`<button type="button" class="tbtn${it.timerStart ? ' on' : ''}" data-act="timer" aria-label="${it.timerStart ? 'Timer pausieren' : 'Timer starten'}">${ico(it.timerStart ? 'pause' : 'play')}</button>`);
@@ -1100,10 +1145,11 @@ function itemRow(it, now) {
   const cls = ['item'];
   if (it.done) cls.push('done');
   else if (it.mode === 'asap' || it.timerStart) cls.push('hot');
+  if (!it.done && it.imp) cls.push('imp');
   else if (diff != null && diff < 0) cls.push('late');
   return `<li class="${cls.join(' ')}" data-id="${it.id}" tabindex="0" aria-label="${esc(it.title)} – ${esc(k.label)}${it.done ? ', erledigt' : ''}">
     ${tile}
-    <div class="main"><div class="title">${esc(it.title)}</div><div class="sub">${sub.join(' · ')}</div></div>
+    <div class="main"><div class="title">${!it.done && it.imp ? '<span class="imp-star" aria-label="wichtig">★</span>' : ''}${esc(it.title)}</div><div class="sub">${sub.join(' · ')}</div></div>
     <div class="pills">${pills.join('')}</div>
     <button type="button" class="check${it.done ? ' on' : ''}" data-act="done" aria-label="${it.done ? 'Wieder öffnen' : 'Als erledigt markieren'}">${ico('check')}</button>
   </li>`;
@@ -1141,7 +1187,7 @@ function renderPlanner(now = Date.now()) {
       html += `<section class="group" data-g="done"><button type="button" class="group-h" data-act="toggle-done" aria-expanded="${ui.openDone}">${ico('chev')}${label}<sup>${arr.length}</sup></button>${ui.openDone ? `<ul class="items">${shown.map(i => itemRow(i, now)).join('')}</ul>` : ''}</section>`;
       continue;
     }
-    arr.sort(byRank(now));
+    arr.sort(g === 'imp' ? (x, y) => x.createdAt - y.createdAt || cmp(x.id, y.id) : byRank(now));
     html += `<section class="group" data-g="${g}"><h3 class="group-h">${label}<sup>${arr.length}</sup></h3><ul class="items">${arr.map(i => itemRow(i, now)).join('')}</ul></section>`;
   }
   if (!html) html = `<div class="empty"><h3>Nichts gefunden.</h3><p>Kein Eintrag passt zu den aktuellen Filtern.</p><div class="row"><button type="button" class="btn btn-ghost" data-empty="reset">Filter zurücksetzen</button></div></div>`;
@@ -1197,6 +1243,7 @@ function renderAll() {
   renderCalAppts(now);
   renderHero(now);
   renderPlanner(now);
+  renderOpCard(now);
   renderFocus(now);
   renderOvertime(now);
   renderSyncUi();
@@ -1293,6 +1340,7 @@ function openComposer(item, preset = {}) {
   $('#cTitle').classList.remove('err');
   $('#cFrom').value = preset.from ?? it.from ?? '';
   $('#cNotes').value = it.notes || '';
+  $('#cImp').checked = !!(preset.imp ?? it.imp);
   setSeg('kind', preset.kind || it.kind || (ui.kind !== 'alle' ? ui.kind : 'todo'));
   setSeg('mode', preset.mode || it.mode || 'einmalig');
   setSeg('status', it.status || 'offen');
@@ -1310,6 +1358,8 @@ function openComposer(item, preset = {}) {
   const stats = $('#cStats');
   if (item) {
     const bits = [`Erfasst ${dateShort(it.createdAt)} ${hm(it.createdAt)}`];
+    const iop = it.op ? state.ops.find(x => x.id === it.op) : null;
+    if (iop) bits.push(`aus Einsatz E${iop.n}${iop.title ? ' · ' + iop.title : ''} (${dateShort(iop.start)})`);
     if (it.spentMs || it.timerStart) bits.push(`${dur(spentOf(it))} h investiert`);
     if (it.doneCount) bits.push(`${it.doneCount}× erledigt`);
     if (it.done && it.doneAt) bits.push(`erledigt ${dateShort(it.doneAt)} ${hm(it.doneAt)}`);
@@ -1340,7 +1390,7 @@ function saveComposer() {
   if (!title) return fail($('#cTitle'));
   if (C.kind === 'buchung' && !$('#cFrom').value.trim()) return fail($('#cFrom'));
   const now = Date.now();
-  const data = { title, notes: $('#cNotes').value.trim(), kind: C.kind, from: C.kind === 'todo' ? '' : $('#cFrom').value.trim(), mode: C.mode, status: C.status, due: null, durMin: null, repeat: null, repDay: null,
+  const data = { title, notes: $('#cNotes').value.trim(), imp: $('#cImp').checked, kind: C.kind, from: C.kind === 'todo' ? '' : $('#cFrom').value.trim(), mode: C.mode, status: C.status, due: null, durMin: null, repeat: null, repDay: null,
     bDate: C.kind === 'buchung' && isKey($('#cbDate').value) ? $('#cbDate').value : null, bShift: C.kind === 'buchung' ? $('#cbShift').value.trim() : '', bMin: C.kind === 'buchung' ? C.bMin : 0 };
   if (C.mode === 'deadline') { const t = parseLocal($('#cDue').value); if (t == null) return fail($('#cDue')); data.due = t; }
   if (C.mode === 'dauer') {
@@ -1382,6 +1432,8 @@ function openShiftDialog(sh, opts = {}) {
   closeMenu();
   const now = Date.now();
   SH.id = sh ? sh.id : null;
+  SH.carry = !sh && opts.carry ? opts.carry : null;
+  SH.tpl = sh ? sh.tpl : null;
   const base = sh || { name: '', date: opts.date || ui.selDay || dayKey(now), start: null, plannedEnd: null, breakMin: 30, extraMin: 0, color: 'lime', live: false };
   const past = sh && !sh.live && sh.start <= now;
   $('#shH').textContent = sh ? 'Dienst bearbeiten' : (opts.live ? 'Dienst beginnen' : 'Dienst eintragen');
@@ -1428,7 +1480,7 @@ function syncShiftDialog() {
 $('#shTpls').addEventListener('click', e => {
   const c = e.target.closest('[data-tpl]'); if (!c) return;
   const tp = state.tpls.find(t => t.id === c.dataset.tpl); if (!tp) return;
-  $('#shName').value = tp.name; SH.color = tp.color; SH.breakMin = tp.breakMin;
+  $('#shName').value = tp.name; SH.color = tp.color; SH.breakMin = tp.breakMin; SH.tpl = tp.id;
   const keepStart = $('#shLive').checked && !$('#shLiveRow').hidden && $('#shStart').value;
   if (keepStart) {
     const st = parseLocal(`${$('#shDate').value}T${$('#shStart').value.slice(0, 5)}`);
@@ -1457,13 +1509,21 @@ function saveShift() {
   if (live && others.some(x => x.live)) { toast('Es läuft schon ein Dienst – erst ausdongeln.'); return; }
   const snap = snapshot();
   const data = { date: f.date, name, color: SH.color, start: f.start, plannedEnd: f.plannedEnd, end: null, live, breakMin: SH.breakMin, extraMin: SH.extraMin, u: now };
+  // Vorlage merken (Routinen hängen daran) – aber nur, solange der Name noch zur Vorlage passt
+  const tplRec = SH.tpl && state.tpls.find(t => t.id === SH.tpl);
+  data.tpl = tplRec && norm(tplRec.name) === norm(name) ? tplRec.id : (state.tpls.find(t => norm(t.name) === norm(name)) || {}).id || null;
+  const carry = !SH.id && live && SH.carry ? SH.carry : null;
+  if (carry) { data.crew = resolveCrew(carry.crew, now); data.unit = carry.unit; }
+  let newId = null;
   if (SH.id) {
     const sh = state.shifts.find(x => x.id === SH.id);
     if (!sh) { toast('Dieser Dienst wurde inzwischen auf einem anderen Gerät gelöscht.'); closeDlg($('#shiftDlg')); return; }
     Object.assign(sh, normShift({ ...sh, ...data }));
-  } else state.shifts.push(normShift({ id: uid(), ...data }));
+  } else { newId = uid(); state.shifts.push(normShift({ id: newId, ...data })); }
+  SH.carry = null;
   closeDlg($('#shiftDlg'));
   commit();
+  if (live && newId) setTimeout(() => shiftBriefing(newId), reduceMotion.matches ? 0 : mobileMQ.matches ? 340 : 220);
   toast(SH.id ? 'Dienst gespeichert' : live ? `Eingedongelt · ${name} bis ${hm(f.plannedEnd)}` : f.start > now ? `${name} geplant · ${dateShort(f.start)}` : 'Dienst eingetragen', { undo: snap });
 }
 $('#shDelete').addEventListener('click', () => {
@@ -1471,26 +1531,20 @@ $('#shDelete').addEventListener('click', () => {
   const snap = snapshot(), id = SH.id, rec = state.shifts.find(x => x.id === id);
   state.shifts = state.shifts.filter(x => x.id !== id);
   state.del[id] = tombTs(rec);
+  const gone = state.ops.filter(o => o.sid === id);
+  for (const o of gone) state.del[o.id] = tombTs(o);
+  state.ops = state.ops.filter(o => o.sid !== id);
   closeDlg($('#shiftDlg')); commit();
-  toast('Dienst gelöscht', { undo: snap });
+  toast(`Dienst gelöscht${gone.length ? ` · ${gone.length} ${gone.length === 1 ? 'Einsatz' : 'Einsätze'}` : ''}`, { undo: snap });
 });
 
 /* ---------- Dienst beginnen (Vorlage wählen) ---------- */
-function openStartSheet() {
-  if (!S) return;
-  const now = Date.now();
-  $('#stNow').textContent = hm(now);
-  $('#startTpls').innerHTML = state.tpls.map(tp => `<button type="button" class="tpl-btn" data-tpl="${tp.id}" style="--c:${COLORS[tp.color]}"><span class="tpl-name">${esc(tp.name)}</span><span class="tpl-time mono">${tp.start}–${tp.end}</span><span class="tpl-end">bis ${hm(endAfter(now, tp.end, tplLen(tp)))} · ${dur(tplNet(tp) * MIN)} h netto</span></button>`).join('')
-    + `<button type="button" class="tpl-btn free" data-tpl=""><span class="tpl-name">Ohne Vorlage</span><span class="tpl-time mono">${dur(state.settings.targetMin * MIN)} h + 30 Min</span><span class="tpl-end">Ende danach anpassen</span></button>`;
-  openDlg($('#startDlg'));
-}
-$('#startTpls').addEventListener('click', e => {
-  const b = e.target.closest('[data-tpl]'); if (!b) return;
-  const tp = state.tpls.find(t => t.id === b.dataset.tpl) || null;
+$('#startCustom').addEventListener('click', () => {
+  const pending = $('#stNewName').value.trim(); if (pending) addCrewName();
+  const carry = { crew: ST.crew.slice(), unit: $('#stUnit').value.trim().replace(/\s+/g, ' ').slice(0, 40) };
   closeDlg($('#startDlg'));
-  startShift(tp);
+  setTimeout(() => openShiftDialog(null, { live: true, date: dayKey(Date.now()), carry }), mobileMQ.matches ? 320 : 200);
 });
-$('#startCustom').addEventListener('click', () => { closeDlg($('#startDlg')); setTimeout(() => openShiftDialog(null, { live: true, date: dayKey(Date.now()) }), mobileMQ.matches ? 320 : 200); });
 $('#startCatalog').addEventListener('click', () => { closeDlg($('#startDlg')); setTimeout(openCatalog, mobileMQ.matches ? 320 : 200); });
 
 /* ---------- Katalog ---------- */
@@ -1562,7 +1616,7 @@ $('#extraPlus').addEventListener('click', () => addExtra(15));
 $('#extraMinus').addEventListener('click', () => addExtra(-15));
 $('#addShift').addEventListener('click', () => openShiftDialog(null, { date: ui.selDay || dayKey(Date.now()) }));
 $('#openCatalog').addEventListener('click', openCatalog);
-$('#stampsToday').addEventListener('click', () => { ui.selDay = null; renderTime(); renderWeek(); });
+$('#stampsToday').addEventListener('click', () => { ui.selDay = null; renderTime(); renderWeek(); renderOpCard(); });
 $('#bookBtn').addEventListener('click', () => openComposer(null, { kind: 'buchung' }));
 
 /* ======================= Dongle slider ======================= */
@@ -1626,6 +1680,7 @@ $('#list').addEventListener('click', e => {
   const act = e.target.closest('[data-act]');
   if (act) {
     if (act.dataset.act === 'toggle-done') { ui.openDone = !ui.openDone; renderPlanner(); return; }
+    if (act.dataset.act === 'op') { openOp(act.dataset.op); return; }
     const id = act.closest('[data-id]')?.dataset.id; if (!id) return;
     if (act.dataset.act === 'done') completeWithFeedback(id, act);
     else if (act.dataset.act === 'timer') toggleTimer(id);
@@ -1667,13 +1722,14 @@ $('#focusBody').addEventListener('click', e => {
 });
 
 function parseQuick(raw) {
-  let s = ` ${raw} `, kind = null, from = '', asap = false;
+  let s = ` ${raw} `, kind = null, from = '', asap = false, imp = false;
+  if (/\s\*+(?=\s)/.test(s)) { imp = true; s = s.replace(/\s\*+(?=\s)/g, ' '); }
   s = s.replace(/\s#(anfrage|todo|aufgabe|buchung|stunden)(?=\s)/i, (_, k) => { kind = k.toLowerCase() === 'stunden' ? 'buchung' : k.toLowerCase(); return ' '; });
   s = s.replace(/\s@([\p{L}][\p{L}\p{N}._-]*)/u, (_, n) => { from = n.replace(/[._]+/g, ' ').trim(); return ' '; });
   if (/\s!+(?=\s)/.test(s) || /!\s*$/.test(s)) { asap = true; s = s.replace(/\s!+(?=\s)/g, ' ').replace(/!+\s*$/, ' '); }
   const title = s.replace(/\s+/g, ' ').trim();
   if (!kind) kind = from ? 'anfrage' : (ui.kind !== 'alle' ? ui.kind : 'todo');
-  return { title: title || (kind === 'buchung' ? 'Überstunden eintragen' : ''), kind, from, mode: asap ? 'asap' : 'einmalig' };
+  return { title: title || (kind === 'buchung' ? 'Überstunden eintragen' : ''), kind, from, mode: asap ? 'asap' : 'einmalig', imp };
 }
 $('#quickInput').addEventListener('keydown', e => {
   if (e.key === 'Enter' && e.shiftKey) {
@@ -1717,7 +1773,7 @@ $('#calNext').addEventListener('click', () => { const d = new Date(ui.calMonth);
 $('#wkChart').addEventListener('click', e => {
   const b = e.target.closest('[data-day]'); if (!b) return;
   ui.selDay = b.dataset.day === dayKey(Date.now()) ? null : b.dataset.day;
-  renderWeek(); renderShiftList(Date.now()); updateLive(Date.now());
+  renderWeek(); renderShiftList(Date.now()); updateLive(Date.now()); renderOpCard();
   showTip($(`.wk-col[data-day="${b.dataset.day}"]`));
 });
 function showTip(col) {
@@ -1806,7 +1862,7 @@ menu.addEventListener('click', async e => {
   }
   else if (a === 'demo') loadDemo();
   else if (a === 'wipe') {
-    const r = await ask({ title: 'Alles löschen?', text: 'Entfernt alle Einträge, Dienste, Termine, Team-Notizen, gespeicherten Prüfungen, Dateien und schriftlichen Vorgänge – auch auf allen synchronisierten Geräten. Dienste-Katalog, Routinen-Vorlagen, Tresor und Passwort bleiben.', buttons: [{ label: 'Abbrechen', value: null }, { label: 'Alles löschen', value: 'ok', cls: 'btn-ghost btn-danger', submit: true }] });
+    const r = await ask({ title: 'Alles löschen?', text: 'Entfernt alle Einträge, Dienste, Termine, Team-Notizen, gespeicherten Prüfungen, Dateien, Einsätze und schriftlichen Vorgänge – auch auf allen synchronisierten Geräten. Dienste-Katalog, Routinen-Vorlagen, Tresor und Passwort bleiben.', buttons: [{ label: 'Abbrechen', value: null }, { label: 'Alles löschen', value: 'ok', cls: 'btn-ghost btn-danger', submit: true }] });
     if (!r) return;
     const snap = snapshot(); applyState({ ...blank(), tpls: state.tpls, routines: state.routines, settings: state.settings }); toast('Alles gelöscht', { undo: snap });
   }
@@ -1840,7 +1896,7 @@ $('#importFile').addEventListener('change', async e => {
 /* ======================= Demo data ======================= */
 async function loadDemo() {
   if (state.items.length || state.shifts.length || state.appts.length || state.people.length || state.routines.length) {
-    const r = await ask({ title: 'Beispieldaten laden?', text: 'Ersetzt Einträge, Dienste, Termine, Routinen und Team (auch auf synchronisierten Geräten). Dienste-Katalog, Dateien und gespeicherte Prüfungen bleiben. Du kannst es direkt danach rückgängig machen.', buttons: [{ label: 'Abbrechen', value: null }, { label: 'Ersetzen', value: 'ok', cls: 'btn-accent', submit: true }] });
+    const r = await ask({ title: 'Beispieldaten laden?', text: 'Ersetzt Einträge, Dienste, Termine, Routinen und Team (auch auf synchronisierten Geräten). Dienste-Katalog, Dateien, gespeicherte Prüfungen und schriftliche Vorgänge bleiben. Du kannst es direkt danach rückgängig machen.', buttons: [{ label: 'Abbrechen', value: null }, { label: 'Ersetzen', value: 'ok', cls: 'btn-accent', submit: true }] });
     if (!r) return;
   }
   const snap = snapshot(), now = Date.now(), today = sod(now);
@@ -1914,7 +1970,22 @@ async function loadDemo() {
     A('Zahnarzt', 0, 16, 30, 30, 'Praxis Dr. Berg'),
     { id: uid(), title: 'Fortbildung Hygiene', start: T(8, 0), end: T(8, 0), allDay: true, location: 'Bildungszentrum', notes: '', alarm: 1440, u: now }
   ];
-  applyState({ v: 3, items, shifts, tpls: state.tpls, appts, routines, runs, people: [lena, sabine, jonas, mehmet, anna], notes, files: state.files, checks: state.checks, del: {}, settings: { ...state.settings } });
+  const liveSh = shifts.find(s => s.live) || shifts.filter(s => s.date === dayKey(now)).sort((a, b) => b.start - a.start)[0];
+  const ops = [];
+  if (liveSh) {
+    Object.assign(liveSh, { tpl: 'tpl-frueh', crew: [{ id: jonas.id, name: jonas.name }], unit: 'Stf 21/03' });
+  }
+  if (liveSh && Math.min(now, liveSh.end ?? now) - liveSh.start > 2 * HOUR) {
+    const o1 = { id: uid(), sid: liveSh.id, n: 1, start: liveSh.start + 50 * MIN, end: liveSh.start + 95 * MIN, title: 'Ruhestörung', place: 'Marktstraße 12', note: 'Laute Musik, Mieter einsichtig.', outcome: 'Lage beruhigt, Musik leiser gestellt.', none: true, u: now };
+    const o2 = { id: uid(), sid: liveSh.id, n: 2, start: liveSh.start + 100 * MIN, end: liveSh.start + 115 * MIN, title: 'Verkehrsunfall', place: 'Kreuzung Bahnhofstraße', note: 'Blechschaden, zwei Pkw.', outcome: 'Unfallaufnahme vor Ort.', none: false, u: now };
+    ops.push(o1, o2);
+    items.push(mk({ title: 'Verkehrsunfallanzeige schreiben', kind: 'aufgabe', mode: 'einmalig', imp: true, op: o2.id, age: 1, notes: 'Aus Einsatz 2 · Verkehrsunfall' }), mk({ title: 'Lichtbilder sichern', kind: 'aufgabe', mode: 'einmalig', op: o2.id, age: 1 }));
+  }
+  items[7].imp = true;
+  routines[0].tpls = ['tpl-frueh', 'tpl-spaet', 'tpl-nacht'];
+  routines.push(R('Fahrzeugcheck', 'koralle', 'manual', ['Tankstand und Reifen', 'Funkgerät und Akkus', 'Erste-Hilfe-Set vollständig', 'Warnweste, Absperrband'], 'Vor der ersten Fahrt.'));
+  routines[routines.length - 1].units = ['Stf 21/03'];
+  applyState({ v: 3, items, shifts, tpls: state.tpls, appts, routines, runs, people: [lena, sabine, jonas, mehmet, anna], notes, files: state.files, checks: state.checks, docs: state.docs, ops, del: {}, settings: { ...state.settings } });
 
   toast('Beispieldaten geladen', { undo: snap });
 }
@@ -2150,7 +2221,7 @@ function renderRoutines(now = Date.now()) {
     const doneN = run ? r.steps.filter(s => run.done[s.id]).length : 0;
     return `<article class="rt-card${due ? ' due' : ''}${run ? ' running' : ''}" data-rid="${r.id}" style="--c:${COLORS[r.color]}">
       <div class="rt-top"><h3 class="rt-name">${esc(r.name)}</h3>${due ? '<span class="pill pill-accent">fällig</span>' : ''}${run ? '<span class="pill pill-lime">läuft</span>' : ''}</div>
-      <p class="rt-meta">${RHYTHMS[r.rhythm]} · ${r.steps.length} ${r.steps.length === 1 ? 'Schritt' : 'Schritte'} · ${lf ? `zuletzt ${dateShort(lf.finished)} ${hm(lf.finished)}` : 'noch nie abgeschlossen'}${total ? ` · ${total}×` : ''}</p>
+      <p class="rt-meta">${RHYTHMS[r.rhythm]}${r.tpls.length || r.units.length ? ' · ' + esc([...r.tpls.map(id => (state.tpls.find(t => t.id === id) || {}).name).filter(Boolean), ...r.units].join(', ')) : ''} · ${r.steps.length} ${r.steps.length === 1 ? 'Schritt' : 'Schritte'} · ${lf ? `zuletzt ${dateShort(lf.finished)} ${hm(lf.finished)}` : 'noch nie abgeschlossen'}${total ? ` · ${total}×` : ''}</p>
       ${r.note ? `<p class="rt-note">${esc(firstLine(r.note))}</p>` : ''}
       ${run ? `<div class="rt-prog" role="progressbar" aria-valuemin="0" aria-valuemax="${r.steps.length}" aria-valuenow="${doneN}"><i style="transform:scaleX(${r.steps.length ? doneN / r.steps.length : 0})"></i></div><p class="rt-meta">${doneN} von ${r.steps.length} erledigt · gestartet ${hm(run.started)}</p>` : ''}
       <div class="rt-actions"><button type="button" class="btn ${run || due ? 'btn-accent' : 'btn-light'} btn-sm" data-rt-start>${ico('play')}${run ? 'Fortsetzen' : 'Starten'}</button><button type="button" class="btn btn-ghost btn-sm" data-rt-edit>${ico('edit')}Bearbeiten</button></div>
@@ -2215,11 +2286,13 @@ $('#rnDiscard').addEventListener('click', async () => {
 });
 
 /* ---------- Routine bearbeiten ---------- */
-const RT = { id: null, color: 'lime', rhythm: 'manual' };
+const RT = { id: null, color: 'lime', rhythm: 'manual', tpls: new Set() };
 function openRoutineEditor(r) {
   if (!S) return;
   closeMenu();
-  RT.id = r ? r.id : null; RT.color = r ? r.color : 'lime'; RT.rhythm = r ? r.rhythm : 'manual';
+  RT.id = r ? r.id : null; RT.color = r ? r.color : 'lime'; RT.rhythm = r ? r.rhythm : 'manual'; RT.tpls = new Set(r ? r.tpls : []);
+  $('#reTpls').innerHTML = state.tpls.map(t => `<button type="button" data-tpl="${esc(t.id)}"><i class="op-rt-dot" style="--rc:${COLORS[t.color]}"></i>${esc(t.name)}</button>`).join('') || '<span class="hint">Noch keine Dienst-Vorlagen im Katalog.</span>';
+  $('#reUnits').value = r ? r.units.join(', ') : '';
   $('#reH').textContent = r ? 'Routine bearbeiten' : 'Neue Routine';
   $('#reName').value = r ? r.name : '';
   $('#reName').classList.remove('err');
@@ -2238,11 +2311,13 @@ function openRoutineEditor(r) {
 function syncRoutineEditor() {
   pressColors($('#reColors'), RT.color);
   $$('#reRhythm button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === RT.rhythm)));
+  $$('#reTpls button').forEach(b => b.setAttribute('aria-pressed', String(RT.tpls.has(b.dataset.tpl))));
   const n = $('#reSteps').value.split('\n').map(l => l.trim()).filter(Boolean).length;
   $('#reCount').textContent = `${n} ${n === 1 ? 'Schritt' : 'Schritte'}`;
 }
 $('#reColors').addEventListener('click', e => { const b = e.target.closest('[data-color]'); if (b) { RT.color = b.dataset.color; syncRoutineEditor(); } });
 $('#reRhythm').addEventListener('click', e => { const b = e.target.closest('[data-v]'); if (b) { RT.rhythm = b.dataset.v; syncRoutineEditor(); } });
+$('#reTpls').addEventListener('click', e => { const b = e.target.closest('[data-tpl]'); if (!b) return; if (RT.tpls.has(b.dataset.tpl)) RT.tpls.delete(b.dataset.tpl); else RT.tpls.add(b.dataset.tpl); syncRoutineEditor(); });
 $('#reSteps').addEventListener('input', syncRoutineEditor);
 $('#reForm').addEventListener('submit', e => {
   e.preventDefault();
@@ -2254,7 +2329,8 @@ $('#reForm').addEventListener('submit', e => {
   const pool = old ? [...old.steps] : [];
   const steps = lines.map(text => { const i = pool.findIndex(s => s.text === text); if (i >= 0) return pool.splice(i, 1)[0]; return { id: uid(), text }; });
   const now = Date.now();
-  const data = { name, color: RT.color, rhythm: RT.rhythm, steps, note: $('#reNote').value.trim(), u: now };
+  const units = $('#reUnits').value.split(/[,;\n]/).map(x => x.trim()).filter(Boolean);
+  const data = { name, color: RT.color, rhythm: RT.rhythm, steps, note: $('#reNote').value.trim(), tpls: [...RT.tpls].filter(id => state.tpls.some(t => t.id === id)), units, u: now };
   if (old) Object.assign(old, normRoutine({ ...old, ...data }));
   else state.routines.push(normRoutine({ id: uid(), ...data }));
   closeDlg($('#routineDlg')); commit();
@@ -2439,12 +2515,15 @@ $('#pdForm').addEventListener('submit', e => {
   const data = { name, roles: PD.roles, parent: $('#pdParent').value || null, contact: $('#pdContact').value.trim(), u: now };
   let id = PD.id;
   const old = id ? personById(id) : null;
+  // Umbenennen: Anfragen/Aufgaben hängen am Namen – mitziehen, damit die Zuordnung im Team bleibt
+  let moved = 0;
+  if (old && norm(old.name) !== norm(name)) for (const it of state.items) if (it.from && norm(it.from) === norm(old.name)) { it.from = name.slice(0, 60); touch(it); moved++; }
   if (old) Object.assign(old, normPerson({ ...old, ...data }));
   else { id = uid(); state.people.push(normPerson({ id, ...data })); }
   teamUi.pid = id; teamUi.detail = true;
   closeDlg($('#personDlg')); commit();
   if (document.body.dataset.area !== 'team') setArea('team');
-  toast(old ? 'Gespeichert' : `${name} hinzugefügt`);
+  toast(old ? `Gespeichert${moved ? ` · ${moved} ${moved === 1 ? 'Eintrag' : 'Einträge'} übernommen` : ''}` : `${name} hinzugefügt`);
 });
 $('#pdDelete').addEventListener('click', async () => {
   const p = personById(PD.id); if (!p) return;
@@ -2696,6 +2775,438 @@ $('#fdDelete').addEventListener('click', async () => {
   await IDB.del(f.id).catch(() => {}); local.ids.delete(f.id);
   closeDlg($('#fileDlg')); commit(); removeRemote(f.id);
   toast('Datei gelöscht');
+});
+
+/* ======================= Schicht: Besetzung, Einsätze, Routinen, Briefing ======================= */
+const opsOf = sid => state.ops.filter(o => o.sid === sid).sort((a, b) => a.start - b.start || a.n - b.n);
+const opById = id => state.ops.find(o => o.id === id) || null;
+const opTodos = oid => state.items.filter(i => i.op === oid);
+const joinDe = a => a.length <= 1 ? (a[0] || '') : a.slice(0, -1).join(', ') + ' und ' + a[a.length - 1];
+const unitKey = s => norm(s).replace(/\s+/g, ' ').trim();
+const hmIn = t => { const d = new Date(t); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+/** Abschluss-Stand eines Einsatzes für Liste und Dialog. */
+function opState(o) {
+  const t = opTodos(o.id), open = t.filter(i => !i.done).length;
+  if (o.end == null) return { k: 'run', l: 'läuft' };
+  if (open) return { k: 'todo', l: `${open} ${open === 1 ? 'Maßnahme' : 'Maßnahmen'} offen` };
+  if (o.none) return { k: 'done', l: 'keine Maßnahmen' };
+  if (t.length) return { k: 'done', l: 'Maßnahmen erledigt' };
+  if (o.outcome.trim()) return { k: 'done', l: 'abgeschlossen' };
+  return { k: 'missing', l: 'Abschluss fehlt' };
+}
+/** Routinen, die zur Schicht gehören: über die Dienst-Vorlage oder das Einsatzmittel. */
+function routinesFor(sh) {
+  if (!sh) return [];
+  const u = unitKey(sh.unit);
+  return state.routines.filter(r => (sh.tpl && r.tpls.includes(sh.tpl)) || (u && r.units.some(x => unitKey(x) === u)));
+}
+/** Durchlauf einer Routine in dieser Schicht (Start ab 15 Min vor Dienstbeginn). */
+const runInShift = (r, sh) => runsOf(r.id).filter(x => x.started >= sh.start - 15 * MIN && (sh.live || x.started <= (sh.end ?? sh.plannedEnd))).sort((a, b) => b.started - a.started)[0] || null;
+/** Schicht für die Schichtkarte: die laufende, sonst die letzte des gewählten Tages (Woche) mit Einsätzen oder Besetzung. */
+function opShift(now = Date.now()) {
+  const key = ui.selDay && ui.selDay !== dayKey(now) ? ui.selDay : null;
+  if (!key) { const live = liveShift(); if (live) return live; }
+  return shiftsOn(key || dayKey(now)).filter(s => !isPlanned(s, now) && (opsOf(s.id).length || s.crew.length || s.unit)).sort((a, b) => b.start - a.start)[0] || null;
+}
+/** Name aus dem Team (folgt Umbenennungen), sonst der bei Dienstbeginn eingetragene. */
+const crewName = c => { const p = c.id && state.people.find(x => x.id === c.id); return p ? p.name : c.name; };
+const crewChip = c => { const n = crewName(c); return `<span class="op-av" style="--h:${avHue(n)}" aria-hidden="true">${esc(initials(n))}</span>`; };
+const crewLine = crew => `<span class="op-crew"><span class="op-avs">${crew.map(crewChip).join('')}</span><span>mit ${esc(joinDe(crew.map(crewName)))}</span></span>`;
+
+function renderOpCard(now = Date.now()) {
+  const card = $('#opCard'), sh = opShift(now);
+  card.hidden = !sh;
+  if (!sh) return;
+  const live = !!sh.live, ops = opsOf(sh.id);
+  card.style.setProperty('--c', COLORS[sh.color]);
+  card.classList.toggle('is-live', live);
+  $('#opKicker').textContent = live ? 'Schicht läuft' : sh.date === dayKey(now) ? `Schicht beendet · ${hm(sh.end ?? sh.plannedEnd)}` : `Schicht vom ${dateShort(sh.start)}`;
+  $('#opH').textContent = `${sh.name} · ${hm(sh.start)}–${hm(sh.plannedEnd)}`;
+  $('#opMeta').innerHTML = (sh.crew.length ? crewLine(sh.crew) : '<span class="dim">Besetzung nicht eingetragen</span>')
+    + (sh.unit ? `<span class="pill pill-outline mono op-unit">${esc(sh.unit)}</span>` : '');
+  $('#opAdd').hidden = !live;
+  $('#opEditCrew').textContent = sh.crew.length || sh.unit ? 'Besetzung ändern' : 'Besetzung eintragen';
+  const todosOpen = ops.reduce((n, o) => n + opTodos(o.id).filter(i => !i.done).length, 0), running = ops.filter(o => o.end == null).length, missing = ops.filter(o => opState(o).k === 'missing').length;
+  $('#opStats').innerHTML = ops.length ? [`<b class="mono">${ops.length}</b> ${ops.length === 1 ? 'Einsatz' : 'Einsätze'}`, running ? `<b class="mono">${running}</b> läuft` : '', todosOpen ? `<b class="mono">${todosOpen}</b> ${todosOpen === 1 ? 'Maßnahme' : 'Maßnahmen'} offen` : '', missing ? `<b class="mono">${missing}</b> ohne Abschluss` : ''].filter(Boolean).join('<i aria-hidden="true">·</i>') : '';
+  $('#opList').innerHTML = ops.length ? ops.map(o => {
+    const st = opState(o);
+    return `<li><button type="button" class="op-row" data-op="${esc(o.id)}" data-st="${st.k}"><span class="op-n mono">E${o.n}</span><span class="op-main"><span class="op-t">${esc(o.title || 'Einsatz ohne Stichwort')}</span><span class="op-s">${o.place ? esc(o.place) + ' · ' : ''}<span class="mono">${hm(o.start)}${o.end != null ? '–' + hm(o.end) : ''}</span></span></span><span class="op-st">${st.k === 'run' ? '<i class="pulse"></i>' : ''}${esc(st.l)}</span></button></li>`;
+  }).join('') : `<li class="op-empty">${live ? 'Noch kein Einsatz – für jeden Einsatz einmal „+ Einsatz“ tippen.' : 'Keine Einsätze in dieser Schicht.'}</li>`;
+  const rts = routinesFor(sh);
+  $('#opRt').hidden = !rts.length;
+  $('#opRtList').innerHTML = rts.map(r => {
+    const run = runInShift(r, sh), n = r.steps.length, d = run ? r.steps.filter(s => run.done[s.id]).length : 0, fin = run && run.finished;
+    return `<li><button type="button" class="op-rt-row${fin ? ' done' : run ? ' run' : ''}" data-rt="${esc(r.id)}" style="--rc:${COLORS[r.color]}"><span class="op-rt-dot" aria-hidden="true"></span><span class="op-rt-n">${esc(r.name)}</span><span class="op-rt-p mono">${fin ? ico('check') + 'erledigt' : run ? `${d}/${n}` : `${n} ${n === 1 ? 'Schritt' : 'Schritte'}`}</span></button></li>`;
+  }).join('');
+}
+$('#opAdd').addEventListener('click', addOp);
+$('#opEditCrew').addEventListener('click', () => { const sh = opShift(); if (sh) openStartSheet({ edit: sh.id }); });
+$('#opList').addEventListener('click', e => { const b = e.target.closest('[data-op]'); if (b) openOp(b.dataset.op); });
+$('#opRtList').addEventListener('click', e => { const b = e.target.closest('[data-rt]'); const sh = opShift(); if (b && sh) startShiftRoutine(b.dataset.rt, sh); });
+function startShiftRoutine(rid, sh) {
+  const r = state.routines.find(x => x.id === rid); if (!r || !S) return;
+  if (!r.steps.length) { startRoutine(rid); return; }
+  let run = runInShift(r, sh);
+  if (!run && !sh.live) { toast('Die Schicht ist beendet – Routinen startest du in der laufenden Schicht.'); return; }
+  if (!run) { const now = Date.now(); run = normRun({ id: uid(), rid, started: now, done: {}, finished: null, u: now }); state.runs.push(run); commit(); }
+  curRun = run.id; renderRunDialog(); openDlg($('#runDlg'));
+}
+
+/* ---------- Einsatz ---------- */
+const OP_WORDS = ['Ruhestörung', 'Verkehrsunfall', 'Streitigkeit', 'Diebstahl', 'Körperverletzung', 'Sachbeschädigung', 'Hilfeersuchen', 'Hilflose Person', 'Vermisste Person', 'Verkehrskontrolle', 'Alarmauslösung', 'Gefahrenstelle'];
+const OP_TODO_WORDS = ['Anzeige schreiben', 'Bericht fertigen', 'Vorgang anlegen', 'Lichtbilder sichern', 'Asservate erfassen', 'Zeugen nachvernehmen', 'Mitteilung an Behörde', 'Nachbericht'];
+const OPD = { id: null, imp: false, mode: null, moreT: false, moreM: false };
+/** Häufig genutzte Vorschläge zuerst (eigene Einsätze bzw. Maßnahmen), sonst feste Reihenfolge. */
+function rankWords(base, used) {
+  const cnt = new Map();
+  for (const t of used) { const k = norm(t); if (k) cnt.set(k, (cnt.get(k) || 0) + 1); }
+  return base.map((w, i) => ({ w, i, c: cnt.get(norm(w)) || 0 })).sort((a, b) => b.c - a.c || a.i - b.i).map(x => x.w);
+}
+const suggHtml = (words, more, moreKey, show) => {
+  const shown = more ? words : words.slice(0, show), rest = words.length - shown.length;
+  return shown.map(w => `<button type="button" class="chip sm" data-v="${esc(w)}">${moreKey === 'm' ? '+ ' : ''}${esc(w)}</button>`).join('')
+    + (rest > 0 ? `<button type="button" class="chip sm more" data-more="${moreKey}" aria-label="${rest} weitere Vorschläge">Mehr · ${rest}</button>` : '');
+};
+/** Vorschläge im Einsatz: Stichwort nur solange leer bzw. gefiltert beim Tippen; Maßnahmen ohne bereits angelegte. */
+function renderOpSugg() {
+  const o = opById(OPD.id); if (!o) return;
+  const q = norm($('#opTitle').value);
+  const words = rankWords(OP_WORDS, state.ops.filter(x => x.id !== o.id).map(x => x.title));
+  const tList = !q ? words : words.filter(w => norm(w).startsWith(q) && norm(w) !== q);
+  $('#opTitleChips').innerHTML = q ? suggHtml(tList, true, 't', 6) : suggHtml(tList, OPD.moreT, 't', 6);
+  const have = new Set(opTodos(o.id).map(i => norm(i.title)));
+  const mWords = rankWords(OP_TODO_WORDS, state.items.filter(i => i.op).map(i => i.title)).filter(w => !have.has(norm(w)));
+  $('#opTodoChips').innerHTML = suggHtml(mWords, OPD.moreM, 'm', 4);
+}
+let opSaveT = 0;
+function addOp() {
+  const sh = liveShift(); if (!S || !sh) return;
+  const now = Date.now(), n = opsOf(sh.id).reduce((m, o) => Math.max(m, o.n), 0) + 1;
+  const o = normOp({ id: uid(), sid: sh.id, n, start: now, end: null, u: now });
+  state.ops.push(o); commit();
+  if (navigator.vibrate) navigator.vibrate(10);
+  openOp(o.id, { fresh: true });
+}
+function openOp(id, opts = {}) {
+  const o = opById(id); if (!o || !S) return;
+  OPD.id = id; OPD.imp = false; OPD.mode = null; OPD.moreT = false; OPD.moreM = false;
+  $('#opTitle').value = o.title; $('#opPlace').value = o.place; $('#opNote').value = o.note; $('#opOutcome').value = o.outcome;
+  $('#opStart').value = hmIn(o.start); $('#opEnd').value = o.end != null ? hmIn(o.end) : '';
+  $('#opTodoIn').value = '';
+  syncOp();
+  openDlg($('#opDlg'));
+  if (opts.fresh && !mobileMQ.matches) setTimeout(() => $('#opTitle').focus(), 40);
+}
+function syncOp() {
+  const o = opById(OPD.id); if (!o) return;
+  const sh = state.shifts.find(s => s.id === o.sid), st = opState(o);
+  $('#opDH').textContent = `Einsatz ${o.n}${o.title ? ' · ' + o.title : ''}`;
+  $('#opDMeta').innerHTML = `${sh ? esc(sh.name) + ' · ' : ''}${dateShort(o.start)} · <span class="mono">${hm(o.start)}${o.end != null ? '–' + hm(o.end) : ''}</span> · <span class="op-st-inline" data-st="${st.k}">${esc(st.l)}</span>`;
+  const todos = opTodos(o.id).sort((a, b) => (a.done - b.done) || a.createdAt - b.createdAt);
+  // Abschluss: „keine Maßnahmen“ oder „Maßnahmen“ (sobald To-dos existieren, steht es fest)
+  const mode = o.none ? 'none' : todos.length ? 'mass' : OPD.mode;
+  $$('#opMode [data-mode]').forEach(b => b.setAttribute('aria-checked', String(b.dataset.mode === mode)));
+  const noneBtn = $('#opMode [data-mode="none"]');
+  noneBtn.disabled = todos.length > 0;
+  noneBtn.title = todos.length ? 'Es gibt schon Maßnahmen zu diesem Einsatz' : '';
+  $('#opMeasures').hidden = mode !== 'mass';
+  $('#opSecLage').classList.toggle('is-done', !!o.title.trim());
+  $('#opSecVerlauf').classList.toggle('is-done', o.end != null);
+  $('#opSecAbschluss').classList.toggle('is-done', st.k === 'done');
+  renderOpSugg();
+  $('#opTodos').innerHTML = todos.map(i => `<li class="op-todo${i.done ? ' done' : ''}" data-id="${esc(i.id)}"><button type="button" class="check${i.done ? ' on' : ''}" data-opt="done" aria-label="${i.done ? 'Wieder öffnen' : 'Erledigt'}">${ico('check')}</button><button type="button" class="op-todo-t" data-opt="edit">${esc(i.title)}</button><button type="button" class="op-imp" data-opt="imp" aria-pressed="${i.imp}" aria-label="Wichtig">★</button></li>`).join('');
+  $('#opTodoImp').setAttribute('aria-pressed', String(OPD.imp));
+  $('#opDocs').hidden = !window.WWriter || o.none;
+  const docs = [...new Set(todos.filter(i => i.doc).map(i => i.doc))].map(id => state.docs.find(d => d.id === id)).filter(Boolean);
+  $('#opDocList').innerHTML = docs.map(d => `<button type="button" class="op-docrow" data-open-doc="${esc(d.id)}"><span class="op-doc-k">${esc(d.type === 'vermisst' ? 'VM' : d.type.toUpperCase())}</span><span class="op-docrow-m"><b>${esc(d.title)}</b><small>Öffnen</small></span><span class="pill ${d.status === 'fertig' ? 'pill-lime' : 'pill-quiet'}">${d.status === 'fertig' ? 'fertig' : 'Entwurf'}</span></button>`).join('');
+  $('#opDocList').hidden = !docs.length;
+  const ended = o.end != null;
+  $('#opDone').textContent = ended ? 'Fertig' : 'Einsatz beenden';
+  $('#opReopen').hidden = !ended;
+}
+function opDirty() { const o = opById(OPD.id); if (!o) return; o.u = Date.now(); save(); clearTimeout(opSaveT); opSaveT = setTimeout(() => { renderOpCard(); syncOp(); }, 180); }
+/** Uhrzeit aus dem Dialog in einen Zeitpunkt der Schicht übersetzen (Nachtdienste über Mitternacht). */
+function opTimeFrom(o, hhmm, after) {
+  if (!/^\d{2}:\d{2}/.test(hhmm || '')) return null;
+  const sh = state.shifts.find(s => s.id === o.sid), base = sh ? sh.start : o.start;
+  let t = atHM(base, hhmm.slice(0, 5));
+  if (t < base - 2 * HOUR) t = addDays(t, 1);
+  if (after != null && t < after) t = addDays(t, 1);
+  return t;
+}
+$('#opForm').addEventListener('input', e => {
+  const o = opById(OPD.id); if (!o) return;
+  const id = e.target.id;
+  if (id === 'opTitle') { o.title = e.target.value.slice(0, 80); renderOpSugg(); }
+  else if (id === 'opPlace') o.place = e.target.value.slice(0, 120);
+  else if (id === 'opNote') o.note = e.target.value.slice(0, 4000);
+  else if (id === 'opOutcome') o.outcome = e.target.value.slice(0, 4000);
+  else return;
+  opDirty();
+});
+$('#opMode').addEventListener('click', e => {
+  const b = e.target.closest('[data-mode]'); const o = opById(OPD.id); if (!b || !o || b.disabled) return;
+  const m = b.dataset.mode;
+  if (m === 'none') { o.none = !o.none; OPD.mode = o.none ? 'none' : null; }
+  else { o.none = false; OPD.mode = OPD.mode === 'mass' && !opTodos(o.id).length ? null : 'mass'; }
+  opDirty(); syncOp();
+  if (OPD.mode === 'mass' && !mobileMQ.matches) setTimeout(() => $('#opTodoIn').focus(), 40);
+});
+$('#opStart').addEventListener('change', e => { const o = opById(OPD.id); if (!o) return; const t = opTimeFrom(o, e.target.value); if (t == null) return; o.start = t; if (o.end != null && o.end < t) o.end = t; opDirty(); syncOp(); });
+$('#opEnd').addEventListener('change', e => { const o = opById(OPD.id); if (!o) return; const t = e.target.value ? opTimeFrom(o, e.target.value, o.start) : null; o.end = t; opDirty(); syncOp(); });
+$('#opTitleChips').addEventListener('click', e => {
+  if (e.target.closest('[data-more]')) { OPD.moreT = true; renderOpSugg(); return; }
+  const c = e.target.closest('[data-v]'); const o = opById(OPD.id); if (!c || !o) return;
+  o.title = c.dataset.v; $('#opTitle').value = o.title; opDirty(); syncOp();
+  if (!mobileMQ.matches) $('#opPlace').focus();
+});
+$('#opTodoChips').addEventListener('click', e => {
+  if (e.target.closest('[data-more]')) { OPD.moreM = true; renderOpSugg(); return; }
+  const c = e.target.closest('[data-v]'); if (c) addOpTodo(c.dataset.v);
+});
+$('#opTodoAdd').addEventListener('click', () => { const v = $('#opTodoIn').value; if (!v.trim()) { $('#opTodoIn').focus(); return; } addOpTodo(v); $('#opTodoIn').value = ''; $('#opTodoIn').focus(); });
+$('#opTodoIn').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('#opTodoAdd').click(); } });
+$('#opTodoImp').addEventListener('click', () => { OPD.imp = !OPD.imp; syncOp(); });
+function addOpTodo(title, extra = {}) {
+  const o = opById(OPD.id); if (!o || !S || !String(title).trim()) return null;
+  const now = Date.now();
+  const it = normItem({ id: uid(), title: String(title).trim().slice(0, 300), notes: `Aus Einsatz ${o.n}${o.title ? ' · ' + o.title : ''} (${dateShort(o.start)} ${hm(o.start)})`, kind: 'aufgabe', mode: 'einmalig', imp: OPD.imp, op: o.id, createdAt: now, updatedAt: now, ...extra });
+  state.items.push(it);
+  if (o.none) o.none = false;
+  OPD.mode = 'mass';
+  o.u = now; OPD.imp = false;
+  commit(); syncOp();
+  toast(`To-do im Planner: ${it.title}`);
+  return it;
+}
+$('#opTodos').addEventListener('click', e => {
+  const b = e.target.closest('[data-opt]'), li = e.target.closest('[data-id]'); if (!b || !li) return;
+  const it = find(li.dataset.id); if (!it) return;
+  if (b.dataset.opt === 'done') { completeItem(it.id); syncOp(); }
+  else if (b.dataset.opt === 'imp') { it.imp = !it.imp; touch(it); commit(); syncOp(); }
+  else openComposer(it);
+});
+$('#composer').addEventListener('close', () => { if ($('#opDlg').open) syncOp(); });
+/** Vorbelegung für einen schriftlichen Vorgang aus Einsatz und Schicht: Zeitpunkt, Rufname, Besatzung. */
+function docPreset(o) {
+  const sh = state.shifts.find(s => s.id === o.sid);
+  return { einsatz: { datum: dayKey(o.start), zeit: hmIn(o.start), ...shiftCrewPreset(sh) } };
+}
+/** Rufname und Besatzung einer Schicht für schriftliche Vorgänge (eigener Name, wenn vollständig eingetragen). */
+function shiftCrewPreset(sh) {
+  if (!sh) return {};
+  const me = state.settings.name.trim();
+  const crew = [...(me.includes(' ') ? [{ name: me }] : []), ...sh.crew.map(c => ({ name: crewName(c) }))];
+  return { rufname: sh.unit || '', kraefte: crew };
+}
+$('#opDocs').addEventListener('click', e => {
+  const o = opById(OPD.id); if (!o || !window.WWriter) return;
+  const ex = e.target.closest('[data-open-doc]');
+  if (ex) { closeDlg($('#opDlg')); setTimeout(() => { setArea('schreiben'); WWriter.open(ex.dataset.openDoc); }, mobileMQ.matches ? 320 : 200); return; }
+  const b = e.target.closest('[data-doc]'); if (!b) return;
+  const name = b.dataset.name, type = b.dataset.doc, preset = docPreset(o);
+  closeDlg($('#opDlg'));
+  setTimeout(() => {
+    setArea('schreiben');
+    const d = WWriter.newDoc(type, preset);
+    if (d) { OPD.id = o.id; addOpTodo(`Schriftliche Arbeit fertigstellen: ${name}`, { doc: d.id }); OPD.id = null; }
+  }, mobileMQ.matches ? 320 : 200);
+});
+$('#opReopen').addEventListener('click', () => { const o = opById(OPD.id); if (!o) return; o.end = null; $('#opEnd').value = ''; opDirty(); syncOp(); });
+$('#opForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const o = opById(OPD.id); if (!o) { closeDlg($('#opDlg')); return; }
+  const now = Date.now(), wasOpen = o.end == null;
+  if (wasOpen) o.end = Math.max(now, o.start);
+  o.u = now;
+  closeDlg($('#opDlg')); commit();
+  if (wasOpen) { const st = opState(o); toast(`Einsatz ${o.n} beendet · ${st.l}`); }
+});
+$('#opDelete').addEventListener('click', async () => {
+  const o = opById(OPD.id); if (!o) return;
+  const n = opTodos(o.id).length;
+  const r = await ask({ title: `Einsatz ${o.n} löschen?`, text: n ? `Die ${n} verknüpften To-dos bleiben im Planner, verlieren aber die Zuordnung.` : 'Der Einsatz wird aus der Schicht entfernt.', buttons: [{ label: 'Abbrechen', value: null }, { label: 'Löschen', value: 'ok', cls: 'btn-ghost btn-danger', submit: true }] });
+  if (!r) return;
+  const snap = snapshot();
+  for (const it of opTodos(o.id)) { it.op = null; touch(it); }
+  state.ops = state.ops.filter(x => x.id !== o.id); state.del[o.id] = tombTs(o);
+  closeDlg($('#opDlg')); commit(); toast(`Einsatz ${o.n} gelöscht`, { undo: snap });
+});
+$('#opDlg').addEventListener('close', () => { clearTimeout(opSaveT); if (S && OPD.id) commit(); OPD.id = null; });
+
+/* ---------- Dienst beginnen: Schicht, Besetzung, Einsatzmittel ---------- */
+const ST = { tpl: null, crew: [], planned: null, edit: null };
+function crewPool() {
+  const pool = [], have = new Set(), seenKey = n => norm(n);
+  const push = (id, name) => { const k = seenKey(name); if (!name || have.has(k)) return; have.add(k); pool.push({ id: id || null, name }); };
+  for (const sh of [...state.shifts].sort((a, b) => b.start - a.start)) for (const c of sh.crew) { const p = (c.id && state.people.find(x => x.id === c.id)) || state.people.find(x => seenKey(x.name) === seenKey(c.name)); push(p ? p.id : c.id, p ? p.name : c.name); }
+  for (const p of [...state.people].sort(byName)) push(p.id, p.name);
+  for (const c of ST.crew) push(c.id, c.name);
+  return pool;
+}
+const recentUnits = () => { const out = []; for (const sh of [...state.shifts].sort((a, b) => b.start - a.start)) if (sh.unit && !out.some(u => unitKey(u) === unitKey(sh.unit))) out.push(sh.unit); return out.slice(0, 6); };
+function openStartSheet(opts = {}) {
+  if (!S) return;
+  ST.planned = opts.planned || null; ST.edit = opts.edit || null;
+  const base = state.shifts.find(s => s.id === (ST.edit || ST.planned)) || null;
+  ST.tpl = base ? (base.tpl || (state.tpls.find(t => t.name === base.name) || {}).id || '') : null;
+  ST.crew = base ? base.crew.map(c => ({ id: c.id, name: c.name })) : [];
+  $('#stUnit').value = base ? base.unit : '';
+  $('#stNewName').value = '';
+  $('#stNames').innerHTML = state.people.map(p => `<option value="${esc(p.name)}"></option>`).join('');
+  renderStartSheet();
+  openDlg($('#startDlg'));
+}
+function renderStartSheet() {
+  const now = Date.now(), base = state.shifts.find(s => s.id === (ST.edit || ST.planned)) || null;
+  $('#stH').textContent = ST.edit ? 'Besetzung' : 'Dienst beginnen';
+  $('#stLead').innerHTML = ST.edit ? `Wer ist in dieser Schicht dabei, mit welchem Einsatzmittel? (${esc(base ? base.name : '')})` : `Beginn ist jetzt (<b class="mono">${hm(now)}</b>). Wähle die Schicht, mit wem du unterwegs bist und – wenn du magst – das Einsatzmittel.`;
+  $('#stTplBox').hidden = !!ST.edit;
+  $('#startCustom').hidden = $('#startCatalog').hidden = !!ST.edit;
+  if (!ST.edit) {
+    if (ST.planned && base) $('#startTpls').innerHTML = `<button type="button" class="tpl-btn" data-tpl="__planned" aria-pressed="true" style="--c:${COLORS[base.color]}"><span class="tpl-name">${esc(base.name)} · geplant</span><span class="tpl-time mono">${hm(base.start)}–${hm(base.plannedEnd)}</span><span class="tpl-end">Beginn jetzt · Ende ${hm(base.plannedEnd)}</span></button><button type="button" class="tpl-btn free" data-tpl="__other"><span class="tpl-name">Andere Schicht</span><span class="tpl-end">statt des geplanten Dienstes</span></button>`;
+    else $('#startTpls').innerHTML = state.tpls.map(tp => `<button type="button" class="tpl-btn" data-tpl="${esc(tp.id)}" aria-pressed="${ST.tpl === tp.id}" style="--c:${COLORS[tp.color]}"><span class="tpl-name">${esc(tp.name)}</span><span class="tpl-time mono">${tp.start}–${tp.end}</span><span class="tpl-end">bis ${hm(endAfter(now, tp.end, tplLen(tp)))} · ${dur(tplNet(tp) * MIN)} h netto</span></button>`).join('')
+      + `<button type="button" class="tpl-btn free" data-tpl="" aria-pressed="${ST.tpl === ''}"><span class="tpl-name">Ohne Vorlage</span><span class="tpl-time mono">${dur(state.settings.targetMin * MIN)} h + 30 Min</span><span class="tpl-end">Ende danach anpassen</span></button>`;
+  }
+  const sel = new Set(ST.crew.map(c => norm(c.name)));
+  const pool = crewPool();
+  $('#stCrew').innerHTML = pool.length ? pool.map(c => `<button type="button" class="chip st-crew-chip" data-name="${esc(c.name)}" data-pid="${esc(c.id || '')}" aria-pressed="${sel.has(norm(c.name))}">${crewChip(c)}${esc(c.name)}</button>`).join('') : '<p class="hint st-hint">Noch niemand im Team – unten den Namen eintragen. Neue Personen landen im Team.</p>';
+  const last = [...state.shifts].filter(s => s.id !== (ST.edit || '') && (s.crew.length || s.unit)).sort((a, b) => b.start - a.start)[0];
+  const lastTxt = last ? [last.crew.map(c => c.name).join(' · '), last.unit].filter(Boolean).join(' · ') : '';
+  $('#stLast').hidden = !last || !lastTxt || (ST.crew.length > 0);
+  $('#stLast').textContent = last ? `↺ Wie zuletzt: ${lastTxt}` : '';
+  const u = $('#stUnit').value.trim();
+  $('#stUnitChips').innerHTML = recentUnits().map(x => `<button type="button" class="chip sm" data-unit="${esc(x)}" aria-pressed="${unitKey(x) === unitKey(u)}">${esc(x)}</button>`).join('');
+  const tplId = ST.edit || ST.planned ? (base && base.tpl) || ST.tpl : ST.tpl;
+  const rts = routinesFor({ tpl: tplId, unit: u });
+  const open = state.items.filter(i => !i.done), imp = open.filter(i => i.imp).length;
+  $('#stPreview').innerHTML = ST.edit ? (rts.length ? `<span class="f-label">Routinen in dieser Schicht</span><div class="st-rts">${rts.map(r => `<span class="pill" style="--rc:${COLORS[r.color]}"><i class="op-rt-dot"></i>${esc(r.name)}</span>`).join('')}</div>` : '')
+    : `<span class="f-label">Das erwartet dich</span><div class="st-rts">${rts.map(r => `<span class="pill" style="--rc:${COLORS[r.color]}"><i class="op-rt-dot"></i>${esc(r.name)}</span>`).join('')}<span class="pill pill-quiet">${open.length} ${open.length === 1 ? 'offenes To-do' : 'offene To-dos'}${imp ? ` · ${imp} wichtig` : ''}</span></div>`;
+  const ready = ST.edit || ST.planned || ST.tpl !== null;
+  // erledigte Abschnitte markieren (Nummer wird gelb)
+  $('#stTplBox').classList.toggle('is-done', !!(ST.planned || ST.tpl !== null));
+  $('#stCrew').closest('.sec').classList.toggle('is-done', ST.crew.length > 0);
+  $('#stUnit').closest('.sec').classList.toggle('is-done', !!u);
+  $('#stGo').disabled = !ready;
+  $('#stGo').textContent = ST.edit ? 'Speichern' : 'Dienst beginnen';
+}
+$('#startTpls').addEventListener('click', e => {
+  const b = e.target.closest('[data-tpl]'); if (!b) return;
+  if (b.dataset.tpl === '__other') { ST.planned = null; ST.tpl = null; }
+  else if (b.dataset.tpl !== '__planned') ST.tpl = b.dataset.tpl;
+  renderStartSheet();
+});
+$('#stCrew').addEventListener('click', e => {
+  const b = e.target.closest('[data-name]'); if (!b) return;
+  const name = b.dataset.name, i = ST.crew.findIndex(c => norm(c.name) === norm(name));
+  if (i >= 0) ST.crew.splice(i, 1); else if (ST.crew.length < 6) ST.crew.push({ id: b.dataset.pid || null, name });
+  renderStartSheet();
+});
+function addCrewName() {
+  const inp = $('#stNewName'), name = inp.value.trim().replace(/\s+/g, ' ').slice(0, 80);
+  if (!name) { inp.focus(); return; }
+  const p = state.people.find(x => norm(x.name) === norm(name));
+  if (!ST.crew.some(c => norm(c.name) === norm(name)) && ST.crew.length < 6) ST.crew.push({ id: p ? p.id : null, name: p ? p.name : name });
+  inp.value = '';
+  renderStartSheet();
+  if (!mobileMQ.matches) inp.focus();
+}
+$('#stAddName').addEventListener('click', addCrewName);
+$('#stNewName').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addCrewName(); } });
+$('#stLast').addEventListener('click', () => {
+  const last = [...state.shifts].filter(s => s.id !== (ST.edit || '') && (s.crew.length || s.unit)).sort((a, b) => b.start - a.start)[0]; if (!last) return;
+  ST.crew = last.crew.map(c => ({ id: c.id, name: c.name })); if (last.unit) $('#stUnit').value = last.unit;
+  renderStartSheet();
+});
+$('#stUnit').addEventListener('input', () => renderStartSheet());
+$('#stUnitChips').addEventListener('click', e => { const b = e.target.closest('[data-unit]'); if (!b) return; $('#stUnit').value = unitKey($('#stUnit').value) === unitKey(b.dataset.unit) ? '' : b.dataset.unit; renderStartSheet(); });
+$('#stForm').addEventListener('submit', e => { e.preventDefault(); confirmStart(); });
+/* Besetzung → Team: Bekannte verknüpfen, neue Namen als Person anlegen */
+function resolveCrew(list, now = Date.now()) {
+  return (list || []).map(c => {
+    const p = (c.id && state.people.find(x => x.id === c.id)) || state.people.find(x => norm(x.name) === norm(c.name));
+    if (p) return { id: p.id, name: p.name };
+    const np = normPerson({ id: uid(), name: c.name, roles: [], parent: null, contact: '', u: now });
+    state.people.push(np); return { id: np.id, name: np.name };
+  });
+}
+function confirmStart() {
+  if (!S) return;
+  const now = Date.now(), unit = $('#stUnit').value.trim().replace(/\s+/g, ' ').slice(0, 40);
+  const pending = $('#stNewName').value.trim(); if (pending) addCrewName();
+  if (!ST.edit && !ST.planned && ST.tpl === null) return;
+  const snap = snapshot();
+  const crew = resolveCrew(ST.crew, now);
+  if (ST.edit) {
+    const sh = state.shifts.find(s => s.id === ST.edit);
+    if (sh) { sh.crew = crew; sh.unit = unit; sh.u = now; }
+    closeDlg($('#startDlg')); commit(); toast('Besetzung gespeichert', { undo: snap });
+    return;
+  }
+  let sh;
+  if (ST.planned) {
+    sh = state.shifts.find(s => s.id === ST.planned);
+    if (!sh || liveShift()) { closeDlg($('#startDlg')); return; }
+    sh.live = true; sh.start = now; sh.date = dayKey(now); sh.end = null; sh.crew = crew; sh.unit = unit; sh.u = now;
+    if (!sh.tpl) sh.tpl = (state.tpls.find(t => t.name === sh.name) || {}).id || null;
+    if (sh.plannedEnd <= now) sh.plannedEnd = now + state.settings.targetMin * MIN;
+    commit();
+    toast(`Eingedongelt · ${sh.name} bis ${hm(sh.plannedEnd)}`, { undo: snap });
+    if (navigator.vibrate) navigator.vibrate(12);
+  } else sh = startShift(ST.tpl ? state.tpls.find(t => t.id === ST.tpl) || null : null, { crew, unit, snap });
+  closeDlg($('#startDlg'));
+  if (sh) setTimeout(() => shiftBriefing(sh.id), reduceMotion.matches ? 0 : mobileMQ.matches ? 340 : 220);
+}
+
+/* ---------- Schichtbriefing: alle offenen To-dos fliegen ein – wichtige oben, dann die ältesten ---------- */
+const ageWords = ms => { const d = Math.floor(ms / DAY); if (d >= 2) return `seit ${d} Tagen`; if (d === 1) return 'seit gestern'; const h = Math.floor(ms / HOUR); return h >= 1 ? `seit ${h} Std` : 'neu'; };
+function briefRow(it, now) {
+  const k = KINDS[it.kind], o = it.op ? opById(it.op) : null;
+  const tile = it.from ? `<span class="tile t-${it.kind}" aria-hidden="true">${esc(initials(it.from))}</span>` : `<span class="tile t-${it.kind}" aria-hidden="true">${ico(k.icon)}</span>`;
+  const sub = [k.label + (it.from ? ' · ' + esc(it.from) : ''), ageWords(now - it.createdAt), o ? `aus Einsatz E${o.n}` : ''].filter(Boolean).join(' · ');
+  return `<li class="br-row${it.imp ? ' imp' : ''}" data-id="${esc(it.id)}">${tile}<span class="br-main"><span class="br-t">${it.imp ? '<span class="imp-star" aria-label="wichtig">★</span>' : ''}${esc(it.title)}</span><span class="br-s">${sub}</span></span>${urgencyPill(it, now)}</li>`;
+}
+function shiftBriefing(sid) {
+  const sh = state.shifts.find(s => s.id === sid); if (!sh || !S) return;
+  const now = Date.now();
+  const open = state.items.filter(i => !i.done);
+  const byAge = (a, b) => a.createdAt - b.createdAt || cmp(a.id, b.id);
+  const imp = open.filter(i => i.imp).sort(byAge), rest = open.filter(i => !i.imp).sort(byAge);
+  const MAX = 9, restShown = rest.slice(0, Math.max(3, MAX - imp.length));
+  const rts = routinesFor(sh);
+  const apts = state.appts.filter(a => a.allDay ? (a.start < addDays(fromKey(dayKey(sh.start)), 1) && apptEnd(a) > fromKey(dayKey(sh.start))) : (a.start < sh.plannedEnd && apptEnd(a) > sh.start)).sort((a, b) => (b.allDay - a.allDay) || a.start - b.start);
+  const loose = state.ops.filter(o => o.sid !== sid && o.end != null && now - o.start < 30 * DAY && opState(o).k === 'missing').sort((a, b) => a.start - b.start);
+  $('#brKick').textContent = `Schicht beginnt · ${hm(sh.start)}`;
+  $('#brH').textContent = sh.name;
+  $('#brMeta').innerHTML = [sh.crew.length ? crewLine(sh.crew) : '', sh.unit ? `<span class="pill pill-outline mono">${esc(sh.unit)}</span>` : '', `<span class="mono dim">bis ${hm(sh.plannedEnd)}</span>`].filter(Boolean).join('');
+  const sec = (t, rows) => rows.length ? `<span class="br-sec">${t}</span><ul class="br-list">${rows.map(i => briefRow(i, now)).join('')}</ul>` : '';
+  $('#brBody').innerHTML = (open.length ? sec(`Wichtig · ${imp.length}`, imp) + sec(imp.length ? `Offen, älteste zuerst · ${rest.length}` : `Offene To-dos, älteste zuerst · ${rest.length}`, restShown) + (rest.length > restShown.length ? `<p class="br-more">und ${rest.length - restShown.length} weitere im Planner</p>` : '') : '<div class="br-empty"><b>Keine offenen To-dos.</b><span>Freie Fahrt in die Schicht.</span></div>')
+    + (apts.length ? `<span class="br-sec">Termine in dieser Schicht · ${apts.length}</span><ul class="br-list">${apts.slice(0, 5).map(a => `<li class="br-row br-ap" data-appt="${esc(a.id)}"><span class="op-n mono">${a.allDay ? 'Tag' : hm(a.start)}</span><span class="br-main"><span class="br-t">${esc(a.title)}</span><span class="br-s">${a.allDay ? 'ganztägig' : `${hm(a.start)}–${hm(apptEnd(a))}`}${a.location ? ' · ' + esc(a.location) : ''}</span></span></li>`).join('')}</ul>` : '')
+    + (loose.length ? `<span class="br-sec">Einsätze ohne Abschluss · ${loose.length}</span><ul class="br-list">${loose.slice(0, 5).map(o => `<li class="br-row br-op" data-op="${esc(o.id)}"><span class="op-n mono">E${o.n}</span><span class="br-main"><span class="br-t">${esc(o.title || 'Einsatz ohne Stichwort')}</span><span class="br-s">${esc(dateShort(o.start))} · ${hm(o.start)}${o.place ? ' · ' + esc(o.place) : ''}</span></span><span class="pill pill-quiet">Abschluss fehlt</span></li>`).join('')}</ul>` : '')
+    + (rts.length ? `<span class="br-sec">Routinen in dieser Schicht</span><div class="st-rts br-rts">${rts.map(r => `<span class="pill" style="--rc:${COLORS[r.color]}"><i class="op-rt-dot"></i>${esc(r.name)}</span>`).join('')}</div>` : '');
+  const d = $('#briefDlg');
+  openDlg(d);
+  const rows = $$('.br-sec, .br-row, .br-more, .br-empty, .br-rts', d);
+  const red = reduceMotion.matches;
+  rows.forEach((el, i) => el.animate(red ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: 'translateY(22px) scale(.97)' }, { opacity: 1, transform: 'none' }],
+    { duration: red ? 180 : 460, delay: red ? 0 : 140 + i * 55, easing: 'cubic-bezier(.23,1,.32,1)', fill: 'backwards' }));
+  setTimeout(() => $('#brGo').focus(), 60);
+}
+$('#briefDlg').addEventListener('close', () => {
+  if (!S) return;
+  setArea('heute', { keepScroll: true });
+  if (mobileMQ.matches) setTab('aufgaben');
+  const card = $('#opCard');
+  if (card && !card.hidden) card.scrollIntoView({ behavior: reduceMotion.matches ? 'auto' : 'smooth', block: 'start' });
+  if (reduceMotion.matches) return;
+  $$('#list .item').slice(0, 12).forEach((el, i) => el.animate([{ opacity: 0, transform: 'translateY(10px)' }, { opacity: 1, transform: 'none' }], { duration: 320, delay: 80 + i * 35, easing: 'cubic-bezier(.23,1,.32,1)', fill: 'backwards' }));
+});
+$('#brBody').addEventListener('click', e => {
+  const o = e.target.closest('[data-op]');
+  if (o) { closeDlg($('#briefDlg')); setTimeout(() => openOp(o.dataset.op), 260); return; }
+  const ap = e.target.closest('[data-appt]');
+  if (ap) { const x = state.appts.find(a => a.id === ap.dataset.appt); closeDlg($('#briefDlg')); if (x) setTimeout(() => openApptDialog(x), 260); return; }
+  const r = e.target.closest('[data-id]'); if (!r) return; const it = find(r.dataset.id); closeDlg($('#briefDlg')); if (it) setTimeout(() => openComposer(it), 260);
 });
 
 /* ======================= WaffG-Prüfstand ======================= */
@@ -3981,6 +4492,7 @@ document.addEventListener('keydown', e => {
   else if (/^[1-6]$/.test(e.key)) { e.preventDefault(); setArea(AREAS[Number(e.key) - 1]); }
   else if (e.key === '/') { e.preventDefault(); if (mobileMQ.matches) searchBox.classList.add('expanded'); searchInput.focus(); }
   else if (k === 'd' && !e.repeat) { e.preventDefault(); dongleAction(); }
+  else if (k === 'e' && !e.repeat) { e.preventDefault(); if (liveShift()) addOp(); else toast('Einsätze gehören zu einer laufenden Schicht – erst eindongeln (D).'); }
   else if (k === 'l') { e.preventDefault(); lock('manual'); }
   else if (k === 's') { e.preventDefault(); setArea(document.body.dataset.area === 'schreiben' ? 'heute' : 'schreiben'); }
 });
@@ -4028,11 +4540,22 @@ window.WBridge = Object.freeze({
   find: id => (S ? state.docs.find(d => d.id === id) || null : null),
   add(doc) { if (!S) return null; const d = normDoc({ ...doc, id: doc.id || uid() }); if (!d) return null; delete state.del[d.id]; state.docs.push(d); save(); return d; },
   /** Änderungen am Vorgang: Zeitstempel setzen, verschlüsselt speichern, Sync anstoßen. renderAll nur bei Bedarf. */
-  touch(doc, full = false) { if (!S || !doc) return; doc.u = Date.now(); if (full) commit(); else save(); },
+  touch(doc, full = false) {
+    if (!S || !doc) return;
+    doc.u = Date.now();
+    if (doc.status === 'fertig') {
+      const now = Date.now(), open = state.items.filter(i => i.doc === doc.id && !i.done);
+      for (const it of open) { it.done = true; it.doneAt = now; it.status = 'offen'; it.updatedAt = now; }
+      if (open.length) { commit(); toast(`Erledigt: ${open[0].title}`); return; }
+    }
+    if (full) commit(); else save();
+  },
   remove(id) { if (!S) return null; const d = state.docs.find(x => x.id === id); if (!d) return null; const snap = snapshot(); state.docs = state.docs.filter(x => x.id !== id); state.del[id] = tombTs(d); commit(); return snap; },
   snapshot: () => (S ? snapshot() : null),
   restore: snap => { if (S && snap) restore(snap); },
   name: () => (S ? state.settings.name : ''),
+  /** Vorbelegung neuer Vorgänge aus der laufenden Schicht (Rufname, Besatzung). */
+  preset: () => { if (!S) return null; const sh = liveShift(); return sh ? { einsatz: shiftCrewPreset(sh) } : null; },
   /** Offenen Punkt als Todo in den Planner übernehmen (z. B. „Lichtbildmappe fertigen“). */
   addTodo(title, notes = '') { if (!S || !String(title || '').trim()) return null; const it = normItem({ id: uid(), title: String(title).trim(), notes: String(notes || ''), kind: 'todo', mode: 'einmalig' }); state.items.push(it); commit(); return it; },
   toast, ask, openDlg, closeDlg, download, esc, uid, hm, pad, mobile: () => mobileMQ.matches,

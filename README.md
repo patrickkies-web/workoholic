@@ -1,6 +1,6 @@
 # Workoholic
 
-Arbeitsseite für Anfragen von Kollegen, eigene Todos und Aufgaben, mit Stempeluhr zum **Eindongeln / Ausdongeln**, Terminen, Routinen, Team, Ablage, WaffG-Prüfstand – und dem Bereich **Schreiben** zum Aufnehmen von Vorgängen per Antippen (derzeit: Verkehrsunfallflucht ohne Personenschaden und Häusliche Gewalt).
+Arbeitsseite für Anfragen von Kollegen, eigene Todos und Aufgaben, mit Stempeluhr zum **Eindongeln / Ausdongeln**, Terminen, Routinen, Team, Ablage, WaffG-Prüfstand – und dem Bereich **Schreiben** zum Aufnehmen von Vorgängen per Antippen (derzeit: Verkehrsunfallflucht ohne Personenschaden, Vermisste Person und Häusliche Gewalt).
 Alle Daten sind **Ende-zu-Ende verschlüsselt**. Synchronisiert wird über ein eigenes privates GitHub-Repo, das nur Chiffretext enthält.
 
 ---
@@ -69,7 +69,8 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
   - *Schnellstmöglich*
   - *Wiederkehrend* (täglich, werktags, wöchentlich, monatlich)
 - Status: offen, in Arbeit, wartet auf Rückmeldung.
-- Schnellerfassung: `@Sabine Zahlen schicken !` legt eine dringende Anfrage von Sabine an. `#aufgabe` / `#todo` / `#buchung` wählt die Art, `⇧ Enter` öffnet die Details.
+- **Wichtig:** Haken im Eintrag oder `*` in der Schnellerfassung. Wichtige Einträge stehen im Planner ganz oben (Gruppe „Wichtig“, älteste zuerst) und tragen einen ★.
+- Schnellerfassung: `@Sabine Zahlen schicken !` legt eine dringende Anfrage von Sabine an. `#aufgabe` / `#todo` / `#buchung` wählt die Art, `*` markiert als wichtig, `⇧ Enter` öffnet die Details.
 
 **Überblick**
 - Planner nach Dringlichkeit gruppiert.
@@ -77,15 +78,25 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 - Filter, Suche, Kollegen-Avatare und Kalender mit Fristen.
 
 **Dienste & Überstunden**
-- **Eindongeln** (Tippen, Ziehen oder Taste `D`) beginnt einen Dienst: Vorlage aus dem Katalog antippen, Beginn ist jetzt, das geplante Ende kommt aus der Vorlage. Ein vorab eingetragener Dienst startet direkt.
+- **Eindongeln** (Tippen, Ziehen oder Taste `D`) öffnet *Dienst beginnen* mit den Abschnitten Schicht, Besatzung und Einsatzmittel: Schicht aus dem Katalog wählen (ein vorab eingetragener Dienst ist schon vorgewählt), dazu, **mit wem** du unterwegs bist – Kolleginnen und Kollegen aus dem Team antippen oder neu eintragen (landen automatisch im Team), „Wie zuletzt“ übernimmt die letzte Besatzung – und optional das **Einsatzmittel** (Funkrufname). Die Vorschau zeigt die Routinen dieser Schicht und die Zahl offener To-dos. Beginn ist jetzt, das geplante Ende kommt aus der Vorlage; *Andere Zeiten …* erlaubt freie Zeiten und behält die Besatzung.
+- **Schichtbriefing:** Nach dem Bestätigen fliegen alle offenen To-dos ein – wichtige ganz oben, dann die ältesten zuerst –, dazu die Termine in der Schichtzeit, Einsätze früherer Schichten ohne Abschluss und die Routinen der Schicht. Antippen öffnet den Eintrag.
 - Beginn und geplantes Ende lassen sich jederzeit über den Stift ändern, auch während des Dienstes.
 - **Länger gemacht:** zwischendurch oder danach per `+15 Min` / `−15` eintragen. Wer nach dem geplanten Ende **ausdongelt**, wird gefragt, ob die Mehrzeit als Überstunden zählt (auf 15 Minuten gerundet).
 - Ausdongeln vergessen? Die App fragt, ob das geplante Ende oder „jetzt“ gilt.
+- Beim Ausdongeln nennt die App, was in der Schicht noch offen ist: laufende Einsätze (werden mit dem Dienstende beendet), Einsätze ohne Abschluss und nicht abgeschlossene Routinen.
 - **Überstunden-Konto:** Woche, Monat, Jahr und Gesamt, dazu die letzten Dienste mit Überstunden.
 - **Dienste eintragen** für jeden Tag, auch im Voraus (Nachtdienste enden automatisch am Folgetag). Überschneidungen werden abgefangen; Pausen werden nach Arbeitszeitgesetz geprüft.
 - **Dienste-Katalog:** Schichtbezeichnung, Beginn, Ende, Pause und Farbe frei änderbar. Vorlagen lassen sich anlegen und löschen, und der Katalog wird zwischen deinen Geräten synchronisiert.
 - Wochenchart mit Diensten, Überstunden (gestapelt) und geplanten Diensten; im Kalender sind geplante Dienste markiert.
 - CSV-Export aller Dienste mit Pause, Arbeitszeit und Überstunden.
+
+**Schicht & Einsätze (Bereich *Heute*)**
+- Die **Schichtkarte** oben zeigt die laufende Schicht mit Besatzung und Einsatzmittel, ihre Einsätze und Routinen. Ein Tag in der Woche antippen zeigt die Schicht dieses Tages.
+- **+ Einsatz** (oder Taste `E`) legt den nächsten Einsatz an (E1, E2 …, Beginn jetzt). Das Blatt hat drei nummerierte Abschnitte, deren Nummer gelb wird, sobald sie erledigt sind: **1 Lage** (Stichwort, Ort), **2 Verlauf** (Beginn/Ende, auch über Mitternacht, Notizen), **3 Abschluss**.
+- **Vorschläge** erscheinen nur, solange das Stichwort leer ist: die sechs meistgenutzten, der Rest hinter *Mehr*; beim Tippen werden sie gefiltert. Bei Maßnahmen stehen vier Vorschläge da, bereits angelegte verschwinden.
+- **Abschluss:** erst das Ergebnis als Freitext („Lage beruhigt, Platzverweis“), dann die Folgearbeiten: *Keine Maßnahmen* (und keine schriftlichen Arbeiten) oder *Maßnahmen*. Nur bei *Maßnahmen* erscheinen **To-dos** – sie hängen am Einsatz, erscheinen gleichzeitig im Planner (mit Einsatz-Pille) und lassen sich als wichtig markieren. Erledigt man sie im Planner, gilt der Einsatz als abgeschlossen.
+- **Schriftliche Arbeit** direkt aus dem Einsatz starten (Verkehrsunfallflucht, Vermisste Person): Datum, Uhrzeit, Rufname und Besatzung sind vorbelegt; ein verknüpftes To-do erledigt sich, sobald der Vorgang als fertig markiert ist.
+- **Routinen je Schicht:** Im Routinen-Editor an Schicht-Vorlagen und/oder Einsatzmittel binden („Fahrzeugcheck“ nur für `Stf 21/03`, „Schichtübergabe“ nur für Früh- und Spätdienst). Gebundene Routinen erscheinen in Vorschau, Briefing und Schichtkarte mit Fortschritt je Schicht.
 
 **Stunden für Kollegen buchen**
 - Eintragsart *Stunden buchen*: Kollegin/Kollege, Datum des Dienstes, Dienst (aus dem Katalog) und Stunden in 15-Minuten-Schritten.
@@ -126,18 +137,24 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 - **Keine Rechtsberatung.** Nicht abgebildet sind u. a. Altbesitz (§ 58), Melde- und Anzeigepflichten im Detail, Sportschützen- und Sammlerregeln sowie der Inhalt einzelner Landesverordnungen und Allgemeinverfügungen.
 
 **Schreiben (Schriftliche Arbeiten)**
-- **Vorgang anlegen** → Modul wählen: **Verkehrsunfallflucht ohne Personenschaden** oder **Häusliche Gewalt**. Für die Verkehrsunfallflucht gilt: Der Assistent beginnt mit „Worum geht es?“ (Weichen-Fragen) und führt dann in neun Phasen durch die Aufnahme: Einsatz → Geschädigte → Unfallort → Schaden → Spuren → Zeugen → Verursacher → Maßnahmen → Bewertung. Es erscheinen nur Fragen, die zum Fall passen – auch für Sonderfälle wie „geschädigte Person nicht erreicht“, weitere Geschädigte, Selbstmeldung, Alkohol, Führerscheinmaßnahmen oder Wohnsitz im Ausland.
+- **Vorgang anlegen** → Modul wählen: **Verkehrsunfallflucht ohne Personenschaden**, **Vermisste Person** oder **Häusliche Gewalt** (beide siehe unten). Für die Verkehrsunfallflucht gilt: Der Assistent beginnt mit „Worum geht es?“ (Weichen-Fragen) und führt dann in neun Phasen durch die Aufnahme: Einsatz → Geschädigte → Unfallort → Schaden → Spuren → Zeugen → Verursacher → Maßnahmen → Bewertung. Es erscheinen nur Fragen, die zum Fall passen – auch für Sonderfälle wie „geschädigte Person nicht erreicht“, weitere Geschädigte, Selbstmeldung, Alkohol, Führerscheinmaßnahmen oder Wohnsitz im Ausland.
 - **Satzbausteine:** Jedes Textfeld zeigt den festen Satzanfang aus dem Bericht und ein graues Beispiel, wie es grammatisch weitergeht („Die Unfallstelle befindet sich *in der zweiten Parkreihe …*“). Satzanfänge und Beispiele passen sich an Geschlecht und Rolle an; bei Ich-Form oder fehlender indirekter Rede gibt es einen Hinweis.
-- Nach jeder Antwort springt die Ansicht zur nächsten offenen Frage; Kräfte, Rufname und Ort lassen sich aus dem letzten Vorgang übernehmen. Die Phasenleiste oben ist antippbar, Listen (Zeugen, weitere Schäden) zeigen die erste Karte sofort, und fehlende Pflichtangaben werden bei „Weiter“ nur kurz genannt, nie blockiert.
-- Fragen per Ja/Nein, Chips, Zahlen mit ±, Schnellwerten („Jetzt“, „Heute“, 50 km/h, 1.500 €); Karosserie-Picker für das Schadensbild; Personen- und Zeugenblöcke.
+- Nach jeder Antwort springt die Ansicht zur nächsten offenen Frage; Rufname und Besatzung kommen aus der laufenden Schicht (sonst „Wie zuletzt“), der Ort aus dem letzten Vorgang. Wer bei „Hinweise auf den Verursacher“ gleich am Anfang *Nein* sagt, bekommt die Frage später nicht noch einmal (außer Zeugen oder Zeugensuche bringen neue Hinweise). Die Phasenleiste oben ist antippbar, Listen (Zeugen, weitere Schäden) zeigen die erste Karte sofort, und fehlende Pflichtangaben werden bei „Weiter“ nur kurz genannt, nie blockiert.
+- Fragen per Ja/Nein, Chips, Zahlen mit ±, Schnellwerten („Jetzt“, „Heute“, 50 km/h, 1.500 €); **Fahrzeugskizze** für das Schadensbild (Draufsicht, Front oben: beschädigte Stelle antippen, erneut tippen hebt auf; Säulen, Seitenscheiben, Schweller, Radläufe, Reifen u. a. unter *Weitere Teile*), Anstoßhöhe mit Schnellwerten; **Schnellwahl** füllt mit einem Tipp typische Angaben – Straße (Wohnstraße innerorts, Tempo-30-Zone, Hauptstraße, Landstraße), Verhältnisse mit Lichtvorschlag nach Uhrzeit (Sonnenauf- und -untergang, Dämmerung), Unfallzeit „bemerkt kurz vor der Meldung“ und den üblichen Abschluss (Unfallmitteilung, Lichtbilder, Anzeige) – Abweichungen danach einfach ändern; Personen- und Zeugenblöcke.
 - Unter jedem Schritt die Live-Vorschau „So steht es im Bericht“; jede Antwort wird sofort verschlüsselt gespeichert – unterbrechen und später weitermachen ist jederzeit möglich (auch nach Auto-Sperre).
 - Ergebnis: **Verkehrsunfallbefundbericht** exakt nach Anlage 6 des Erlasses (1.1 Einsatzübernahme … 6.3 Einsatzende, mit Fahrzeug UB 01/UB 02/UB 03 ff. in 2.3 und UB 01 vor UB 02 in 3.1) mit passender Satzführung (Rolle, Geschlecht, Ein-/Mehrzahl, Zeitpunkt/Zeitraum, indirekte Rede), dazu **Kurzsachverhalt**, **Fahndungstext**, **Offene Punkte** (als Todos in den Planner übernehmbar) und ein gesonderter **Personalienblock**.
 - Kopieren in die Zwischenablage oder als `.txt` speichern (mit Warnung – Klartext). Platzhalter in `[eckigen Klammern]` zeigen, was noch fehlt.
 - Konzept, Rechtsgrundlagen und Fragenkatalog: [`docs/VUF-MASTERPLAN.md`](docs/VUF-MASTERPLAN.md).
-- **Häusliche Gewalt (NRW):** acht Phasen Lage → Einsatz → Vor Ort → Personen → Schilderungen → Prognose → Maßnahmen → Abschluss. Abgefragt werden Zutritt, Zustand der Beteiligten und der Wohnung, Verletzungen mit Frage nach dem Rettungswagen, Alkohol und Auffälligkeiten, Kinder im Haushalt, Belehrungen mit Uhrzeit, Schilderungen (jetzt eintragen oder später nachtragen), Anhörung, Gefahrenprognose als Ankreuzliste, Wohnungsverweisung mit Rückkehrverbot (Bereich, weitere Örtlichkeiten, Fristrechner), Schlüssel, Zwangsgeld, Aushändigung oder Zustellung der schriftlichen Bestätigung, Mitteilung an der Wohnungstür bei Abwesenheit, Strafverfahren und Opferschutz.
-- Ergebnis dort: **Sachverhalt**, **Begründung § 34a** (Anordnung, Sachverhalt, Anhörung, Prognose, Ermessen, Zwangsmittel), **Kurzfassung**, **Noch zu erledigen** (fehlende Pflichten mit Norm, als Todos übernehmbar) und **Personalien**. „Kopieren“ kopiert den geöffneten Reiter. Keine Rechtsberatung; Vordrucke, Rechtsbehelfsbelehrung und Erlasslage der Behörde gehen vor. Konzept und Grenzen: [`docs/HG-MASTERPLAN.md`](docs/HG-MASTERPLAN.md).
+- **Vermisste Person** – aufgebaut nach Dringlichkeit, geprüft aus Sicht von Dienstgruppenleitung, Kripo (Vermisstensachen), Leitstelle sowie Effizienz und Qualitätssicherung:
+  - **Phase Sofort (4 Schritte):** Person mit Alter (Geburtsdatum oder Schätzung) und Gefahr für Leib oder Leben (Begründung der Einstufung; Hinweise für Minderjährige und Volljährige) · letzte Sichtung mit Schnellwahl „vor 1/2/3 Std“, **Ort** (Pflicht), wer zuletzt gesehen hat, Richtung, Fortbewegung, Begleitung, Handy (Status, Ortungsmöglichkeiten) und Lichtbild · Beschreibung (Größe nach Alter, Haare, Bekleidung von oben nach unten mit Chips, witterungsgerecht?, Merkmale, Hilfsmittel) · **Bei Antreffen** (Rufname, Sprache, Verhalten, Hinweis für die Streife, Waffenzugang, Vorgehen). Danach steht der **Fahndungstext live** zum Kopieren und Durchgeben.
+  - **Fahndungstext:** Gefahr zuerst („VERMISSTENFAHNDUNG – EILT: …“), Fahrzeug, Signalement, Bekleidung, Besonderheiten, „Zuletzt: heute 16:45, Ort, Richtung …; seit ca. 3 Std.“, mögliche Ziele und Gefahrenorte, „Bei Antreffen: …“. Keine Diagnosen, Medikamentennamen oder Telefonnummern.
+  - **Phase Lage:** Gesundheit & Gefährdung (Krankheiten, Medikamente mit letzter Einnahme, Suizidalität mit angekündigtem Ort, Betreuung/Unterbringung) · Sorge & Verantwortung bei Minderjährigen (Sorgerecht, Einrichtung, Mitnahme durch Dritte) · Absuche & Erstmaßnahmen · Ziele, Gefahrenorte, letzter Kontakt, Anlaufadressen, Mitgeführtes/Zurückgelassenes, Hintergrund · Fahrzeuge · Lichtbild (Teamwire) & Vorgeschichte.
+  - **Phase Aufnahme:** Anzeigenerstatter, Meldeweg, Wohnanschrift, Rufname und Kräfte (aus der laufenden Schicht).
+  - **Ergebnis:** Übersicht im Format des VUF-Assistenten (ohne Telefonnummern, mit „Stand“), Kurzsachverhalt in indirekter Rede mit begründeter Gefahrenannahme und Maßnahmen, offene Punkte (Gefahr → fehlende Erstmaßnahmen → Lücken → Plausibilität → Übergabe an die Sachbearbeitung, neutral formuliert), Personalien gesondert. Ausgewertet werden nur sichtbare Antworten – wer eine Frage wieder auf „Nein“ stellt, hinterlässt keine Gefahrenhinweise aus versteckten Folgefragen.
+- **Häusliche Gewalt (NRW):** acht Phasen Lage → Einsatz → Vor Ort → Personen → Schilderungen → Prognose → Maßnahmen → Abschluss. Abgefragt werden Zutritt, Zustand der Beteiligten und der Wohnung, Verletzungen mit Frage nach dem Rettungswagen, Alkohol und Auffälligkeiten, Kinder im Haushalt, Belehrungen mit Uhrzeit, Schilderungen (jetzt eintragen oder später nachtragen), Anhörung, Gefahrenprognose als Ankreuzliste, Wohnungsverweisung mit Rückkehrverbot (Bereich, weitere Örtlichkeiten, Fristrechner), Schlüssel, Zwangsgeld, Aushändigung oder Zustellung der schriftlichen Bestätigung, Mitteilung an der Wohnungstür bei Abwesenheit, Strafverfahren und Opferschutz. Rufname und Besatzung kommen wie bei den anderen Modulen aus der laufenden Schicht; der Vorgang lässt sich auch direkt aus einem Einsatz anlegen.
+  - **Ergebnis:** **Sachverhalt**, **Begründung § 34a** (Anordnung, Sachverhalt, Anhörung, Prognose, Ermessen, Zwangsmittel), **Kurzfassung**, **Noch zu erledigen** (fehlende Pflichten mit Norm, als Todos übernehmbar) und **Personalien**. „Kopieren“ kopiert den geöffneten Reiter. Keine Rechtsberatung; Vordrucke, Rechtsbehelfsbelehrung und Erlasslage der Behörde gehen vor. Konzept und Grenzen: [`docs/HG-MASTERPLAN.md`](docs/HG-MASTERPLAN.md).
 
-**Tastatur:** `N` neu (je nach Bereich) · `/` suchen · `1`–`6` Bereiche · `S` schreiben · `D` dongeln · `L` sperren · `Strg/⌘ + Enter` speichern bzw. weiter
+**Tastatur:** `N` neu (je nach Bereich) · `/` suchen · `1`–`6` Bereiche · `S` schreiben · `D` dongeln · `E` Einsatz · `L` sperren · `Strg/⌘ + Enter` speichern bzw. weiter
 
 **Backups:** *⋯ → Verschlüsseltes Backup* speichert eine `.vault`-Datei. Einspielen geht per Zusammenführen oder Ersetzen.
 
@@ -155,9 +172,10 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 | --- | --- |
 | `index.html` | Oberfläche, Styles, Content-Security-Policy |
 | `js/vault.js` | Verschlüsselung, Schlüsselverwaltung, GitHub-Speicher |
-| `js/app.js` | App-Logik (Planner, Dienste, Termine, Routinen, Team, Ablage, WaffG-Prüfstand), Sync und Zusammenführen, Sperre |
+| `js/app.js` | App-Logik (Planner, Dienste, Schicht & Einsätze, Termine, Routinen, Team, Ablage, WaffG-Prüfstand), Sync und Zusammenführen, Sperre |
 | `js/writer.js` | Bereich „Schreiben“: Vorgangsliste, Aufnahme-Assistent, Berichtsansicht |
 | `js/vuf.js` | Modul Verkehrsunfallflucht: Fragenkatalog und Textgenerator |
+| `js/vermisst.js` | Modul Vermisste Person: Fragenkatalog, Übersicht, Kurzsachverhalt, Fahndung, offene Punkte |
 | `js/hg.js` | Modul Häusliche Gewalt: Fragenkatalog, Sachverhalt und Begründung § 34a |
 | `docs/VUF-MASTERPLAN.md` | Masterplan: Grundlagen, Ablauf, Fragen, Satzführung, Sicherheit, Ausbau |
 | `docs/HG-MASTERPLAN.md` | Masterplan Häusliche Gewalt: Grundlagen, Ablauf, Bedienung, Ausgaben, Grenzen |

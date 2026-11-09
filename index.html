@@ -949,6 +949,10 @@ body[data-area=schreiben] .pane-schreiben{display:grid}
 .w-top-t .spaced{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .w-title{font-size:18px;font-weight:400;letter-spacing:-.01em;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .w-back{display:none}
+.w-head{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px;margin-top:10px;padding-top:18px;border-top:1px solid var(--line)}
+.w-grid > .w-head:first-child{margin-top:0;padding-top:4px;border-top:0}
+.w-head-t{font-size:15px;font-weight:600;letter-spacing:-.01em;color:var(--text)}
+.w-head-h{font-size:12px;color:var(--text-3)}
 .w-rail{display:flex;gap:6px;margin:4px 0 10px;overflow:hidden}
 .w-rail-p{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px;padding:6px 0;margin:-6px 0;background:none;border:0;color:inherit;font:inherit;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .w-rail-p.on{flex:2.4}
@@ -997,6 +1001,39 @@ body[data-area=schreiben] .pane-schreiben{display:grid}
 .w-grad{padding:0 10px;-webkit-appearance:none;appearance:none;background-image:none}
 .w-kz{text-transform:uppercase;letter-spacing:.06em}
 .w-karo{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+/* Schadensbild: Fahrzeugskizze (Draufsicht) */
+.w-car{display:flex;flex-wrap:wrap;align-items:flex-start;gap:14px 22px;margin-top:4px}
+.w-car-pic{flex:0 0 auto;width:min(290px,100%);margin:0 auto}
+.w-car-side{flex:1 1 220px;min-width:0;display:flex;flex-direction:column;gap:10px}
+.w-car-svg{display:block;width:100%;height:auto;touch-action:manipulation;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+.w-car-body{fill:none;stroke:rgba(255,255,255,.22);stroke-width:1.5;pointer-events:none}
+.w-car-t{font-size:8px;font-weight:600;letter-spacing:.22em;fill:var(--text-3)}
+.w-car-l text{font-size:8.5px;text-anchor:middle;dominant-baseline:middle;fill:rgba(255,255,255,.34);pointer-events:none}
+.w-z{fill:rgba(255,255,255,.05);stroke:rgba(255,255,255,.13);stroke-width:1;cursor:pointer;transition:fill .15s ease,stroke .15s ease}
+@media (hover:hover) and (pointer:fine){.w-z:hover{fill:rgba(255,255,255,.13)}}
+.w-z:focus-visible{outline:none;stroke:var(--text);stroke-width:2}
+.w-z.on{fill:rgba(236,217,111,.42);stroke:var(--accent);stroke-width:1.5}
+.w-car-hint{margin:0;line-height:1.5}
+.w-car-hint b{color:var(--text);font-weight:500}
+.w-more-btn{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:44px;padding:0 14px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid var(--line);font-size:13px;color:var(--text-2);text-align:left}
+.w-more-btn span{font-size:16px;color:var(--text-3)}
+.w-rest{margin-top:8px}
+/* Ausgabe im Schritt (z. B. Fahndungstext) */
+.w-out{padding:14px;border-radius:16px;background:rgba(198,220,122,.05);border:1px solid rgba(198,220,122,.25)}
+.w-out-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}
+.w-out-h .w-lbl{margin:0}
+.w-out-t{margin:6px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;font:inherit;font-size:13.5px;line-height:1.55;color:var(--text)}
+/* Schnellwahl */
+.w-preset{padding:12px;border-radius:16px;background:rgba(236,217,111,.04);border:1px dashed rgba(236,217,111,.22)}
+.w-preset .w-lbl{margin-bottom:8px}
+.w-pre-row{display:flex;flex-wrap:wrap;gap:6px}
+.w-pre{display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-height:44px;padding:7px 12px;border-radius:12px;background:rgba(255,255,255,.05);border:1px solid var(--line);text-align:left;transition:background-color .15s ease,border-color .15s ease,transform .14s var(--ease-out)}
+.w-pre:active{transform:scale(.97)}
+.w-pre b{font-size:13px;font-weight:500;color:var(--text)}
+.w-pre small{font-size:11px;color:var(--text-3)}
+.w-pre.on{background:rgba(236,217,111,.1);border-color:rgba(236,217,111,.45)}
+.w-pre.on b::after{content:" ✓";color:var(--accent)}
+@media (hover:hover) and (pointer:fine){.w-pre:hover{background:rgba(255,255,255,.08)}}
 .w-karo-g{display:flex;flex-direction:column;gap:5px;padding:10px;border-radius:16px;background:rgba(255,255,255,.025);border:1px solid var(--line)}
 .w-karo-l{font-size:10px;font-weight:500;letter-spacing:.22em;text-transform:uppercase;color:var(--text-3);margin:0 0 4px 2px}
 .w-karo-r{display:grid;grid-template-columns:repeat(var(--n,1),1fr);gap:5px}
@@ -1087,6 +1124,9 @@ body[data-area=schreiben] .pane-schreiben{display:grid}
   /* Beim Aufnehmen gehört die untere Leiste dem Assistenten: Dock ausblenden, Weiter/Zurück ganz unten */
   body.w-open[data-area=schreiben] .dock{display:none}
   body.w-open[data-area=schreiben] .toasts{bottom:calc(96px + var(--sab))}
+  #wFields .chip{min-height:42px}
+  #wFields .chip.sm{min-height:36px;padding-left:12px;padding-right:12px}
+  .w-nav [data-w="next"],.w-nav [data-w="finish"]{flex:1 1 auto;min-height:52px}
   .w-nav{margin:18px -16px -18px;padding:12px 16px calc(14px + var(--sab));bottom:0;background:linear-gradient(180deg,rgba(21,21,22,0) 0,#151516 14px)}
   .w-tabs{margin:0 -16px 14px;padding:0 16px 2px}
   .w-crew-row{grid-template-columns:112px minmax(0,1fr) 30px}
@@ -1159,6 +1199,158 @@ body[data-area=schreiben] .pane-schreiben{display:grid}
   dialog.dlg.sheet-dlg .sheet{opacity:0}
   dialog.dlg.sheet-dlg.open .sheet{opacity:1}
 }
+/* Schicht: Einsätze & Routinen */
+.op-card{position:relative;padding:18px 18px 12px;overflow:hidden}
+.op-card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--c);opacity:.9}
+.op-card.is-live{border-color:rgba(236,217,111,.18)}
+.op-head{display:flex;align-items:flex-start;gap:14px}
+.op-id{flex:1;min-width:0}
+.op-meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;margin-top:8px;font-size:12.5px;color:var(--text-2)}
+.op-crew{display:inline-flex;align-items:center;gap:6px;min-width:0}
+.op-crew>span:last-child{min-width:0}
+.op-av{display:inline-grid;place-items:center;width:24px;height:24px;flex:none;margin-right:-10px;border-radius:50%;border:1.5px solid #19191b;background:linear-gradient(160deg,hsl(var(--h) 24% 38%),hsl(var(--h) 18% 22%));color:#f4efe9;font-size:9.5px;font-weight:600}
+.op-avs{display:inline-flex;flex:none;padding-right:10px}
+.op-unit{height:22px}
+.op-plus{flex:none;display:inline-flex;align-items:center;gap:8px;height:52px;padding:0 20px 0 16px;border-radius:999px;background:var(--accent);color:var(--accent-ink);font-weight:600;font-size:14.5px;box-shadow:0 10px 30px -10px rgba(236,217,111,.55);transition:transform .14s var(--ease-out),background-color .15s ease}
+.op-plus svg.i{width:20px;height:20px;stroke-width:2.2}
+.op-plus:active{transform:scale(.96)}
+@media (hover:hover) and (pointer:fine){.op-plus:hover{background:#f3e386}}
+.op-stats{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:14px;font-size:12px;color:var(--text-3)}
+.op-stats:empty{display:none}
+.op-stats b{color:var(--text);font-weight:500}
+.op-stats i{font-style:normal;opacity:.5}
+.op-list{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.op-row{display:flex;align-items:center;gap:12px;width:100%;min-height:52px;padding:8px 14px 8px 10px;border-radius:16px;background:rgba(255,255,255,.04);border:1px solid var(--line);text-align:left;transition:background-color .15s ease,transform .14s var(--ease-out)}
+.op-row:active{transform:scale(.99)}
+@media (hover:hover) and (pointer:fine){.op-row:hover{background:rgba(255,255,255,.07)}}
+.op-n{flex:none;display:grid;place-items:center;min-width:36px;height:28px;padding:0 6px;border-radius:9px;background:rgba(255,255,255,.07);font-size:11.5px;color:var(--text-2)}
+.op-row[data-st=run] .op-n{background:var(--accent-soft);color:var(--accent)}
+.op-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.op-t{font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.op-s{font-size:11.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.op-st,.op-st-inline{flex:none;display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--text-3)}
+.op-row[data-st=run] .op-st,.op-st-inline[data-st=run]{color:var(--accent)}
+.op-row[data-st=todo] .op-st,.op-st-inline[data-st=todo]{color:var(--coral)}
+.op-row[data-st=done] .op-st,.op-st-inline[data-st=done]{color:var(--lime)}
+.op-row[data-st=missing] .op-st,.op-st-inline[data-st=missing]{color:var(--text-2)}
+.op-empty{padding:12px 4px 4px;font-size:12.5px;color:var(--text-3);line-height:1.5}
+.op-rt .f-label{margin-top:16px}
+.op-rt-list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px}
+.op-rt-row{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:8px 12px;border-radius:14px;background:rgba(255,255,255,.035);border:1px solid var(--line);text-align:left;transition:background-color .15s ease}
+.op-rt-row.done{opacity:.62}
+.op-rt-row.run{border-color:rgba(198,220,122,.3)}
+.op-rt-dot{display:inline-block;width:8px;height:8px;flex:none;border-radius:50%;background:var(--rc,var(--lime))}
+.op-rt-n{flex:1;min-width:0;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.op-rt-p{flex:none;display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--text-3)}
+.op-rt-p svg.i{width:12px;height:12px}
+.op-foot{display:flex;justify-content:flex-end;margin-top:8px}
+/* Dienstbeginn */
+.tpl-btn[aria-pressed=true]{background:rgba(236,217,111,.08);border-color:rgba(236,217,111,.45)}
+.tpl-btn[aria-pressed=true] .tpl-name::after{content:" ✓";color:var(--accent)}
+.st-crew{display:flex;flex-wrap:wrap;gap:6px}
+.st-crew-chip{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 14px 0 6px;border-style:solid}
+.st-crew-chip .op-av{margin-right:0;border-color:transparent}
+.st-last{margin:0 0 8px;height:auto;min-height:32px;padding:6px 12px;line-height:1.35;text-align:left}
+.st-hint{margin-top:0}
+.st-more{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:12.5px}
+.st-add{display:flex;gap:8px;margin-top:10px}
+.st-add .input{flex:1;min-width:0}
+.st-units{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.st-units:empty{display:none}
+.st-preview .f-label{margin-top:20px}
+.st-rts{display:flex;flex-wrap:wrap;gap:6px}
+.st-rts .pill{gap:7px}
+/* Abschnitte in Sheets (Dienstbeginn, Einsatz): nummeriert, nur sichtbare zählen */
+.secs{counter-reset:sec}
+.sec{margin-top:12px;padding:2px 16px 16px;border-radius:20px;background:rgba(255,255,255,.028);border:1px solid var(--line)}
+.sec[hidden]{display:none}
+.sec-h{display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px;margin:14px 0 4px;font-size:14px;font-weight:600;letter-spacing:-.005em;color:var(--text)}
+.sec-h .f-count{font-weight:400}
+.sec-n{display:inline-grid;place-items:center;width:22px;height:22px;flex:none;border-radius:50%;background:rgba(255,255,255,.08);font-size:11px;font-weight:600;color:var(--text-2);transition:background-color .2s ease,color .2s ease}
+.sec-n::before{counter-increment:sec;content:counter(sec)}
+.sec.is-done .sec-n{background:var(--accent-soft);color:var(--accent)}
+.sec-h + .f-label{margin-top:8px}
+.sec > .tpl-grid{margin-top:10px}
+.sugg{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.sugg:empty{display:none}
+.sugg .chip.more{border-style:dashed;color:var(--text-3)}
+/* Einsatz-Sheet */
+.op-times{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.op-mode{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.op-mode button{display:flex;flex-direction:column;align-items:flex-start;gap:3px;min-height:64px;padding:11px 14px;border-radius:16px;background:rgba(255,255,255,.04);border:1px solid var(--line);text-align:left;transition:background-color .15s ease,border-color .15s ease,transform .14s var(--ease-out)}
+.op-mode button:active{transform:scale(.98)}
+.op-mode b{font-size:14px;font-weight:500;color:var(--text)}
+.op-mode small{font-size:11.5px;line-height:1.3;color:var(--text-3)}
+.op-mode [aria-checked=true]{background:rgba(236,217,111,.08);border-color:rgba(236,217,111,.45)}
+.op-mode [aria-checked=true] b::after{content:" ✓";color:var(--accent)}
+.op-mode button:disabled{opacity:.45;cursor:not-allowed}
+@media (hover:hover) and (pointer:fine){.op-mode button:not(:disabled):hover{background:rgba(255,255,255,.07)}}
+.op-mass{margin-top:4px}
+.op-docrows{display:flex;flex-direction:column;gap:6px}
+.op-docrows[hidden]{display:none}
+#opDocList:not([hidden]){margin-bottom:6px}
+.op-docrow{display:flex;align-items:center;gap:12px;width:100%;min-height:54px;padding:8px 14px 8px 8px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid var(--line);text-align:left;transition:background-color .15s ease,transform .14s var(--ease-out)}
+.op-docrow:active{transform:scale(.99)}
+@media (hover:hover) and (pointer:fine){.op-docrow:hover{background:rgba(255,255,255,.07)}}
+.op-docrow > svg.i{width:18px;height:18px;flex:none;color:var(--text-3)}
+.op-docrow .pill{flex:none}
+.op-docrow-m{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.op-docrow-m b{font-size:13.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.op-docrow-m small{font-size:11.5px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.op-todos{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
+.op-todos:empty{display:none}
+.op-todo{display:flex;align-items:center;gap:8px;min-height:44px;padding:4px 4px 4px 6px;border-radius:12px;background:rgba(0,0,0,.18)}
+.op-todo-t{flex:1;min-width:0;padding:6px 4px;text-align:left;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.op-todo.done .op-todo-t{color:var(--text-3);text-decoration:line-through}
+.op-imp{display:grid;place-items:center;width:36px;height:36px;flex:none;border-radius:50%;color:var(--text-3);font-size:15px;transition:color .15s ease,background-color .15s ease}
+.op-imp[aria-pressed=true]{color:var(--accent);background:var(--accent-soft)}
+.op-imp.big{width:42px;height:42px;border:1px solid var(--line);background:rgba(255,255,255,.04)}
+.op-todo-add{display:flex;gap:8px;margin-top:8px}
+.op-todo-add .input{flex:1;min-width:0}
+.op-docs .f-label{margin-top:18px}
+.op-doc-k{display:inline-grid;place-items:center;flex:none;min-width:38px;height:36px;padding:0 6px;border-radius:10px;background:rgba(255,255,255,.08);font-size:10.5px;font-weight:600;letter-spacing:.04em}
+/* Planner: wichtig & Einsatz */
+.imp-star{display:inline-block;margin-right:6px;color:var(--accent);font-size:.9em}
+.item.imp{border-color:rgba(236,217,111,.2)}
+.op-pill{cursor:pointer;height:24px}
+@media (hover:hover) and (pointer:fine){.op-pill:hover{border-color:var(--line-2);color:var(--text)}}
+.c-imp{margin:12px 0 4px}
+/* Schichtbriefing */
+dialog.brief-dlg{width:min(560px,calc(100vw - 24px));margin:auto}
+dialog.brief-dlg::backdrop{background:rgba(5,5,6,.72);-webkit-backdrop-filter:blur(14px) saturate(120%);backdrop-filter:blur(14px) saturate(120%)}
+.brief{display:flex;flex-direction:column;max-height:calc(var(--vvh,100dvh) - 32px);border-radius:30px;background:linear-gradient(180deg,#232325,#151517);border:1px solid var(--line-2);box-shadow:0 50px 120px rgba(0,0,0,.75);overflow:hidden;opacity:0;transform:translateY(12px) scale(.98);transition:opacity .28s var(--ease-out),transform .34s var(--ease-out)}
+dialog.brief-dlg.open .brief{opacity:1;transform:none}
+.brief-head{padding:22px 22px 16px;border-bottom:1px solid var(--line);background:radial-gradient(120% 140% at 0% 0%,rgba(236,217,111,.12),transparent 55%)}
+.brief-h{margin-top:6px;font-size:34px;font-weight:300;letter-spacing:-.03em;line-height:1.05}
+.brief-meta{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;margin-top:10px;font-size:12.5px;color:var(--text-2)}
+.brief-body{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding:6px 16px 10px}
+.br-sec{display:block;margin:14px 6px 8px;font-size:10px;font-weight:500;letter-spacing:.2em;text-transform:uppercase;color:var(--text-3)}
+.br-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.br-row{display:flex;align-items:center;gap:12px;padding:9px 12px 9px 9px;border-radius:18px;background:rgba(255,255,255,.04);border:1px solid var(--line);cursor:pointer}
+.br-row.imp{background:rgba(236,217,111,.06);border-color:rgba(236,217,111,.24)}
+.br-row .tile{width:40px;height:40px;border-radius:12px}
+.br-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.br-t{font-size:14px;line-height:1.3;overflow-wrap:anywhere}
+.br-s{font-size:11.5px;color:var(--text-3)}
+.br-row .pill{flex:none}
+.br-op .op-n{height:40px;min-width:40px;border-radius:12px}
+.op-count{height:22px;padding:0 8px;font-size:11px}
+.br-more{margin:8px 6px 0;font-size:12px;color:var(--text-3)}
+.br-empty{display:flex;flex-direction:column;gap:4px;margin:14px 6px;padding:16px;border-radius:18px;background:rgba(198,220,122,.06);border:1px solid rgba(198,220,122,.2);font-size:13px;color:var(--text-2)}
+.br-empty b{font-weight:500;color:var(--lime)}
+.br-rts{padding:0 6px 4px}
+.brief-foot{display:flex;justify-content:flex-end;padding:12px 16px calc(14px + var(--sab));border-top:1px solid var(--line)}
+.brief-foot .btn{min-width:160px;height:48px}
+@media (max-width:760px){
+  .op-card{padding:16px 14px 10px}
+  .op-plus{height:48px;padding:0 16px 0 12px}
+  .op-rt-list{grid-template-columns:1fr}
+  dialog.brief-dlg{width:100%;max-width:100%;margin:auto 0 0}
+  .brief{border-radius:28px 28px 0 0;max-height:calc(var(--vvh,100dvh) - var(--sat) - 8px)}
+  .brief-foot .btn{flex:1}
+}
+@media (max-width:380px){.op-head{flex-wrap:wrap}.op-plus{width:100%;justify-content:center}}
+@media (prefers-reduced-motion:reduce){.brief{transform:none!important}}
 </style>
 </head>
 <body data-tab="aufgaben" data-area="heute" class="locked">
@@ -1351,6 +1543,16 @@ body[data-area=schreiben] .pane-schreiben{display:grid}
 
     <!-- MAIN -->
     <section class="col col-main">
+      <article class="card op-card pane-aufgaben" id="opCard" style="--o:1" aria-labelledby="opH" hidden>
+        <div class="op-head">
+          <div class="op-id"><span class="spaced" id="opKicker">Schicht läuft</span><h2 class="card-title" id="opH">Schicht</h2><div class="op-meta" id="opMeta"></div></div>
+          <button type="button" class="op-plus" id="opAdd" aria-label="Einsatz hinzufügen"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Einsatz</span></button>
+        </div>
+        <div class="op-stats" id="opStats"></div>
+        <ul class="op-list" id="opList"></ul>
+        <div class="op-rt" id="opRt" hidden><span class="f-label">Routinen in dieser Schicht</span><ul class="op-rt-list" id="opRtList"></ul></div>
+        <div class="op-foot"><button type="button" class="link" id="opEditCrew">Besetzung ändern</button></div>
+      </article>
       <article class="card planner pane-aufgaben" style="--o:2" aria-label="Planner">
         <div class="hero">
           <div class="hero-pills"><span class="pill pill-glass" id="heroDate">–</span><span class="pill pill-glass"><i class="live"></i><span id="heroClock">Ausgedongelt</span></span></div>
@@ -1369,7 +1571,7 @@ body[data-area=schreiben] .pane-schreiben{display:grid}
             <input id="quickInput" spellcheck="false" autocomplete="off" placeholder="Schnell erfassen … z. B. @Sabine Zahlen schicken !" enterkeyhint="done">
             <button class="quick-go" type="submit" aria-label="Hinzufügen"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
           </form>
-          <p class="quick-hint"><b>@Name</b> → Anfrage von Name · <b>!</b> → schnellstmöglich · <b>#aufgabe</b> / <b>#todo</b> · <b>⇧ Enter</b> → mit Details</p>
+          <p class="quick-hint"><b>@Name</b> → Anfrage von Name · <b>!</b> → schnellstmöglich · <b>*</b> → wichtig · <b>#aufgabe</b> / <b>#todo</b> · <b>⇧ Enter</b> → mit Details</p>
           <div class="filters" id="filters" role="tablist" aria-label="Filter nach Art"></div>
           <div class="active-filter" id="activeFilter"></div>
           <div id="list"></div>
@@ -1495,6 +1697,7 @@ body[data-area=schreiben] .pane-schreiben{display:grid}
     <div class="sheet-head"><h3 id="cHeading">Neuer Eintrag</h3><button type="button" class="icon-btn sm" data-close aria-label="Schließen"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <label class="sr" for="cTitle">Titel</label>
     <input class="c-title" id="cTitle" placeholder="Was steht an?" maxlength="300" enterkeyhint="done" spellcheck="false" autocomplete="off">
+    <label class="check-line c-imp"><input type="checkbox" id="cImp"> <span><b>Wichtig</b> – frühzeitig erledigen, steht im Planner ganz oben</span></label>
 
     <span class="f-label" id="lblKind">Art</span>
     <div class="seg" data-seg="kind" role="group" aria-labelledby="lblKind">
@@ -1613,6 +1816,11 @@ body[data-area=schreiben] .pane-schreiben{display:grid}
     <input class="c-title" id="reName" placeholder="z. B. Schichtübergabe" maxlength="60" autocomplete="off" spellcheck="false">
     <span class="f-label" id="reRhLbl">Rhythmus</span>
     <div class="seg" id="reRhythm" role="group" aria-labelledby="reRhLbl"></div>
+    <span class="f-label">Gehört zu diesen Schichten <span class="f-count">optional</span></span>
+    <div class="seg re-tpls" id="reTpls" role="group" aria-label="Schichten"></div>
+    <label class="f-label" for="reUnits">… und zu diesen Einsatzmitteln <span class="f-count">optional, mit Komma</span></label>
+    <input class="input" id="reUnits" placeholder="z. B. Stf 21/03, Krad 2" maxlength="200" spellcheck="false">
+    <p class="hint re-bind-hint">Gebundene Routinen erscheinen in der laufenden Schicht und im Briefing zum Dienstbeginn.</p>
     <span class="f-label" id="reColLbl">Farbe</span>
     <div class="colors" id="reColors" role="radiogroup" aria-labelledby="reColLbl"></div>
     <label class="f-label" for="reSteps">Schritte – eine Zeile pro Schritt <span class="f-count" id="reCount"></span></label>
@@ -1724,16 +1932,95 @@ body[data-area=schreiben] .pane-schreiben{display:grid}
 
 <!-- Dienst beginnen -->
 <dialog class="dlg sheet-dlg" id="startDlg" aria-labelledby="stH">
-  <div class="sheet">
-    <div class="sheet-head"><h3 id="stH">Dienst beginnen</h3><button type="button" class="icon-btn sm" data-close aria-label="Schließen"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
-    <p class="ask-p">Welchen Dienst trittst du an? Beginn ist jetzt (<b id="stNow">--:--</b>). Das geplante Ende kommt aus dem Katalog und lässt sich danach anpassen.</p>
-    <div class="tpl-grid" id="startTpls"></div>
+  <form class="sheet secs" id="stForm" novalidate autocomplete="off">
+    <div class="sheet-head"><h3 id="stH">Dienst beginnen</h3><button type="button" class="icon-btn sm" data-close aria-label="Schließen"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <p class="ask-p" id="stLead"></p>
+    <section class="sec" id="stTplBox" aria-labelledby="stTplH">
+      <h4 class="sec-h" id="stTplH"><span class="sec-n" aria-hidden="true"></span>Schicht</h4>
+      <div class="tpl-grid" id="startTpls"></div>
+      <div class="st-more"><button type="button" class="link" id="startCustom">Andere Zeiten …</button><span class="dim" aria-hidden="true">·</span><button type="button" class="link" id="startCatalog">Katalog bearbeiten</button></div>
+    </section>
+    <section class="sec" aria-labelledby="stCrewL">
+      <h4 class="sec-h" id="stCrewL"><span class="sec-n" aria-hidden="true"></span>Besatzung <span class="f-count">mit wem bist du unterwegs?</span></h4>
+      <button type="button" class="chip w-recent st-last" id="stLast" hidden></button>
+      <div class="st-crew" id="stCrew" role="group" aria-labelledby="stCrewL"></div>
+      <div class="st-add"><label class="sr" for="stNewName">Weitere Person</label><input class="input" id="stNewName" list="stNames" placeholder="Name eintragen – neu oder aus dem Team" maxlength="80" spellcheck="false" enterkeyhint="done"><datalist id="stNames"></datalist><button type="button" class="btn btn-ghost" id="stAddName">Dazu</button></div>
+    </section>
+    <section class="sec" aria-labelledby="stUnitH">
+      <h4 class="sec-h" id="stUnitH"><span class="sec-n" aria-hidden="true"></span>Einsatzmittel <span class="f-count">optional</span></h4>
+      <label class="sr" for="stUnit">Einsatzmittel / Funkrufname</label>
+      <input class="input" id="stUnit" placeholder="Funkrufname, z. B. Stf 21/03" maxlength="40" spellcheck="false" enterkeyhint="done">
+      <div class="st-units" id="stUnitChips"></div>
+    </section>
+    <div class="st-preview" id="stPreview"></div>
     <div class="sheet-foot">
-      <button type="button" class="btn btn-ghost btn-sm" id="startCustom">Andere Zeiten …</button>
-      <button type="button" class="btn btn-ghost btn-sm" id="startCatalog">Katalog</button>
       <span class="grow"></span>
       <button type="button" class="btn btn-ghost" data-close>Abbrechen</button>
+      <button type="submit" class="btn btn-accent" id="stGo">Dienst beginnen</button>
     </div>
+  </form>
+</dialog>
+
+<!-- Einsatz -->
+<dialog class="dlg sheet-dlg" id="opDlg" aria-labelledby="opDH">
+  <form class="sheet secs" id="opForm" novalidate autocomplete="off">
+    <div class="sheet-head"><h3 id="opDH">Einsatz</h3><button type="button" class="icon-btn sm" data-close aria-label="Schließen"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <p class="ask-p" id="opDMeta"></p>
+    <section class="sec" id="opSecLage" aria-labelledby="opS1">
+      <h4 class="sec-h" id="opS1"><span class="sec-n" aria-hidden="true"></span>Lage</h4>
+      <label class="f-label" for="opTitle">Stichwort</label>
+      <input class="input" id="opTitle" maxlength="80" placeholder="z. B. Ruhestörung" spellcheck="false" enterkeyhint="next">
+      <div class="sugg" id="opTitleChips" role="group" aria-label="Vorschläge für das Stichwort"></div>
+      <label class="f-label" for="opPlace">Ort</label>
+      <input class="input" id="opPlace" maxlength="120" placeholder="Straße, Objekt" spellcheck="false">
+    </section>
+    <section class="sec" id="opSecVerlauf" aria-labelledby="opS2">
+      <h4 class="sec-h" id="opS2"><span class="sec-n" aria-hidden="true"></span>Verlauf</h4>
+      <div class="op-times"><div><label class="f-label" for="opStart">Beginn</label><input class="input mono" type="time" id="opStart"></div><div><label class="f-label" for="opEnd">Ende</label><input class="input mono" type="time" id="opEnd"></div></div>
+      <label class="f-label" for="opNote">Notizen</label>
+      <textarea class="input" id="opNote" rows="2" placeholder="Beteiligte, Lage, Besonderheiten" spellcheck="false"></textarea>
+    </section>
+    <section class="sec" id="opSecAbschluss" aria-labelledby="opS3">
+      <h4 class="sec-h" id="opS3"><span class="sec-n" aria-hidden="true"></span>Abschluss</h4>
+      <label class="f-label" for="opOutcome">Ergebnis</label>
+      <textarea class="input" id="opOutcome" rows="2" placeholder="z. B. Lage beruhigt, Platzverweis ausgesprochen" spellcheck="false"></textarea>
+      <span class="f-label" id="opModeL">Folgearbeiten</span>
+      <div class="op-mode" id="opMode" role="radiogroup" aria-labelledby="opModeL">
+        <button type="button" role="radio" data-mode="none" aria-checked="false"><b>Keine Maßnahmen</b><small>und keine schriftlichen Arbeiten</small></button>
+        <button type="button" role="radio" data-mode="mass" aria-checked="false"><b>Maßnahmen</b><small>To-dos, schriftliche Arbeit</small></button>
+      </div>
+      <div class="op-mass" id="opMeasures" hidden>
+        <span class="f-label">To-dos <span class="f-count">stehen auch im Planner</span></span>
+        <ul class="op-todos" id="opTodos"></ul>
+        <div class="op-todo-add"><label class="sr" for="opTodoIn">Maßnahme</label><input class="input" id="opTodoIn" maxlength="300" placeholder="Maßnahme, z. B. Anzeige schreiben" spellcheck="false" enterkeyhint="done"><button type="button" class="op-imp big" id="opTodoImp" aria-pressed="false" aria-label="Als wichtig markieren">★</button><button type="button" class="btn btn-ghost" id="opTodoAdd">Dazu</button></div>
+        <div class="sugg" id="opTodoChips" role="group" aria-label="Vorschläge für Maßnahmen"></div>
+        <div class="op-docs" id="opDocs" hidden>
+          <span class="f-label">Schriftliche Arbeit</span>
+          <div class="op-docrows" id="opDocList" hidden></div>
+          <div class="op-docrows" id="opDocNew">
+            <button type="button" class="op-docrow" data-doc="vuf" data-name="Verkehrsunfallflucht"><span class="op-doc-k">VUF</span><span class="op-docrow-m"><b>Verkehrsunfallflucht</b><small>Befundbericht nach Anlage 6</small></span><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+            <button type="button" class="op-docrow" data-doc="vermisst" data-name="Vermisste Person"><span class="op-doc-k">VM</span><span class="op-docrow-m"><b>Vermisste Person</b><small>Übersicht, Fahndung, offene Punkte</small></span><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+            <button type="button" class="op-docrow" data-doc="hg" data-name="Häusliche Gewalt"><span class="op-doc-k">HG</span><span class="op-docrow-m"><b>Häusliche Gewalt</b><small>Sachverhalt, Begründung § 34a, Noch zu erledigen</small></span><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
+          </div>
+        </div>
+      </div>
+    </section>
+    <div class="sheet-foot">
+      <button type="button" class="btn btn-ghost btn-danger btn-sm" id="opDelete">Löschen</button>
+      <button type="button" class="btn btn-ghost btn-sm" id="opReopen" hidden>Wieder öffnen</button>
+      <span class="grow"></span>
+      <button type="button" class="btn btn-ghost" data-close>Schließen</button>
+      <button type="submit" class="btn btn-accent" id="opDone">Einsatz beenden</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Schichtbriefing -->
+<dialog class="dlg brief-dlg" id="briefDlg" aria-labelledby="brH">
+  <div class="brief">
+    <div class="brief-head"><span class="spaced" id="brKick">Schicht beginnt</span><h2 class="brief-h" id="brH">Schicht</h2><div class="brief-meta" id="brMeta"></div></div>
+    <div class="brief-body" id="brBody"></div>
+    <div class="brief-foot"><button type="button" class="btn btn-accent" id="brGo" data-close>Los geht’s</button></div>
   </div>
 </dialog>
 
@@ -1850,6 +2137,7 @@ body[data-area=schreiben] .pane-schreiben{display:grid}
 <script src="js/vault.js"></script>
 <script src="js/app.js"></script>
 <script src="js/vuf.js"></script>
+<script src="js/vermisst.js"></script>
 <script src="js/hg.js"></script>
 <script src="js/writer.js"></script>
 </body>
