@@ -2356,6 +2356,8 @@ const notesOf = pid => state.notes.filter(n => n.pid === pid).sort((a, b) => b.a
 function descendants(pid) { const out = new Set(); const walk = id => { for (const k of kidsOf(id)) { out.add(k.id); walk(k.id); } }; walk(pid); return out; }
 const avHue = name => { let h = 0; for (const c of name) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
 const avatar = (p, cls = '') => `<span class="tm-av ${cls}" style="--h:${avHue(p.name)}" aria-hidden="true">${esc(initials(p.name))}</span>`;
+/** Ebene in der Team-Hierarchie (0 = oberste). */
+function teamDepth(p) { let n = 0, q = p; const seen = new Set(); while (q && q.parent && !seen.has(q.id) && n < 20) { seen.add(q.id); q = personById(q.parent); n++; } return n; }
 function flatTree() {
   const out = [];
   const walk = (p, depth) => { out.push({ p, depth, kids: kidsOf(p.id).length }); if (!teamUi.collapsed.has(p.id)) for (const k of kidsOf(p.id)) walk(k, depth + 1); };
@@ -4555,7 +4557,7 @@ window.WBridge = Object.freeze({
   restore: snap => { if (S && snap) restore(snap); },
   name: () => (S ? state.settings.name : ''),
   /** Teamliste für die Besatzung: zuletzt im Dienst zuerst, dann alphabetisch; Rollen enthalten u. a. die Amtsbezeichnung. */
-  team: () => { if (!S) return []; const me = state.settings.name.trim(); const out = me ? [{ name: me, roles: [] }] : []; const seen = new Set(out.map(o => norm(o.name))); for (const c of crewPool()) { const p = (c.id && state.people.find(x => x.id === c.id)) || state.people.find(x => norm(x.name) === norm(c.name)); const n = p ? p.name : c.name; if (!n || seen.has(norm(n))) continue; seen.add(norm(n)); out.push({ name: n, roles: p ? [...p.roles] : [] }); } return out; },
+  team: () => { if (!S) return []; const me = state.settings.name.trim(); const out = me ? [{ name: me, roles: [] }] : []; const seen = new Set(out.map(o => norm(o.name))); for (const c of crewPool()) { const p = (c.id && state.people.find(x => x.id === c.id)) || state.people.find(x => norm(x.name) === norm(c.name)); const n = p ? p.name : c.name; if (!n || seen.has(norm(n))) continue; seen.add(norm(n)); out.push({ name: n, roles: p ? [...p.roles] : [], lvl: p ? teamDepth(p) : null }); } return out; },
   /** Vorbelegung neuer Vorgänge aus der laufenden Schicht (Rufname, Besatzung). */
   preset: () => { if (!S) return null; const sh = liveShift(); return sh ? { einsatz: shiftCrewPreset(sh) } : null; },
   /** Offenen Punkt als Todo in den Planner übernehmen (z. B. „Lichtbildmappe fertigen“). */

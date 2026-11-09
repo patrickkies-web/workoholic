@@ -217,8 +217,22 @@
   const kName = c => [str(c && c.grad), nachname(c && c.name)].filter(Boolean).join(' ');
   /** Streifenwagen mit Besatzung; ältere Entwürfe: einsatz.kraefte als ein Fahrzeug. */
   const wagenL = d => { const w = arr(get(d, 'einsatz.wagen')).map((v, i) => ({ ...(v && typeof v === 'object' ? v : {}), i })); if (w.length) return w; const k = arr(get(d, 'einsatz.kraefte')); return k.length ? [{ crew: k, i: 0 }] : []; };
-  const crewOf = w => arr(w && w.crew).filter(c => c && has(c.name));
-  const besetzung = w => joinList(crewOf(w).map(kName));
+  /** Amtsstufe (höher = höher); POK und POKin, POK und KOK stehen gleich. */
+  const RANG = { LPD: 16, LKD: 16, PD: 15, KD: 15, POR: 14, KOR: 14, PR: 13, KR: 13, EPHK: 12, EKHK: 12, PHK: 11, KHK: 11, POK: 10, KOK: 10, PK: 9, KK: 9, PHM: 8.5, POM: 8, PM: 7, PKA: 5, KA: 5, KKA: 5 };
+  const rangOf = c => { const g = str(c && c.grad).replace(/in$/, ''); return RANG[g] || 0; };
+  const crewRoh = w => arr(w && w.crew).filter(c => c && has(c.name));
+  /** Streifenführer/in nötig, wenn sich die höchste Amtsstufe teilen (z. B. POK und POKin). */
+  const fuehrerFrage = w => { const r = crewRoh(w).map(rangOf); if (r.length < 2) return false; const m = Math.max(...r); return r.filter(x => x === m).length > 1; };
+  const crewOf = w => {
+    const c = crewRoh(w).map((x, i) => ({ x, i }));
+    const allLvl = c.every(o => Number.isFinite(o.x.lvl));
+    const f = w && fuehrerFrage(w) && has(w.fuehrer) ? str(w.fuehrer) : '';
+    return c.sort((a, b) => (f ? (b.x.name === f) - (a.x.name === f) : 0) || (allLvl ? a.x.lvl - b.x.lvl : 0) || rangOf(b.x) - rangOf(a.x) || a.i - b.i).map(o => o.x);
+  };
+  /** „POK Kies/PKin Meier“ */
+  const besetzung = w => crewOf(w).map(kName).join('/');
+  /** „die Streifenwagenbesatzung POK Kies/PKin Meier“ */
+  const besatzung = w => (besetzung(w) ? `die Streifenwagenbesatzung ${besetzung(w)}` : '');
 
   /* ---------- Angetroffene Personen ---------- */
   const HALTUNG = { sass: 'saß', stand: 'stand', lag: 'lag auf dem Boden', kauerte: 'kauerte am Boden', umher: 'lief aufgeregt umher', eingeschl: 'hatte sich in einem Raum eingeschlossen', versteckt: 'hatte sich versteckt', kindArm: 'hielt ein Kind auf dem Arm' };
@@ -370,10 +384,10 @@
   const satzFeld = (k, l, ph, extra) => ({ k, t: 'text', l: l + ' (optional, ganzer Satz)', ph, max: 240, ...extra });
   const zw = it => ({ w: 'Zeugin', m: 'Zeuge', d: 'Zeugin / Zeuge' }[gOf(it)]);
   /** Wer war an der Einsatzörtlichkeit? Besatzungen mit Auftrag „Einsatzörtlichkeit“, sonst das erste Fahrzeug. */
-  const vorOrt = d => { const W = wagenL(d).filter(w => besetzung(w)); const a = W.filter(w => w.auftrag === 'ort'); const g = a.length ? a : W.filter(w => !['unterst', 'nah', 'aufenthalt'].includes(w.auftrag)).slice(0, 1); const n = g.reduce((s0, w) => s0 + crewOf(w).length, 0); return g.length ? { txt: joinList(g.map(besetzung)), pl: n > 1 } : { txt: 'die Einsatzkräfte', pl: true }; };
+  const vorOrt = d => { const W = wagenL(d).filter(w => besetzung(w)); const a = W.filter(w => w.auftrag === 'ort'); const g = a.length ? a : W.filter(w => !['unterst', 'nah', 'aufenthalt'].includes(w.auftrag)).slice(0, 1); if (!g.length) return { txt: 'die Einsatzkräfte', pl: true }; return g.length === 1 ? { txt: besatzung(g[0]), pl: false } : { txt: `die Streifenwagenbesatzungen ${joinList(g.map(besetzung))}`, pl: true }; };
   /** Wer hat die Person angetroffen? Bei „im Nahbereich angetroffen“ die betreffende Besatzung. */
   const nahWagenOf = (d, p) => { const W = wagenL(d).filter(w => besetzung(w)); if (has(p && p.nahWagen)) return W.find(w => String(w.i) === String(p.nahWagen)) || null; return W.find(w => ['nah', 'aufenthalt'].includes(w.auftrag)) || null; };
-  const vorOrtFuer = (d, p) => { if (p && p.rolle === 'bs' && p.da === 'nah') { const w = nahWagenOf(d, p); if (w) return { txt: besetzung(w), pl: crewOf(w).length > 1 }; } return vorOrt(d); };
+  const vorOrtFuer = (d, p) => { if (p && p.rolle === 'bs' && p.da === 'nah') { const w = nahWagenOf(d, p); if (w) return { txt: besatzung(w), pl: false }; } return vorOrt(d); };
   const beideHier = d => ofRole(d, 'gs').some(y => y.p.da === 'ja') && bsHier(d);
   const halsAng = (d, it) => it.rolle !== 'bs' && (arr(it.verl).some(v => ['wuergemale', 'petechien'].includes(v)) || (it.rolle === 'gs' && !!markOf(d, 'wuergen')));
   const present = it => it.da !== 'nein';
@@ -391,30 +405,24 @@
   const STEPS = [
     /* ---------- Einsatz ---------- */
     {
-      id: 'einsatz', phase: 'Einsatz', title: 'Einsatzanlass', lead: 'Wann kam der Einsatz, mit welchem Stichwort, was wurde gemeldet – und wohin?', gen: ['einsatz'],
+      id: 'einsatz', phase: 'Einsatz', title: 'Einsatzvergabe', lead: 'Wann welche Streifenwagenbesatzung den Einsatz zu welcher Anschrift bekam – und was gemeldet wurde.', gen: ['einsatz'],
       fields: [
         { k: 'einsatz.datum', t: 'date', l: 'Datum', w: 'half', q: 'heute', req: true },
         { k: 'einsatz.zeit', t: 'time', l: 'Uhrzeit der Einsatzvergabe', w: 'half', q: 'jetzt', req: true },
-        { k: 'einsatz.meldeweg', t: 'choice', l: 'Wie kam der Einsatz?', o: [['leitstelle', 'Über die Leitstelle'], ['telefon', 'Anruf auf der Wache'], ['wache', 'Persönlich auf der Wache'], ['streife', 'Eigene Wahrnehmung im Streifendienst']] },
-        { k: 'einsatz.stichwort', t: 'choice', l: 'Einsatzstichwort', o: O(STICHWORT), when: d => get(d, 'einsatz.meldeweg') !== 'streife' },
-        { k: 'einsatz.stichwortText', t: 'text', l: 'Anderes Stichwort (optional)', ph: 'z. B. Person in Not', w: 'half', max: 60, when: d => get(d, 'einsatz.meldeweg') !== 'streife' },
-        { k: 'einsatz.meldung', t: 'text', l: 'Was wurde gemeldet?', pre: 'Gemeldet wurde, dass', ph: 'es in der Wohnung zu einer lautstarken Auseinandersetzung komme und eine Person um Hilfe rufe', lint: 'konj', join: ' und ', max: 600, sugg: MELD, when: d => get(d, 'einsatz.meldeweg') !== 'streife' },
-        { k: 'einsatz.mitteiler', t: 'choice', l: 'Wer hat gemeldet?', h: '„Keine Angabe“: Dazu steht nichts im Text.', o: Object.entries(MITT).filter(([, v]) => v[0]).map(([k, v]) => [k, v[0]]), when: d => get(d, 'einsatz.meldeweg') !== 'streife' },
-        { k: 'einsatz.mitteilerText', t: 'text', l: 'Genauer (optional)', pre: 'Die Meldung kam von', ph: 'der Nachbarin aus der darunterliegenden Wohnung', max: 160, when: d => MITT_TEXT.includes(get(d, 'einsatz.mitteiler')) },
+        { k: 'einsatz.wagen', t: 'list', l: 'Streifenwagen', item: (it, i) => `Streifenwagen ${i + 1}`, add: 'Weiteres Fahrzeug', min1: true, max: 6, sub: [
+          { k: 'crew', t: 'crew', l: 'Besatzung', max: 4 },
+          { k: 'fuehrer', t: 'choice', l: 'Wer ist Streifenführer/in?', h: 'Gleiche Amtsstufe – die Streifenführung steht im Text vorn.', o: (d, it) => crewRoh(it).map(c => [str(c.name), kName(c)]), when: (d, it) => fuehrerFrage(it) },
+          { k: 'auftrag', t: 'choice', l: 'Auftrag (optional)', h: 'Steht im Text bei der Eintreffsituation.', o: AUFTRAG_UI },
+          { k: 'ziel', t: 'text', l: 'Welcher Ort?', pre: 'Aufgesucht wurde', ph: 'die Anschrift der Eltern des Beschuldigten in Emsdetten', max: 160, when: (d, it) => it.auftrag === 'aufenthalt' },
+          { k: 'auftragText', t: 'text', l: 'Auftrag in eigenen Worten', pre: (d, it) => cap(besatzung(it)) || 'Die Besatzung', ph: 'sicherte die Rückseite des Hauses', max: 200, when: (d, it) => it.auftrag === 'frei' }
+        ] },
         { k: 'ort.strasse', t: 'text', l: 'Straße', ph: 'Musterstraße', w: 'half', req: true },
         { k: 'ort.hausnr', t: 'text', l: 'Hausnummer', ph: '5', w: 'half' },
-        { k: 'ort.stadt', t: 'text', l: 'PLZ und Ort', ph: 'z. B. 48431 Rheine', recent: true, req: true }
-      ]
-    },
-    {
-      id: 'kraefte', phase: 'Einsatz', title: 'Eingesetzte Kräfte', lead: 'Je Streifenwagen eine Karte: Besatzung aus der Teamliste antippen, Auftrag wählen. Rufnamen stehen nicht im Text.', gen: ['einsatz'],
-      fields: [
-        { k: 'einsatz.wagen', t: 'list', l: '', item: (it, i) => `Streifenwagen ${i + 1}`, add: 'Weiteres Fahrzeug', min1: true, max: 6, sub: [
-          { k: 'crew', t: 'crew', l: 'Besatzung', max: 4 },
-          { k: 'auftrag', t: 'choice', l: 'Auftrag', o: AUFTRAG_UI },
-          { k: 'ziel', t: 'text', l: 'Welcher Ort?', pre: 'Aufgesucht wurde', ph: 'die Anschrift der Eltern des Beschuldigten in Emsdetten', max: 160, when: (d, it) => it.auftrag === 'aufenthalt' },
-          { k: 'auftragText', t: 'text', l: 'Auftrag in eigenen Worten', pre: (d, it) => besetzung(it) || 'Die Besatzung', ph: 'sicherten die Rückseite des Hauses', max: 200, when: (d, it) => it.auftrag === 'frei' }
-        ] }
+        { k: 'ort.stadt', t: 'text', l: 'PLZ und Ort', ph: 'z. B. 48431 Rheine', recent: true, req: true },
+        { k: 'einsatz.meldung', t: 'text', l: 'Was wurde gemeldet?', pre: 'Gemeldet wurde, dass', ph: 'es in der Wohnung zu einer lautstarken Auseinandersetzung komme und eine Person um Hilfe rufe', lint: 'konj', join: ' und ', max: 600, sugg: MELD },
+        { k: 'einsatz.mitteilerJa', t: 'yn', l: 'Meldende Person im Text angeben?', h: 'Nur bei Bedarf – sonst steht dazu nichts im Text.', o: [['ja', 'Ja, angeben'], ['nein', 'Nein']] },
+        { k: 'einsatz.mitteiler', t: 'choice', l: 'Wer hat gemeldet?', o: Object.entries(MITT).filter(([k, v]) => v[0] && k !== 'keine').map(([k, v]) => [k, v[0]]), when: d => get(d, 'einsatz.mitteilerJa') === 'ja' },
+        { k: 'einsatz.mitteilerText', t: 'text', l: 'Genauer (optional)', pre: 'Die Meldung kam von', ph: 'der Nachbarin aus der darunterliegenden Wohnung', max: 160, when: d => get(d, 'einsatz.mitteilerJa') === 'ja' && MITT_TEXT.includes(get(d, 'einsatz.mitteiler')) }
       ]
     },
 
@@ -812,7 +820,7 @@
   root.WHG_CORE = {
     get, str, has, arr, inc, cap, endDot, slot, satz, mit, joinList, fmtDate, fmtTime, PH, um, addDays, hasObj, pick, val,
     NOUN, PRON, plist, isP, ofRole, gOf, ref, main, pl, kdesc, zvrOf, zvrNr, bsY, bsDa, bsWeg, kinderL, kinderDa, verletzte, nurVerbal, zutrittGegen,
-    halsAngriff: halsAng, STICHWORT, MITT, HALTUNG, SICHT, WIRK, ZUEIN, ANSPR, nachname, kName, wagenL, crewOf, besetzung, vorOrt, vorOrtFuer, nahWagenOf, beideHier, bsHier, wvJa, wvNein, gewahrsam, zwang, wvTag, wvEnde, wvMax, nachtEr, nachtAbw, nachtErArt, nachtAbwArt, nach, minderj, weekday, angehoerig, WUERG, DELIKT_ORDER, autoMarks, markOf, marked, anyMark,
+    halsAngriff: halsAng, besatzung, fuehrerFrage, STICHWORT, MITT, HALTUNG, SICHT, WIRK, ZUEIN, ANSPR, nachname, kName, wagenL, crewOf, besetzung, vorOrt, vorOrtFuer, nahWagenOf, beideHier, bsHier, wvJa, wvNein, gewahrsam, zwang, wvTag, wvEnde, wvMax, nachtEr, nachtAbw, nachtErArt, nachtAbwArt, nach, minderj, weekday, angehoerig, WUERG, DELIKT_ORDER, autoMarks, markOf, marked, anyMark,
     GEWALT, WAHRN, WAHRN_PL, VORG_PL, TATSACHEN, WO, ZUST, BES, VERL, RAUM, KIND_WO, SPUREN, ORTE, VORG, STUETZEN, DELIKT, DELIKT_TAT, BEL_Z, BEL_B, ANH, ER, OS, FAK, FAK_BY, BST_BY, WARN_ALT
   };
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -848,13 +856,12 @@
   }
   const people = (d, fn) => plist(d).map((p, i) => ({ p, i })).filter(y => isP(y.p) && fn(y.p));
   /** Mehrere Besatzungen: „A und B sowie C und D“, ab drei „A/B, C/D und E/F“. */
+  /** „die Streifenwagenbesatzung POK Kies/PKin Meier“, bei mehreren „die Streifenwagenbesatzungen A/B und C/D“. */
   function gruppe(ws) {
     const g = ws.filter(w => C.besetzung(w));
-    if (!g.length) return { txt: '', n: 0 };
-    const n = g.reduce((s0, w) => s0 + C.crewOf(w).length, 0);
-    if (g.length === 1) return { txt: C.besetzung(g[0]), n };
-    if (g.length === 2) return { txt: `${C.besetzung(g[0])} sowie ${C.besetzung(g[1])}`, n };
-    return { txt: 'die Besatzungen ' + joinList(g.map(w => C.crewOf(w).map(C.kName).join('/'))), n };
+    if (!g.length) return { txt: '', pl: false };
+    if (g.length === 1) return { txt: C.besatzung(g[0]), pl: false };
+    return { txt: `die Streifenwagenbesatzungen ${joinList(g.map(C.besetzung))}`, pl: true };
   }
   const swText = e => { const t = has(e.stichwortText) ? slot(e.stichwortText) : (C.STICHWORT[e.stichwort] || ''); if (!t) return ''; return /^häusliche gewalt$/i.test(t) ? 'wegen häuslicher Gewalt' : `mit dem Stichwort „${t}“`; };
   /** Wurde das Antreffen der beschuldigten Person schon beim Auftrag einer Besatzung erzählt? */
@@ -868,48 +875,49 @@
   }
 
   /* ---------- 1 Einsatzanlass ---------- */
+  /** Wann, welche Besatzungen, wohin, was gemeldet – die meldende Person nur, wenn ausdrücklich gewünscht. */
   function s1(d, x) {
-    const e = get(d, 'einsatz') || {}, W = C.wagenL(d), T = x.T, t = [];
+    const e = get(d, 'einsatz') || {}, W = C.wagenL(d), t = [];
     const erst = W.filter(w => w.auftrag !== 'unterst'), gr = gruppe(erst.length ? erst : W);
-    const crew = gr.txt || PH('Streifenwagenbesatzung'), pl = gr.n !== 1;
+    const crew = gr.txt || PH('Streifenwagenbesatzung'), pl = gr.pl;
     const wann = `Am ${has(e.datum) ? fmtDate(e.datum) : PH('Datum')} gegen ${has(e.zeit) ? fmtTime(e.zeit) : PH('Uhrzeit')}`;
     const adr = x.adr || PH('Anschrift'), sw = swText(e);
-    const einsatz = art => `${art} Einsatz${sw ? ' ' + sw : ''}`;
-    t.push({
-      streife: `${wann} ${pl ? 'wurden' : 'wurde'} ${crew} im Streifendienst an der Anschrift ${adrMitte(adr)} auf eine Auseinandersetzung aufmerksam.`,
-      leitstelle: `${wann} ${pl ? 'wurden' : 'wurde'} ${crew} durch die Leitstelle zu ${einsatz('einem')} zur Anschrift ${adrMitte(adr)} entsandt.`,
-      telefon: `${wann} ${pl ? 'übernahmen' : 'übernahm'} ${crew} nach einer telefonischen Mitteilung auf der Wache ${einsatz('einen')} zur Anschrift ${adr}.`,
-      wache: `${wann} ${pl ? 'übernahmen' : 'übernahm'} ${crew} nach einer persönlichen Mitteilung auf der Wache ${einsatz('einen')} zur Anschrift ${adr}.`
-    }[e.meldeweg] || `${wann} ${pl ? 'wurden' : 'wurde'} ${crew} zu ${einsatz('einem')} zur Anschrift ${adrMitte(adr)} entsandt.`);
-    if (e.meldeweg !== 'streife') {
-      if (has(e.meldung)) t.push(`Gemeldet wurde, dass ${endDot(slot(e.meldung))}`);
-      else if (has(e.meldungAlt)) t.push(`Gemeldet wurde: ${endDot(slot(e.meldungAlt))}`);
+    if (e.meldeweg === 'streife') t.push(`${wann} ${pl ? 'wurden' : 'wurde'} ${crew} im Streifendienst an der Anschrift ${adrMitte(adr)} auf eine Auseinandersetzung aufmerksam.`);
+    else t.push(`${wann} ${pl ? 'wurden' : 'wurde'} ${crew}${e.meldeweg === 'leitstelle' ? ' durch die Leitstelle' : ''} zu einem Einsatz${sw ? ' ' + sw : ''} zur Anschrift ${adrMitte(adr)} entsandt.`);
+    if (has(e.meldung)) t.push(`Gemeldet wurde, dass ${endDot(slot(e.meldung))}`);
+    else if (has(e.meldungAlt)) t.push(`Gemeldet wurde: ${endDot(slot(e.meldungAlt))}`);
+    else if (e.meldeweg !== 'streife') t.push(PH('Was wurde gemeldet?'));
+    if (e.mitteilerJa !== 'nein' && has(e.mitteiler)) {
       if (e.mitteiler === 'unbekannt') t.push('Wer die Meldung abgesetzt hat, ist nicht bekannt.');
       else if (e.mitteiler !== 'keine' && C.MITT[e.mitteiler]) { const ph = has(e.mitteilerText) ? slot(e.mitteilerText) : C.val(C.MITT[e.mitteiler][1], x); if (ph) t.push(`Die Meldung kam von ${ph}.`); }
-    }
-    // Aufträge der Besatzungen; Ergebnis der Suche nach der beschuldigten Person ergibt sich aus deren Personenkarte
+    } else if (e.mitteilerJa === 'ja') t.push(PH('Wer hat gemeldet?'));
+    if (has(e.weitere)) t.push(`Zur Unterstützung wurden außerdem folgende Kräfte eingesetzt: ${endDot(slot(e.weitere))}`);
+    return P(...t);
+  }
+  /** Was die einzelnen Besatzungen taten – steht am Anfang der Eintreffsituation. Das Ergebnis der Suche ergibt sich aus der Personenkarte. */
+  function auftraege(d, x) {
+    const W = C.wagenL(d), T = x.T, t = [];
     const y = C.bsY(d), bp = y ? y.p : {}, nw = y && bp.da === 'nah' ? C.nahWagenOf(d, bp) : null;
     const mehrere = W.filter(w => C.besetzung(w)).length > 1;
     for (const w of W) {
-      const c = C.besetzung(w); if (!c) continue;
-      const v = C.crewOf(w).length > 1;
-      if (w.auftrag === 'ort' && mehrere) t.push(`${c} ${v ? 'suchten' : 'suchte'} die Einsatzörtlichkeit auf.`);
+      if (!C.besetzung(w)) continue;
+      const c = cap(C.besatzung(w));
+      if (w.auftrag === 'ort' && mehrere) t.push(`${c} suchte die Einsatzörtlichkeit auf.`);
       else if (w.auftrag === 'nah' || w.auftrag === 'aufenthalt') {
-        const was = w.auftrag === 'nah' ? `${v ? 'suchten' : 'suchte'} den Nahbereich nach ${T.dat} ab` : `${v ? 'suchten' : 'suchte'} ${has(w.ziel) ? slot(w.ziel) : PH('Aufenthaltsort')} auf`;
+        const was = w.auftrag === 'nah' ? `suchte den Nahbereich nach ${T.dat} ab` : `suchte ${has(w.ziel) ? slot(w.ziel) : PH('Aufenthaltsort')} auf`;
         let erg = '';
-        if (nw && nw.i === w.i) erg = ` und ${v ? 'trafen' : 'traf'} ${w.auftrag === 'nah' ? T.ihn : T.akk} ${has(bp.nahOrt) ? slot(bp.nahOrt) : (w.auftrag === 'nah' ? 'im Nahbereich' : 'dort')} an`;
+        if (nw && nw.i === w.i) erg = ` und traf ${w.auftrag === 'nah' ? T.ihn : T.akk} ${has(bp.nahOrt) ? slot(bp.nahOrt) : (w.auftrag === 'nah' ? 'im Nahbereich' : 'dort')} an`;
         else if (bp.da === 'nein') erg = `; ${T.nom} wurde ${w.auftrag === 'nah' ? 'dabei' : 'dort'} nicht angetroffen`;
         t.push(`${c} ${was}${erg}.`);
-      } else if (w.auftrag === 'unterst') t.push(`Zur Unterstützung ${v ? 'kamen' : 'kam'} ${c} hinzu.`);
+      } else if (w.auftrag === 'unterst') t.push(`Zur Unterstützung kam ${C.besatzung(w)} hinzu.`);
       else if (w.auftrag === 'frei' && has(w.auftragText)) t.push(`${c} ${endDot(slot(w.auftragText))}`);
     }
-    if (has(e.weitere)) t.push(`Zur Unterstützung wurden außerdem folgende Kräfte eingesetzt: ${endDot(slot(e.weitere))}`);
     return P(...t);
   }
 
   /* ---------- 2 Eintreffsituation ---------- */
   function s21(d, x) {
-    const z = get(d, 'zutritt') || {}, ein = get(d, 'eintreff') || {}, t = [];
+    const z = get(d, 'zutritt') || {}, ein = get(d, 'eintreff') || {}, t = [auftraege(d, x)];
     if (ein.vorher === 'ja') {
       const v = C.vorOrt(d);
       if (has(ein.vorherText)) { t.push(`Bereits vor dem Betreten der Wohnung ${v.pl ? 'nahmen' : 'nahm'} ${v.txt} wahr, dass ${endDot(slot(ein.vorherText))}`); x.genannt.add(v.txt); }
@@ -1562,7 +1570,7 @@
       if (p.rolle === 'bs') add(!has(get(p, 'p.nachname')), 'Personalien der beschuldigten Person erfassen.');
     }
     // Kräfte und Eintreffen
-    add(!C.wagenL(d).some(w => C.besetzung(w)), 'Streifenwagenbesatzung erfassen (Schritt „Eingesetzte Kräfte“).');
+    add(!C.wagenL(d).some(w => C.besetzung(w)), 'Streifenwagenbesatzung erfassen (Schritt „Einsatzvergabe“).');
     add(get(d, 'eintreff.vorher') === 'ja' && !has(get(d, 'eintreff.vorherText')), 'Feststellungen vor dem Betreten ausformulieren.');
     { const y = C.bsY(d); add(!!y && y.p.da === 'nah' && !has(y.p.nahOrt), 'Ort angeben, an dem die beschuldigte Person angetroffen wurde.'); }
     // Zutritt
@@ -1696,7 +1704,7 @@
     const team = (root.WBridge && typeof root.WBridge.team === 'function' && root.WBridge.team()) || [];
     const rank = n => { const t = team.find(m => str(m.name).toLowerCase() === str(n).toLowerCase()); return t ? (arr(t.roles).find(r => RANK_RE.test(str(r))) || '') : ''; };
     const o = JSON.parse(JSON.stringify(data));
-    o.einsatz.wagen = [{ crew: k.map(c => ({ grad: str(c.grad) || rank(c.name), name: str(c.name) })) }];
+    o.einsatz.wagen = [{ crew: k.map(c => ({ grad: str(c.grad) || rank(c.name), name: nachname(c.name) })) }];
     delete o.einsatz.kraefte;
     return o;
   }
@@ -1762,6 +1770,7 @@
   const WARN_ALT_ = C.WARN_ALT;
 
   root.WHG = Object.freeze({
+    auftraegeText: d => auftraege(d, ctx(d)),
     id: 'hg', name: 'Häusliche Gewalt', short: 'Häusliche Gewalt', kurz: 'HG',
     desc: 'Personen zuerst, dann je Person nur das Passende · Sachverhalt in sieben Abschnitten, Begründung § 34a, Kurzfassung, „Noch zu erledigen“',
     labels: {

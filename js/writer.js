@@ -156,11 +156,11 @@
         const rows = Array.isArray(v) && v.length ? v : [{}];
         const max = f.max || 6;
         // Wer schon in einer Besatzung dieses Vorgangs steht, wird nicht noch einmal angeboten
-        const used = new Set([...rows, ...(getP(d, 'einsatz.kraefte') || []), ...(getP(d, 'einsatz.wagen') || []).flatMap(w => (w && Array.isArray(w.crew) ? w.crew : []))].filter(r => r && has(r.name)).map(r => nameKey(r.name)));
-        const team = rows.filter(r => r && has(r.name)).length < max ? ((W() && W().team && W().team()) || []).filter(p => p && has(p.name) && !used.has(nameKey(p.name))) : [];
+        const used = new Set([...rows, ...(getP(d, 'einsatz.kraefte') || []), ...(getP(d, 'einsatz.wagen') || []).flatMap(w => (w && Array.isArray(w.crew) ? w.crew : []))].filter(r => r && has(r.name)).map(r => nameKey(nachname(r.name))));
+        const team = rows.filter(r => r && has(r.name)).length < max ? ((W() && W().team && W().team()) || []).filter(p => p && has(p.name) && !used.has(nameKey(nachname(p.name)))) : [];
         const sel = (r, i) => { const g = (r && r.grad) || ''; const list = DGRADE.includes(g) ? DGRADE : [...DGRADE, g]; return `<select class="input w-grad" data-k="${esc(k)}.${i}.grad" aria-label="Amtsbezeichnung">${list.map(x => `<option value="${esc(x)}" ${g === x ? 'selected' : ''}>${esc(x || 'Amtsbez.')}</option>`).join('')}</select>`; };
-        const chips = team.length ? `<div class="w-crew-team"><div class="w-chips">${team.slice(0, 40).map(p => { const g = rankOf(p.roles); return `<button type="button" class="chip sm" data-crew-pick="${esc(k)}" data-v="${esc(JSON.stringify({ grad: g, name: p.name }))}">+ ${esc([g, p.name].filter(Boolean).join(' '))}</button>`; }).join('')}</div></div>` : '';
-        return `<div class="w-q full">${L()}${chips}<div class="w-crew">${rows.map((r, i) => `<div class="w-crew-row">${sel(r, i)}<input class="input" data-k="${esc(k)}.${i}.name" value="${esc(r && r.name || '')}" placeholder="Name" autocomplete="off" spellcheck="false" maxlength="60"><button type="button" class="icon-btn sm" data-crew-del="${i}" data-crew-k="${esc(k)}" aria-label="Entfernen" ${rows.length === 1 && !has(r && r.name) ? 'disabled' : ''}><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>`).join('')}</div>${rows.length < max ? `<button type="button" class="chip" data-crew-add="${esc(k)}">+ Weitere Person</button>` : ''}${lastCrew(rows, k)}</div>`;
+        const chips = team.length ? `<div class="w-crew-team"><div class="w-chips">${team.slice(0, 40).map(p => { const g = rankOf(p.roles), n = nachname(p.name); return `<button type="button" class="chip sm" data-crew-pick="${esc(k)}" data-v="${esc(JSON.stringify(Number.isFinite(p.lvl) ? { grad: g, name: n, lvl: p.lvl } : { grad: g, name: n }))}">+ ${esc([g, n].filter(Boolean).join(' '))}</button>`; }).join('')}</div></div>` : '';
+        return `<div class="w-q full">${L()}${chips}<div class="w-crew">${rows.map((r, i) => `<div class="w-crew-row">${sel(r, i)}<input class="input" data-k="${esc(k)}.${i}.name" value="${esc(r && r.name || '')}" placeholder="Nachname" autocomplete="off" spellcheck="false" maxlength="60"><button type="button" class="icon-btn sm" data-crew-del="${i}" data-crew-k="${esc(k)}" aria-label="Entfernen" ${rows.length === 1 && !has(r && r.name) ? 'disabled' : ''}><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>`).join('')}</div>${rows.length < max ? `<button type="button" class="chip" data-crew-add="${esc(k)}">+ Weitere Person</button>` : ''}${lastCrew(rows, k)}</div>`;
       }
       case 'person': {
         const p = (v && typeof v === 'object') ? v : {};
@@ -624,7 +624,12 @@
       if (b.dataset.sugg) {
         const d = doc(); if (!d) return;
         const k = b.dataset.sugg; let v = b.dataset.v; const cur = String(getP(d.data, k) || '').trim();
-        if (b.dataset.join && cur && cur !== v.trim() && !cur.includes(v.trim())) v = cur.replace(/[\s,;]+$/, '') + b.dataset.join + v;
+        if (b.dataset.join && cur && cur !== v.trim() && !cur.includes(v.trim())) {
+          // Aufzählung aus Vorschlägen: „A, B und C“ statt „A und B und C“
+          let base = cur.replace(/[\s,;]+$/, '');
+          if (b.dataset.join === ' und ') { const opts = $$(`[data-sugg="${CSS.escape(k)}"]`).map(x => x.dataset.v); const prev = opts.find(o => base.endsWith(' und ' + o)); if (prev) base = base.slice(0, base.length - prev.length - 5) + ', ' + prev; }
+          v = base + b.dataset.join + v;
+        }
         setP(d.data, k, v); persist(false); renderMain();
         const ta = $(`#wFields [data-k="${CSS.escape(k)}"]`);
         if (ta && /\s$/.test(v)) { ta.focus(); const n = ta.value.length; try { ta.setSelectionRange(n, n); } catch (er) { /* egal */ } }
@@ -657,7 +662,7 @@
       if (b.dataset.listDel) { const d = doc(); if (!d) return; const cur = getP(d.data, b.dataset.listDel); if (!Array.isArray(cur)) return; const a = cur.slice(); a.splice(Number(b.dataset.i), 1); setP(d.data, b.dataset.listDel, a.length ? a : undefined); persist(false); renderMain(); return; }
       if (b.dataset.crewAdd) { const d = doc(); if (!d) return; const a = Array.isArray(getP(d.data, b.dataset.crewAdd)) ? getP(d.data, b.dataset.crewAdd).slice() : [{}]; a.push({}); setP(d.data, b.dataset.crewAdd, a); persist(false); renderMain(); return; }
       if (b.dataset.crewDel != null) { const d = doc(); if (!d) return; const ck = b.dataset.crewK || 'einsatz.kraefte'; const a = (getP(d.data, ck) || []).slice(); a.splice(Number(b.dataset.crewDel), 1); setP(d.data, ck, a.length ? a : undefined); persist(false); renderMain(); return; }
-      if (b.dataset.crewPick) { const d = doc(); if (!d) return; let c = {}; try { c = JSON.parse(b.dataset.v); } catch (er) { return; } const ck = b.dataset.crewPick; const a = (Array.isArray(getP(d.data, ck)) ? getP(d.data, ck) : []).filter(r => r && (has(r.name) || has(r.grad))); a.push({ grad: c.grad || '', name: c.name }); setP(d.data, ck, a); persist(false); renderMain(); return; }
+      if (b.dataset.crewPick) { const d = doc(); if (!d) return; let c = {}; try { c = JSON.parse(b.dataset.v); } catch (er) { return; } const ck = b.dataset.crewPick; const a = (Array.isArray(getP(d.data, ck)) ? getP(d.data, ck) : []).filter(r => r && (has(r.name) || has(r.grad))); a.push(Number.isFinite(c.lvl) ? { grad: c.grad || '', name: c.name, lvl: c.lvl } : { grad: c.grad || '', name: c.name }); setP(d.data, ck, a); persist(false); renderMain(); return; }
     });
     root.addEventListener('input', e => {
       const el = e.target; if (!el.dataset || !el.dataset.k) return;
