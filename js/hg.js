@@ -59,7 +59,43 @@
     bt: { m: ['der Betroffene', 'dem Betroffenen', 'den Betroffenen', 'des Betroffenen'], w: ['die Betroffene', 'der Betroffenen', 'die Betroffene', 'der Betroffenen'], d: ['die betroffene Person', 'der betroffenen Person', 'die betroffene Person', 'der betroffenen Person'] }
   };
   const PRON = { m: ['er', 'ihm', 'ihn', 'sein'], w: ['sie', 'ihr', 'sie', 'ihr'], d: ['sie', 'ihr', 'sie', 'ihr'], n: ['es', 'ihm', 'es', 'sein'] };
-  const plist = d => arr(get(d, 'pers'));
+  /* Beziehungen: jede Person kann sich auf eine andere beziehen („Ehemann der Geschädigten“); Kinder nennen ihre Eltern. */
+  const REL = {
+    ehe: { m: 'Ehemann', w: 'Ehefrau', d: 'Ehepartner/in', inv: 'ehe' }, lg: { m: 'Lebensgefährte', w: 'Lebensgefährtin', d: 'Lebenspartner/in', inv: 'lg' },
+    ex: { m: 'früherer Partner', w: 'frühere Partnerin', d: 'frühere/r Partner/in', inv: 'ex' }, freund: { m: 'Freund', w: 'Freundin', d: 'Partner/in', inv: 'freund' },
+    kind: { m: 'Sohn', w: 'Tochter', d: 'Kind', inv: 'elt' }, elt: { m: 'Vater', w: 'Mutter', d: 'Elternteil', inv: 'kind' },
+    geschw: { m: 'Bruder', w: 'Schwester', d: 'Geschwister', inv: 'geschw' }, verwandt: { m: 'Verwandter', w: 'Verwandte', d: 'Verwandte/r', inv: 'verwandt' },
+    mitbew: { m: 'Mitbewohner', w: 'Mitbewohnerin', d: 'Mitbewohner/in', inv: 'mitbew' }, nachbar: { m: 'Nachbar', w: 'Nachbarin', d: 'Nachbar/in', inv: 'nachbar' },
+    bekannt: { m: 'Bekannter', w: 'Bekannte', d: 'Bekannte/r', inv: 'bekannt' }
+  };
+  const gKey = p => (p && ['m', 'w'].includes(p.geschlecht) ? p.geschlecht : 'd');
+  const rawList = d => arr(get(d, 'pers'));
+  /** Beziehung von Person i zu Person j – aus der eigenen Angabe oder umgekehrt aus der Angabe der anderen Person. */
+  function relKey(d, i, j) {
+    const L = rawList(d), a = L[i], b = L[j]; if (!a || !b || i === j) return '';
+    const zuA = has(a.zu) ? Number(a.zu) : 0, zuB = has(b.zu) ? Number(b.zu) : 0;
+    if (i > 0 && a.rolle !== 'kind' && has(a.rel) && zuA === j) return a.rel;
+    if (j > 0 && b.rolle !== 'kind' && has(b.rel) && zuB === i && REL[b.rel]) return REL[b.rel].inv;
+    if (a.rolle === 'kind' && arr(a.eltern).map(Number).includes(j)) return 'kind';
+    if (b.rolle === 'kind' && arr(b.eltern).map(Number).includes(i)) return 'elt';
+    return '';
+  }
+  const relLabel = (d, i, j) => { const k = relKey(d, i, j); return k && REL[k] ? REL[k][gKey(rawList(d)[i])] : ''; };
+  /** Angaben, die sich aus anderen Antworten ergeben: anwesend, verletzt, Beziehung zur beschuldigten Person, Kind von wem. */
+  function normP(d, p, i) {
+    if (!p || typeof p !== 'object') return p;
+    const o = { ...p };
+    if (!has(o.da)) { if (o.wo === 'nicht') o.da = 'nein'; else if (o.wo === 'nah') o.da = 'nah'; else if (has(o.wo) || (i === 0 && has(o.rolle))) o.da = 'ja'; }
+    if (!has(o.verletzt) && has(o.vgrad)) o.verletzt = o.vgrad === 'unverletzt' ? 'nein' : 'ja';
+    const L = rawList(d), bi = L.findIndex(q => q && q.rolle === 'bs');
+    if (!has(o.bez) && bi >= 0 && bi !== i && o.rolle !== 'kind') { const l = relLabel(d, i, bi); if (l) o.bez = l; }
+    if (o.rolle === 'kind' && !has(o.kbez) && arr(o.eltern).length) {
+      const el = arr(o.eltern).map(Number), gs = el.some(k => L[k] && L[k].rolle === 'gs'), bs = el.some(k => L[k] && L[k].rolle === 'bs');
+      o.kbez = gs && bs ? 'gemeinsam' : gs ? 'gs' : bs ? 'bs' : undefined;
+    }
+    return o;
+  }
+  const plist = d => rawList(d).map((p, i) => normP(d, p, i));
   const isP = p => !!p && typeof p === 'object' && has(p.rolle);
   const ofRole = (d, r) => plist(d).map((p, i) => ({ p, i })).filter(y => isP(y.p) && y.p.rolle === r);
   const gOf = p => (p && (p.geschlecht === 'w' || p.geschlecht === 'm') ? p.geschlecht : 'd');
@@ -233,6 +269,47 @@
   const besetzung = w => crewOf(w).map(kName).join('/');
   /** „die Streifenwagenbesatzung POK Kies/PKin Meier“ */
   const besatzung = w => (besetzung(w) ? `die Streifenwagenbesatzung ${besetzung(w)}` : '');
+
+  /* ---------- Eintreffsituation: Tatörtlichkeit ---------- */
+  const GEBAEUDE = [['mfh', 'Mehrfamilienhaus'], ['efh', 'Einfamilienhaus'], ['rh', 'Reihenhaus'], ['dhh', 'Doppelhaushälfte'], ['wgh', 'Wohn- und Geschäftshaus'], ['frei', 'Anderes']];
+  const GESCHOSS = [['eg', 'Erdgeschoss'], ['og1', '1. Obergeschoss'], ['og2', '2. Obergeschoss'], ['og3', '3. Obergeschoss'], ['og4', '4. Obergeschoss'], ['og5', '5. Obergeschoss'], ['dg', 'Dachgeschoss'], ['ug', 'Souterrain']];
+  const GESCHOSS_UI = [['eg', 'EG'], ['og1', '1. OG'], ['og2', '2. OG'], ['og3', '3. OG'], ['og4', '4. OG'], ['og5', '5. OG'], ['dg', 'DG'], ['ug', 'Souterrain']];
+  const SEITE = [['links', 'links'], ['rechts', 'rechts'], ['mitte', 'Mitte'], ['vorne', 'vorne'], ['hinten', 'hinten']];
+  /* Wo die Person war: die erste Person hat die Beamten erwartet */
+  const WO_ERW = [['haus', 'Vor dem Haus'], ['treppenhaus', 'Im Treppenhaus'], ['tuer', 'An der Wohnungstür'], ['wohnung', 'In der Wohnung']];
+  const WO_WEITER = [['wohnung', 'In der Wohnung'], ['treppenhaus', 'Im Treppenhaus'], ['haus', 'Vor dem Haus'], ['hinzu', 'Kam später hinzu'], ['nah', 'Im Nahbereich angetroffen'], ['nicht', 'Nicht vor Ort']];
+  const RAUM_SUGG = [['Wohnzimmer', 'im Wohnzimmer'], ['Küche', 'in der Küche'], ['Schlafzimmer', 'im Schlafzimmer'], ['Kinderzimmer', 'im Kinderzimmer'], ['Flur', 'im Flur'], ['Bad', 'im Badezimmer'], ['Balkon', 'auf dem Balkon']];
+  /* Wirkung auf die Beamten: Adjektive, nach Rolle gruppiert; im Text „wirkte auf die Beamten …“ */
+  const ADJ = {
+    angst: 'verängstigt', eingeschuechtert: 'eingeschüchtert', panisch: 'panisch', schock: 'wie unter Schock', verstoert: 'verstört', apathisch: 'apathisch', abwesend: 'abwesend',
+    aufgeloest: 'aufgelöst', weinerlich: 'weinerlich', erschoepft: 'erschöpft', mitgenommen: 'sichtlich mitgenommen', schmerz: 'schmerzgeplagt', hilflos: 'hilflos', ueberfordert: 'überfordert', beschaemt: 'beschämt',
+    nervoes: 'nervös', angespannt: 'angespannt', unruhig: 'unruhig', gehetzt: 'gehetzt', misstrauisch: 'misstrauisch',
+    aufgebracht: 'aufgebracht', wuetend: 'wütend', aufgewuehlt: 'aufgewühlt', gereizt: 'gereizt', aggressiv: 'aggressiv', aufbrausend: 'aufbrausend', laut: 'laut', unbeherrscht: 'unbeherrscht', drohend: 'drohend',
+    zurueckhaltend: 'zurückhaltend', wortkarg: 'wortkarg', kleinlaut: 'kleinlaut', verschlossen: 'verschlossen', ausweichend: 'ausweichend', beschwichtigend: 'beschwichtigend',
+    ruhig: 'ruhig', gefasst: 'gefasst', sachlich: 'sachlich', klar: 'klar und orientiert', erleichtert: 'erleichtert über das Eintreffen der Polizei', kooperativ: 'kooperativ',
+    verwirrt: 'verwirrt', desorientiert: 'desorientiert', benommen: 'benommen',
+    uneinsichtig: 'uneinsichtig', provokant: 'provokant', respektlos: 'respektlos', ueberheblich: 'überheblich', herablassend: 'herablassend', abweisend: 'abweisend', unkooperativ: 'unkooperativ', veraergert: 'verärgert über das Erscheinen der Polizei',
+    gleichgueltig: 'gleichgültig', emotionslos: 'emotionslos', verharmlosend: 'verharmlosend', selbstgerecht: 'selbstgerecht', kontrolliert: 'kontrolliert', einsichtig: 'einsichtig', reumuetig: 'reumütig',
+    besorgt: 'besorgt', hilfsbereit: 'hilfsbereit', aufgeregt: 'aufgeregt',
+    schutz: 'schutzsuchend', still: 'still', muede: 'müde', unauffaellig: 'unauffällig', aufgeweckt: 'aufgeweckt'
+  };
+  const ADJ_GRUPPEN = {
+    gs: [['Angst und Schock', ['angst', 'eingeschuechtert', 'panisch', 'schock', 'verstoert', 'apathisch', 'abwesend']], ['Belastung', ['aufgeloest', 'weinerlich', 'erschoepft', 'mitgenommen', 'schmerz', 'hilflos', 'ueberfordert', 'beschaemt']], ['Anspannung', ['nervoes', 'angespannt', 'unruhig', 'misstrauisch']], ['Erregung', ['aufgebracht', 'wuetend', 'aufgewuehlt', 'aggressiv']], ['Zurückhaltung', ['zurueckhaltend', 'wortkarg', 'kleinlaut', 'verschlossen', 'ausweichend', 'beschwichtigend']], ['Ruhe', ['ruhig', 'gefasst', 'sachlich', 'klar', 'erleichtert', 'kooperativ']], ['Verwirrung', ['verwirrt', 'desorientiert', 'benommen']]],
+    bs: [['Erregung', ['aggressiv', 'aufbrausend', 'gereizt', 'wuetend', 'aufgebracht', 'laut', 'unbeherrscht', 'drohend']], ['Haltung', ['uneinsichtig', 'provokant', 'respektlos', 'ueberheblich', 'herablassend', 'abweisend', 'unkooperativ', 'veraergert']], ['Distanz', ['gleichgueltig', 'emotionslos', 'verharmlosend', 'selbstgerecht', 'ausweichend', 'beschwichtigend']], ['Anspannung', ['angespannt', 'nervoes', 'unruhig', 'gehetzt']], ['Ruhe', ['ruhig', 'kontrolliert', 'kooperativ', 'einsichtig', 'reumuetig', 'sachlich']], ['Verwirrung', ['verwirrt', 'desorientiert', 'benommen']]],
+    zeuge: [['Eindruck', ['aufgeregt', 'besorgt', 'angst', 'nervoes', 'ruhig', 'sachlich', 'hilfsbereit', 'zurueckhaltend', 'kooperativ']]],
+    kind: [['Eindruck', ['angst', 'verstoert', 'eingeschuechtert', 'weinerlich', 'schutz', 'still', 'unruhig', 'apathisch', 'muede', 'unauffaellig', 'ruhig', 'aufgeweckt']]]
+  };
+  /* Verletzungen: Grad und Art (im Text in Klammern) */
+  const VGRAD = [['unverletzt', 'Unverletzt'], ['leicht', 'Leicht verletzt'], ['schwer', 'Schwer verletzt'], ['lebens', 'Lebensgefährlich verletzt']];
+  const VART = { haematom: 'Hämatom', roetung: 'Rötung', schwellung: 'Schwellung', kratzer: 'Kratzspuren', prellung: 'Prellung', platzwunde: 'Platzwunde', schnitt: 'Schnittwunde', blutung: 'blutende Wunde', wuergemale: 'Würgemale', petechien: 'punktförmige Einblutungen', biss: 'Bissverletzung', abwehr: 'Abwehrverletzungen', nase: 'Nasenbluten', verbrennung: 'Verbrennung' };
+  const RTW2 = [['nein', 'Auf Nachfrage nicht benötigt'], ['abgelehnt', 'Angeboten, abgelehnt'], ['vorort', 'Angefordert, vor Ort versorgt'], ['kh', 'Angefordert, ins Krankenhaus']];
+  /* Alkohol und Drogen */
+  const STOFF = { alkohol: 'Alkohol', btm: 'Betäubungsmitteln', med: 'Medikamenten' };
+  const STOFF_UI = [['alkohol', 'Alkohol'], ['btm', 'Betäubungsmittel'], ['med', 'Medikamente']];
+  const ANZEICHEN = [['Alkoholgeruch', 'Alkoholgeruch in der Atemluft'], ['Aussprache', 'verwaschene Aussprache'], ['Gang', 'unsicherer Gang'], ['Augen', 'gerötete, glasige Augen'], ['Pupillen', 'veränderte Pupillen'], ['Reaktion', 'verzögerte Reaktionen'], ['Flaschen', 'leere Alkoholflaschen in der Wohnung']];
+  const DTEST = [['urin', 'Urin'], ['speichel', 'Speichel'], ['wisch', 'Wischtest']];
+  const DSTOFF = { thc: 'Cannabis (THC)', koks: 'Kokain', amph: 'Amphetamin', meth: 'Methamphetamin', mdma: 'MDMA', opiate: 'Opiate', benzo: 'Benzodiazepine', methadon: 'Methadon' };
+  const TESTFRAGE = [['nein', 'Nicht angeboten'], ['ja', 'Angeboten, durchgeführt'], ['abgelehnt', 'Angeboten, abgelehnt']];
 
   /* ---------- Angetroffene Personen ---------- */
   const HALTUNG = { sass: 'saß', stand: 'stand', lag: 'lag auf dem Boden', kauerte: 'kauerte am Boden', umher: 'lief aufgeregt umher', eingeschl: 'hatte sich in einem Raum eingeschlossen', versteckt: 'hatte sich versteckt', kindArm: 'hielt ein Kind auf dem Arm' };
@@ -430,33 +507,69 @@
       ]
     },
 
-    /* ---------- Personen ---------- */
+    /* ---------- Eintreffsituation ---------- */
     {
-      id: 'personen', phase: 'Personen', title: 'Beteiligte Personen', lead: 'Jede Person einmal anlegen: Rolle, Geschlecht, Beziehung, vor Ort, verletzt. Danach fragt der Assistent pro Person nur, was passt. Namen kommen am Ende.', gen: ['kurz'],
+      id: 'eintreffen', phase: 'Eintreffen', title: 'Eintreffsituation', lead: 'Wo ist die Tatörtlichkeit, wer hat die Beamten erwartet, wer wurde außerdem angetroffen – und in welchem Zustand.', gen: ['eintreffen'],
       fields: [
-        { k: 'lage.gewalt', t: 'multi', l: 'Was steht im Raum?', req: true, o: O(GEWALT) },
-        { k: 'lage.gewaltFrei', t: 'text', l: 'Anderes (optional)', ph: 'z. B. Nachstellung', w: 'half', max: 80 },
-        { t: 'info', when: nurVerbal, text: 'Nur verbaler Streit oder Sachbeschädigung trägt eine Wohnungsverweisung nicht (OVG NRW 5 A 3548/20). Es bleiben Gefährderansprache, freiwillige Trennung und die Strafanzeige.' },
-        { k: 'pers', t: 'list', l: 'Personen', item: (it, i) => pl(it, i), add: 'Weitere Person', min1: true, max: 12, sub: [
-          { k: 'rolle', t: 'choice', l: 'Rolle', o: (d, it) => [['gs', 'Geschädigt'], ...(ofRole(d, 'bs').some(y => y.p !== it) ? [] : [['bs', 'Beschuldigt']]), ['kind', 'Kind im Haushalt'], ['zeuge', 'Zeugin / Zeuge']] },
+        { t: 'head', text: 'Tatörtlichkeit' },
+        { t: 'preset', l: '', o: d => (has(get(d, 'ort.strasse')) ? [['Anschrift aus der Einsatzvergabe übernehmen', { 'tatort.strasse': get(d, 'ort.strasse'), 'tatort.hausnr': get(d, 'ort.hausnr') || '', 'tatort.stadt': get(d, 'ort.stadt') || '' }, [get(d, 'ort.strasse'), get(d, 'ort.hausnr')].filter(has).join(' ')]] : []) },
+        { k: 'tatort.strasse', t: 'text', l: 'Straße', ph: 'Musterstraße', w: 'half' },
+        { k: 'tatort.hausnr', t: 'text', l: 'Hausnummer', ph: '5', w: 'half' },
+        { k: 'tatort.stadt', t: 'text', l: 'PLZ und Ort', ph: 'z. B. 48431 Rheine', recent: true },
+        { k: 'tatort.art', t: 'choice', l: 'Bei der Tatörtlichkeit handelt es sich um …', o: GEBAEUDE },
+        { k: 'tatort.artText', t: 'text', l: 'Was genau?', pre: 'Bei der Tatörtlichkeit handelt es sich um', ph: 'eine Gartenlaube', max: 120, when: d => get(d, 'tatort.art') === 'frei' },
+        { k: 'tatort.geschoss', t: 'choice', l: 'Geschoss', o: GESCHOSS_UI, when: d => ['mfh', 'wgh'].includes(get(d, 'tatort.art')) },
+        { k: 'tatort.seite', t: 'choice', l: 'Lage der Wohnung', o: SEITE, when: d => ['mfh', 'wgh'].includes(get(d, 'tatort.art')) },
+        { t: 'head', text: 'Personen vor Ort' },
+        { k: 'pers', t: 'list', l: '', item: (it, i) => (i === 0 ? 'Diese Person hat die Beamten erwartet' : pl(it, i)), add: 'Weitere Person', min1: true, max: 12, sub: [
+          { k: 'rolle', t: 'choice', l: 'Rolle', o: (d, it) => [['gs', 'Geschädigt'], ...(ofRole(d, 'bs').some(y => rawList(d)[y.i] !== it) ? [] : [['bs', 'Beschuldigt']]), ['zeuge', 'Zeugin / Zeuge'], ['kind', 'Kind']] },
           { k: 'geschlecht', t: 'choice', l: 'Geschlecht', o: (d, it) => (it.rolle === 'kind' ? [['w', 'Mädchen'], ['m', 'Junge']] : [['w', 'weiblich'], ['m', 'männlich'], ['d', 'divers']]), when: (d, it) => has(it.rolle) },
-          { k: 'bez', t: 'text', l: (d, it) => (it.rolle === 'gs' ? 'Beziehung zur beschuldigten Person' : 'Wer ist das? (z. B. Nachbarin, Mutter des Beschuldigten)'), ph: (d, it) => (it.rolle === 'gs' ? 'z. B. Ehefrau' : 'z. B. Nachbarin'), max: 60, sugg: (d, it) => (it.rolle === 'gs' ? BEZ : BEZ_Z)[gOf(it)], when: (d, it) => ['gs', 'zeuge'].includes(it.rolle) },
-          { t: 'info', text: (d, it) => zvrHint(d, it), when: (d, it) => !!zvrHint(d, it) },
-          { k: 'kbez', t: 'choice', l: 'Wessen Kind?', o: O(KBEZ_UI), when: (d, it) => it.rolle === 'kind' },
-          { k: 'kbezText', t: 'text', l: 'Genauer', ph: 'z. B. Enkelin der geschädigten Person', max: 80, when: (d, it) => it.rolle === 'kind' && it.kbez === 'anders' },
-          { k: 'alter', t: 'number', l: (d, it) => (it.rolle === 'kind' ? 'Alter' : 'Alter (nur bei Minderjährigen)'), unit: 'Jahre', min: 0, max: 120, w: 'half', when: (d, it) => ['kind', 'gs'].includes(it.rolle) },
-          { k: 'da', t: 'yn', l: 'Beim Eintreffen vor Ort?', o: (d, it) => (it.rolle === 'bs' ? [['ja', 'Vor Ort'], ['nah', 'Im Nahbereich angetroffen'], ['nein', 'Nicht angetroffen']] : [['ja', 'Vor Ort'], ['nein', 'Nicht vor Ort']]), when: (d, it) => has(it.rolle) },
-          { k: 'nahOrt', t: 'text', l: 'Wo angetroffen?', pre: 'Angetroffen', ph: 'in der Bahnhofstraße, etwa 200 m von der Wohnung entfernt', max: 160, when: (d, it) => it.rolle === 'bs' && it.da === 'nah' },
-          { k: 'nahWagen', t: 'choice', l: 'Durch welche Besatzung?', o: d => wagenL(d).filter(w => besetzung(w)).map(w => [String(w.i), besetzung(w)]), when: (d, it) => it.rolle === 'bs' && it.da === 'nah' && wagenL(d).filter(w => besetzung(w)).length > 1 },
-          { k: 'verletzt', t: 'yn', l: 'Verletzt?', w: 'half', when: (d, it) => has(it.rolle) }
+          { k: 'p.vorname', t: 'text', l: 'Vorname', ph: 'Vorname', w: 'half', max: 60, when: (d, it) => has(it.rolle) },
+          { k: 'p.nachname', t: 'text', l: 'Nachname', ph: 'Nachname', w: 'half', max: 60, when: (d, it) => has(it.rolle) },
+          { k: 'alter', t: 'number', l: 'Alter', unit: 'Jahre', min: 0, max: 120, w: 'half', when: (d, it) => has(it.rolle) },
+          { k: 'eltern', t: 'multi', l: 'Kind von', o: (d, it) => rawList(d).map((q, j) => [q, j]).filter(([q]) => q && q !== it && q.rolle && q.rolle !== 'kind').map(([q, j]) => [String(j), pl(q, j)]), when: (d, it) => it.rolle === 'kind' && rawList(d).some(q => q && q !== it && q.rolle && q.rolle !== 'kind') },
+          { k: 'zu', t: 'choice', l: 'Beziehung zu', o: (d, it) => rawList(d).map((q, j) => [q, j]).filter(([q]) => q && q !== it && q.rolle && q.rolle !== 'kind').map(([q, j]) => [String(j), pl(q, j)]), when: (d, it) => it.rolle !== 'kind' && has(it.rolle) && rawList(d).indexOf(it) > 0 && rawList(d).filter(q => q && q !== it && q.rolle && q.rolle !== 'kind').length > 1 },
+          { k: 'rel', t: 'choice', l: (d, it) => { const L = rawList(d), j = has(it.zu) ? Number(it.zu) : 0; return `Beziehung zu ${L[j] ? pl(L[j], j) : 'der ersten Person'}`; }, o: (d, it) => Object.entries(REL).map(([k, v]) => [k, v[gKey(it)]]), when: (d, it) => it.rolle !== 'kind' && has(it.rolle) && rawList(d).indexOf(it) > 0 },
+          { k: 'wo', t: 'choice', l: (d, it) => (rawList(d).indexOf(it) === 0 ? 'Wo wurden die Beamten erwartet?' : 'Wo angetroffen?'), o: (d, it) => (rawList(d).indexOf(it) === 0 ? WO_ERW : WO_WEITER.filter(([k]) => k !== 'nah' || it.rolle === 'bs')), when: (d, it) => has(it.rolle) },
+          { k: 'woText', t: 'text', l: 'Wo genau? (optional)', ph: 'im Wohnzimmer', max: 120, sugg: RAUM_SUGG, when: (d, it) => it.wo === 'wohnung' },
+          { k: 'nahOrt', t: 'text', l: 'Wo angetroffen?', pre: 'Angetroffen', ph: 'in der Bahnhofstraße, etwa 200 m von der Wohnung entfernt', max: 160, when: (d, it) => it.wo === 'nah' },
+          { k: 'nahWagen', t: 'choice', l: 'Durch welche Besatzung?', o: d => wagenL(d).filter(w => besetzung(w)).map(w => [String(w.i), besetzung(w)]), when: (d, it) => it.wo === 'nah' && wagenL(d).filter(w => besetzung(w)).length > 1 },
+          { t: 'head', text: 'Wirkung auf die Beamten', when: (d, it) => has(it.rolle) && it.wo !== 'nicht' },
+          ...['gs', 'bs', 'zeuge', 'kind'].flatMap(r => ADJ_GRUPPEN[r].map(([g, ks]) => ({ k: 'wirk', t: 'multi', l: ADJ_GRUPPEN[r].length > 1 ? g : '', o: ks.map(k => [k, cap(ADJ[k])]), when: (d, it) => it.rolle === r && it.wo !== 'nicht' }))),
+          { k: 'wirkFrei', t: 'text', l: 'Weitere Beobachtungen (optional)', pre: (d, it) => ErP(it), ph: 'weinte und zitterte am ganzen Körper', max: 300, when: (d, it) => has(it.rolle) && it.wo !== 'nicht' },
+          { k: 'spontan', t: 'text', l: 'Ungefragte Äußerung (wörtlich, optional)', pre: (d, it) => `${ErP(it)} äußerte ungefragt:`, ph: '„Er hat mich wieder geschlagen.“', max: 300, when: (d, it) => has(it.rolle) && it.wo !== 'nicht' },
+          { k: 'spontanZeit', t: 'time', l: 'Uhrzeit der Äußerung', w: 'half', q: 'jetzt', when: (d, it) => has(it.spontan) },
+          { t: 'head', text: 'Verletzungen', when: (d, it) => has(it.rolle) && it.wo !== 'nicht' },
+          { k: 'vgrad', t: 'choice', l: 'Verletzungsgrad', o: VGRAD, when: (d, it) => has(it.rolle) && it.wo !== 'nicht' },
+          { k: 'verl', t: 'multi', l: 'Art der Verletzung', o: Object.entries(VART).map(([k, v]) => [k, cap(v)]), when: (d, it) => ['leicht', 'schwer', 'lebens'].includes(it.vgrad) },
+          { k: 'verlFrei', t: 'text', l: 'Weitere Verletzungen (optional)', ph: 'abgebrochener Schneidezahn', max: 160, when: (d, it) => ['leicht', 'schwer', 'lebens'].includes(it.vgrad) },
+          { k: 'verlWo', t: 'text', l: 'Wo am Körper?', ph: 'am linken Auge und am Hals', join: ' und ', max: 160, sugg: [['Gesicht', 'im Gesicht'], ['Kopf', 'am Kopf'], ['Hals', 'am Hals'], ['Arme', 'an den Armen'], ['Hände', 'an den Händen'], ['Oberkörper', 'am Oberkörper'], ['Beine', 'an den Beinen']], when: (d, it) => ['leicht', 'schwer', 'lebens'].includes(it.vgrad) },
+          { k: 'rtw', t: 'choice', l: 'Rettungswagen', o: RTW2, when: (d, it) => ['leicht', 'schwer', 'lebens'].includes(it.vgrad) },
+          { k: 'kh', t: 'text', l: 'Welches Krankenhaus?', ph: 'z. B. Mathias-Spital Rheine', recent: true, max: 80, when: (d, it) => it.rtw === 'kh' },
+          { k: 'attest', t: 'yn', l: 'Auf ärztliches Attest hingewiesen?', when: (d, it) => ['leicht', 'schwer', 'lebens'].includes(it.vgrad) && it.rolle !== 'kind' },
+          { t: 'head', text: 'Alkohol und Drogen', when: (d, it) => has(it.rolle) && it.rolle !== 'kind' && it.wo !== 'nicht' },
+          { k: 'konsum', t: 'yn', l: 'Anhaltspunkte für einen vorherigen Konsum?', when: (d, it) => has(it.rolle) && it.rolle !== 'kind' && it.wo !== 'nicht' },
+          { k: 'stoff', t: 'multi', l: 'Konsum von …', o: STOFF_UI, when: (d, it) => it.konsum === 'ja' },
+          { k: 'konsumText', t: 'text', l: 'Anzeichen (optional)', ph: 'Alkoholgeruch in der Atemluft, verwaschene Aussprache', join: ', ', max: 240, sugg: ANZEICHEN, when: (d, it) => it.konsum === 'ja' },
+          { k: 'aat', t: 'choice', l: 'Freiwilliger Atemalkoholtest', o: TESTFRAGE, when: (d, it) => it.konsum === 'ja' && arr(it.stoff).includes('alkohol') },
+          { k: 'aatVon', t: 'crewpick', kurz: true, l: 'Angeboten durch', when: (d, it) => ['ja', 'abgelehnt'].includes(it.aat) },
+          { k: 'aatZeit', t: 'time', l: 'Uhrzeit des Angebots', w: 'half', q: 'jetzt', when: (d, it) => ['ja', 'abgelehnt'].includes(it.aat) },
+          { k: 'aatMessZeit', t: 'time', l: 'Uhrzeit der Messung', w: 'half', q: 'jetzt', when: (d, it) => it.aat === 'ja' },
+          { k: 'aatWert', t: 'number', l: 'Ergebnis', step: 0.01, min: 0, max: 6, w: 'half', when: (d, it) => it.aat === 'ja' },
+          { k: 'aatEinheit', t: 'choice', l: 'Einheit', o: [['mgl', 'mg/l'], ['promille', '‰']], w: 'half', when: (d, it) => it.aat === 'ja' },
+          { k: 'dt', t: 'choice', l: 'Freiwilliger Drogenvortest', o: TESTFRAGE, when: (d, it) => it.konsum === 'ja' && arr(it.stoff).some(x => ['btm', 'med'].includes(x)) },
+          { k: 'dtArt', t: 'choice', l: 'Testart', o: DTEST, when: (d, it) => ['ja', 'abgelehnt'].includes(it.dt) },
+          { k: 'dtVon', t: 'crewpick', kurz: true, l: 'Angeboten durch', when: (d, it) => ['ja', 'abgelehnt'].includes(it.dt) },
+          { k: 'dtZeit', t: 'time', l: 'Uhrzeit des Angebots', w: 'half', q: 'jetzt', when: (d, it) => ['ja', 'abgelehnt'].includes(it.dt) },
+          { k: 'dtMessZeit', t: 'time', l: 'Uhrzeit des Ergebnisses', w: 'half', q: 'jetzt', when: (d, it) => it.dt === 'ja' },
+          { k: 'dtErg', t: 'choice', l: 'Ergebnis', o: [['negativ', 'Negativ'], ['positiv', 'Positiv']], when: (d, it) => it.dt === 'ja' },
+          { k: 'dtStoffe', t: 'multi', l: 'Positiv auf', o: Object.entries(DSTOFF), when: (d, it) => it.dt === 'ja' && it.dtErg === 'positiv' }
         ] },
-        { t: 'info', when: d => plist(d).length > 0 && !ofRole(d, 'bs').length, text: 'Noch keine beschuldigte Person erfasst. Auch wer nicht mehr vor Ort ist, wird hier angelegt (Rolle „Beschuldigt“, „Nicht vor Ort“).' }
+        { k: 'abw.verbleib', t: 'text', l: 'Wo ist die beschuldigte Person? (optional)', pre: d => `Nach Angaben ${gsGen(d)}`, ph: 'habe er die Wohnung kurz vor Eintreffen der Polizei zu Fuß verlassen', lint: 'konj', max: 240, when: d => bsWeg(d) }
       ]
     },
-
-    /* ---------- Eintreffen ---------- */
     {
-      id: 'eintreffen', phase: 'Eintreffen', title: 'Eintreffen und Zutritt', lead: 'Was war beim Eintreffen zu hören, wer öffnete – und auf welcher Grundlage habt ihr die Wohnung betreten?', gen: ['eintreffen'],
+      id: 'zutritt', phase: 'Eintreffen', title: 'Zutritt und erste Maßnahmen', lead: 'Was war beim Eintreffen zu hören, wer öffnete – und auf welcher Grundlage habt ihr die Wohnung betreten?', gen: ['zutritt'],
       fields: [
         { k: 'eintreff.vorher', t: 'yn', l: 'Wurden vor dem Betreten Feststellungen gemacht?', h: 'Was vor der Tür zu hören oder zu sehen war.' },
         { k: 'eintreff.vorherText', t: 'area', rows: 3, l: 'Feststellungen', pre: d => `Bereits vor dem Betreten der Wohnung ${vorOrt(d).pl ? 'nahmen' : 'nahm'} ${vorOrt(d).txt} wahr, dass`, ph: 'aus der Wohnung laute Schreie einer Frau und das Weinen eines Kindes zu hören waren', max: 1200, when: d => get(d, 'eintreff.vorher') === 'ja' },
@@ -475,75 +588,15 @@
         satzFeld('eintreff.sofortText', 'Weitere Maßnahmen', 'Die Wohnung wurde nach weiteren Personen abgesucht.')
       ]
     },
-    {
-      id: 'angetroffen', phase: 'Eintreffen', title: 'Angetroffene Personen', lead: 'Für jede anwesende Person: wo angetroffen, Zustand, Auffälligkeiten, ungefragte Äußerungen. Kinder folgen im Schritt „Kinder“.', gen: ['angetroffen'],
-      fields: [
-        { k: 'pers', t: 'list', fixed: true, l: '', item: (it, i) => pl(it, i), only: (d, it) => it.rolle !== 'kind' && present(it), empty: 'Noch keine anwesende Person erfasst – erst im Schritt „Beteiligte Personen“ anlegen.', sub: [
-          { t: 'head', text: 'Ort und Haltung' },
-          { k: 'wo', t: 'choice', l: 'Wo angetroffen?', o: O(WO), when: (d, it) => !(it.rolle === 'bs' && it.da === 'nah') },
-          { k: 'woText', t: 'text', l: 'Genauer (optional)', ph: 'im Schlafzimmer', max: 120, when: (d, it) => !(it.rolle === 'bs' && it.da === 'nah') },
-          { k: 'haltung', t: 'multi', l: 'Haltung', o: HALTUNG_UI },
-          { k: 'haltungFrei', t: 'text', l: 'In eigenen Worten (optional)', pre: (d, it) => ErP(it), ph: 'hielt sich die linke Wange', max: 200 },
-          { t: 'head', text: 'Sichtbares' },
-          { k: 'sicht', t: 'multi', l: 'Äußeres Erscheinungsbild', o: SICHT_UI },
-          { k: 'sichtFrei', t: 'text', l: 'In eigenen Worten (optional)', pre: (d, it) => ErP(it), ph: 'hatte eine ausgerissene Haarsträhne in der Hand', max: 200 },
-          { t: 'head', text: 'Verhalten' },
-          { k: 'zust', t: 'multi', l: 'Was war zu beobachten?', o: (d, it) => ZUST_UI[it.rolle] || ZUST_UI.zeuge },
-          { k: 'zustFrei', t: 'text', l: 'In eigenen Worten (optional)', pre: (d, it) => ErP(it), ph: 'sprach mit zitternder Stimme', max: 240 },
-          { k: 'zuein', t: 'multi', l: (d, it) => (it.rolle === 'bs' ? 'Gegenüber der geschädigten Person' : 'Gegenüber der beschuldigten Person'), o: (d, it) => ZUEIN_UI[it.rolle] || [], when: (d, it) => ['gs', 'bs'].includes(it.rolle) && beideHier(d) },
-          { k: 'zueinFrei', t: 'text', l: 'In eigenen Worten (optional)', pre: (d, it) => ErP(it), ph: 'stellte sich zwischen die Einsatzkräfte und die Tür', max: 200, when: (d, it) => ['gs', 'bs'].includes(it.rolle) && beideHier(d) },
-          { k: 'anspr', t: 'choice', l: 'Ansprechbarkeit', o: [['orientiert', 'Ansprechbar, orientiert'], ['eingeschr', 'Eingeschränkt ansprechbar'], ['nicht', 'Nicht ansprechbar']] },
-          { k: 'sprache', t: 'choice', l: 'Verständigung', o: [['deutsch', 'Auf Deutsch'], ['eingeschr', 'Nur eingeschränkt auf Deutsch'], ['dolm', 'Nur mit Dolmetscher/in']] },
-          { k: 'spracheText', t: 'text', l: 'Sprache / wer übersetzte (optional)', ph: 'Türkisch; übersetzt durch die Nachbarin', max: 120, when: (d, it) => ['eingeschr', 'dolm'].includes(it.sprache) },
-          { k: 'bes', t: 'multi', l: 'Besonderheiten', o: [['rausch', 'Nicht aufnahmefähig'], ['psych', 'Akute psychische Krise'], ['minder', 'Unter 18 Jahre'], ['betreut', 'Unter rechtlicher Betreuung']], when: (d, it) => it.rolle === 'bs' },
-          { t: 'info', when: (d, it) => it.rolle === 'bs' && (arr(it.bes).includes('rausch') || it.sprache === 'dolm'), text: 'Belehrung, Anhörung und Verfügung, die nicht verstanden werden, sind angreifbar. Zustand als Tatsache festhalten, Verfügung schriftlich mitgeben, Belehrung und Anhörung nachholen. Als Dolmetscher scheiden Beteiligte und Kinder aus.' },
-          { t: 'head', text: 'Wirkung auf die Einsatzkräfte' },
-          { k: 'wirk', t: 'multi', l: (d, it) => `Auf ${vorOrtFuer(d, it).txt} wirkte ${erP(it)} …`, o: (d, it) => WIRK_UI[it.rolle] || WIRK_UI.zeuge },
-          { k: 'wirkFrei', t: 'text', l: 'In eigenen Worten (optional)', pre: (d, it) => `Auf ${vorOrtFuer(d, it).txt} wirkte ${erP(it)}`, ph: 'trotz der Verletzungen auffallend ruhig', max: 200 },
-          { t: 'head', text: 'Alkohol, Drogen und Äußerungen' },
-          { k: 'konsum', t: 'yn', l: 'Anzeichen für Alkohol-, Drogen- oder Medikamenteneinfluss?' },
-          { k: 'konsumText', t: 'text', l: 'Welche Anzeichen?', pre: 'Festgestellt wurden', ph: 'deutlicher Alkoholgeruch in der Atemluft und eine verwaschene Aussprache', join: ' und ', sugg: KONSUM, when: (d, it) => it.konsum === 'ja' },
-          { k: 'aat', t: 'choice', l: 'Atemalkoholtest (freiwillig)', o: [['ja', 'Durchgeführt'], ['verweigert', 'Abgelehnt'], ['nein', 'Nicht durchgeführt']], when: (d, it) => it.konsum === 'ja' },
-          { k: 'aatWert', t: 'number', l: 'Ergebnis', step: 0.01, min: 0, max: 6, w: 'half', when: (d, it) => it.aat === 'ja' },
-          { k: 'aatEinheit', t: 'choice', l: 'Einheit', o: [['promille', '‰'], ['mgl', 'mg/l']], w: 'half', when: (d, it) => it.aat === 'ja' },
-          { k: 'aatZeit', t: 'time', l: 'Uhrzeit des Tests', q: 'jetzt', w: 'half', when: (d, it) => it.aat === 'ja' },
-          { k: 'spontan', t: 'text', l: 'Ungefragte Äußerung (wörtlich, optional)', h: 'Ungefragte Äußerungen bleiben verwertbar, auch wenn später das Zeugnis verweigert wird – deshalb wörtlich und mit Uhrzeit.', pre: (d, it) => `${ErP(it)} äußerte ungefragt:`, ph: (d, it) => (it.rolle === 'bs' ? '„Die hat mich provoziert.“' : '„Er hat mich wieder geschlagen.“'), max: 300 },
-          { k: 'spontanZeit', t: 'time', l: 'Uhrzeit der Äußerung', w: 'half', q: 'jetzt', when: (d, it) => has(it.spontan) }
-        ] },
-        { k: 'abw.verbleib', t: 'text', l: 'Wo ist die beschuldigte Person? (nicht vor Ort)', pre: d => `Nach Angaben ${gsGen(d)}`, ph: 'habe er die Wohnung kurz vor Eintreffen der Polizei zu Fuß in unbekannte Richtung verlassen', lint: 'konj', sugg: d => [['kurz zuvor gegangen', `habe ${erBs(d)} die Wohnung kurz vor Eintreffen der Polizei verlassen`], ['unbekannt', `sei ${seinBs(d)} Aufenthaltsort unbekannt`]], when: bsWeg }
-      ]
-    },
-    {
-      id: 'verletzungen', phase: 'Eintreffen', title: 'Verletzungen und Versorgung', lead: 'Für jede verletzte Person: Verletzungen, Frage nach dem Rettungswagen mit Antwort, Lichtbilder.', gen: ['angetroffen', 'kinder'], when: d => verletzte(d).length > 0,
-      fields: [
-        { k: 'pers', t: 'list', fixed: true, l: '', item: (it, i) => pl(it, i), only: (d, it) => it.verletzt === 'ja', empty: 'Keine verletzte Person erfasst.', sub: [
-          { k: 'verl', t: 'multi', l: 'Sichtbare Verletzungen', o: [...O(VERL), ['keine', 'Keine sichtbaren']] },
-          { k: 'verlFrei', t: 'text', l: 'Weitere Verletzungen in eigenen Worten (optional)', pre: 'außerdem', ph: 'eine aufgeplatzte Lippe und einen abgebrochenen Schneidezahn', max: 240 },
-          { k: 'verlWo', t: 'text', l: 'Wo?', pre: 'Die Verletzungen befinden sich', ph: 'am linken Auge und am rechten Unterarm', join: ' und ', sugg: [['Gesicht', 'im Gesicht'], ['Hals', 'am Hals'], ['Arme', 'an den Armen'], ['Oberkörper', 'am Oberkörper'], ['Kopf', 'am Kopf'], ['Beine', 'an den Beinen']], when: (d, it) => arr(it.verl).some(v => v !== 'keine') || has(it.verlFrei) },
-          { k: 'schmerz', t: 'text', l: 'Schmerzen (optional)', pre: (d, it) => `${ErP(it)} klagte über`, ph: 'Schmerzen im Bereich des Halses und Schluckbeschwerden', max: 200 },
-          { t: 'info', when: (d, it) => halsAng(d, it), text: 'Angriff gegen den Hals: auch ohne sichtbare Spuren lebensgefährlich, Folgen können verzögert auftreten. Zeitnahe ärztliche Untersuchung dringend empfehlen; § 224 Abs. 1 Nr. 5 StGB prüfen.' },
-          { k: 'wuerg', t: 'multi', l: 'Beschwerden nach dem Angriff gegen den Hals (nach eigenen Angaben)', o: [['atem', 'Atemnot'], ['schwindel', 'Schwindel'], ['bewusst', 'Kurz bewusstlos'], ['schluck', 'Schluckbeschwerden'], ['stimme', 'Heiserkeit'], ['einnaessen', 'Urinabgang']], when: halsAng },
-          { k: 'wuergArzt', t: 'yn', l: 'Zeitnahe ärztliche Untersuchung dringend empfohlen?', w: 'half', when: halsAng },
-          { k: 'rtw', t: 'choice', l: (d, it) => (it.rolle === 'kind' ? 'Ärztliche Versorgung des Kindes' : 'Rettungswagen / ärztliche Hilfe – gefragt und Antwort'), req: true, h: (d, it) => (it.rolle === 'kind' ? 'Mit der sorgeberechtigten Person klären und das Ergebnis festhalten.' : 'Immer fragen und die Antwort festhalten – auch die Ablehnung.'), o: (d, it) => (it.rolle === 'kind' ? RTW_KIND : RTW_UI) },
-          { k: 'rtwBes', t: 'text', l: 'Rettungsmittel (optional)', ph: 'z. B. RTW 1-83-1', w: 'half', max: 40, when: (d, it) => ['vorort', 'kh', 'sofort'].includes(it.rtw) },
-          { k: 'kh', t: 'text', l: 'Krankenhaus', ph: 'z. B. Mathias-Spital Rheine', w: 'half', recent: true, max: 80, when: (d, it) => it.rtw === 'kh' },
-          { k: 'rtwText', t: 'text', l: 'Befund der Rettungswagenbesatzung (optional)', pre: 'Die Besatzung des Rettungswagens', ph: 'stellte eine Platzwunde an der Stirn fest und versorgte sie vor Ort', max: 240, when: (d, it) => ['vorort', 'kh', 'sofort'].includes(it.rtw) },
-          { k: 'foto', t: 'choice', l: (d, it) => (it.rolle === 'bs' ? 'Lichtbilder (§ 81b StPO)' : 'Lichtbilder der Verletzungen'), o: [['ja', 'Gefertigt – zur Anzeige'], ['abgelehnt', 'Abgelehnt'], ['spaeter', 'Werden nachgefertigt'], ['nein', 'Nicht gefertigt']] },
-          { k: 'fotoBel', t: 'yn', l: 'Vorher über das Weigerungsrecht belehrt (§ 81c Abs. 3 StPO)?', h: 'Angehörige dürfen Untersuchungen und Lichtbilder aus denselben Gründen verweigern wie das Zeugnis.', when: (d, it) => !['bs', 'kind'].includes(it.rolle) && it.foto === 'ja' && angehoerig(it) },
-          { t: 'info', when: (d, it) => it.rolle === 'kind' && it.foto === 'ja', text: 'Lichtbilder bei Kindern (§ 81c Abs. 3 StPO): Mit ausreichender Verstandesreife entscheidet das Kind selbst nach altersgerechter Belehrung. Sonst entscheidet der gesetzliche Vertreter – ist ein Elternteil beschuldigt, bei gemeinsamer Sorge auch der andere nicht (§ 52 Abs. 2 Satz 2 StPO). Dann zur Beweissicherung nur auf richterliche Anordnung; verwertbar nur mit Einwilligung eines Ergänzungspflegers.' },
-          { k: 'fotoKind', t: 'choice', l: 'Grundlage der Lichtbilder', o: [['selbst', 'Kind verstandesreif, nach Belehrung eingewilligt'], ['vertreter', 'Allein sorgeberechtigte, nicht beschuldigte Person eingewilligt'], ['richter', 'Richterliche Anordnung zur Beweissicherung'], ['offen', 'Noch zu klären']], when: (d, it) => it.rolle === 'kind' && it.foto === 'ja' },
-          { k: 'attest', t: 'yn', l: 'Auf ärztliche Dokumentation (Attest) hingewiesen?', w: 'half', when: (d, it) => !['bs', 'kind'].includes(it.rolle) }
-        ] }
-      ]
-    },
 
     /* ---------- Umstände ---------- */
     {
       id: 'umstaende', phase: 'Umstände', title: 'Örtlichkeit und Beziehung', lead: 'Wohnung, Spuren einer Auseinandersetzung, Wohnverhältnisse und Beziehung der Beteiligten.', gen: ['umstaende'],
       fields: [
-        { t: 'head', text: 'Örtlichkeit' },
-        { k: 'ort.art', t: 'choice', l: 'Gebäude', o: [['mfh', 'Mehrfamilienhaus'], ['efh', 'Einfamilienhaus'], ['rh', 'Reihen- / Doppelhaus'], ['wgh', 'Wohn- und Geschäftshaus']] },
-        { k: 'ort.lage', t: 'text', l: 'Lage der Wohnung', ph: 'z. B. 2. OG links', w: 'half', max: 60 },
+        { k: 'lage.gewalt', t: 'multi', l: 'Was steht im Raum?', o: O(GEWALT) },
+        { t: 'head', text: 'Spuren in der Wohnung' },
+        { k: 'ort.art', t: 'choice', when: () => false, l: 'Gebäude', o: [['mfh', 'Mehrfamilienhaus'], ['efh', 'Einfamilienhaus'], ['rh', 'Reihen- / Doppelhaus'], ['wgh', 'Wohn- und Geschäftshaus']] },
+
         { k: 'eintreff.wohnung', t: 'choice', l: 'Anhaltspunkte für eine Auseinandersetzung in der Wohnung?', o: [['unauffaellig', 'Keine – Wohnung unauffällig'], ['spuren', 'Ja, Spuren festgestellt']] },
         { k: 'eintreff.spuren', t: 'multi', l: 'Welche Spuren?', o: Object.entries(SPUREN).map(([k, v]) => [k, cap(v[0])]), when: d => get(d, 'eintreff.wohnung') === 'spuren' },
         { k: 'eintreff.spurenFrei', t: 'text', l: 'Weitere Spuren (optional)', pre: 'außerdem', ph: 'eine eingetretene Badezimmertür', max: 200, when: d => get(d, 'eintreff.wohnung') === 'spuren' },
@@ -824,7 +877,7 @@
   root.WHG_CORE = {
     get, str, has, arr, inc, cap, endDot, slot, satz, mit, joinList, fmtDate, fmtTime, PH, um, addDays, hasObj, pick, val,
     NOUN, PRON, plist, isP, ofRole, gOf, ref, main, pl, kdesc, zvrOf, zvrNr, bsY, bsDa, bsWeg, kinderL, kinderDa, verletzte, nurVerbal, zutrittGegen,
-    halsAngriff: halsAng, besatzung, fuehrerFrage, STICHWORT, MITT, HALTUNG, SICHT, WIRK, ZUEIN, ANSPR, nachname, kName, wagenL, crewOf, besetzung, vorOrt, vorOrtFuer, nahWagenOf, beideHier, bsHier, wvJa, wvNein, gewahrsam, zwang, wvTag, wvEnde, wvMax, nachtEr, nachtAbw, nachtErArt, nachtAbwArt, nach, minderj, weekday, angehoerig, WUERG, DELIKT_ORDER, autoMarks, markOf, marked, anyMark,
+    halsAngriff: halsAng, REL, relKey, relLabel, rawList, gKey, GESCHOSS, SEITE, GEBAEUDE, ADJ, VART, STOFF, DSTOFF, DTEST, besatzung, fuehrerFrage, STICHWORT, MITT, HALTUNG, SICHT, WIRK, ZUEIN, ANSPR, nachname, kName, wagenL, crewOf, besetzung, vorOrt, vorOrtFuer, nahWagenOf, beideHier, bsHier, wvJa, wvNein, gewahrsam, zwang, wvTag, wvEnde, wvMax, nachtEr, nachtAbw, nachtErArt, nachtAbwArt, nach, minderj, weekday, angehoerig, WUERG, DELIKT_ORDER, autoMarks, markOf, marked, anyMark,
     GEWALT, WAHRN, WAHRN_PL, VORG_PL, TATSACHEN, WO, ZUST, BES, VERL, RAUM, KIND_WO, SPUREN, ORTE, VORG, STUETZEN, DELIKT, DELIKT_TAT, BEL_Z, BEL_B, ANH, ER, OS, FAK, FAK_BY, BST_BY, WARN_ALT
   };
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -919,9 +972,97 @@
     return P(...t);
   }
 
-  /* ---------- 2 Eintreffsituation ---------- */
+  /* ---------- 2 Eintreffsituation: Tatörtlichkeit, wer erwartete, wer angetroffen wurde, Zustand ---------- */
+  const GESCH = Object.fromEntries(C.GESCHOSS);
+  function tatortSatz(d) {
+    const t = get(d, 'tatort') || {};
+    const adr = [[str(t.strasse), str(t.hausnr)].filter(has).join(' '), str(t.stadt)].filter(has).join(', ');
+    const lage = [GESCH[t.geschoss] ? (t.geschoss === 'ug' ? 'im Souterrain' : `im ${GESCH[t.geschoss]}`) : '', t.seite ? (t.seite === 'mitte' ? 'Mitte' : str(t.seite)) : ''].filter(Boolean).join(' ');
+    const art = { efh: 'ein Einfamilienhaus', rh: 'ein Reihenhaus', dhh: 'eine Doppelhaushälfte', mfh: `eine Wohnung${lage ? ' ' + lage : ''} eines Mehrfamilienhauses`, wgh: `eine Wohnung${lage ? ' ' + lage : ''} eines Wohn- und Geschäftshauses`, frei: has(t.artText) ? slot(t.artText) : '' }[t.art];
+    if (!art && !adr) return '';
+    return `Bei der Tatörtlichkeit handelt es sich um ${art || PH('Art der Örtlichkeit')}${adr ? ` unter der Anschrift ${adr}` : ''}.`;
+  }
+  /** „die Geschädigte Anna Muster (34 Jahre)“ – beim ersten Nennen mit Namen und Alter, danach nur die Rolle. */
+  function vorstellen(d, x, i, fall) {
+    const r = x.R(i), p = r.p, q = p.p || {};
+    const name = [str(q.vorname), str(q.nachname)].filter(has).join(' ');
+    const alter = has(p.alter) ? `${p.alter} ${Number(p.alter) === 1 ? 'Jahr' : 'Jahre'}` : '';
+    let rolle = r[fall] || r.nom;
+    if (p.rolle === 'kind' && name) rolle = { nom: 'das Kind', dat: 'dem Kind', akk: 'das Kind', gen: 'des Kindes' }[fall];
+    const kopf = `${rolle}${name ? ' ' + name : ''}${alter ? ` (${alter})` : ''}`;
+    // Beziehung als Nachsatz: „Ehemann der Geschädigten“, „gemeinsame Tochter der Geschädigten und des Beschuldigten“
+    let bez = '';
+    const L = C.rawList(d), raw = L[i] || {};
+    if (p.rolle === 'kind' && arr(raw.eltern).length) {
+      const el = arr(raw.eltern).map(Number).filter(j => L[j]);
+      const wort = { m: 'Sohn', w: 'Tochter' }[raw.geschlecht] || 'Kind';
+      bez = `${el.length > 1 ? (wort === 'Sohn' ? 'gemeinsamer ' : wort === 'Tochter' ? 'gemeinsame ' : 'gemeinsames ') : ''}${wort} ${joinList(el.map(j => x.R(j).gen))}`;
+    } else if (i > 0 && has(raw.rel)) {
+      const j = has(raw.zu) ? Number(raw.zu) : 0, l = C.relLabel(d, i, j);
+      if (l && L[j]) bez = `${l} ${x.R(j).gen}`;
+    }
+    return bez ? `${kopf}, ${bez}` : kopf;
+  }
+  const WO_SATZ = { haus: 'vor dem Haus', treppenhaus: 'im Treppenhaus', tuer: 'an der Wohnungstür', wohnung: 'in der Wohnung' };
+  /** Absatz zu einer Person: Wirkung, Beobachtungen, Äußerung, Verletzungen, Rettungswagen, Attest, Konsum und Tests. */
+  function zustand(d, x, i) {
+    const r = x.R(i), p = r.p, t = [];
+    const wk = arr(p.wirk).map(k => C.ADJ[k] || (C.WIRK[p.rolle] || {})[k]).filter(Boolean);
+    if (wk.length) t.push(`${r.Nom} wirkte auf die Beamten ${joinList(wk)}.`);
+    if (has(p.wirkFrei)) t.push(`${t.length ? r.Er : r.Nom} ${endDot(slot(p.wirkFrei))}`);
+    if (has(p.spontan)) t.push(`${t.length ? r.Er : r.Nom} äußerte${um(p.spontanZeit)} ungefragt: ${quote(p.spontan)}`);
+    const sub = () => (t.length ? r.Er : r.Nom);
+    if (p.vgrad === 'unverletzt') t.push(`${sub()} war unverletzt.`);
+    else if (['leicht', 'schwer', 'lebens'].includes(p.vgrad)) {
+      const arten = [...arr(p.verl).map(k => C.VART[k]).filter(Boolean), ...(has(p.verlFrei) ? [slot(p.verlFrei)] : [])];
+      const det = arten.length ? ` (${joinList(arten)}${has(p.verlWo) ? ' ' + slot(p.verlWo) : ''})` : (has(p.verlWo) ? ` (${slot(p.verlWo)})` : '');
+      t.push(`${sub()} war ${{ leicht: 'leicht', schwer: 'schwer', lebens: 'lebensgefährlich' }[p.vgrad]} verletzt${det}.`);
+      t.push({ nein: `Einen Rettungswagen benötigte ${r.er} auf Nachfrage nicht.`, abgelehnt: `Einen angebotenen Rettungswagen lehnte ${r.er} ab.`, vorort: `Ein Rettungswagen wurde angefordert; ${r.er} wurde vor Ort versorgt.`, kh: `Ein Rettungswagen wurde angefordert, der ${r.akk} in ${has(p.kh) ? 'das ' + str(p.kh) : 'ein Krankenhaus'} brachte.` }[p.rtw] || '');
+      if (p.attest === 'ja') t.push(`${r.Er} wurde auf die Möglichkeit eines ärztlichen Attests hingewiesen.`);
+    }
+    if (p.konsum === 'nein') t.push(`Anhaltspunkte für einen vorherigen Konsum von Alkohol oder Betäubungsmitteln ergaben sich bei ${r.dat} nicht.`);
+    else if (p.konsum === 'ja') {
+      const st = arr(p.stoff).map(k => C.STOFF[k]).filter(Boolean);
+      t.push(`Vor Ort konnten bei ${r.dat} Anhaltspunkte für einen vorherigen Konsum von ${st.length ? joinList(st) : PH('Alkohol / Betäubungsmitteln / Medikamenten')} festgestellt werden${has(p.konsumText) ? ` (${slot(p.konsumText)})` : ''}.`);
+      const einh = { mgl: 'mg/l', promille: '‰' }[p.aatEinheit] || 'mg/l';
+      if (['ja', 'abgelehnt'].includes(p.aat)) {
+        t.push(`${r.Dat} wurde${um(p.aatZeit)}${durch(p.aatVon)} ein freiwilliger Atemalkoholtest angeboten.`);
+        t.push(p.aat === 'ja' ? `${r.Er} stimmte zu; der Test ergab${um(p.aatMessZeit)} einen Wert von ${has(p.aatWert) ? String(p.aatWert).replace('.', ',') + ' ' + einh : PH('Wert')}.` : `${r.Er} lehnte den Test ab.`);
+      }
+      if (['ja', 'abgelehnt'].includes(p.dt)) {
+        const art = { urin: 'Urin', speichel: 'Speichel', wisch: 'Wischtest' }[p.dtArt];
+        t.push(`${r.Dat} wurde${um(p.dtZeit)}${durch(p.dtVon)} ein freiwilliger Drogenvortest${art ? ` (${art})` : ''} angeboten.`);
+        if (p.dt === 'abgelehnt') t.push(`${r.Er} lehnte den Test ab.`);
+        else { const ds = arr(p.dtStoffe).map(k => C.DSTOFF[k]).filter(Boolean); t.push(`${r.Er} stimmte zu; der Test verlief${um(p.dtMessZeit)} ${p.dtErg === 'positiv' ? `positiv${ds.length ? ` auf ${joinList(ds)}` : ''}` : p.dtErg === 'negativ' ? 'negativ' : PH('Ergebnis')}.`); }
+      }
+    }
+    return P(...t);
+  }
+  function s2(d, x) {
+    const L = plist(d), raw = C.rawList(d), out = [];
+    const intro = [tatortSatz(d), auftraege(d, x)];
+    const idx = L.map((p, i) => i).filter(i => isP(L[i]));
+    if (idx.length && idx[0] === 0) {
+      const p0 = raw[0] || {};
+      intro.push(`Die Beamten wurden${WO_SATZ[p0.wo] ? ' ' + WO_SATZ[p0.wo] : ''} von ${vorstellen(d, x, 0, 'dat')} erwartet.`);
+    }
+    // weitere Personen nach Ort gruppiert, als Aufzählung nach Doppelpunkt
+    const rest = idx.filter(i => i !== 0);
+    const nach = w => rest.filter(i => (raw[i] || {}).wo === w).map(i => vorstellen(d, x, i, 'nom'));
+    const satz = (pre, list) => (list.length ? `${pre} ${list.length > 1 ? 'wurden' : 'wurde'} außerdem angetroffen: ${list.join('; ')}.` : '');
+    intro.push(satz('In der Wohnung', nach('wohnung')), satz('Im Treppenhaus', nach('treppenhaus')), satz('Vor dem Haus', nach('haus')));
+    const hinzu = nach('hinzu'); if (hinzu.length) intro.push(`Später ${hinzu.length > 1 ? 'kamen' : 'kam'} hinzu: ${hinzu.join('; ')}.`);
+    if (!nahErzaehlt(d)) { const nah = rest.filter(i => (raw[i] || {}).wo === 'nah'); for (const i of nah) intro.push(`${cap(vorstellen(d, x, i, 'nom'))} wurde ${has(raw[i].nahOrt) ? slot(raw[i].nahOrt) : 'im Nahbereich'} angetroffen.`); }
+    for (const i of rest.filter(j => (raw[j] || {}).wo === 'nicht')) intro.push(`${cap(vorstellen(d, x, i, 'nom'))} war beim Eintreffen nicht vor Ort.` + (L[i].rolle === 'bs' && has(get(d, 'abw.verbleib')) ? ` Nach Angaben ${x.G.gen} ${endDot(slot(get(d, 'abw.verbleib')))}` : ''));
+    const ohneOrt = rest.filter(j => !has((raw[j] || {}).wo)); if (ohneOrt.length) intro.push(`${ohneOrt.map(i => cap(vorstellen(d, x, i, 'nom'))).join('; ')}: ${PH('wo angetroffen?')}`);
+    out.push(P(...intro));
+    for (const i of idx) { if ((raw[i] || {}).wo === 'nicht') continue; const z = zustand(d, x, i); if (z) out.push(z); }
+    return B(...out);
+  }
+
+  /* ---------- Zutritt und erste Maßnahmen ---------- */
   function s21(d, x) {
-    const z = get(d, 'zutritt') || {}, ein = get(d, 'eintreff') || {}, t = [auftraege(d, x)];
+    const z = get(d, 'zutritt') || {}, ein = get(d, 'eintreff') || {}, t = [];
     if (ein.vorher === 'ja') {
       const v = C.vorOrt(d);
       if (has(ein.vorherText)) { t.push(`Bereits vor dem Betreten der Wohnung ${v.pl ? 'nahmen' : 'nahm'} ${v.txt} wahr, dass ${endDot(slot(ein.vorherText))}`); x.genannt.add(v.txt); }
@@ -1057,7 +1198,7 @@
     const o = get(d, 'ort') || {}, t = [];
     const lage = has(o.lage) ? ` (${str(o.lage)})` : '';
     const art = { mfh: `Bei der Einsatzörtlichkeit handelt es sich um eine Wohnung${lage} in einem Mehrfamilienhaus.`, wgh: `Bei der Einsatzörtlichkeit handelt es sich um eine Wohnung${lage} in einem Wohn- und Geschäftshaus.`, efh: 'Bei der Einsatzörtlichkeit handelt es sich um ein Einfamilienhaus.', rh: 'Bei der Einsatzörtlichkeit handelt es sich um ein Reihen- bzw. Doppelhaus.' }[o.art];
-    if (art) t.push(art); else if (lage) t.push(`Die Wohnung liegt im ${str(o.lage)}.`);
+    if (!has(get(d, 'tatort.art'))) { if (art) t.push(art); else if (lage) t.push(`Die Wohnung liegt im ${str(o.lage)}.`); }
     const w = get(d, 'eintreff.wohnung');
     if (w === 'unauffaellig') t.push('Spuren einer Auseinandersetzung waren in der Wohnung nicht erkennbar.');
     else if (w === 'spuren') {
@@ -1453,7 +1594,7 @@
     const x = ctx(d);
     const ch = [
       ['Einsatzanlass', [[null, s1(d, x), 'einsatz']]],
-      ['Eintreffsituation', [['Eintreffen und Zutritt', s21(d, x), 'eintreffen'], ['Angetroffene Personen', s22(d, x), 'angetroffen']]],
+      ['Eintreffsituation', (() => { const z = s21(d, x); return [[has(z) ? 'Tatörtlichkeit und angetroffene Personen' : null, s2(d, x), 'eintreffen'], ['Zutritt und erste Maßnahmen', z, 'zutritt']]; })()],
       ['Tatörtlichkeit und Umstände vor Ort', [['Örtlichkeit und Spuren', s31(d, x), 'umstaende'], ['Beziehung und Wohnverhältnisse', s32(d, x), 'umstaende'], ['Kinder im Haushalt', s33(d, x), 'kinder']]],
       ['Schilderungen', aussagen(d, x)],
       ['Gefahrenprognose', [[null, s5(d, x), 'prognose']]],
@@ -1506,7 +1647,7 @@
     const was = x.da ? 'eine Wohnungsverweisung mit Rückkehrverbot' : 'ein Rückkehrverbot';
     const a1 = P(anordnung(d, x, was), `Stellt ${G.nom} während der Dauer der Maßnahme einen Antrag auf zivilrechtlichen Schutz mit dem Ziel des Erlasses einer einstweiligen Anordnung, endet die Maßnahme mit dem Tag der gerichtlichen Entscheidung, spätestens jedoch mit Ablauf des ${fmtDate(x.max)} (§ 34a Abs. 5 Satz 2 PolG NRW).`);
     const gsZ = people(d, q => ['gs', 'zeuge'].includes(q.rolle) && q.da !== 'nein').map(({ i }) => { const tx = aussageGs(d, x, i, { ohneBel: true }); return has(tx) ? `Angaben ${x.R(i).gen}: ${tx}` : ''; });
-    const a2 = B(s1(d, x), s22(d, x), s31(d, x), s32(d, x), s33(d, x), ...gsZ);
+    const a2 = B(s1(d, x), s2(d, x), s31(d, x), s32(d, x), s33(d, x), ...gsZ);
     const ein = x.da ? aussageBs(d, x, { ohneBel: true }) : '';
     const a3 = x.da ? B(anhoerung(d, x) || PH('Anhörung'), has(ein) ? `Zur Sache: ${ein}` : '') : s61weg(d, x).split('\n\n')[1] || '';
     const a4 = s5(d, x);
@@ -1708,7 +1849,7 @@
     const team = (root.WBridge && typeof root.WBridge.team === 'function' && root.WBridge.team()) || [];
     const rank = n => { const t = team.find(m => str(m.name).toLowerCase() === str(n).toLowerCase()); return t ? (arr(t.roles).find(r => RANK_RE.test(str(r))) || '') : ''; };
     const o = JSON.parse(JSON.stringify(data));
-    o.einsatz.wagen = [{ crew: k.map(c => ({ grad: str(c.grad) || rank(c.name), name: nachname(c.name) })) }];
+    o.einsatz.wagen = [{ crew: k.map(c => ({ grad: str(c.grad) || rank(c.name), name: C.nachname(c.name) })) }];
     delete o.einsatz.kraefte;
     return o;
   }
