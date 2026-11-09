@@ -407,18 +407,22 @@
     {
       id: 'einsatz', phase: 'Einsatz', title: 'Einsatzvergabe', lead: 'Wann welche Streifenwagenbesatzung den Einsatz zu welcher Anschrift bekam – und was gemeldet wurde.', gen: ['einsatz'],
       fields: [
+        { t: 'head', text: 'Zeitpunkt' },
         { k: 'einsatz.datum', t: 'date', l: 'Datum', w: 'half', q: 'heute', req: true },
         { k: 'einsatz.zeit', t: 'time', l: 'Uhrzeit der Einsatzvergabe', w: 'half', q: 'jetzt', req: true },
-        { k: 'einsatz.wagen', t: 'list', l: 'Streifenwagen', item: (it, i) => `Streifenwagen ${i + 1}`, add: 'Weiteres Fahrzeug', min1: true, max: 6, sub: [
+        { t: 'head', text: 'Streifenwagen' },
+        { k: 'einsatz.wagen', t: 'list', l: '', item: (it, i) => `Streifenwagen ${i + 1}`, add: 'Weiteres Fahrzeug', min1: true, max: 6, sub: [
           { k: 'crew', t: 'crew', l: 'Besatzung', max: 4 },
           { k: 'fuehrer', t: 'choice', l: 'Wer ist Streifenführer/in?', h: 'Gleiche Amtsstufe – die Streifenführung steht im Text vorn.', o: (d, it) => crewRoh(it).map(c => [str(c.name), kName(c)]), when: (d, it) => fuehrerFrage(it) },
           { k: 'auftrag', t: 'choice', l: 'Auftrag (optional)', h: 'Steht im Text bei der Eintreffsituation.', o: AUFTRAG_UI },
           { k: 'ziel', t: 'text', l: 'Welcher Ort?', pre: 'Aufgesucht wurde', ph: 'die Anschrift der Eltern des Beschuldigten in Emsdetten', max: 160, when: (d, it) => it.auftrag === 'aufenthalt' },
           { k: 'auftragText', t: 'text', l: 'Auftrag in eigenen Worten', pre: (d, it) => cap(besatzung(it)) || 'Die Besatzung', ph: 'sicherte die Rückseite des Hauses', max: 200, when: (d, it) => it.auftrag === 'frei' }
         ] },
+        { t: 'head', text: 'Einsatzort' },
         { k: 'ort.strasse', t: 'text', l: 'Straße', ph: 'Musterstraße', w: 'half', req: true },
         { k: 'ort.hausnr', t: 'text', l: 'Hausnummer', ph: '5', w: 'half' },
         { k: 'ort.stadt', t: 'text', l: 'PLZ und Ort', ph: 'z. B. 48431 Rheine', recent: true, req: true },
+        { t: 'head', text: 'Meldung' },
         { k: 'einsatz.meldung', t: 'text', l: 'Was wurde gemeldet?', pre: 'Gemeldet wurde, dass', ph: 'es in der Wohnung zu einer lautstarken Auseinandersetzung komme und eine Person um Hilfe rufe', lint: 'konj', join: ' und ', max: 600, sugg: MELD },
         { k: 'einsatz.mitteilerJa', t: 'yn', l: 'Meldende Person im Text angeben?', h: 'Nur bei Bedarf – sonst steht dazu nichts im Text.', o: [['ja', 'Ja, angeben'], ['nein', 'Nein']] },
         { k: 'einsatz.mitteiler', t: 'choice', l: 'Wer hat gemeldet?', o: Object.entries(MITT).filter(([k, v]) => v[0] && k !== 'keine').map(([k, v]) => [k, v[0]]), when: d => get(d, 'einsatz.mitteilerJa') === 'ja' },
