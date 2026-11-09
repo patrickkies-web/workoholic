@@ -75,8 +75,8 @@
     let f, pr;
     if (r === 'kind') {
       const vn = kl && has(get(p, 'p.vorname')) ? str(get(p, 'p.vorname')) : '';
-      if (vn) { f = [vn, vn, vn, vn]; pr = PRON[g === 'd' ? 'n' : g]; }
-      else if (many) { const t = `Kind ${n}`; f = [t, t, t, t]; pr = PRON.n; }
+      if (vn) { f = [vn, vn, vn, 'von ' + vn]; pr = PRON[g === 'd' ? 'n' : g]; }
+      else if (many) { const t = `Kind ${n}`; f = [t, t, t, 'von ' + t]; pr = PRON.n; }
       else { f = ['das Kind', 'dem Kind', 'das Kind', 'des Kindes']; pr = PRON.n; }
     } else {
       const role = o.vfg ? ({ gs: 'gp', bs: 'bt' }[r] || r) : r;
@@ -157,6 +157,13 @@
   const istNacht = (iso, t) => { const h = /^(\d{2}):/.exec(str(t)); return (h && (+h[1] >= 21 || +h[1] < 6)) || weekday(iso) === 0; };
   const nachtEr = d => istNacht(wvTag(d), str(get(d, 'er.schriftZeit')) || str(get(d, 'er.zeit')) || str(get(d, 'wv.zeit')));
   const nachtAbw = d => istNacht(wvTag(d), str(get(d, 'abw.zustZeit')) || str(get(d, 'wv.zeit')));
+  const nachtArt = (iso, t) => { const h = /^(\d{2}):/.exec(str(t)); return [h && (+h[1] >= 21 || +h[1] < 6) ? 'zur Nachtzeit' : '', weekday(iso) === 0 ? 'an einem Sonntag' : ''].filter(Boolean).join(' und ') || 'zur Nachtzeit bzw. an einem Sonn- oder Feiertag'; };
+  const nachtErArt = d => nachtArt(wvTag(d), str(get(d, 'er.schriftZeit')) || str(get(d, 'er.zeit')) || str(get(d, 'wv.zeit')));
+  const nachtAbwArt = d => nachtArt(wvTag(d), str(get(d, 'abw.zustZeit')) || str(get(d, 'wv.zeit')));
+  const minuten = t => { const m = /^(\d{2}):(\d{2})/.exec(str(t)); return m ? +m[1] * 60 + +m[2] : null; };
+  /** a liegt (am selben Einsatztag) nach b. */
+  const nach = (a, b) => { const x = minuten(a), y = minuten(b); if (x == null || y == null) return false; const df = x - y; return df > 0 && df < 720; };
+  const minderj = it => has(it && it.alter) && Number(it.alter) < 18;
   const angehoerig = it => it && (it.bel === '52' || zvrOf(it.bez) === true);
 
   /* ======================= Auswahllisten (Wert → Textbaustein) ======================= */
@@ -177,20 +184,23 @@
     zeuge: [['ruhig', 'Ruhig'], ['aufgeregt', 'Aufgeregt'], ['angst', 'Verängstigt'], ['weint', 'Weinte']],
     kind: [['unauffaellig', 'Unauffällig'], ['angst', 'Verängstigt'], ['weint', 'Weinte'], ['verstoert', 'Verstört'], ['schlief', 'Schlief'], ['versteckt', 'Hatte sich versteckt'], ['schutz', 'Suchte Schutz bei der geschädigten Person'], ['verletzt', 'Verletzt']]
   };
+  const WUERG = { atem: 'Atemnot', schwindel: 'Schwindel', bewusst: 'eine kurze Bewusstlosigkeit', schluck: 'Schluckbeschwerden', stimme: 'Heiserkeit', einnaessen: 'ein unwillkürlicher Urinabgang' };
   const BES = { rausch: x => `${x.Er} war aufgrund ${x.sein}es Zustands nicht in der Lage, Belehrungen und Erklärungen zu folgen.`, sprache: x => `Eine Verständigung mit ${x.dat} in deutscher Sprache war nicht möglich.`, psych: x => `${x.Er} befand sich erkennbar in einer akuten psychischen Krise.`, minder: x => `${x.Er} ist minderjährig.`, betreut: x => `${x.Er} steht nach eigenen Angaben unter rechtlicher Betreuung.` };
   const KONSUM = [['Alkoholgeruch', 'deutlicher Alkoholgeruch in der Atemluft'], ['Aussprache', 'eine verwaschene Aussprache'], ['Gang', 'ein unsicherer Gang'], ['Augen', 'gerötete, glasige Augen'], ['Pupillen', 'auffällig veränderte Pupillen'], ['Reaktion', 'verzögerte Reaktionen'], ['Stimmung', 'starke Stimmungsschwankungen']];
-  const VERL = { haematom: 'ein Hämatom', roetung: 'eine Rötung', schwellung: 'eine Schwellung', kratzer: 'Kratzspuren', platzwunde: 'eine Platzwunde', blutung: 'eine blutende Wunde', wuergemale: 'Würgemale am Hals', biss: 'eine Bissverletzung', abwehr: 'Abwehrverletzungen an den Unterarmen', nase: 'Nasenbluten' };
-  const RTW_UI = [['vorort', 'Gefragt → RTW angefordert, vor Ort versorgt'], ['kh', 'Gefragt → RTW, ins Krankenhaus'], ['selbst', 'Gefragt → abgelehnt, geht selbst zum Arzt'], ['abgelehnt', 'Gefragt → jede Behandlung abgelehnt'], ['unnoetig', 'Gefragt → nach eigener Angabe nicht nötig'], ['sofort', 'RTW sofort angefordert (Zustand)']];
+  const VERL = { haematom: 'ein Hämatom', roetung: 'eine Rötung', schwellung: 'eine Schwellung', kratzer: 'Kratzspuren', platzwunde: 'eine Platzwunde', blutung: 'eine blutende Wunde', wuergemale: 'Würgemale am Hals', biss: 'eine Bissverletzung', abwehr: 'Abwehrverletzungen an den Unterarmen', nase: 'Nasenbluten', petechien: 'punktförmige Einblutungen im Gesicht oder an den Augen' };
+  const RTW_KIND = [['vorort', 'RTW angefordert, vor Ort versorgt'], ['kh', 'RTW, ins Krankenhaus'], ['eltern', 'Mit sorgeberechtigter Person besprochen: nicht sofort nötig'], ['arzt', 'Sorgeberechtigte Person stellt Arztbesuch sicher']];
+  const RTW_UI = [['vorort', 'Gefragt → bejaht, RTW, vor Ort versorgt'], ['kh', 'Gefragt → bejaht, RTW, ins Krankenhaus'], ['selbst', 'Gefragt → abgelehnt, geht selbst zum Arzt'], ['abgelehnt', 'Gefragt → jede Behandlung abgelehnt'], ['unnoetig', 'Gefragt → nach eigener Angabe nicht nötig'], ['sofort', 'RTW sofort angefordert (Zustand)']];
   const RAUM = { wohnzimmer: 'im Wohnzimmer', kueche: 'in der Küche', schlafzimmer: 'im Schlafzimmer', flur: 'im Flur', bad: 'im Badezimmer', kinderzimmer: 'im Kinderzimmer', draussen: 'außerhalb der Wohnung' };
   const KIND_WO = { wohnung: 'befand sich in der Wohnung', kinderzimmer: 'befand sich im Kinderzimmer', beiGs: x => `befand sich bei ${x.G.dat}`, schlafzimmer: 'befand sich im Schlafzimmer' };
   const SPUREN = { moebel: ['umgestoßene Möbel', 1], scherben: ['zerbrochene Gegenstände', 1], blut: ['Blutanhaftungen', 1], tuer: ['eine beschädigte Tür', 0], wand: ['Beschädigungen an den Wänden', 1], haare: ['ausgerissene Haare', 1], telefon: ['ein beschädigtes Mobiltelefon', 0], waffe: ['ein offen liegendes Messer bzw. ein gefährlicher Gegenstand', 0], flaschen: ['zahlreiche leere Alkoholflaschen', 1] };
   const ORTE = { wohnung: 'die Wohnung', flur: 'den Hausflur und das Treppenhaus', keller: 'den Keller', speicher: 'den Dachboden', garage: 'die Garage bzw. den Stellplatz', garten: 'den Garten', grundstueck: 'das gesamte Grundstück einschließlich der Zuwegung' };
   const VORG_PL = { einsaetze: 1, anzeigen: 1, andere: 1, verstoss: 1 };
   const VORG = { einsaetze: 'frühere Einsätze wegen häuslicher Gewalt an der Anschrift', anzeigen: 'frühere Strafverfahren wegen Gewalt gegen die geschädigte Person', andere: 'Gewaltdelikte gegen andere Personen', wv: 'eine frühere Wohnungsverweisung', gewschg: 'eine gerichtliche Schutzanordnung', verstoss: 'Verstöße gegen frühere Anordnungen', wbk: 'eine waffenrechtliche Erlaubnis bzw. registrierte Waffen' };
-  const STUETZEN = { verletzung: 'das festgestellte Verletzungsbild', wohnung: 'den Zustand der Wohnung', zeugen: 'die Angaben unbeteiligter Zeugen', notruf: 'den Inhalt des Notrufs', verhalten: x => `das Verhalten ${x.T.gen} in Gegenwart der Polizei`, spontan: 'die ungefragten Äußerungen beim Eintreffen', einlassung: x => `die eigene Einlassung ${x.T.gen}`, vorerkenntnisse: 'die polizeilichen Vorerkenntnisse', kinder: 'den Zustand der Kinder' };
-  const DELIKT = { 223: 'Körperverletzung (§ 223 StGB)', 224: 'gefährlichen Körperverletzung (§ 224 StGB)', 241: 'Bedrohung (§ 241 StGB)', 240: 'Nötigung (§ 240 StGB)', 239: 'Freiheitsberaubung (§ 239 StGB)', 185: 'Beleidigung (§ 185 StGB)', 303: 'Sachbeschädigung (§ 303 StGB)', 177: 'eines sexuellen Übergriffs (§ 177 StGB)', 238: 'Nachstellung (§ 238 StGB)', 4: 'eines Verstoßes gegen eine Schutzanordnung (§ 4 GewSchG)' };
-  const DELIKT_TAT = { 223: 'eine Körperverletzung', 224: 'eine gefährliche Körperverletzung', 241: 'eine Bedrohung', 240: 'eine Nötigung', 239: 'eine Freiheitsberaubung', 185: 'eine Beleidigung', 303: 'eine Sachbeschädigung', 177: 'ein sexueller Übergriff', 238: 'eine Nachstellung', 4: 'ein Verstoß gegen eine Schutzanordnung nach dem Gewaltschutzgesetz' };
-  const DELIKT_KURZ = { 223: '§ 223 Körperverletzung', 224: '§ 224 gef. KV', 241: '§ 241 Bedrohung', 240: '§ 240 Nötigung', 239: '§ 239 Freiheitsberaubung', 185: '§ 185 Beleidigung', 303: '§ 303 Sachbeschädigung', 177: '§ 177 sex. Übergriff', 238: '§ 238 Nachstellung', 4: '§ 4 GewSchG' };
+  const STUETZEN = { verletzung: 'das festgestellte Verletzungsbild', wohnung: 'den Zustand der Wohnung', zeugen: x => { const z = x && x.d ? ofRole(x.d, 'zeuge') : []; return z.length === 1 ? `die Angaben ${ref(x.d, z[0].i, { vfg: x.vfg }).gen}` : 'die Angaben unbeteiligter Zeugen'; }, notruf: 'den Inhalt des Notrufs', verhalten: x => `das Verhalten ${x.T.gen} in Gegenwart der Polizei`, spontan: 'die ungefragten Äußerungen beim Eintreffen', einlassung: x => `die eigene Einlassung ${x.T.gen}`, vorerkenntnisse: 'die polizeilichen Vorerkenntnisse', kinder: 'den Zustand der Kinder' };
+  const DELIKT = { 223: 'Körperverletzung (§ 223 StGB)', 224: 'gefährlichen Körperverletzung (§ 224 StGB)', 241: 'Bedrohung (§ 241 StGB)', 2412: 'Bedrohung mit einem Verbrechen (§ 241 Abs. 2 StGB)', 240: 'Nötigung (§ 240 StGB)', 239: 'Freiheitsberaubung (§ 239 StGB)', 185: 'Beleidigung (§ 185 StGB)', 303: 'Sachbeschädigung (§ 303 StGB)', 177: 'eines sexuellen Übergriffs (§ 177 StGB)', 238: 'Nachstellung (§ 238 StGB)', 4: 'eines Verstoßes gegen eine Schutzanordnung (§ 4 GewSchG)' };
+  const DELIKT_ORDER = ['223', '224', '241', '2412', '240', '239', '177', '238', '185', '303', '4'];
+  const DELIKT_TAT = { 223: 'eine Körperverletzung', 224: 'eine gefährliche Körperverletzung', 241: 'eine Bedrohung', 2412: 'eine Bedrohung mit einem Verbrechen', 240: 'eine Nötigung', 239: 'eine Freiheitsberaubung', 185: 'eine Beleidigung', 303: 'eine Sachbeschädigung', 177: 'ein sexueller Übergriff', 238: 'eine Nachstellung', 4: 'ein Verstoß gegen eine Schutzanordnung nach dem Gewaltschutzgesetz' };
+  const DELIKT_KURZ = { 223: '§ 223 Körperverletzung', 224: '§ 224 gef. KV', 241: '§ 241 Bedrohung', 2412: '§ 241 Abs. 2 (Verbrechen)', 240: '§ 240 Nötigung', 239: '§ 239 Freiheitsberaubung', 185: '§ 185 Beleidigung', 303: '§ 303 Sachbeschädigung', 177: '§ 177 sex. Übergriff', 238: '§ 238 Nachstellung', 4: '§ 4 GewSchG' };
   const MODUS = [['jetzt', 'Jetzt eintragen'], ['folgt', 'Text folgt (Platzhalter)'], ['keine', 'Keine Angaben']];
 
   /* Belehrungsinhalte – Zeugen (§§ 52, 55, 57, 68, 68b, 81c StPO) und Beschuldigte (§ 163a Abs. 4, § 136 Abs. 1 StPO) */
@@ -203,45 +213,45 @@
   const ANH_STD = Object.keys(ANH);
   const ER = { anordnung: 'Maßnahme und Rechtsgrundlage eröffnet', bereich: 'Bereich genau bezeichnet', dauer: 'Ende (Datum) genannt', verlaengerung: 'Verlängerung bei Gerichtsantrag erklärt', gruende: 'Gründe (Gefahrenprognose) erläutert', polizei: 'Erklärt: Schutz unabhängig von Wille und Mietvertrag', einverstaendnis: 'Gilt auch bei Einverständnis der gefährdeten Person', verlassen: 'Aufgefordert, sofort zu gehen', gegenst: 'Gegenstände des persönlichen Bedarfs mitnehmen lassen', anschrift: 'Zustellanschrift erfragt (§ 34a Abs. 3)', schluessel: 'Herausgabe aller Schlüssel verlangt', zg: 'Zwangsgeld angedroht', ersatzhaft: 'Auf Ersatzzwangshaft hingewiesen', gewahrsam: 'Auf Gewahrsam bei Verstoß hingewiesen', rechtsbehelf: 'Klage / sofortige Vollziehbarkeit erklärt', obdach: 'Auf Hilfe bei der Unterkunft hingewiesen', beratung: 'Auf Beratung für gewaltausübende Personen hingewiesen', verstanden: 'Hat erklärt, alles verstanden zu haben' };
   const ER_STD = ['anordnung', 'bereich', 'dauer', 'verlaengerung', 'gruende', 'polizei', 'einverstaendnis', 'verlassen', 'gegenst', 'anschrift', 'schluessel', 'zg', 'ersatzhaft', 'gewahrsam', 'rechtsbehelf'];
-  const OS = { gewschg: 'Zivilgerichtlicher Schutz (GewSchG) erklärt', beratung: 'Beratungsstelle benannt', daten: 'Weitergabe der Kontaktdaten angeboten (§ 34a Abs. 4)', doku: 'Kopie der Einsatzdokumentation ausgehändigt', merkblatt: 'Merkblatt / Opferschutzbroschüre übergeben', stpo: 'Verletztenrechte (§§ 406i ff. StPO) erklärt', amtswegen: 'Verfolgung von Amts wegen erklärt', notruf: 'Bei Rückkehr sofort 110', schloss: 'Schlosswechsel empfohlen', getrennt: 'Hinweise ohne Beisein der beschuldigten Person' };
+  const OS = { gewschg: 'Zivilgerichtlicher Schutz (GewSchG) erklärt', beratung: 'Beratungsstelle benannt', daten: 'Weitergabe der Kontaktdaten angeboten (§ 34a Abs. 4)', doku: 'Kopie der Einsatzdokumentation ausgehändigt', merkblatt: 'Merkblatt / Opferschutzbroschüre übergeben', stpo: 'Verletztenrechte (§§ 406i ff. StPO) erklärt', amtswegen: 'Anzeige von Amts wegen erklärt', notruf: 'Bei Rückkehr sofort 110', schloss: 'Schlosswechsel empfohlen', getrennt: 'Hinweise in Abwesenheit der beschuldigten Person' };
   const OS_STD = ['gewschg', 'beratung', 'daten', 'doku', 'merkblatt', 'stpo', 'notruf'];
 
   /* ======================= Gefahrenprognose: Umstände (festgestellt / geschildert / angenommen) ======================= */
   const FAK_GRUPPEN = [['tat', 'Heutiges Geschehen'], ['vor', 'Vorgeschichte und Beziehung'], ['dro', 'Drohungen und Ankündigungen'], ['lage', 'Lebenslage'], ['bsp', 'Beschuldigte Person'], ['opf', 'Sicht der gefährdeten Person']];
   const FAK = [
-    { k: 'wuergen', g: 'tat', l: 'Würgen / Angriff gegen den Hals', fest: x => `Am Hals ${x.G.gen} wurden Spuren festgestellt, die auf einen Angriff gegen den Hals hindeuten.`, angabe: x => `Nach Angaben ${x.G.gen} habe ${x.T.nom} ${x.G.ihn} gewürgt bzw. am Hals gepackt.`, annahme: x => `Es bestehen Anhaltspunkte dafür, dass ${x.G.nom} am Hals angegriffen wurde.`, bed: 'Angriffe gegen den Hals gelten als deutlicher Hinweis auf ein erhöhtes Risiko schwerer und lebensbedrohlicher Gewalt; ihre Folgen können zudem verzögert auftreten.', weil: () => 'es zu einem Angriff gegen den Hals gekommen ist' },
+    { k: 'wuergen', g: 'tat', l: 'Würgen / Angriff gegen den Hals', fest: x => `Am Hals ${x.G.gen} wurden Spuren festgestellt, die auf einen Angriff gegen den Hals hindeuten.`, angabe: x => `Nach Angaben ${x.G.gen} habe ${x.T.nom} ${x.G.ihn} gewürgt bzw. am Hals gepackt.`, annahme: x => `Es bestehen Anhaltspunkte dafür, dass ${x.G.nom} am Hals angegriffen wurde.`, bed: 'Angriffe gegen den Hals nennt die vom LKA NRW beauftragte Untersuchung (Greuel u. a. 2010) als Warnsignal für eine Eskalation bis hin zu Tötungsdelikten; ihre Folgen können zudem verzögert auftreten.', weil: () => 'es zu einem Angriff gegen den Hals gekommen ist' },
     { k: 'kopf', g: 'tat', l: 'Schläge oder Tritte gegen den Kopf', fest: x => `Das Verletzungsbild ${x.G.gen} spricht für Schläge oder Tritte gegen den Kopf.`, angabe: x => `Nach Angaben ${x.G.gen} habe ${x.T.nom} ${x.G.ihn} gegen den Kopf geschlagen oder getreten.`, annahme: x => `Es bestehen Anhaltspunkte für Schläge oder Tritte gegen den Kopf ${x.G.gen}.`, bed: 'Schläge und Tritte gegen den Kopf können schwere, auch lebensgefährliche Verletzungen verursachen.', weil: () => 'der Angriff gegen den Kopf gerichtet war' },
     { k: 'waffe', g: 'tat', l: 'Waffe oder gefährlicher Gegenstand', fest: () => 'Am Einsatzort wurde ein gefährlicher Gegenstand vorgefunden, der im Zusammenhang mit dem Geschehen steht.', angabe: x => `Nach Angaben ${x.G.gen} habe ${x.T.nom} eine Waffe oder einen gefährlichen Gegenstand eingesetzt oder damit gedroht.`, annahme: () => 'Es bestehen Anhaltspunkte dafür, dass bei dem Geschehen ein gefährlicher Gegenstand eingesetzt oder damit gedroht wurde.', bed: 'Der Einsatz von oder die Drohung mit Waffen und gefährlichen Gegenständen zeigt eine erhebliche Gewaltbereitschaft und erhöht das Risiko schwerer Verletzungen.', weil: () => 'eine Waffe bzw. ein gefährlicher Gegenstand im Spiel war' },
     { k: 'behandlung', g: 'tat', l: 'Verletzungen mit Behandlungsbedarf', fest: x => `${x.G.Nom} erlitt Verletzungen, die medizinisch versorgt werden mussten.`, angabe: x => `Nach Angaben ${x.G.gen} seien die Verletzungen ärztlich behandlungsbedürftig.`, annahme: x => `Es ist davon auszugehen, dass die Verletzungen ${x.G.gen} ärztlicher Behandlung bedürfen.`, bed: 'Die Schwere der Verletzungen belegt die Intensität des Angriffs.', weil: () => 'der Angriff zu behandlungsbedürftigen Verletzungen geführt hat' },
     { k: 'sexuell', g: 'tat', l: 'Sexuelle Gewalt', fest: () => 'Es wurden Umstände festgestellt, die auf sexuelle Gewalt hindeuten.', angabe: x => `Nach Angaben ${x.G.gen} sei es auch zu sexueller Gewalt gekommen.`, annahme: () => 'Es bestehen Anhaltspunkte für sexuelle Gewalt.', bed: 'Sexuelle Gewalt in der Beziehung ist Ausdruck massiver Grenzüberschreitung und gilt als Risikofaktor für weitere schwere Gewalt.', weil: () => 'auch sexuelle Gewalt im Raum steht' },
     { k: 'einsperren', g: 'tat', l: 'Festgehalten, eingesperrt', fest: x => `Festgestellt wurde, dass ${x.G.nom} am Verlassen der Wohnung gehindert worden war.`, angabe: x => `Nach Angaben ${x.G.gen} habe ${x.T.nom} ${x.G.ihn} festgehalten bzw. am Verlassen der Wohnung gehindert.`, annahme: x => `Es bestehen Anhaltspunkte dafür, dass ${x.G.nom} am Verlassen der Wohnung gehindert wurde.`, bed: 'Das Festhalten und Einsperren zeigt den Versuch, die gefährdete Person vollständig zu kontrollieren, und nimmt ihr die Möglichkeit, sich zu entziehen.', weil: x => `${x.G.nom} am Verlassen der Wohnung gehindert wurde` },
     { k: 'notruf', g: 'tat', l: 'Hilferuf verhindert, Telefon weggenommen', fest: x => `Festgestellt wurde, dass das Mobiltelefon ${x.G.gen} weggenommen oder beschädigt worden war.`, angabe: x => `Nach Angaben ${x.G.gen} habe ${x.T.nom} ${x.G.ihn} daran gehindert, Hilfe zu rufen, bzw. ${x.G.sein} Telefon weggenommen.`, annahme: x => `Es bestehen Anhaltspunkte dafür, dass ${x.G.nom} am Herbeirufen von Hilfe gehindert wurde.`, bed: 'Wer das Herbeirufen von Hilfe verhindert, nimmt der gefährdeten Person die Möglichkeit, sich selbst zu schützen.', weil: x => `${x.G.nom} daran gehindert wurde, Hilfe zu holen` },
-    { k: 'kinder', g: 'tat', l: 'Kinder anwesend bzw. mitbetroffen', fest: () => 'Beim Eintreffen der Einsatzkräfte befanden sich Kinder in der Wohnung.', angabe: x => `Nach Angaben ${x.G.gen} hätten Kinder das Geschehen miterlebt.`, annahme: () => 'Es ist davon auszugehen, dass die Kinder das Geschehen miterlebt haben.', bed: 'Kinder, die Gewalt zwischen Erwachsenen miterleben, sind in ihrem Wohl gefährdet; ohne räumliche Trennung wären sie weiterer Gewalt ausgesetzt.', weil: () => 'auch die im Haushalt lebenden Kinder betroffen sind' },
-    { k: 'kindergewalt', g: 'tat', l: 'Gewalt auch gegen Kinder', fest: () => 'Bei einem Kind wurden Verletzungen festgestellt.', angabe: x => `Nach Angaben ${x.G.gen} habe ${x.T.nom} auch gegenüber Kindern Gewalt ausgeübt.`, annahme: () => 'Es bestehen Anhaltspunkte für Gewalt auch gegenüber Kindern.', bed: 'Gewalt gegen Kinder erhöht das Risiko für alle Personen im Haushalt erheblich.', weil: () => 'sich die Gewalt auch gegen Kinder richtet' },
-    { k: 'schwanger', g: 'tat', l: 'Schwangerschaft der gefährdeten Person', fest: x => `${x.G.Nom} ist erkennbar schwanger.`, angabe: x => `${x.G.Nom} gab an, schwanger zu sein.`, annahme: x => `Es ist von einer Schwangerschaft ${x.G.gen} auszugehen.`, bed: 'Gewalt in der Schwangerschaft gilt als Risikofaktor für schwere Gewalt und gefährdet zugleich das ungeborene Kind.', weil: x => `${x.G.nom} schwanger ist` },
-    { k: 'frueher', g: 'vor', l: 'Frühere Übergriffe', fest: x => `Frühere Übergriffe ${x.T.gen} gegen ${x.G.akk} sind polizeilich belegt.`, angabe: x => `Nach Angaben ${x.G.gen} sei es bereits früher zu Übergriffen gekommen.`, annahme: () => 'Es ist davon auszugehen, dass es bereits früher zu Übergriffen gekommen ist.', bed: 'Wiederholte Übergriffe sind der zentrale Hinweis auf eine Gewaltbeziehung, in der jederzeit mit weiteren Taten zu rechnen ist.', weil: () => 'es bereits wiederholt zu Übergriffen gekommen ist' },
-    { k: 'zunahme', g: 'vor', l: 'Gewalt nimmt zu (häufiger, schwerer)', fest: () => 'Die polizeilichen Erkenntnisse zeigen eine Zunahme von Häufigkeit oder Schwere der Übergriffe.', angabe: x => `Nach Angaben ${x.G.gen} hätten die Übergriffe zuletzt an Häufigkeit oder Schwere zugenommen.`, annahme: () => 'Es ist von einer Zunahme der Gewalt auszugehen.', bed: 'Eine Zunahme der Gewalt in Häufigkeit oder Schwere gilt als einer der deutlichsten Hinweise auf eine weitere Eskalation.', weil: () => 'die Gewalt zuletzt zugenommen hat' },
+    { k: 'kinder', g: 'tat', l: 'Kinder anwesend bzw. mitbetroffen', fest: x => (kinderL(x.d).filter(y => y.p.da !== 'nein').length === 1 ? 'Beim Eintreffen der Einsatzkräfte befand sich ein Kind in der Wohnung.' : 'Beim Eintreffen der Einsatzkräfte befanden sich Kinder in der Wohnung.'), angabe: x => (kinderL(x.d).length === 1 ? `Nach Angaben ${x.G.gen} habe das Kind das Geschehen miterlebt.` : `Nach Angaben ${x.G.gen} hätten die Kinder das Geschehen miterlebt.`), annahme: x => (kinderL(x.d).length === 1 ? 'Es ist davon auszugehen, dass das Kind das Geschehen miterlebt hat.' : 'Es ist davon auszugehen, dass die Kinder das Geschehen miterlebt haben.'), bed: 'Kinder, die Gewalt zwischen Erwachsenen miterleben, sind in ihrem Wohl gefährdet; ohne räumliche Trennung wären sie weiterer Gewalt ausgesetzt.', weil: () => 'auch die im Haushalt lebenden Kinder betroffen sind' },
+    { k: 'kindergewalt', g: 'tat', l: 'Gewalt auch gegen Kinder', fest: () => 'Festgestellt wurden Anzeichen für Gewalt auch gegen ein Kind.', angabe: x => `Nach Angaben ${x.G.gen} habe ${x.T.nom} auch gegenüber Kindern Gewalt ausgeübt.`, annahme: () => 'Es bestehen Anhaltspunkte für Gewalt auch gegenüber Kindern.', bed: 'Gewalt gegen Kinder erhöht das Risiko für alle Personen im Haushalt erheblich.', weil: () => 'sich die Gewalt auch gegen Kinder richtet' },
+    { k: 'schwanger', g: 'tat', l: 'Schwangerschaft der gefährdeten Person', fest: x => `${x.G.Nom} ist erkennbar schwanger.`, angabe: x => `${x.G.Nom} gab an, schwanger zu sein.`, annahme: x => `Es ist von einer Schwangerschaft ${x.G.gen} auszugehen.`, bed: 'Gewalt in der Schwangerschaft wird in standardisierten Gefährdungsanalysen als Risikofaktor erfasst und gefährdet zugleich das ungeborene Kind.', weil: x => `${x.G.nom} schwanger ist` },
+    { k: 'frueher', g: 'vor', l: 'Frühere Übergriffe', fest: x => `Frühere Übergriffe ${x.T.gen} gegen ${x.G.akk} sind aus früheren Strafverfahren polizeilich bekannt.`, angabe: x => `Nach Angaben ${x.G.gen} sei es bereits früher zu Übergriffen gekommen.`, annahme: () => 'Es ist davon auszugehen, dass es bereits früher zu Übergriffen gekommen ist.', bed: 'Wiederholte Übergriffe sind der zentrale Hinweis auf eine Gewaltbeziehung.', weil: () => 'es bereits wiederholt zu Übergriffen gekommen ist' },
+    { k: 'zunahme', g: 'vor', l: 'Gewalt nimmt zu (häufiger, schwerer)', fest: () => 'Die polizeilichen Erkenntnisse zeigen eine Zunahme von Häufigkeit oder Schwere der Übergriffe.', angabe: x => `Nach Angaben ${x.G.gen} hätten die Übergriffe zuletzt an Häufigkeit oder Schwere zugenommen.`, annahme: () => 'Es ist von einer Zunahme der Gewalt auszugehen.', bed: 'Eine Zunahme von Häufigkeit oder Intensität der Gewalt nennt die vom LKA NRW beauftragte Untersuchung (Greuel u. a. 2010) als Warnsignal für eine weitere Eskalation.', weil: () => 'die Gewalt zuletzt zugenommen hat' },
     { k: 'verstoss', g: 'vor', l: 'Verstöße gegen frühere Anordnungen', fest: x => `${x.T.Nom} hat nach polizeilichen Erkenntnissen bereits gegen frühere Schutzanordnungen oder ein Rückkehrverbot verstoßen.`, angabe: x => `Nach Angaben ${x.G.gen} habe sich ${x.T.nom} früher nicht an Anordnungen gehalten.`, annahme: x => `Es ist davon auszugehen, dass sich ${x.T.nom} an Absprachen und Anordnungen nicht hält.`, bed: 'Frühere Verstöße lassen erwarten, dass mildere Mittel und bloße Absprachen nicht eingehalten werden.', weil: x => `${x.T.nom} sich schon früher nicht an Anordnungen gehalten hat` },
     { k: 'gewaltandere', g: 'vor', l: 'Gewalt auch gegen andere Personen', fest: x => `${x.T.Nom} ist polizeilich wegen Gewaltdelikten auch gegenüber anderen Personen bekannt.`, angabe: x => `Nach Angaben ${x.G.gen} sei ${x.T.nom} auch gegenüber anderen Personen gewalttätig gewesen.`, annahme: x => `Es ist von einer allgemein erhöhten Gewaltbereitschaft ${x.T.gen} auszugehen.`, bed: 'Gewalt auch außerhalb der Beziehung zeigt eine generell niedrige Hemmschwelle.', weil: x => `${x.T.nom} auch sonst gewaltbereit ist` },
-    { k: 'kontrolle', g: 'vor', l: 'Kontrolle, Eifersucht, Nachstellung', fest: x => `Festgestellt wurde ein ausgeprägtes Kontrollverhalten ${x.T.gen} gegenüber ${x.G.dat}.`, angabe: x => `Nach Angaben ${x.G.gen} kontrolliere ${x.T.nom} ${x.G.ihn} stark, sei ausgeprägt eifersüchtig oder stelle ${x.G.ihm} nach.`, annahme: x => `Es bestehen Anhaltspunkte für ein ausgeprägtes Kontrollverhalten ${x.T.gen}.`, bed: 'Exzessives Kontrollverhalten, Eifersucht und Nachstellung gelten als Risikofaktoren für eine schwere Eskalation, besonders im Zusammenhang mit einer Trennung.', weil: x => `${x.T.nom} ${x.G.akk} stark kontrolliert` },
-    { k: 'trennung', g: 'vor', l: 'Trennung oder Trennungsabsicht', fest: () => 'Die Beteiligten leben getrennt bzw. befinden sich in Trennung.', angabe: x => `Nach Angaben ${x.G.gen} befinde sich die Beziehung in einer Trennungssituation.`, annahme: () => 'Es ist von einer Trennungssituation auszugehen.', bed: 'Trennungsphasen gelten als besonders gefährlich; ein großer Teil schwerer Gewalt und der Tötungsdelikte in Paarbeziehungen steht im Zusammenhang mit einer Trennung.', weil: () => 'sich die Beziehung in einer Trennungssituation befindet' },
+    { k: 'kontrolle', g: 'vor', l: 'Kontrolle, Eifersucht, Nachstellung', fest: x => `Festgestellt wurde ein ausgeprägtes Kontrollverhalten ${x.T.gen} gegenüber ${x.G.dat}.`, angabe: x => `Nach Angaben ${x.G.gen} kontrolliere ${x.T.nom} ${x.G.ihn} stark, sei ausgeprägt eifersüchtig oder stelle ${x.G.ihm} nach.`, annahme: x => `Es bestehen Anhaltspunkte für ein ausgeprägtes Kontrollverhalten ${x.T.gen}.`, bed: 'Exzessives Kontrollverhalten und Nachstellung nennt dieselbe Untersuchung als Warnsignal für eine schwere Eskalation, besonders im Zusammenhang mit einer Trennung.', weil: x => `${x.T.nom} ${x.G.akk} stark kontrolliert` },
+    { k: 'trennung', g: 'vor', l: 'Trennung oder Trennungsabsicht', fest: () => 'Die Beteiligten leben getrennt bzw. befinden sich in Trennung.', angabe: x => `Nach Angaben ${x.G.gen} befinde sich die Beziehung in einer Trennungssituation.`, annahme: () => 'Es ist von einer Trennungssituation auszugehen.', bed: 'Nach der vom LKA NRW beauftragten Untersuchung (Greuel u. a. 2010) standen Tötungsdelikte in Paarbeziehungen in zwei von drei Fällen im Zusammenhang mit einem Trennungskonflikt.', weil: () => 'sich die Beziehung in einer Trennungssituation befindet' },
     { k: 'kinderstreit', g: 'vor', l: 'Streit um Kinder, Umgang, Sorgerecht', fest: () => 'Zwischen den Beteiligten besteht ein Streit um die Kinder, den Umgang oder das Sorgerecht.', angabe: x => `Nach Angaben ${x.G.gen} bestehe zwischen den Beteiligten Streit um die Kinder, den Umgang oder das Sorgerecht.`, annahme: () => 'Es ist von einem Konflikt um die Kinder auszugehen.', bed: 'Konflikte um Kinder und Umgang schaffen fortlaufend neue Anlässe für Kontakt und Streit.', weil: () => 'zwischen den Beteiligten Streit um die Kinder besteht' },
-    { k: 'tod', g: 'dro', l: 'Todesdrohung', fest: x => `In Gegenwart der Einsatzkräfte drohte ${x.T.nom}, ${x.G.akk} zu töten.`, angabe: x => `Nach Angaben ${x.G.gen} habe ${x.T.nom} gedroht, ${x.G.ihn} umzubringen.`, annahme: x => `Es ist davon auszugehen, dass ${x.T.nom} mit dem Tod gedroht hat.`, bed: 'Todesdrohungen gelten als Warnsignal für eine Eskalation bis hin zu Tötungsdelikten und sind ernst zu nehmen.', weil: x => `${x.T.nom} mit dem Tod gedroht hat` },
+    { k: 'tod', g: 'dro', l: 'Todesdrohung', fest: x => `In Gegenwart der Einsatzkräfte drohte ${x.T.nom}, ${x.G.akk} zu töten.`, angabe: x => `Nach Angaben ${x.G.gen} habe ${x.T.nom} gedroht, ${x.G.ihn} umzubringen.`, annahme: x => `Es ist davon auszugehen, dass ${x.T.nom} mit dem Tod gedroht hat.`, bed: 'Todesdrohungen nennt dieselbe Untersuchung als Warnsignal für eine Eskalation bis hin zu Tötungsdelikten.', weil: x => `${x.T.nom} mit dem Tod gedroht hat` },
     { k: 'suizid', g: 'dro', l: 'Suiziddrohung der beschuldigten Person', fest: x => `${x.T.Nom} kündigte in Gegenwart der Einsatzkräfte an, sich das Leben zu nehmen.`, angabe: x => `Nach Angaben ${x.G.gen} habe ${x.T.nom} gedroht, sich das Leben zu nehmen.`, annahme: x => `Es bestehen Anhaltspunkte für eine Suizidgefährdung ${x.T.gen}.`, bed: 'Suiziddrohungen der gewaltausübenden Person gelten als Warnsignal für einen erweiterten Suizid, der die gefährdete Person und die Kinder einschließen kann.', weil: x => `${x.T.nom} mit Suizid gedroht hat` },
     { k: 'kinderdrohung', g: 'dro', l: 'Drohung gegen Kinder', fest: x => `In Gegenwart der Einsatzkräfte richtete ${x.T.nom} Drohungen auch gegen die Kinder.`, angabe: x => `Nach Angaben ${x.G.gen} habe ${x.T.nom} auch den Kindern gedroht.`, annahme: () => 'Es ist davon auszugehen, dass sich Drohungen auch gegen die Kinder richten.', bed: 'Drohungen gegen Kinder gelten als Warnsignal für eine schwere Eskalation.', weil: () => 'sich die Drohungen auch gegen die Kinder richten' },
     { k: 'rueckkehr', g: 'dro', l: 'Kündigt an, zurückzukommen', fest: x => `${x.T.Nom} kündigte in Gegenwart der Einsatzkräfte an, zurückzukommen bzw. die Auseinandersetzung fortzusetzen.`, angabe: x => `Nach Angaben ${x.G.gen} habe ${x.T.nom} angekündigt, zurückzukommen.`, annahme: x => `Es ist davon auszugehen, dass ${x.T.nom} ohne die Maßnahme kurzfristig zurückkehren würde.`, bed: 'Die Ankündigung zeigt, dass ohne die Maßnahme mit einer kurzfristigen Rückkehr und weiteren Übergriffen zu rechnen ist.', weil: x => `${x.T.nom} angekündigt hat, zurückzukommen` },
     { k: 'drohung', g: 'dro', l: 'Weitere Drohungen', fest: x => `${x.T.Nom} sprach in Gegenwart der Einsatzkräfte Drohungen gegen ${x.G.akk} aus.`, angabe: x => `Nach Angaben ${x.G.gen} habe ${x.T.nom} ${x.G.ihm} weitere Gewalt angedroht.`, annahme: x => `Es ist davon auszugehen, dass ${x.T.nom} weitere Gewalt angedroht hat.`, bed: 'Angekündigte Gewalt macht weitere Übergriffe in allernächster Zeit wahrscheinlich.', weil: x => `${x.T.nom} weitere Gewalt angedroht hat` },
     { k: 'abhaengig', g: 'lage', l: 'Abhängigkeit oder Isolation der gefährdeten Person', fest: x => `Festgestellt wurde, dass ${x.G.nom} von ${x.T.dat} wirtschaftlich oder sozial abhängig ist.`, angabe: x => `Nach Angaben ${x.G.gen} sei ${x.G.er} von ${x.T.dat} abhängig bzw. sozial isoliert.`, annahme: x => `Es ist von einer Abhängigkeit ${x.G.gen} von ${x.T.dat} auszugehen.`, bed: 'Abhängigkeit und Isolation erschweren es der gefährdeten Person, sich selbst zu schützen oder Hilfe zu holen.', weil: x => `${x.G.nom} sich aus eigener Kraft kaum schützen kann` },
     { k: 'neuerpartner', g: 'lage', l: 'Neue Beziehung der gefährdeten Person', fest: x => `${x.G.Nom} hat eine neue Beziehung.`, angabe: x => `Nach Angaben ${x.G.gen} habe ${x.G.er} eine neue Beziehung, was ${x.T.nom} nicht akzeptiere.`, annahme: x => `Es ist davon auszugehen, dass eine neue Beziehung ${x.G.gen} Anlass der Auseinandersetzung war.`, bed: 'Eine neue Beziehung der gefährdeten Person kann eine akute Kränkung auslösen, die eine Eskalation begünstigt.', weil: x => `${x.T.nom} eine neue Beziehung ${x.G.gen} nicht akzeptiert` },
-    { k: 'stiefkind', g: 'lage', l: 'Kind aus anderer Beziehung im Haushalt', fest: x => `Im Haushalt lebt ein Kind, das nicht von ${x.T.dat} abstammt.`, angabe: x => `Nach Angaben ${x.G.gen} lebe im Haushalt ein Kind aus einer anderen Beziehung.`, annahme: () => 'Es ist davon auszugehen, dass im Haushalt ein Kind aus einer anderen Beziehung lebt.', bed: 'Ein Kind aus einer anderen Beziehung im Haushalt gilt in der Forschung als zusätzlicher Belastungsfaktor.', weil: () => 'im Haushalt ein Kind aus einer anderen Beziehung lebt' },
+    { k: 'stiefkind', g: 'lage', l: 'Kind aus anderer Beziehung im Haushalt', fest: x => `Im Haushalt lebt ein Kind, das nicht von ${x.T.dat} abstammt.`, angabe: x => `Nach Angaben ${x.G.gen} lebe im Haushalt ein Kind aus einer anderen Beziehung.`, annahme: () => 'Es ist davon auszugehen, dass im Haushalt ein Kind aus einer anderen Beziehung lebt.', bed: 'Ein Kind aus einer anderen Beziehung im Haushalt wird in standardisierten Gefährdungsanalysen als zusätzlicher Belastungsfaktor erfasst.', weil: () => 'im Haushalt ein Kind aus einer anderen Beziehung lebt' },
     { k: 'krise', g: 'lage', l: 'Akute Lebenskrise (Job, Schulden, Kränkung)', fest: x => `${x.T.Nom} befindet sich erkennbar in einer akuten Lebenskrise.`, angabe: x => `Nach Angaben ${x.G.gen} befinde sich ${x.T.nom} in einer akuten Lebenskrise, etwa durch Arbeitsplatzverlust, Schulden oder eine Kränkung.`, annahme: x => `Es ist von einer akuten Belastungssituation ${x.T.gen} auszugehen.`, bed: 'Akute Belastungen und Kränkungserleben begünstigen eine Eskalation.', weil: x => `${x.T.nom} sich in einer akuten Lebenskrise befindet` },
-    { k: 'alkohol', g: 'bsp', l: 'Alkohol- oder Drogeneinfluss', fest: x => `${x.T.Nom} stand erkennbar unter dem Einfluss von Alkohol oder anderen berauschenden Mitteln.`, angabe: x => `Nach Angaben ${x.G.gen} trinke ${x.T.nom} regelmäßig bzw. werde unter Alkoholeinfluss gewalttätig.`, annahme: x => `Es ist davon auszugehen, dass ${x.T.nom} den Konsum in der Wohnung fortsetzen würde.`, bed: 'Alkohol und Drogen senken die Hemmschwelle; eine Beruhigung der Lage war nicht zu erwarten, solange der Konsum in der Wohnung fortgesetzt werden kann.', weil: x => `${x.T.nom} erheblich unter Alkohol- bzw. Drogeneinfluss stand` },
-    { k: 'waffenzugang', g: 'bsp', l: 'Waffenbesitz oder Zugang zu Waffen', fest: x => `${x.T.Nom} verfügt nach polizeilichen Erkenntnissen über Waffen bzw. eine waffenrechtliche Erlaubnis.`, angabe: x => `Nach Angaben ${x.G.gen} habe ${x.T.nom} Zugang zu Waffen.`, annahme: x => `Es ist davon auszugehen, dass ${x.T.nom} Zugang zu Waffen hat.`, bed: 'Der Zugang zu Schusswaffen erhöht das Risiko tödlicher Gewalt erheblich.', weil: x => `${x.T.nom} Zugang zu Waffen hat` },
+    { k: 'alkohol', g: 'bsp', l: 'Alkohol- oder Drogeneinfluss', fest: x => { const b = (bsY(x.d) || {}).p || {}; const w = b.aat === 'ja' && has(b.aatWert) ? ` (Atemalkoholtest: ${String(b.aatWert).replace('.', ',')}${b.aatEinheit === 'mgl' ? ' mg/l' : b.aatEinheit === 'promille' ? ' ‰' : ''})` : ''; return `${x.T.Nom} war erkennbar alkoholisiert bzw. berauscht${w}.`; }, angabe: x => `Nach Angaben ${x.G.gen} trinke ${x.T.nom} regelmäßig bzw. werde unter Alkoholeinfluss gewalttätig.`, annahme: x => `Es ist davon auszugehen, dass ${x.T.nom} den Konsum in der Wohnung fortsetzen würde.`, bed: 'Alkohol und Drogen senken die Hemmschwelle; regelmäßiger Konsum lässt erwarten, dass sich solche Lagen wiederholen.', weil: x => `${x.T.nom} erheblich unter Alkohol- bzw. Drogeneinfluss stand` },
+    { k: 'waffenzugang', g: 'bsp', l: 'Waffenbesitz oder Zugang zu Waffen', fest: x => `${x.T.Nom} verfügt nach polizeilichen Erkenntnissen über Waffen bzw. eine waffenrechtliche Erlaubnis.`, angabe: x => `Nach Angaben ${x.G.gen} habe ${x.T.nom} Zugang zu Waffen.`, annahme: x => `Es ist davon auszugehen, dass ${x.T.nom} Zugang zu Waffen hat.`, bed: 'Der Einsatz von oder der Zugang zu Waffen zählt zu den Warnsignalen derselben Untersuchung; er erhöht das Risiko tödlicher Gewalt erheblich.', weil: x => `${x.T.nom} Zugang zu Waffen hat` },
     { k: 'aggressiv', g: 'bsp', l: 'Aggressiv auch vor der Polizei', fest: x => `${x.T.Nom} verhielt sich auch in Gegenwart der Einsatzkräfte aggressiv und ließ sich kaum beruhigen.`, angabe: x => `Nach Angaben ${x.G.gen} sei ${x.T.nom} unbeherrscht und leicht reizbar.`, annahme: x => `Es ist nicht zu erwarten, dass sich ${x.T.nom} ohne die Maßnahme beruhigt.`, bed: 'Wer sich selbst in Anwesenheit der Polizei nicht beherrscht, lässt nach deren Abzug weitere Gewalt erwarten.', weil: x => `${x.T.nom} sich selbst in Gegenwart der Polizei nicht beruhigen ließ` },
     { k: 'uneinsichtig', g: 'bsp', l: 'Uneinsichtig, gibt der gefährdeten Person die Schuld', fest: x => `${x.T.Nom} zeigte sich uneinsichtig, spielte das Geschehen herunter und gab ${x.G.dat} die Schuld.`, angabe: x => `Nach Angaben ${x.G.gen} gebe ${x.T.nom} ${x.G.dat} regelmäßig die Schuld an den Auseinandersetzungen.`, annahme: x => `Es ist nicht zu erwarten, dass ${x.T.nom} ${x.T.sein} Verhalten aus eigenem Antrieb ändert.`, bed: 'Fehlende Einsicht spricht gegen eine Verhaltensänderung aus eigenem Antrieb.', weil: x => `${x.T.nom} keinerlei Einsicht zeigte` },
     { k: 'psych', g: 'bsp', l: 'Psychische Ausnahmesituation', fest: x => `${x.T.Nom} befand sich erkennbar in einer psychischen Ausnahmesituation.`, angabe: x => `Nach Angaben ${x.G.gen} befinde sich ${x.T.nom} in einer psychischen Krise.`, annahme: x => `Es ist von einer psychischen Ausnahmesituation ${x.T.gen} auszugehen.`, bed: 'Eine akute psychische Krise macht das Verhalten schwer vorhersehbar und kann die Gefahr erhöhen.', weil: x => `${x.T.nom} sich in einer psychischen Ausnahmesituation befand` },
     { k: 'widerstand', g: 'bsp', l: 'Widerstand gegen die Einsatzkräfte', fest: x => `${x.T.Nom} leistete Widerstand gegen die Einsatzkräfte.`, angabe: x => `Nach Angaben ${x.G.gen} habe sich ${x.T.nom} schon früher gegen polizeiliche Maßnahmen gewehrt.`, annahme: x => `Es ist davon auszugehen, dass sich ${x.T.nom} polizeilichen Anordnungen widersetzt.`, bed: 'Gewalt sogar gegenüber Einsatzkräften zeigt eine sehr niedrige Hemmschwelle.', weil: x => `${x.T.nom} sich sogar gegen die Einsatzkräfte zur Wehr setzte` },
-    { k: 'angst', g: 'opf', l: 'Angst vor weiterer Gewalt', fest: x => `${x.G.Nom} wirkte erkennbar verängstigt.`, angabe: x => `${x.G.Nom} äußerte Angst vor weiteren Übergriffen.`, annahme: x => `Es ist davon auszugehen, dass ${x.G.nom} weitere Übergriffe fürchtet.`, bed: 'Die eigene Einschätzung der gefährdeten Person ist ein gewichtiger Hinweis auf das tatsächliche Risiko.', weil: x => `${x.G.nom} Angst vor weiteren Übergriffen hat` },
+    { k: 'angst', g: 'opf', l: 'Angst vor weiterer Gewalt', fest: x => `${x.G.Nom} wirkte erkennbar verängstigt.`, angabe: x => `${x.G.Nom} äußerte Angst vor weiteren Übergriffen.`, annahme: x => `Es ist davon auszugehen, dass ${x.G.nom} weitere Übergriffe fürchtet.`, bed: 'Die konkret geäußerte Angst der gefährdeten Person vor einer Eskalation nennt dieselbe Untersuchung als Warnsignal.', weil: x => `${x.G.nom} Angst vor weiteren Übergriffen hat` },
     { k: 'toetung', g: 'opf', l: 'Hält eine Tötung für möglich', fest: x => `${x.G.Nom} äußerte gegenüber den Einsatzkräften, ${x.G.er} halte ${x.T.akk} für fähig, ${x.G.ihn} zu töten.`, angabe: x => `${x.G.Nom} äußerte, ${x.G.er} halte ${x.T.akk} für fähig, ${x.G.ihn} zu töten.`, annahme: x => `Es ist davon auszugehen, dass ${x.G.nom} ${x.T.akk} für fähig hält, ${x.G.ihn} zu töten.`, bed: 'Hält die gefährdete Person eine Tötung für möglich, ist das ein gewichtiger Warnhinweis.', weil: x => `${x.G.nom} ${x.T.akk} für fähig hält, ${x.G.ihn} zu töten` },
     { k: 'ausweg', g: 'opf', l: 'Kann nicht ausweichen (Kinder, Gesundheit, Unterkunft)', fest: x => `${x.G.Nom} hat keine Möglichkeit, kurzfristig anderweitig unterzukommen.`, angabe: x => `Nach Angaben ${x.G.gen} habe ${x.G.er} keine Möglichkeit, kurzfristig anderweitig unterzukommen.`, annahme: x => `Es ist davon auszugehen, dass ${x.G.nom} nicht anderweitig unterkommen kann.`, bed: 'Der gefährdeten Person ist nicht zuzumuten, die eigene Wohnung zu verlassen, um sich zu schützen.', weil: x => `${x.G.nom} nicht ausweichen kann` }
   ];
@@ -252,10 +262,9 @@
   /** Vorbelegung der Umstände aus früheren Antworten – sichtbar als „übernommen“, jederzeit änderbar. */
   function autoMarks(d) {
     const a = {}, G = ofRole(d, 'gs').map(y => y.p), B = (bsY(d) || {}).p || {}, K = kinderL(d).map(y => y.p);
-    if (G.some(p => arr(p.verl).includes('wuergemale'))) a.wuergen = 'fest';
+    if (G.some(p => arr(p.verl).some(v => ['wuergemale', 'petechien'].includes(v)))) a.wuergen = 'fest';
     if (G.some(p => ['vorort', 'kh', 'sofort'].includes(p.rtw))) a.behandlung = 'fest';
     if (K.some(p => p.da === 'ja')) a.kinder = 'fest';
-    if (K.some(p => p.verletzt === 'ja')) a.kindergewalt = 'fest';
     if (B.konsum === 'ja') a.alkohol = 'fest';
     if (arr(B.zust).some(z => ['aggressiv', 'laut', 'angriff'].includes(z))) a.aggressiv = 'fest';
     if (arr(B.zust).includes('drohend')) a.drohung = 'fest';
@@ -265,7 +274,7 @@
     if (v.includes('verstoss')) a.verstoss = 'fest';
     if (v.includes('wbk')) a.waffenzugang = 'fest';
     if (v.includes('andere')) a.gewaltandere = 'fest';
-    if (v.includes('anzeigen') || v.includes('wv')) a.frueher = 'fest';
+    if (v.includes('anzeigen')) a.frueher = 'fest';
     const g0 = G[0] || {};
     if (!a.frueher && g0.frueher === 'ja') a.frueher = 'angabe';
     if (g0.angst === 'ja') a.angst = 'angabe';
@@ -278,16 +287,16 @@
 
   /* Textbausteine für die Gefahrenprognose (ganze Absätze) */
   const BST = [
-    { k: 'gewaltbeziehung', l: 'Gewaltbeziehung: wiederholte Übergriffe', text: x => `Die Angaben ${x.G.gen} zu früheren Übergriffen und das heutige Geschehen ergeben das Bild einer Gewaltbeziehung, in der es wiederholt zu körperlichen Übergriffen gekommen ist. In einer solchen Beziehung ist jederzeit mit weiteren Taten zu rechnen (vgl. OVG NRW, Urt. v. 17.10.2023 – 5 A 3548/20); eine Beruhigung der Lage durch bloßen Zeitablauf ist nicht zu erwarten.` },
+    { k: 'gewaltbeziehung', l: 'Gewaltbeziehung: wiederholte Übergriffe', ersetzt: 'frueher', text: x => `Die Angaben ${x.G.gen} zu früheren Übergriffen und das heutige Geschehen ergeben das Bild einer Gewaltbeziehung, in der es wiederholt zu körperlichen Übergriffen gekommen ist. In einer solchen Beziehung ist jederzeit mit weiteren Taten zu rechnen (vgl. OVG NRW, Urt. v. 17.10.2023 – 5 A 3548/20); eine Beruhigung der Lage durch bloßen Zeitablauf ist nicht zu erwarten.` },
     { k: 'ersttat', l: 'Ersttat von hoher Intensität', text: () => 'Gesicherte Erkenntnisse über frühere Übergriffe liegen nicht vor. Der heutige Angriff war nach Art und Intensität jedoch so erheblich, dass er für sich genommen eine jederzeitige Wiederholung befürchten lässt. Auch eine erstmalige Tat kann eine gegenwärtige Gefahr begründen, wenn sie – wie hier – von erheblicher Intensität ist (vgl. OVG NRW, Urt. v. 17.10.2023 – 5 A 3548/20).' },
-    { k: 'trennung', l: 'Trennungssituation', text: x => `Die Beziehung befindet sich in einer Trennungssituation. Trennungsphasen gelten als Zeit besonders hohen Risikos; Kränkung und drohender Kontrollverlust auf Seiten ${x.T.gen} lassen eine weitere Eskalation befürchten, zumal beide ohne die Maßnahme weiter in derselben Wohnung zusammenträfen.` },
-    { k: 'wille', l: 'Gefährdete Person lehnt die Maßnahme ab', text: x => `Dass ${x.G.nom} die Maßnahme ablehnt, steht ihr nicht entgegen. Der Schutz von Leib, Leben und Freiheit steht nicht zur Disposition der gefährdeten Person; ihre Haltung kann zudem Ausdruck der Belastung und Abhängigkeit in der Beziehung sein. Die Tatsachen, auf die sich die Prognose stützt, bleiben davon unberührt.` },
+    { k: 'trennung', l: 'Trennungssituation', ersetzt: 'trennung', text: x => `Die Beziehung befindet sich in einer Trennungssituation. Nach der vom LKA NRW beauftragten Untersuchung (Greuel u. a. 2010) standen Tötungsdelikte in Paarbeziehungen in zwei von drei Fällen im Zusammenhang mit einem Trennungskonflikt; Kränkung und drohender Kontrollverlust auf Seiten ${x.T.gen} lassen eine weitere Eskalation befürchten, zumal beide ohne die Maßnahme weiter in derselben Wohnung zusammenträfen.` },
+    { k: 'wille', l: 'Gefährdete Person lehnt die Maßnahme ab', text: x => `Dass ${x.G.nom} die Maßnahme ablehnt, steht der Maßnahme nicht entgegen. Der Schutz von Leib, Leben und Freiheit steht nicht zu ${x.G.sein}er Disposition; ${x.G.sein}e Haltung kann zudem Ausdruck der Belastung und Abhängigkeit in der Beziehung sein. Die Tatsachen, auf die sich die Prognose stützt, bleiben davon unberührt.` },
     { k: 'abschwaechung', l: 'Angaben später abgeschwächt', text: x => `Soweit ${x.G.nom} ${x.G.sein}e Angaben im weiteren Verlauf abschwächte, wurde dies gewürdigt. Die ersten Angaben stimmen mit den objektiven Feststellungen am Einsatzort überein; diese Feststellungen werden durch die spätere Abschwächung nicht in Frage gestellt.` },
-    { k: 'kinder', l: 'Kinder im Haushalt', text: () => 'Im Haushalt leben Kinder, die das Geschehen miterlebt haben bzw. ihm ausgesetzt sind. Das Miterleben von Gewalt zwischen Bezugspersonen gefährdet das Kindeswohl; ohne räumliche Trennung wären auch die Kinder weiterer Gewalt ausgesetzt.' },
-    { k: 'alkohol', l: 'Alkohol als Verstärker', text: x => `${x.T.Nom} war erheblich alkoholisiert. Der Alkoholeinfluss senkt die Hemmschwelle zusätzlich; da der Konsum in der Wohnung jederzeit fortgesetzt werden kann, war eine Beruhigung der Lage durch bloßes Abwarten nicht zu erwarten.` },
+    { k: 'kinder', l: 'Kinder im Haushalt', text: () => 'Im Haushalt leben Kinder, die das Geschehen miterlebt haben bzw. ihm ausgesetzt sind. Das Miterleben von Gewalt zwischen Bezugspersonen gefährdet das Kindeswohl; ohne räumliche Trennung wären auch die Kinder weiterer Gewalt ausgesetzt.', ersetzt: 'kinder' },
+    { k: 'alkohol', l: 'Alkohol als Verstärker', ersetzt: 'alkohol', text: x => `${x.T.Nom} war erheblich alkoholisiert. Der Alkoholeinfluss senkt die Hemmschwelle zusätzlich; da der Konsum in der Wohnung jederzeit fortgesetzt werden kann, war eine Beruhigung der Lage durch bloßes Abwarten nicht zu erwarten.` },
     { k: 'einlassung', l: 'Einlassung erklärt die Befunde nicht', text: x => `Die Einlassung ${x.T.gen} ist mit den objektiven Feststellungen nicht in Einklang zu bringen; insbesondere erklärt sie das festgestellte Verletzungsbild nicht. Sie ist deshalb nicht geeignet, die Angaben ${x.G.gen} zu erschüttern.` },
     { k: 'schweigen', l: 'Beschuldigte Person schweigt', text: x => `${x.T.Nom} hat von ${x.T.sein}em Recht Gebrauch gemacht, sich nicht zur Sache zu äußern. Daraus werden keine nachteiligen Schlüsse gezogen; der Prognose liegen allein die festgestellten Tatsachen und die Angaben ${x.G.gen} zugrunde.` },
-    { k: 'wechselseitig', l: 'Wechselseitige Vorwürfe', text: x => `Beide Beteiligte erheben wechselseitig Vorwürfe. Nach den Feststellungen geht die Gefahr jedoch von ${x.T.dat} aus, weil ${has(get(x.d, 'prog.wechselGrund')) ? slot(get(x.d, 'prog.wechselGrund')) : PH('Tatsachen, aus denen sich ergibt, von wem die Gefahr ausgeht')}.` },
+    { k: 'wechselseitig', l: 'Wechselseitige Vorwürfe', text: x => `Die Beteiligten erhoben wechselseitig Vorwürfe. Nach den Feststellungen geht die Gefahr jedoch von ${x.T.dat} aus, weil ${has(get(x.d, 'prog.wechselGrund')) ? slot(get(x.d, 'prog.wechselGrund')) : PH('Tatsachen, aus denen sich ergibt, von wem die Gefahr ausgeht')}.` },
     { k: 'unzumutbar', l: 'Gefährdete Person kann nicht ausweichen', text: x => `${x.G.Nom} kann sich der Gefahr nicht dadurch entziehen, dass ${x.G.er} die Wohnung verlässt; dies ist ${x.G.ihm} auch nicht zuzumuten. Die Wohnung ist ${x.G.sein} Lebensmittelpunkt${kinderDa(x.d) ? ' und der Lebensmittelpunkt der Kinder' : ''}.` },
     { k: 'nacht', l: 'Nachtzeit, keine andere Trennung möglich', text: () => 'Das Geschehen ereignete sich zur Nachtzeit. Ohne die Maßnahme hätten sich beide Beteiligte die Nacht über in derselben Wohnung aufgehalten; eine andere Möglichkeit, die Beteiligten kurzfristig zu trennen, bestand nicht.' }
   ];
@@ -297,6 +306,7 @@
   const frei = (k, pre, ph, extra) => ({ k, t: 'text', l: 'Weiteres in eigenen Worten (optional)', pre, ph, max: 240, ...extra });
   const satzFeld = (k, l, ph, extra) => ({ k, t: 'text', l: l + ' (optional, ganzer Satz)', ph, max: 240, ...extra });
   const zw = it => ({ w: 'Zeugin', m: 'Zeuge', d: 'Zeugin / Zeuge' }[gOf(it)]);
+  const halsAng = (d, it) => it.rolle !== 'bs' && (arr(it.verl).some(v => ['wuergemale', 'petechien'].includes(v)) || (it.rolle === 'gs' && !!markOf(d, 'wuergen')));
   const present = it => it.da !== 'nein';
   const statementOf = it => ['gs', 'zeuge'].includes(it.rolle) && present(it);
   const belAktiv = it => ['52', '57', 'bs'].includes(it.bel);
@@ -394,7 +404,7 @@
           { k: 'spontanZeit', t: 'time', l: 'Uhrzeit der Äußerung', w: 'half', q: 'jetzt', when: (d, it) => has(it.spontan) }
         ] },
         { k: 'abw.verbleib', t: 'text', l: 'Wo ist die beschuldigte Person? (nicht vor Ort)', pre: d => `Nach Angaben ${gsGen(d)}`, ph: 'habe er die Wohnung kurz vor Eintreffen der Polizei zu Fuß in unbekannte Richtung verlassen', lint: 'konj', sugg: d => [['kurz zuvor gegangen', `habe ${erBs(d)} die Wohnung kurz vor Eintreffen der Polizei verlassen`], ['unbekannt', `sei ${seinBs(d)} Aufenthaltsort unbekannt`]], when: bsWeg },
-        { k: 'eintreff.sofort', t: 'multi', l: 'Erste Maßnahmen', o: d => [...(bsDa(d) ? [['getrennt', 'Beteiligte räumlich getrennt']] : []), ['idf', 'Identitäten festgestellt'], ['abgleich', 'Datenabgleich'], ...(bsDa(d) ? [['eigen', 'Durchsuchung zur Eigensicherung']] : []), ['waffen', 'Waffen / gefährliche Gegenstände sichergestellt'], ['absuche', 'Nahbereich abgesucht']] },
+        { k: 'eintreff.sofort', t: 'multi', l: 'Erste Maßnahmen', o: d => [...(bsDa(d) ? [['getrennt', 'Beteiligte räumlich getrennt']] : []), ['idf', 'Identitäten festgestellt'], ['abgleich', 'Datenabgleich'], ...(bsDa(d) ? [['eigen', 'Durchsuchung zur Eigensicherung']] : []), ['waffen', 'Waffen / gefährliche Gegenstände sichergestellt'], ...(inc(d, 'eintreff.sofort', 'waffen') ? [['besch', 'Bescheinigung über die Sicherstellung ausgehändigt']] : []), ['absuche', 'Nahbereich abgesucht']] },
         satzFeld('eintreff.sofortText', 'Weitere Maßnahmen', 'Ein zweites Einsatzmittel wurde zur Unterstützung angefordert.')
       ]
     },
@@ -406,14 +416,18 @@
           { k: 'verlFrei', t: 'text', l: 'Weitere Verletzungen in eigenen Worten (optional)', pre: 'außerdem', ph: 'eine aufgeplatzte Lippe und einen abgebrochenen Schneidezahn', max: 240 },
           { k: 'verlWo', t: 'text', l: 'Wo?', pre: 'Die Verletzungen befinden sich', ph: 'am linken Auge und am rechten Unterarm', join: ' und ', sugg: [['Gesicht', 'im Gesicht'], ['Hals', 'am Hals'], ['Arme', 'an den Armen'], ['Oberkörper', 'am Oberkörper'], ['Kopf', 'am Kopf'], ['Beine', 'an den Beinen']], when: (d, it) => arr(it.verl).some(v => v !== 'keine') || has(it.verlFrei) },
           { k: 'schmerz', t: 'text', l: 'Schmerzen (optional)', pre: (d, it) => `${ErP(it)} klagte über`, ph: 'Schmerzen im Bereich des Halses und Schluckbeschwerden', max: 200 },
-          { t: 'info', when: (d, it) => arr(it.verl).includes('wuergemale'), text: 'Angriff gegen den Hals: auch ohne sichtbare Spuren ärztliche Abklärung dringend empfehlen – Schwellungen können verzögert auftreten.' },
-          { k: 'rtw', t: 'choice', l: 'Rettungswagen / ärztliche Hilfe – gefragt und Antwort', req: true, h: 'Immer fragen und die Antwort festhalten – auch die Ablehnung.', o: RTW_UI },
+          { t: 'info', when: (d, it) => halsAng(d, it), text: 'Angriff gegen den Hals: auch ohne sichtbare Spuren lebensgefährlich, Folgen können verzögert auftreten. Zeitnahe ärztliche Untersuchung dringend empfehlen; § 224 Abs. 1 Nr. 5 StGB prüfen.' },
+          { k: 'wuerg', t: 'multi', l: 'Beschwerden nach dem Angriff gegen den Hals (nach eigenen Angaben)', o: [['atem', 'Atemnot'], ['schwindel', 'Schwindel'], ['bewusst', 'Kurz bewusstlos'], ['schluck', 'Schluckbeschwerden'], ['stimme', 'Heiserkeit'], ['einnaessen', 'Urinabgang']], when: halsAng },
+          { k: 'wuergArzt', t: 'yn', l: 'Zeitnahe ärztliche Untersuchung dringend empfohlen?', w: 'half', when: halsAng },
+          { k: 'rtw', t: 'choice', l: (d, it) => (it.rolle === 'kind' ? 'Ärztliche Versorgung des Kindes' : 'Rettungswagen / ärztliche Hilfe – gefragt und Antwort'), req: true, h: (d, it) => (it.rolle === 'kind' ? 'Mit der sorgeberechtigten Person klären und das Ergebnis festhalten.' : 'Immer fragen und die Antwort festhalten – auch die Ablehnung.'), o: (d, it) => (it.rolle === 'kind' ? RTW_KIND : RTW_UI) },
           { k: 'rtwBes', t: 'text', l: 'Rettungsmittel (optional)', ph: 'z. B. RTW 1-83-1', w: 'half', max: 40, when: (d, it) => ['vorort', 'kh', 'sofort'].includes(it.rtw) },
           { k: 'kh', t: 'text', l: 'Krankenhaus', ph: 'z. B. Mathias-Spital Rheine', w: 'half', recent: true, max: 80, when: (d, it) => it.rtw === 'kh' },
           { k: 'rtwText', t: 'text', l: 'Befund der Rettungswagenbesatzung (optional)', pre: 'Die Besatzung des Rettungswagens', ph: 'stellte eine Platzwunde an der Stirn fest und versorgte sie vor Ort', max: 240, when: (d, it) => ['vorort', 'kh', 'sofort'].includes(it.rtw) },
           { k: 'foto', t: 'choice', l: (d, it) => (it.rolle === 'bs' ? 'Lichtbilder (§ 81b StPO)' : 'Lichtbilder der Verletzungen'), o: [['ja', 'Gefertigt – zur Anzeige'], ['abgelehnt', 'Abgelehnt'], ['spaeter', 'Werden nachgefertigt'], ['nein', 'Nicht gefertigt']] },
-          { k: 'fotoBel', t: 'yn', l: 'Vorher über das Weigerungsrecht belehrt (§ 81c Abs. 3 StPO)?', h: 'Angehörige dürfen Untersuchungen und Lichtbilder aus denselben Gründen verweigern wie das Zeugnis.', when: (d, it) => it.rolle !== 'bs' && it.foto === 'ja' && angehoerig(it) },
-          { k: 'attest', t: 'yn', l: 'Auf ärztliche Dokumentation (Attest) hingewiesen?', w: 'half', when: (d, it) => it.rolle !== 'bs' }
+          { k: 'fotoBel', t: 'yn', l: 'Vorher über das Weigerungsrecht belehrt (§ 81c Abs. 3 StPO)?', h: 'Angehörige dürfen Untersuchungen und Lichtbilder aus denselben Gründen verweigern wie das Zeugnis.', when: (d, it) => !['bs', 'kind'].includes(it.rolle) && it.foto === 'ja' && angehoerig(it) },
+          { t: 'info', when: (d, it) => it.rolle === 'kind' && it.foto === 'ja', text: 'Lichtbilder bei Kindern (§ 81c Abs. 3 StPO): Mit ausreichender Verstandesreife entscheidet das Kind selbst nach altersgerechter Belehrung. Sonst entscheidet der gesetzliche Vertreter – ist ein Elternteil beschuldigt, bei gemeinsamer Sorge auch der andere nicht (§ 52 Abs. 2 Satz 2 StPO). Dann zur Beweissicherung nur auf richterliche Anordnung; verwertbar nur mit Einwilligung eines Ergänzungspflegers.' },
+          { k: 'fotoKind', t: 'choice', l: 'Grundlage der Lichtbilder', o: [['selbst', 'Kind verstandesreif, nach Belehrung eingewilligt'], ['vertreter', 'Allein sorgeberechtigte, nicht beschuldigte Person eingewilligt'], ['richter', 'Richterliche Anordnung zur Beweissicherung'], ['offen', 'Noch zu klären']], when: (d, it) => it.rolle === 'kind' && it.foto === 'ja' },
+          { k: 'attest', t: 'yn', l: 'Auf ärztliche Dokumentation (Attest) hingewiesen?', w: 'half', when: (d, it) => !['bs', 'kind'].includes(it.rolle) }
         ] }
       ]
     },
@@ -465,6 +479,8 @@
           { k: 'belZeit', t: 'time', l: 'Uhrzeit der Belehrung', q: 'jetzt', w: 'half', when: (d, it) => belAktiv(it) },
           { t: 'preset', l: 'Schnellwahl', o: (d, it, base) => [['Vollständig nach Vordruck', { [`${base}.belInh`]: it.bel === 'bs' ? BEL_B_STD.slice() : belZStd(it) }, it.bel === 'bs' ? '§ 136 Abs. 1 StPO' : 'alle Pflichtinhalte']], when: (d, it) => belAktiv(it) },
           { k: 'belInh', t: 'multi', l: 'Was wurde belehrt?', o: (d, it) => belOpts(it), when: (d, it) => belAktiv(it) },
+          { t: 'info', when: (d, it) => it.bel === '52' && minderj(it), text: 'Minderjährige Person: Fehlt die Verstandesreife, entscheidet der gesetzliche Vertreter über das Zeugnisverweigerungsrecht; ist ein Elternteil beschuldigt, bei gemeinsamer Sorge auch der andere nicht (§ 52 Abs. 2 StPO). Dann keine Befragung zur Sache – Vernehmung in der Sachbearbeitung (Ergänzungspfleger).' },
+          { k: 'bsTat', t: 'text', l: 'Eröffneter Tatvorwurf', pre: 'Zur Last gelegt wurde', ph: d => `eine Körperverletzung zum Nachteil ${main(d, 'bs').gen}`, max: 200, when: (d, it) => it.bel === 'bs' && arr(it.belInh).includes('tat') },
           { k: 'belErkl', t: 'choice', l: 'Erklärung nach der Belehrung', o: [['aussage', 'Will aussagen'], ['verweigert', 'Verweigert das Zeugnis'], ['gefahr', 'Verweigert, äußert sich nur zum Schutz']], when: (d, it) => it.bel === '52' },
           { k: 'bsVert', t: 'choice', l: 'Verteidiger vor der Äußerung befragen?', o: [['nein', 'Möchte keinen Verteidiger befragen'], ['ja', 'Möchte zuerst einen Verteidiger befragen']], when: (d, it) => it.bel === 'bs' },
           { k: 'wahr', t: 'choice', l: 'Wahrnehmung', o: [['gesehen', 'Selbst gesehen'], ['gehoert', 'Nur gehört'], ['danach', 'Erst danach hinzugekommen']], when: (d, it) => it.rolle === 'zeuge' && !sprichtNicht(it) },
@@ -563,8 +579,9 @@
         { k: 'wv.dauer', t: 'choice', l: 'Dauer', req: true, o: [['14', '14 Tage (Regel)'], ['kuerzer', 'Ausnahmsweise kürzer']], when: wvJa },
         { k: 'wv.ende', t: 'date', l: 'Letzter Tag der Geltung', w: 'half', when: d => wvJa(d) && get(d, 'wv.dauer') === 'kuerzer' },
         { k: 'wv.dauerGrund', t: 'text', l: 'Grund der kürzeren Dauer', pre: 'Die Dauer wurde verkürzt, weil', ph: 'die geschädigte Person zum Monatsende in ihre eigene Wohnung umzieht', when: d => wvJa(d) && get(d, 'wv.dauer') === 'kuerzer' },
-        { t: 'info', when: d => wvJa(d) && has(wvTag(d)), text: d => `Fristrechner: Das Verbot endet mit Ablauf des ${fmtDate(wvEnde(d))} (24 Uhr). Wird bis dahin zivilgerichtlicher Schutz beantragt, verlängert es sich bis zur Entscheidung, längstens bis ${fmtDate(wvMax(d))}.` },
-        { k: 'wv.mittel', t: 'text', l: 'Warum reichte kein milderes Mittel?', req: true, pre: 'Mildere, gleich wirksame Mittel standen nicht zur Verfügung, weil', ph: d => `${erBs(d)} ein freiwilliges Verlassen der Wohnung ablehnte`, join: ' und ', max: 400, sugg: d => [['lehnt ab', `${erBs(d)} ein freiwilliges Verlassen der Wohnung ablehnte`], ['nicht glaubhaft', `${seinBs(d)}e Zusage, freiwillig zu gehen, angesichts ${seinBs(d)}es Verhaltens nicht glaubhaft war`], ['Gefährderansprache', 'eine bloße Gefährderansprache die Gefahr in der gemeinsamen Wohnung nicht beseitigt hätte'], ['GS bleibt', `${main(d, 'gs').dat}${kinderDa(d) ? ' und den Kindern' : ''} ein Verlassen der Wohnung nicht zuzumuten ist`]], when: wvJa },
+        { t: 'info', when: d => wvJa(d) && has(wvTag(d)), text: d => `Fristrechner: Die Maßnahme endet mit Ablauf des ${fmtDate(wvEnde(d))} (24 Uhr). Stellt die gefährdete Person bis dahin einen Antrag auf zivilrechtlichen Schutz mit dem Ziel einer einstweiligen Anordnung, endet sie mit dem Tag der gerichtlichen Entscheidung, spätestens mit Ablauf des ${fmtDate(wvMax(d))} (§ 34a Abs. 5 Satz 2 PolG NRW).` },
+        { t: 'info', when: d => wvJa(d) && [0, 6].includes(weekday(wvEnde(d))), text: d => `Das Ende fällt auf einen ${weekday(wvEnde(d)) === 0 ? 'Sonntag' : 'Samstag'}. Nur ein Antrag während der Geltung verlängert die Maßnahme – der gefährdeten Person raten, den Antrag beim Familiengericht rechtzeitig vor dem Wochenende zu stellen.` },
+        { k: 'wv.mittel', t: 'text', l: 'Warum reichte kein milderes Mittel?', req: true, pre: 'Mildere, gleich wirksame Mittel standen nicht zur Verfügung, weil', ph: 'ein freiwilliges Fernbleiben nicht durchsetzbar gewesen wäre und eine Gefährderansprache oder ein Platzverweis eine Rückkehr in die gemeinsame Wohnung nicht verhindert hätten', join: ' und ', max: 400, sugg: d => [['nicht durchsetzbar', 'ein freiwilliges Fernbleiben nicht durchsetzbar gewesen wäre und eine Gefährderansprache oder ein Platzverweis eine Rückkehr in die gemeinsame Wohnung nicht verhindert hätten'], ...(bsWeg(d) ? [] : [['lehnt ab', `${erBs(d)} ein freiwilliges Verlassen der Wohnung ablehnte`], ['nicht glaubhaft', `${seinBs(d)}e Zusage, freiwillig zu gehen, angesichts ${seinBs(d)}es Verhaltens nicht glaubhaft war`]]), ['Gefährderansprache', 'eine bloße Gefährderansprache die Gefahr in der gemeinsamen Wohnung nicht beseitigt hätte'], ['GS bleibt', `${main(d, 'gs').dat}${kinderDa(d) ? ' und den Kindern' : ''} ein Verlassen der Wohnung nicht zuzumuten ist`]], when: wvJa },
         { k: 'wv.grund', t: 'choice', l: 'Warum wird abgesehen?', req: true, o: [['gefahr', 'Keine gegenwärtige Gefahr'], ['verbal', 'Nur verbaler Streit'], ['wohnt', 'Person lebt nicht in der Wohnung'], ['weg', 'Geschädigte Person hat die Wohnung verlassen'], ['unklar', 'Nicht aufklärbar, von wem die Gefahr ausgeht'], ['freiwillig', 'Glaubhaft freiwilliger Auszug']], when: wvNein },
         { k: 'wv.grundText', t: 'text', l: 'Anderer Grund oder Ergänzung (optional)', pre: 'Abgesehen wurde, weil', ph: 'beide übereinstimmend schilderten, dass es bei einem lauten Wortwechsel geblieben ist', max: 240, when: wvNein },
         { k: 'wv.alt', t: 'multi', l: 'Stattdessen getroffen', o: [['platz', 'Platzverweis (§ 34 Abs. 1)'], ['betret', 'Betretungsverbot angeregt (§ 34 Abs. 2)'], ['anspr', 'Gefährderansprache'], ['trennung', 'Freiwillige räumliche Trennung'], ['gewahrsam', 'Gewahrsam (§ 35 Abs. 1 Nr. 2)']], when: wvNein },
@@ -588,12 +605,12 @@
         { k: 'er.schrift', t: 'choice', l: 'Schriftstück mit Zwangsgeldandrohung', req: true, h: 'Die Androhung des Zwangsgeldes muss zugestellt werden (§ 56 Abs. 6 PolG NRW).', o: [['vorort', 'Vor Ort gegen Empfangsbekenntnis ausgehändigt'], ['verweigert', 'Annahme verweigert'], ['wache', 'Liegt auf der Wache zur Abholung'], ['post', 'Wird förmlich zugestellt'], ['offen', 'Noch offen']] },
         { k: 'er.schriftZeit', t: 'time', l: 'Uhrzeit', q: 'jetzt', w: 'half', when: d => ['vorort', 'verweigert'].includes(get(d, 'er.schrift')) },
         { k: 'er.wache', t: 'text', l: 'Welche Wache?', ph: 'z. B. Polizeiwache Rheine', w: 'half', recent: true, max: 80, when: d => get(d, 'er.schrift') === 'wache' },
-        { t: 'info', when: d => nachtEr(d) && ['vorort', 'verweigert'].includes(get(d, 'er.schrift')), text: 'Zwischen 21 und 6 Uhr sowie an Sonn- und Feiertagen braucht die Zustellung die Erlaubnis der Behördenleitung. Fehlt sie, ist die Zustellung nur wirksam, wenn die Annahme nicht verweigert wird (§ 5 Abs. 3 LZG NRW).' },
-        { k: 'er.erlaubnis', t: 'choice', l: 'Erlaubnis der Behördenleitung (Nacht / Sonn- und Feiertag)', o: [['ja', 'Liegt vor'], ['nein', 'Liegt nicht vor'], ['unklar', 'Unklar']], when: d => nachtEr(d) && ['vorort', 'verweigert'].includes(get(d, 'er.schrift')) },
+        { t: 'info', when: d => nachtEr(d) && ['vorort', 'verweigert'].includes(get(d, 'er.schrift')), text: 'Zwischen 21 und 6 Uhr sowie an Sonn- und Feiertagen braucht die Zustellung die Erlaubnis des Behördenleiters. Fehlt sie, ist die Zustellung nur wirksam, wenn die Annahme nicht verweigert wird (§ 5 Abs. 3 LZG NRW).' },
+        { k: 'er.erlaubnis', t: 'choice', l: 'Erlaubnis des Behördenleiters (Nacht / Sonn- und Feiertag)', o: [['ja', 'Liegt vor'], ['nein', 'Liegt nicht vor'], ['unklar', 'Unklar']], when: d => nachtEr(d) && ['vorort', 'verweigert'].includes(get(d, 'er.schrift')) },
         { t: 'head', text: 'Reaktion und Verlassen der Wohnung' },
         { k: 'er.reaktion', t: 'choice', l: 'Reaktion auf die Maßnahme', o: [['ok', 'Ohne Widerspruch hingenommen'], ['widerspruch', 'Widersprochen'], ['text', 'Hat sich geäußert']] },
         { k: 'er.reaktionText', t: 'text', l: 'Äußerung (optional)', pre: d => `${ErBs(d)} äußerte,`, lint: 'konj', ph: 'das sei seine Wohnung, er werde morgen einen Anwalt einschalten', max: 300, when: d => ['widerspruch', 'text'].includes(get(d, 'er.reaktion')) },
-        { k: 'er.verlassen', t: 'choice', l: 'Wie hat die Person die Wohnung verlassen?', req: true, o: [['freiwillig', 'Freiwillig'], ['zwang', 'Erst nach unmittelbarem Zwang'], ['gewahrsam', 'In Gewahrsam genommen'], ['festnahme', 'Vorläufig festgenommen']] },
+        { k: 'er.verlassen', t: 'choice', l: 'Wie hat die Person die Wohnung verlassen?', req: true, o: [['freiwillig', 'Ohne Zwang'], ['zwang', 'Erst nach unmittelbarem Zwang'], ['gewahrsam', 'In Gewahrsam genommen'], ['festnahme', 'Vorläufig festgenommen']] },
         { k: 'er.verlassenZeit', t: 'time', l: 'Uhrzeit', w: 'half', q: 'jetzt' },
         { k: 'er.wohin', t: 'text', l: 'Wohin? (optional)', pre: d => `${ErBs(d)} begab sich nach eigenen Angaben`, ph: d => `zu ${seinBs(d)}em Bruder nach Emsdetten`, max: 160, when: d => get(d, 'er.verlassen') === 'freiwillig' },
         satzFeld('er.text', 'Ergänzung zum Vollzug', d => `${ErBs(d)} übergab außerdem den Handsender für die Tiefgarage.`)
@@ -606,22 +623,26 @@
         { k: 'abw.erreichbar', t: 'choice', l: 'Ist die Person erreichbar?', req: true, o: [['telefon', 'Telefonisch'], ['ort', 'Aufenthaltsort bekannt, aufgesucht'], ['nein', 'Nicht erreichbar']] },
         { k: 'abw.anh', t: 'choice', l: 'Belehrt und angehört – vor der Entscheidung?', req: true, h: 'Vor jedem Wort zur Sache als Beschuldigte/n belehren (§ 136 StPO), dann die Vorwürfe mitteilen.', o: [['ja', 'Ja'], ['nein', 'Noch nicht']], when: d => ['telefon', 'ort'].includes(get(d, 'abw.erreichbar')) },
         { k: 'abw.anhZeit', t: 'time', l: 'Uhrzeit', w: 'half', q: 'jetzt', when: d => get(d, 'abw.anh') === 'ja' },
-        { k: 'abw.telInh', t: 'multi', l: 'Am Telefon gesichert', o: [['nummer', 'Rufnummer aus eigenen Angaben / Abgleich'], ['identitaet', 'Identität durch Kontrollfragen geprüft'], ['bereich', 'Bereich und Ende genannt'], ['zg', 'Auf Zwangsgeld hingewiesen']], when: d => get(d, 'abw.erreichbar') === 'telefon' },
         { k: 'abw.anhText', t: 'text', l: 'Äußerung (optional)', pre: d => `${ErBs(d)} äußerte,`, lint: 'konj', ph: 'es habe keinen Übergriff gegeben; er komme heute nicht mehr nach Hause', max: 300, sugg: [['keine Äußerung', 'sich zur Sache nicht äußern zu wollen']], when: d => get(d, 'abw.anh') === 'ja' },
         { k: 'abw.bekannt', t: 'choice', l: 'Ist das Rückkehrverbot bekanntgegeben?', req: true, o: [['pers', 'Ja, persönlich'], ['tel', 'Ja, telefonisch'], ['nein', 'Noch nicht']] },
         { k: 'abw.bekanntZeit', t: 'time', l: 'Uhrzeit der Bekanntgabe', w: 'half', q: 'jetzt', when: d => ['pers', 'tel'].includes(get(d, 'abw.bekannt')) },
+        { k: 'abw.telInh', t: 'multi', l: 'Bei der Bekanntgabe erledigt', o: d => [...(get(d, 'abw.bekannt') === 'tel' ? [['nummer', 'Rufnummer aus eigenen Angaben / Abgleich'], ['identitaet', 'Identität durch Kontrollfragen geprüft']] : []), ['bereich', 'Bereich genau bezeichnet'], ['dauer', 'Ende (Datum) genannt'], ['verlaengerung', 'Verlängerung bei Gerichtsantrag erklärt'], ['zg', 'Auf beabsichtigte Zwangsgeldandrohung hingewiesen'], ['anschrift', 'Zustellanschrift erfragt (§ 34a Abs. 3)'], ['gegenst', 'Persönliche Gegenstände geregelt (§ 34a Abs. 2)']], when: d => ['pers', 'tel'].includes(get(d, 'abw.bekannt')) },
+        { k: 'abw.anschrift', t: 'text', l: 'Benannte Anschrift (optional)', pre: d => `${ErBs(d)} benannte`, ph: 'als Anschrift für Zustellungen Musterweg 3, 48282 Emsdetten', max: 200, sugg: [['keine', 'trotz Aufforderung weder eine Anschrift noch eine zustellungsbevollmächtigte Person']], when: d => inc(d, 'abw.telInh', 'anschrift') },
         { t: 'info', when: d => get(d, 'abw.bekannt') === 'nein', text: 'Bis zur Bekanntgabe wirkt das Verbot nicht: kein Zwangsgeld, kein Gewahrsam nach § 35 Abs. 1 Nr. 4. Kehrt die Person zurück, ist es vor Ort zu eröffnen.' },
         { t: 'head', text: 'Schriftliche Verfügung mit Zwangsgeldandrohung' },
         { k: 'abw.zgHoehe', t: 'euro', l: 'Angedrohtes Zwangsgeld', w: 'half', q: [250, 500, 1000], min: 5, max: 2500 },
-        { k: 'abw.zust', t: 'choice', l: 'Wie wurde zugestellt?', req: true, o: [['pers', 'Persönlich gegen Empfangsbekenntnis'], ['briefkasten', 'Ersatzzustellung: in den Briefkasten der Wohnung'], ['niederlegung', 'Niederlegung auf der Wache, Mitteilung an der Tür'], ['hinweis', 'Nur Hinweis an der Tür: auf der Wache melden'], ['post', 'Per Post mit Zustellungsurkunde'], ['offen', 'Noch offen']] },
-        { t: 'info', when: d => ['briefkasten', 'niederlegung'].includes(get(d, 'abw.zust')), text: 'Ersatzzustellung (§ 5 Abs. 2 LZG NRW i. V. m. §§ 180, 181 ZPO) setzt voraus, dass es noch die Wohnung der Person ist. Für die Wohnung, aus der sie gerade verwiesen wird, ist das gerichtlich nicht geklärt. Reihenfolge: Niederlegung nur, wenn das Einlegen in den Briefkasten nicht möglich ist. Beim Antreffen zusätzlich persönlich gegen Empfangsbekenntnis aushändigen.' },
+        { k: 'abw.ersatzhaft', t: 'yn', l: 'Hinweis auf Ersatzzwangshaft in der Verfügung (§ 54 Abs. 1)?', w: 'half', h: 'Ohne diesen Hinweis kann Ersatzzwangshaft später nicht angeordnet werden.', when: d => has(get(d, 'abw.zgHoehe')) },
+        { k: 'abw.zust', t: 'choice', l: 'Wie wurde zugestellt?', req: true, o: [['pers', 'Persönlich gegen Empfangsbekenntnis'], ['briefkasten', 'Ersatzzustellung: in den Briefkasten der Wohnung'], ['niederlegung', 'Ersatzzustellung: Niederlegung mit Mitteilung'], ['hinweis', 'Nur Hinweis an der Tür: auf der Wache melden'], ['post', 'Per Post mit Zustellungsurkunde'], ['offen', 'Noch offen']] },
+        { t: 'info', when: d => ['briefkasten', 'niederlegung'].includes(get(d, 'abw.zust')), text: 'Ersatzzustellung (§ 5 Abs. 2 LZG NRW i. V. m. §§ 180, 181 ZPO) setzt voraus, dass es noch die Wohnung der Person ist. Für die Wohnung, aus der sie gerade verwiesen wird, ist das gerichtlich nicht geklärt – sie ist deshalb nur vorsorglich. Reihenfolge: Niederlegung nur, wenn das Einlegen in den Briefkasten nicht möglich ist. Die gefährdete Person scheidet als Ersatzempfängerin aus (§ 178 Abs. 2 ZPO entsprechend). Beim Antreffen zusätzlich persönlich gegen Empfangsbekenntnis aushändigen.' },
+        { t: 'info', when: d => get(d, 'abw.zust') === 'niederlegung', text: 'Niedergelegt werden darf bei der Behörde, die die Zustellung veranlasst, nur wenn sie ihren Sitz am Zustellort oder am Ort des Amtsgerichts hat – sonst auf der Geschäftsstelle des Amtsgerichts, in dessen Bezirk der Zustellort liegt (§ 5 Abs. 2 LZG NRW, § 181 Abs. 1 ZPO). Eine Wache außerhalb des Behördensitzes genügt danach nicht sicher. Die Mitteilung auf dem Vordruck gehört in den Briefkasten; nur wenn das nicht geht, an die Tür.' },
         { k: 'abw.zustGrund', t: 'choice', l: 'Warum nicht in den Briefkasten?', o: [['keinbk', 'Kein Briefkasten vorhanden'], ['zuordnung', 'Briefkasten nicht eindeutig zuzuordnen'], ['unzug', 'Briefkasten nicht zugänglich']], when: d => get(d, 'abw.zust') === 'niederlegung' },
         { k: 'abw.zustGrundText', t: 'text', l: 'Anderer Grund (optional)', pre: 'Das Einlegen in den Briefkasten war nicht möglich, weil', ph: 'der Briefkasten beschädigt war', max: 200, when: d => get(d, 'abw.zust') === 'niederlegung' },
-        { k: 'abw.mitteilung', t: 'choice', l: 'Mitteilung über die Niederlegung', o: [['tuer', 'An der Wohnungstür angeheftet'], ['bk', 'In den Briefkasten eingelegt']], when: d => get(d, 'abw.zust') === 'niederlegung' },
-        { k: 'abw.wache', t: 'text', l: 'Welche Wache?', ph: 'z. B. Polizeiwache Rheine', w: 'half', recent: true, max: 80, when: d => ['niederlegung', 'hinweis'].includes(get(d, 'abw.zust')) },
+        { k: 'abw.mitteilung', t: 'choice', l: 'Mitteilung über die Niederlegung', o: [['bk', 'In den Briefkasten eingelegt'], ['tuer', 'An der Wohnungstür angeheftet']], when: d => get(d, 'abw.zust') === 'niederlegung' },
+        { k: 'abw.form', t: 'multi', l: 'Förmlichkeiten', o: d => [...(get(d, 'abw.zust') === 'niederlegung' ? [['formular', 'Mitteilung auf dem vorgesehenen Vordruck']] : []), ['umschlag', 'Zustelldatum auf dem Umschlag vermerkt'], ['vermerk', 'Gründe der Ersatzzustellung in der Akte vermerkt']], when: d => ['briefkasten', 'niederlegung'].includes(get(d, 'abw.zust')) },
+        { k: 'abw.wache', t: 'text', l: d => (get(d, 'abw.zust') === 'niederlegung' ? 'Wo niedergelegt?' : 'Bei welcher Dienststelle melden?'), ph: d => (get(d, 'abw.zust') === 'niederlegung' ? 'z. B. der Geschäftsstelle des Amtsgerichts Rheine' : 'z. B. der Polizeiwache Rheine'), w: 'half', recent: true, max: 80, when: d => ['niederlegung', 'hinweis'].includes(get(d, 'abw.zust')) },
         { k: 'abw.zustZeit', t: 'time', l: 'Uhrzeit', w: 'half', q: 'jetzt', when: d => ['pers', 'briefkasten', 'niederlegung', 'hinweis'].includes(get(d, 'abw.zust')) },
-        { t: 'info', when: d => nachtAbw(d) && ['pers', 'briefkasten', 'niederlegung'].includes(get(d, 'abw.zust')), text: 'Zustellung zur Nachtzeit (21–6 Uhr) oder an Sonn- und Feiertagen nur mit Erlaubnis der Behördenleitung (§ 5 Abs. 3 LZG NRW).' },
-        { k: 'abw.erlaubnis', t: 'choice', l: 'Erlaubnis der Behördenleitung', o: [['ja', 'Liegt vor'], ['nein', 'Liegt nicht vor'], ['unklar', 'Unklar']], when: d => nachtAbw(d) && ['pers', 'briefkasten', 'niederlegung'].includes(get(d, 'abw.zust')) },
+        { t: 'info', when: d => nachtAbw(d) && ['pers', 'briefkasten', 'niederlegung'].includes(get(d, 'abw.zust')), text: 'Zustellung zur Nachtzeit (21–6 Uhr) oder an Sonn- und Feiertagen nur mit Erlaubnis des Behördenleiters (§ 5 Abs. 3 LZG NRW).' },
+        { k: 'abw.erlaubnis', t: 'choice', l: 'Erlaubnis des Behördenleiters', o: [['ja', 'Liegt vor'], ['nein', 'Liegt nicht vor'], ['unklar', 'Unklar']], when: d => nachtAbw(d) && ['pers', 'briefkasten', 'niederlegung'].includes(get(d, 'abw.zust')) },
         { t: 'head', text: 'Schlüssel und weitere Maßnahmen' },
         { k: 'abw.schluessel', t: 'choice', l: 'Schlüssel', o: [['spaeter', 'Werden beim Antreffen sichergestellt'], ['schloss', 'Schlosswechsel empfohlen'], ['sicher', 'Bereits sichergestellt']] },
         { k: 'abw.weiter', t: 'multi', l: 'Veranlasst', o: [['folge', 'Folgeschicht beauftragt'], ['streife', 'Wohnung wird bestreift'], ['fahndung', 'Nahbereichsfahndung']] },
@@ -647,7 +668,10 @@
     {
       id: 'straf', phase: 'Maßnahmen', title: 'Strafverfahren und Beweise', lead: 'Anzeige von Amts wegen – auch gegen den Wunsch der geschädigten Person.', gen: ['straf'],
       fields: [
-        { k: 'straf.delikte', t: 'multi', l: 'Strafanzeige wegen', req: true, o: Object.entries(DELIKT_KURZ) },
+        { k: 'straf.delikte', t: 'multi', l: 'Strafanzeige wegen', req: true, o: DELIKT_ORDER.map(k => [k, DELIKT_KURZ[k]]) },
+        { t: 'info', when: d => !!markOf(d, 'wuergen') || ofRole(d, 'gs').some(y => arr(y.p.verl).some(v => ['wuergemale', 'petechien'].includes(v))), text: 'Angriff gegen den Hals: gefährliche Körperverletzung mittels einer das Leben gefährdenden Behandlung prüfen (§ 224 Abs. 1 Nr. 5 StGB). Bei Hinweisen auf Tötungsvorsatz die Kriminalwache einbinden.' },
+        { k: 'straf.drohung', t: 'text', l: 'Wortlaut der Drohung (wörtlich, wie geschildert)', ph: '„Wenn du die Polizei rufst, bring ich dich um.“', max: 300, when: d => ['241', '2412'].some(k => inc(d, 'straf.delikte', k)) },
+        { k: 'straf.oeff', t: 'yn', l: 'Kein Strafantrag: besonderes öffentliches Interesse angeregt (§ 230 Abs. 1 StGB)?', when: d => ['223', '303'].some(k => inc(d, 'straf.delikte', k)) && !inc(d, 'straf.delikte', '224') && !ofRole(d, 'gs').some(y => y.p.antrag === 'ja') },
         frei('straf.delikteFrei', 'sowie wegen des Verdachts', 'des Hausfriedensbruchs (§ 123 StGB)', { l: 'Weitere Delikte (optional)' }),
         { k: 'straf.beweise', t: 'multi', l: 'Beweise gesichert', o: [['notruf', 'Notrufsicherung veranlasst'], ['wohnung', 'Lichtbilder der Wohnung'], ['tatmittel', 'Tatmittel sichergestellt'], ['handy', 'Mobiltelefon sichergestellt'], ['bodycam', 'Bodycam-Aufnahme'], ['kleidung', 'Kleidung gesichert']] },
         { k: 'straf.tatmittel', t: 'text', l: 'Welches Tatmittel?', pre: 'Als Tatmittel wurde sichergestellt:', ph: 'ein Küchenmesser mit ca. 15 cm Klingenlänge', when: d => inc(d, 'straf.beweise', 'tatmittel') },
@@ -695,7 +719,7 @@
   root.WHG_CORE = {
     get, str, has, arr, inc, cap, endDot, slot, satz, mit, joinList, fmtDate, fmtTime, PH, um, addDays, hasObj, pick, val,
     NOUN, PRON, plist, isP, ofRole, gOf, ref, main, pl, kdesc, zvrOf, zvrNr, bsY, bsDa, bsWeg, kinderL, kinderDa, verletzte, nurVerbal, zutrittGegen,
-    wvJa, wvNein, gewahrsam, zwang, wvTag, wvEnde, wvMax, nachtEr, nachtAbw, angehoerig, autoMarks, markOf, marked, anyMark,
+    halsAngriff: halsAng, wvJa, wvNein, gewahrsam, zwang, wvTag, wvEnde, wvMax, nachtEr, nachtAbw, nachtErArt, nachtAbwArt, nach, minderj, weekday, angehoerig, WUERG, DELIKT_ORDER, autoMarks, markOf, marked, anyMark,
     GEWALT, WAHRN, WAHRN_PL, VORG_PL, TATSACHEN, WO, ZUST, BES, VERL, RAUM, KIND_WO, SPUREN, ORTE, VORG, STUETZEN, DELIKT, DELIKT_TAT, BEL_Z, BEL_B, ANH, ER, OS, FAK, FAK_BY, BST_BY, WARN_ALT
   };
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -712,6 +736,14 @@
   const quote = s => { s = str(s).replace(/\s+/g, ' ').replace(/^[„"“»«]+|[“"”»«]+$/g, '').trim(); return `„${/[.!?…]$/.test(s) ? s : s + '.'}“`; };
   const crewText = k => joinList(arr(k).filter(x => x && has(x.name)).map(x => [str(x.grad), str(x.name)].filter(Boolean).join(' ')));
   const durch = v => (has(v) ? ` durch ${str(v)}` : '');
+  const bei = v => { v = str(v); return !v ? 'der Polizeiwache' : /^(der|dem|den|des)\s/i.test(v) ? v : 'der ' + v; };
+  /** Anschrift mit Komma hinter dem Ort, wenn der Satz weitergeht. */
+  const adrMitte = a => (/, /.test(a) ? a + ',' : a);
+  const delSort = ks => [...ks].sort((a, b) => C.DELIKT_ORDER.indexOf(String(a)) - C.DELIKT_ORDER.indexOf(String(b)));
+  /** Aufeinanderfolgende Sätze mit demselben Subjekt: ab dem zweiten das Pronomen. */
+  const entdoppeln = (list, R, andere) => { if (andere && andere.g === R.g) return list; let prev = false; return list.map(z => { if (!has(z)) return z; const st = z.startsWith(R.Nom + ' '); const o = st && prev ? R.Er + z.slice(R.Nom.length) : z; prev = st; return o; }); };
+  const angabenKette = (list, G) => { const pre = `Nach Angaben ${G.gen} `, w = ['Ferner ', 'Außerdem ', 'Zudem ']; let n = 0; return list.map(z => { if (!has(z) || !z.startsWith(pre)) { n = 0; return z; } const o = n ? w[(n - 1) % w.length] + z.slice(pre.length) : z; n++; return o; }); };
+  const verlSatz = (x, R, ferner) => `${ferner ? 'Ferner wurde ' + R.er : R.Er + ' wurde'} darüber unterrichtet, dass die Maßnahme mit dem Tag der gerichtlichen Entscheidung, spätestens jedoch mit Ablauf des ${fmtDate(x.max)}, endet, wenn ${x.G.nom} bis zum Ablauf des ${fmtDate(x.ende)} einen Antrag auf zivilrechtlichen Schutz mit dem Ziel des Erlasses einer einstweiligen Anordnung stellt (§ 34a Abs. 5 Satz 2, Abs. 6 Satz 2 PolG NRW).`;
   const dass = list => { const a = list.filter(Boolean).map(s => 'dass ' + s); if (a.length < 2) return a.join(''); return a.slice(0, -1).join(', ') + (/, /.test(a[a.length - 2]) ? ', und ' : ' und ') + a[a.length - 1]; };
 
   function ctx(d, o = {}) {
@@ -732,12 +764,12 @@
     const adr = x.adr || PH('Anschrift');
     const weg = { leitstelle: 'über die Leitstelle', telefon: 'nach telefonischer Mitteilung bei der Wache', wache: 'nach persönlicher Mitteilung auf der Wache' }[e.meldeweg] || '';
     const t = [];
-    if (e.meldeweg === 'streife') t.push(`${wann} wurde ${wer} im Streifendienst auf eine Auseinandersetzung an der Anschrift ${adr} aufmerksam.`);
+    if (e.meldeweg === 'streife') t.push(`${wann} wurde ${wer} im Streifendienst auf eine Auseinandersetzung an der Anschrift ${adrMitte(adr)} aufmerksam.`);
     else t.push(`${wann} erhielt ${wer}${weg ? ' ' + weg : ''} den Einsatz „Häusliche Gewalt“ zur Anschrift ${adr}.`);
     if (has(e.meldung)) t.push(`Gemeldet wurde, dass ${endDot(slot(e.meldung))}`);
     else if (has(e.meldungAlt)) t.push(`Gemeldet wurde: ${endDot(slot(e.meldungAlt))}`);
     if (e.meldeweg !== 'streife') t.push({ gs: `Die Meldung kam von ${x.G.dat} selbst.`, kind: 'Die Meldung kam von einem Kind aus dem Haushalt.', nachbar: 'Die Meldung kam aus der Nachbarschaft.', angehoerig: has(e.mitteilerText) ? `Die Meldung kam von ${slot(e.mitteilerText)}.` : 'Die Meldung kam von Angehörigen.', dritte: has(e.mitteilerText) ? `Die Meldung kam von ${slot(e.mitteilerText)}.` : 'Die Meldung kam von einer unbeteiligten Person.', bs: `Die Meldung kam von ${x.T.dat} selbst.`, unbekannt: 'Wer die Meldung abgesetzt hat, ist nicht bekannt.' }[e.mitteiler] || '');
-    if (has(e.weitere)) t.push(`Zur Unterstützung waren außerdem eingesetzt: ${endDot(slot(e.weitere))}`);
+    if (has(e.weitere)) t.push(`Zur Unterstützung wurden außerdem folgende Kräfte eingesetzt: ${endDot(slot(e.weitere))}`);
     return P(...t);
   }
 
@@ -752,15 +784,16 @@
     const werI = /^\d+$/.test(str(z.wer)) ? Number(z.wer) : -1;
     const wer = werI >= 0 && isP(plist(d)[werI]) ? x.R(werI).dat : z.wer === 'andere' ? (has(z.werText) ? slot(z.werText) : 'einer weiteren Person') : '';
     const tats = mit(pick(C.TATSACHEN, arr(z.tatsachen)), z.tatsachenFrei);
-    const grund = `${tats.length ? `Für eine gegenwärtige Gefahr sprachen folgende Tatsachen: ${tats.join('; ')}. ` : PH('Tatsachen für die gegenwärtige Gefahr') + ' '}Die Wohnung wurde deshalb zur Abwehr einer gegenwärtigen Gefahr für Leib, Leben oder Freiheit einer Person gemäß § 41 Abs. 1 Satz 1 Nr. 4 PolG NRW betreten.`;
+    const grund = tats.length ? `Für eine gegenwärtige Gefahr sprachen folgende Tatsachen: ${tats.join('; ')}.` : PH('Tatsachen für die gegenwärtige Gefahr');
+    const betreten = 'Die Wohnung wurde daraufhin zur Abwehr einer gegenwärtigen Gefahr für Leib, Leben oder Freiheit einer Person betreten (§ 41 Abs. 1 Satz 1 Nr. 4 PolG NRW).';
     if (z.art === 'einw') t.push(`Die Wohnungstür wurde ${wer ? 'von ' + wer + ' ' : ''}geöffnet; den Einsatzkräften wurde der Zutritt zur Wohnung gestattet.`);
     else if (z.art === 'draussen') t.push('Die Beteiligten wurden außerhalb der Wohnung angetroffen; ein Betreten der Wohnung war nicht erforderlich.');
     else if (z.art === 'verweigert') {
       t.push(`Die Wohnungstür wurde ${wer ? 'von ' + wer + ' ' : ''}geöffnet; der Zutritt wurde verweigert.`, grund);
-      t.push({ aufforderung: 'Nach Aufforderung wurde das Betreten geduldet.', angedroht: 'Nach Androhung unmittelbaren Zwangs (§ 61 Abs. 1 PolG NRW) wurde das Betreten geduldet.', gewalt: 'Nach Androhung unmittelbaren Zwangs (§ 61 Abs. 1 PolG NRW) wurde der Zutritt gegen den Widerstand durchgesetzt.' }[z.zwang] || '');
+      t.push({ aufforderung: 'Nach Aufforderung wurde das Betreten geduldet.', angedroht: 'Nach Androhung unmittelbaren Zwangs (§ 61 Abs. 1 Satz 1 PolG NRW) wurde das Betreten geduldet.', gewalt: 'Nach Androhung unmittelbaren Zwangs (§ 61 Abs. 1 Satz 1 PolG NRW) wurde der Zutritt gegen den Widerstand durchgesetzt.' }[z.zwang] || '', betreten);
     } else if (z.art === 'niemand') {
       t.push('Auf Klingeln und Klopfen wurde nicht geöffnet.', grund);
-      t.push({ gewalt: 'Die Tür wurde nach Androhung unmittelbaren Zwangs (§ 61 Abs. 1 PolG NRW) gewaltsam geöffnet.', sofort: 'Die Tür wurde im Wege des Sofortvollzugs gewaltsam geöffnet (§ 50 Abs. 2 PolG NRW); eine Androhung unterblieb, weil die sofortige Anwendung des Zwangs zur Abwehr der gegenwärtigen Gefahr notwendig war (§ 61 Abs. 1 Satz 2 PolG NRW).', schluessel: 'Die Tür wurde durch eine dritte Person mit einem Schlüssel geöffnet.' }[z.zwang] || '');
+      t.push({ gewalt: 'Die Tür wurde nach Androhung unmittelbaren Zwangs (§ 61 Abs. 1 Satz 1 PolG NRW) gewaltsam geöffnet.', sofort: 'Die Tür wurde im Wege des Sofortvollzugs gewaltsam geöffnet (§ 50 Abs. 2 PolG NRW); eine Androhung unterblieb, weil die sofortige Anwendung des Zwangs zur Abwehr der gegenwärtigen Gefahr notwendig war (§ 61 Abs. 1 Satz 2 PolG NRW).', schluessel: 'Die Tür wurde durch eine dritte Person mit einem Schlüssel geöffnet.' }[z.zwang] || '', betreten);
     }
     if (C.zutrittGegen(d) && z.gesucht === 'ja') {
       const du = arr(z.durchs);
@@ -799,28 +832,40 @@
       if (k) t.push(k);
       if (has(p.spontan)) t.push(`${t.length ? r.Er : first} äußerte${um(p.spontanZeit)} ungefragt: ${quote(p.spontan)}`);
       if (t.length) out.push(P(...t));
+      else if (p.da === 'ja') out.push(`${first} war ${out.length ? 'ebenfalls ' : ''}vor Ort.`);
     }
     const kids = people(d, p => p.rolle === 'kind' && p.da === 'ja').length;
-    if (kids) out.push(`In der Wohnung ${kids === 1 ? 'befand sich außerdem ein Kind' : `befanden sich außerdem ${ZAHL[kids] || kids} Kinder`} (siehe Abschnitt Kinder im Haushalt).`);
+    if (kids) out.push(`In der Wohnung ${kids === 1 ? 'befand sich außerdem ein Kind' : `befanden sich außerdem ${ZAHL[kids] || kids} Kinder`}.`);
     const so = arr(get(d, 'eintreff.sofort')).filter(k => x.da || !['getrennt', 'eigen'].includes(k));
-    const sm = pick({ getrennt: 'Die Beteiligten wurden räumlich getrennt und einzeln befragt.', idf: 'Die Identitäten der Beteiligten wurden festgestellt.', abgleich: 'Ein Datenabgleich wurde durchgeführt.', eigen: `${x.T.Nom} wurde zur Eigensicherung nach Waffen und gefährlichen Gegenständen durchsucht (§ 39 Abs. 2 PolG NRW).`, waffen: 'Waffen bzw. gefährliche Gegenstände wurden sichergestellt (§ 43 Nr. 1 PolG NRW); eine Bescheinigung wurde ausgestellt.', absuche: 'Der Nahbereich wurde abgesucht.' }, so);
+    const sm = pick({ getrennt: 'Die Beteiligten wurden räumlich voneinander getrennt.', idf: 'Die Identitäten der anwesenden Personen wurden festgestellt.', abgleich: 'Ein Datenabgleich wurde durchgeführt.', eigen: `${x.T.Nom} wurde zur Eigensicherung nach Waffen und gefährlichen Gegenständen durchsucht (§ 39 Abs. 2 PolG NRW).`, waffen: `Waffen bzw. gefährliche Gegenstände wurden sichergestellt (§ 43 Nr. 1 PolG NRW)${so.includes('besch') ? '; über die Sicherstellung wurde eine Bescheinigung ausgehändigt (§ 44 Abs. 2 PolG NRW)' : ''}.`, absuche: 'Der Nahbereich wurde abgesucht.' }, so);
     out.push(P(...sm, satz(get(d, 'eintreff.sofortText'))));
     return B(...out);
   }
   function verletzungSatz(p, r) {
     const real = mit(pick(C.VERL, arr(p.verl).filter(v => v !== 'keine')), p.verlFrei);
     if (!real.length) return arr(p.verl).includes('keine') ? `Sichtbare Verletzungen waren bei ${r.dat} nicht festzustellen.` : PH(`Verletzungen ${r.gen}`);
+    if (real.length === 1) return `${r.Nom} wies ${has(p.verlWo) ? slot(p.verlWo) + ' ' : ''}${real[0]} auf.`;
     return `${r.Nom} wies folgende sichtbare Verletzungen auf: ${joinList(real)}.` + (has(p.verlWo) ? ` Die Verletzungen befinden sich ${slot(p.verlWo)}.` : '');
   }
   function s23(d, x) {
     return B(...C.verletzte(d).map(({ p, i }) => {
       const r = x.R(i), t = [verletzungSatz(p, r)];
       if (has(p.schmerz)) t.push(`${r.Er} klagte über ${slot(p.schmerz)}.`);
+      const wu = pick(C.WUERG, arr(p.wuerg));
+      if (wu.length) t.push(`Nach eigenen Angaben ${wu.length > 1 ? 'traten' : 'trat'} bei ${r.dat} nach dem Angriff gegen den Hals ${joinList(wu)} auf.`);
+      if (p.wuergArzt === 'ja') t.push(`Wegen der Gefahr verzögert auftretender Folgen eines Angriffs gegen den Hals wurde ${r.dat} eine zeitnahe ärztliche Untersuchung dringend empfohlen.`);
       const bes = has(p.rtwBes) ? ` (${str(p.rtwBes)})` : '';
-      const frage = `${r.Nom} wurde gefragt, ob ${r.er} einen Rettungswagen oder ärztliche Hilfe benötigt.`;
-      t.push({
-        vorort: `${frage} Daraufhin wurde ein Rettungswagen${bes} angefordert; ${r.er} wurde vor Ort ambulant versorgt.`,
-        kh: `${frage} Daraufhin wurde ein Rettungswagen${bes} angefordert, der ${r.akk} in ${has(p.kh) ? 'das ' + str(p.kh) : 'ein Krankenhaus'} brachte.`,
+      const nachKh = `in ${has(p.kh) ? 'das ' + str(p.kh) : 'ein Krankenhaus'}`;
+      const frage = `${r.Nom} wurde gefragt, ob ${r.er} einen Rettungswagen oder ärztliche Hilfe benötige.`;
+      if (p.rolle === 'kind') t.push({
+        vorort: `Für ${r.akk} wurde ein Rettungswagen${bes} angefordert; ${r.er} wurde vor Ort ambulant versorgt.`,
+        kh: `Für ${r.akk} wurde ein Rettungswagen${bes} angefordert, der ${r.akk} ${nachKh} brachte.`,
+        eltern: `Eine sofortige ärztliche Versorgung ${r.gen} hielt die sorgeberechtigte Person nach Rücksprache nicht für erforderlich.`,
+        arzt: `Die sorgeberechtigte Person sagte zu, ${r.akk} zeitnah ärztlich untersuchen zu lassen.`
+      }[p.rtw] || PH(`ärztliche Versorgung ${r.gen}`));
+      else t.push({
+        vorort: `${frage} ${r.Er} bejahte dies; daraufhin wurde ein Rettungswagen${bes} angefordert. ${r.Er} wurde vor Ort ambulant versorgt.`,
+        kh: `${frage} ${r.Er} bejahte dies; daraufhin wurde ein Rettungswagen${bes} angefordert, der ${r.akk} ${nachKh} brachte.`,
         selbst: `${frage} ${r.Er} lehnte einen Rettungswagen ab und erklärte, sich im Nachgang selbstständig um eine ärztliche Versorgung zu kümmern.`,
         abgelehnt: `${frage} ${r.Er} lehnte einen Rettungswagen und jede ärztliche Behandlung ab.`,
         unnoetig: `${frage} Nach ${r.sein}en Angaben war dies nicht erforderlich.`,
@@ -828,7 +873,8 @@
       }[p.rtw] || (p.rolle === 'bs' ? '' : PH(`Frage nach Rettungswagen / ärztlicher Hilfe und Antwort ${r.gen}`)));
       if (has(p.rtwText)) t.push(`Die Besatzung des Rettungswagens ${endDot(slot(p.rtwText))}`);
       if (p.rolle === 'bs') t.push({ ja: `Die Verletzungen ${r.gen} wurden fotografisch dokumentiert (§ 81b Abs. 1 StPO); die Lichtbilder werden der Strafanzeige beigefügt.`, abgelehnt: `Die Fertigung von Lichtbildern lehnte ${r.er} ab.`, spaeter: 'Lichtbilder der Verletzungen werden nachgefertigt.', nein: 'Lichtbilder wurden nicht gefertigt.' }[p.foto] || '');
-      else t.push({ ja: `Die Verletzungen wurden ${p.fotoBel === 'ja' ? 'nach Belehrung über das Weigerungsrecht (§ 81c Abs. 3 StPO) und ' : ''}${p.rolle === 'kind' ? '' : `mit Einwilligung ${r.gen} `}fotografisch dokumentiert; die Lichtbilder werden der Strafanzeige beigefügt.`.replace('und fotografisch', 'fotografisch'), abgelehnt: `Die Fertigung von Lichtbildern lehnte ${r.er} ab.`, spaeter: 'Lichtbilder der Verletzungen werden nachgefertigt.', nein: 'Lichtbilder wurden nicht gefertigt.' }[p.foto] || '');
+      else if (p.rolle === 'kind' && p.foto === 'ja') t.push(({ selbst: `${r.Nom} wurde altersgerecht über ${r.sein} Weigerungsrecht belehrt und willigte in die Lichtbilder ein (§ 81c Abs. 3 StPO).`, vertreter: `Die Lichtbilder wurden mit Einwilligung der allein sorgeberechtigten, nicht beschuldigten Person gefertigt (§ 81c Abs. 3 StPO).`, richter: 'Die Lichtbilder wurden zur Beweissicherung auf richterliche Anordnung gefertigt (§ 81c Abs. 3 StPO).' }[p.fotoKind] || `Die Verletzungen ${r.gen} wurden fotografisch dokumentiert.`) + ' Die Lichtbilder werden der Strafanzeige beigefügt.');
+      else t.push({ ja: `Die Verletzungen wurden ${p.fotoBel === 'ja' ? 'nach Belehrung über das Weigerungsrecht (§ 81c Abs. 3 StPO) und ' : ''}mit Einwilligung ${r.gen} fotografisch dokumentiert; die Lichtbilder werden der Strafanzeige beigefügt.`, abgelehnt: `Die Fertigung von Lichtbildern lehnte ${r.er} ab.`, spaeter: 'Lichtbilder der Verletzungen werden nachgefertigt.', nein: 'Lichtbilder wurden nicht gefertigt.' }[p.foto] || '');
       if (p.attest === 'ja') t.push(`${r.Nom} wurde auf die Möglichkeit hingewiesen, die Verletzungen ärztlich dokumentieren zu lassen.`);
       return P(...t);
     }));
@@ -883,26 +929,27 @@
 
   /* ---------- 4 Schilderungen ---------- */
   /** Beschuldigtenbelehrung (§ 163a Abs. 4, § 136 Abs. 1 StPO) – für die beschuldigte Person und bei wechselseitigen Vorwürfen. */
-  function belB(d, x, r, inh, von, zeit, vert) {
+  function belB(d, x, r, inh, von, zeit, vert, tatText) {
     const t = [], i = arr(inh);
     if (!i.length) return P(`${r.Nom} wurde${um(zeit)}${durch(von)} als Beschuldigte${r.g === 'm' ? 'r' : ''} belehrt.`, PH('Inhalte der Belehrung'));
-    const del = arr(get(d, 'straf.delikte')).map(k => C.DELIKT_TAT[k]).filter(Boolean);
-    const tat = r.r === 'bs' && del.length ? `dass ${r.ihm} ${joinList(del)} zum Nachteil ${x.G.gen} zur Last gelegt ${del.length > 1 ? 'werden' : 'wird'}` : `welche Tat ${r.ihm} zur Last gelegt wird`;
+    const del = delSort(arr(get(d, 'straf.delikte'))).map(k => C.DELIKT_TAT[k]).filter(Boolean);
+    const opfer = joinList(ofRole(d, 'gs').map(y => ref(d, y.i, { vfg: x.vfg }).gen));
+    const tat = has(tatText) ? `dass ${r.ihm} ${slot(tatText)} zur Last gelegt wird` : r.r === 'bs' && del.length ? `dass ${r.ihm} ${joinList(del)}${opfer ? ' zum Nachteil ' + opfer : ''} zur Last gelegt ${del.length > 1 ? 'werden' : 'wird'}` : `welche Tat ${r.ihm} zur Last gelegt wird`;
     if (i.includes('tat')) t.push(`${r.Dat} wurde${um(zeit)}${durch(von)} eröffnet, ${tat} (§ 163a Abs. 4 Satz 1 StPO).`);
     else t.push(`${r.Nom} wurde${um(zeit)}${durch(von)} als Beschuldigte${r.g === 'm' ? 'r' : ''} belehrt.`);
     const s2 = [];
     if (i.includes('schweigen')) s2.push(`es ${r.ihm} freisteht, sich zu der Beschuldigung zu äußern oder nicht zur Sache auszusagen`);
     if (i.includes('verteidiger')) s2.push(`${r.er} jederzeit, auch schon vor ${r.sein}er Vernehmung, einen von ${r.ihm} zu wählenden Verteidiger befragen kann`);
-    if (s2.length) t.push(`${r.Er} wurde darauf hingewiesen, ${dass(s2)} (§ 136 Abs. 1 Satz 2 StPO).`);
-    if (i.includes('notdienst')) t.push(`Für eine Kontaktaufnahme mit einem Verteidiger wurden ${r.ihm} Informationen zur Verfügung gestellt; auf den anwaltlichen Notdienst wurde hingewiesen (§ 136 Abs. 1 Satz 3 und 4 StPO).`);
+    if (s2.length) t.push(`${r.Er} wurde darauf hingewiesen, ${dass(s2)} (§ 163a Abs. 4 Satz 2 i. V. m. § 136 Abs. 1 Satz 2 StPO).`);
+    if (i.includes('notdienst')) t.push(`Für eine Kontaktaufnahme mit einem Verteidiger wurden ${r.ihm} Informationen zur Verfügung gestellt; auf den anwaltlichen Notdienst wurde hingewiesen (§ 163a Abs. 4 Satz 2 i. V. m. § 136 Abs. 1 Satz 3 und 4 StPO).`);
     const s5 = [];
     if (i.includes('beweis')) s5.push(`${r.er} zu ${r.sein}er Entlastung einzelne Beweiserhebungen beantragen kann`);
-    if (i.includes('pflicht')) s5.push(`${r.er} unter den Voraussetzungen des § 140 StPO die Bestellung eines Pflichtverteidigers beanspruchen kann; auf die Kostenfolge des § 465 StPO wurde ${r.er} hingewiesen`);
-    if (s5.length) t.push(`Ferner wurde ${r.er} darüber belehrt, ${dass(s5)} (§ 136 Abs. 1 Satz 5 StPO).`);
+    if (i.includes('pflicht')) s5.push(`${r.er} unter den Voraussetzungen des § 140 StPO die Bestellung eines Pflichtverteidigers beantragen kann; auf die Kostenfolge des § 465 StPO wurde ${r.er} hingewiesen`);
+    if (s5.length) t.push(`Ferner wurde ${r.er} darüber belehrt, ${dass(s5)} (§ 163a Abs. 4 Satz 2 i. V. m. § 136 Abs. 1 Satz 5 StPO).`);
     const s6 = [];
     if (i.includes('schriftlich')) s6.push('sich schriftlich zu äußern');
     if (i.includes('toa')) s6.push('eines Täter-Opfer-Ausgleichs');
-    if (s6.length) t.push(`${r.Er} wurde außerdem auf die Möglichkeit ${i.includes('schriftlich') && i.includes('toa') ? 'hingewiesen, sich schriftlich zu äußern, sowie auf die Möglichkeit eines Täter-Opfer-Ausgleichs' : i.includes('toa') ? 'eines Täter-Opfer-Ausgleichs hingewiesen' : 'hingewiesen, sich schriftlich zu äußern'} (§ 136 Abs. 1 Satz 6 StPO).`);
+    if (s6.length) t.push(`${r.Er} wurde außerdem auf die Möglichkeit ${i.includes('schriftlich') && i.includes('toa') ? 'hingewiesen, sich schriftlich zu äußern, sowie auf die Möglichkeit eines Täter-Opfer-Ausgleichs' : i.includes('toa') ? 'eines Täter-Opfer-Ausgleichs hingewiesen' : 'hingewiesen, sich schriftlich zu äußern'} (§ 163a Abs. 4 Satz 2 i. V. m. § 136 Abs. 1 Satz 6 StPO).`);
     if (i.includes('dolmetscher')) t.push(`${r.Er} wurde darauf hingewiesen, dass ${r.er} für das Strafverfahren unentgeltlich einen Dolmetscher bzw. Übersetzer beanspruchen kann (§ 163a Abs. 5 StPO i. V. m. § 187 Abs. 1 GVG).`);
     t.push({ nein: `${r.Er} erklärte, vor einer Äußerung keinen Verteidiger befragen zu wollen.`, ja: `${r.Er} erklärte, vor einer Äußerung einen Verteidiger befragen zu wollen; Fragen zur Sache wurden daraufhin nicht gestellt.` }[vert] || '');
     return P(...t);
@@ -924,7 +971,8 @@
     if (i.includes('anschrift')) h.push(`${r.er} statt ${r.sein}er Wohnanschrift eine andere ladungsfähige Anschrift angeben kann, wenn durch die Angabe des Wohnortes eine Gefährdung zu besorgen ist (§ 68 Abs. 2 StPO)`);
     if (i.includes('untersuchung')) h.push(`${r.er} Untersuchungen und die Aufnahme von Lichtbildern ${r.sein}er Verletzungen aus denselben Gründen verweigern darf wie das Zeugnis (§ 81c Abs. 3 StPO)`);
     if (h.length) t.push(`${i.includes('zvr') ? 'Ferner wurde' : 'Dabei wurde'} ${r.er} darauf hingewiesen, ${dass(h)}.`);
-    if (i.includes('wahrheit')) t.push(`${r.Er} wurde zur Wahrheit ermahnt und auf die Strafbarkeit einer falschen Verdächtigung und des Vortäuschens einer Straftat hingewiesen (§ 57 Satz 1, § 163 Abs. 3 Satz 2 StPO; §§ 145d, 164 StGB).`);
+    const ang = C.angehoerig(p);
+    if (i.includes('wahrheit')) t.push(`${r.Er} wurde zur Wahrheit ermahnt und auf die Strafbarkeit einer falschen Verdächtigung${ang ? ' und des Vortäuschens einer Straftat' : ', des Vortäuschens einer Straftat und einer Strafvereitelung'} hingewiesen (§ 57 Satz 1 i. V. m. § 163 Abs. 3 Satz 2 StPO; §§ 145d, 164${ang ? '' : ', 258'} StGB).`);
     return P(...t);
   }
   function schilderung(d, x, r, p, gsMode) {
@@ -947,8 +995,8 @@
     const r = x.R(i), p = r.p, t = [];
     if (p.bel === 'nein') t.push(`${r.Nom} wurde nicht zur Sache befragt.`);
     else if (p.bel === 'bs') {
-      t.push(`Da wechselseitige Vorwürfe erhoben werden und auch gegen ${r.akk} der Verdacht eines Übergriffs besteht, wurde ${r.er} als Beschuldigte${r.g === 'm' ? 'r' : ''} belehrt.`);
-      t.push(belB(d, x, r, p.belInh, p.belVon, p.belZeit, p.bsVert));
+      t.push(`Da wechselseitige Vorwürfe erhoben wurden und auch gegen ${r.akk} der Verdacht eines Übergriffs bestand, wurde ${r.er} als Beschuldigte${r.g === 'm' ? 'r' : ''} belehrt.`);
+      t.push(belB(d, x, r, p.belInh, p.belVon, p.belZeit, p.bsVert, p.bsTat));
     } else if (p.bel === '52' || p.bel === '57') {
       t.push(belZ(d, x, r, p));
       t.push({ aussage: `${r.Er} erklärte, aussagen zu wollen.`, verweigert: `${r.Er} erklärte, von ${r.sein}em Zeugnisverweigerungsrecht Gebrauch zu machen.`, gefahr: `${r.Er} erklärte, von ${r.sein}em Zeugnisverweigerungsrecht Gebrauch zu machen; zum Geschehen äußerte ${r.er} sich ausschließlich im Hinblick auf die polizeilichen Schutzmaßnahmen.` }[p.belErkl] || (p.bel === '52' ? PH('Erklärung nach der Belehrung') : ''));
@@ -964,7 +1012,7 @@
       else if (p.frueher === 'ja') s.push('Es sei bereits früher zu Übergriffen gekommen.' + (has(p.frueherText) ? ` Zu früheren Vorfällen gab ${r.er} an, ${endDot(slot(p.frueherText))}` : ''));
       s.push({ ja: `${r.Er} äußerte Angst vor weiteren Übergriffen.`, nein: `Angst vor weiteren Übergriffen äußerte ${r.er} nicht.` }[p.angst] || '');
       s.push({ will: `${r.Er} wünschte, dass ${x.T.nom} die Wohnung verlässt.`, ablehnt: `Eine Wohnungsverweisung lehnte ${r.er} ab.`, widerruf: `Im weiteren Verlauf nahm ${r.er} ${r.sein}e Angaben zurück.` }[p.wille] || '');
-      s.push({ ja: `${r.Er} verbleibt in der Wohnung.`, auszug: `${r.Er} beabsichtigt, in Kürze aus der Wohnung auszuziehen.`, weg: `${r.Er} hat die Wohnung dauerhaft verlassen.` }[p.bleibt] || '');
+      s.push({ ja: `Nach ${r.sein}en Angaben bleibe ${r.er} in der Wohnung.`, auszug: `Nach ${r.sein}en Angaben beabsichtige ${r.er}, in Kürze aus der Wohnung auszuziehen.`, weg: `Nach ${r.sein}en Angaben habe ${r.er} die Wohnung dauerhaft verlassen.` }[p.bleibt] || '');
       s.push({ ja: `${r.Er} stellte Strafantrag.`, nein: 'Strafantrag wurde nicht gestellt.', spaeter: `${r.Er} behält sich die Stellung eines Strafantrags vor.` }[p.antrag] || '');
     }
     return o.ohneBel ? P(...s) : B(b1, P(...s));
@@ -978,6 +1026,7 @@
     if (b.vert !== 'ja') {
       if (b.reaktion === 'schweigt') s.push(`${r.Er} machte von ${r.sein}em Schweigerecht Gebrauch.`);
       else if (b.reaktion === 'aeussert') {
+        s.push(`${r.Er} war bereit, sich zur Sache zu äußern.`);
         s.push({ bestreitet: `${r.Er} bestritt die Vorwürfe.`, teil: `${r.Er} räumte die Vorwürfe teilweise ein.`, raeumt: `${r.Er} räumte die Vorwürfe ein.`, gegen: `${r.Er} bestritt die Vorwürfe und erhob ${r.sein}erseits Vorwürfe gegen ${x.G.akk}.` }[b.kern] || '');
         if (b.modus === 'jetzt') s.push(has(b.text) ? `${r.Er} gab an, ${endDot(slot(b.text))}` : PH(`Einlassung ${r.gen}`));
         else if (b.modus === 'folgt') s.push(PH(`Einlassung ${r.gen}`));
@@ -1001,14 +1050,14 @@
     if (i.includes('verwertung')) hw.push(`${T.sein}e Äußerungen auch im Strafverfahren verwendet werden können`);
     if (hw.length) t.push(`${T.Er} wurde darauf hingewiesen, ${dass(hw)}.`);
     const fr = [];
-    if (i.includes('unterkunft')) fr.push(`wo ${T.er} unterkommen kann`);
-    if (i.includes('bindung')) fr.push(`ob ${T.er} aus beruflichen Gründen oder zur Versorgung von Angehörigen auf die Wohnung angewiesen ist`);
-    if (i.includes('einwand')) fr.push(`ob ${T.er} Einwände gegen Bereich und Dauer der Maßnahme hat`);
+    if (i.includes('unterkunft')) fr.push(`wo ${T.er} unterkommen könne`);
+    if (i.includes('bindung')) fr.push(`ob ${T.er} aus beruflichen Gründen oder zur Versorgung von Angehörigen auf die Wohnung angewiesen sei`);
+    if (i.includes('einwand')) fr.push(`ob ${T.er} Einwände gegen Bereich und Dauer der Maßnahme habe`);
     if (fr.length) t.push(`${T.Er} wurde außerdem gefragt, ${joinList(fr)}.`);
     if (h.reaktion === 'text') t.push(has(h.text) ? `Hierzu äußerte ${T.er}, ${endDot(slot(h.text))}` : PH('Äußerung in der Anhörung'));
     else if (h.reaktion === 'keine') t.push(`Hierzu äußerte ${T.er} sich nicht.`);
-    if (has(h.unterkunft)) t.push(`${T.Er} gab an, ${slot(h.unterkunft)} unterzukommen.`);
-    t.push({ nein: `Eine berufliche oder versorgende Bindung an die Wohnung besteht nach ${T.sein}en Angaben nicht.`, arbeit: `${T.Er} gab an, beruflich auf die Wohnung angewiesen zu sein${has(h.bindungText) ? ': ' + slot(h.bindungText) : ''}.`, pflege: `${T.Er} gab an, in der Wohnung Angehörige zu versorgen${has(h.bindungText) ? ': ' + slot(h.bindungText) : ''}.` }[h.bindung] || '');
+    if (has(h.unterkunft)) t.push(`${T.Er} gab an, ${T.er} könne ${slot(h.unterkunft)} unterkommen.`);
+    t.push({ nein: `${T.Er} gab an, eine berufliche oder versorgende Bindung an die Wohnung bestehe nicht.`, arbeit: `${T.Er} gab an, beruflich auf die Wohnung angewiesen zu sein${has(h.bindungText) ? ': ' + slot(h.bindungText) : ''}.`, pflege: `${T.Er} gab an, in der Wohnung Angehörige zu versorgen${has(h.bindungText) ? ': ' + slot(h.bindungText) : ''}.` }[h.bindung] || '');
     t.push({ keine: `Einwände gegen Bereich und Dauer der Maßnahme erhob ${T.er} nicht.`, ja: has(h.einwandText) ? `${T.Er} wandte ein, ${endDot(slot(h.einwandText))}` : `${T.Er} erhob Einwände gegen Bereich bzw. Dauer der Maßnahme.` }[h.einwand] || '');
     return P(...t);
   }
@@ -1037,13 +1086,15 @@
     if (has(p.wuerdigung)) t2.push(`Den Angaben ${x.G.gen} wird gefolgt, weil ${endDot(slot(p.wuerdigung))}`);
     const mk = C.marked(d);
     const by = s => mk.filter(([, z]) => z === s).map(([f]) => f);
-    t3.push(...by('fest').map(f => f.fest(x)), ...by('angabe').map(f => f.angabe(x)));
+    t3.push(...entdoppeln(by('fest').map(f => f.fest(x)), x.T, x.G), ...angabenKette(by('angabe').map(f => f.angabe(x)), x.G));
     const alt = by('ja').map(f => f.l);
     if (alt.length) t3.push(`Darüber hinaus liegen folgende Warnsignale vor: ${joinList(alt)}.`);
     t3.push(...by('annahme').map(f => f.annahme(x)));
-    if (by('annahme').length && has(p.fGrund)) t3.push(`Diese Annahmen stützen sich auf ${endDot(slot(p.fGrund))}`);
+    const an = by('annahme');
+    if (an.length && has(p.fGrund)) t3.push(`${an.length === 1 ? 'Diese Annahme stützt sich' : 'Diese Annahmen stützen sich'} auf ${endDot(slot(p.fGrund))}`);
     t3.push(satz(p.fFrei));
-    t4.push(...[...new Set(mk.map(([f]) => f.bed))]);
+    const ersetzt = new Set(arr(p.bst).map(k => (C.BST_BY[k] || {}).ersetzt).filter(Boolean));
+    t4.push(...[...new Set(mk.filter(([f]) => !ersetzt.has(f.k)).map(([f]) => f.bed))]);
     const bst = arr(p.bst).map(k => C.BST_BY[k]).filter(Boolean).map(b => b.text(x));
     const erg = [];
     if (p.gefahr === 'ja') erg.push(`Nach Würdigung aller am Einsatzort verfügbaren Erkenntnisse bestand eine gegenwärtige Gefahr für Leib, Leben oder Freiheit ${x.G.gen}, die von ${x.T.dat} ausging. Mit weiteren Übergriffen war in allernächster Zeit zu rechnen, weil ${has(p.warum) ? endDot(slot(p.warum)) : PH('Begründung') + '.'}`);
@@ -1078,7 +1129,7 @@
     if (i.includes('gruende')) p2.push(`${T.Er} wurde darüber unterrichtet, dass nach den getroffenen Feststellungen von ${T.ihm} eine gegenwärtige Gefahr für Leib, Leben oder Freiheit ${G.gen} ausgeht.`);
     if (i.includes('polizei')) p2.push(`${T.Ihm} wurde erläutert, dass die Polizei in Fällen häuslicher Gewalt zum Schutz der gefährdeten Person einschreitet und dass es dabei weder auf deren Einverständnis noch auf die Eigentums- oder Mietverhältnisse an der Wohnung ankommt.`);
     if (i.includes('einverstaendnis')) p2.push(`${T.Er} wurde darauf hingewiesen, dass das Rückkehrverbot auch dann gilt, wenn ${G.nom} mit ${T.sein}er Rückkehr einverstanden ist.`);
-    if (i.includes('verlaengerung')) p2.push(`Ferner wurde ${T.er} darüber unterrichtet, dass sich das Rückkehrverbot bis zur gerichtlichen Entscheidung, längstens bis zum Ablauf des ${fmtDate(x.max)}, verlängert, wenn ${G.nom} während der Dauer der Maßnahme zivilrechtlichen Schutz nach dem Gewaltschutzgesetz beantragt (§ 34a Abs. 5 Satz 2 PolG NRW).`);
+    if (i.includes('verlaengerung')) p2.push(verlSatz(x, T, true));
     const p3 = [];
     if (i.includes('verlassen')) p3.push(`${T.Er} wurde aufgefordert, die Wohnung sofort zu verlassen.`);
     if (i.includes('gegenst')) p3.push(`${T.Dat} wurde Gelegenheit gegeben, dringend benötigte Gegenstände des persönlichen Bedarfs mitzunehmen (§ 34a Abs. 2 PolG NRW)` + (has(e.gegenst) ? `; ${T.er} nahm ${slot(e.gegenst)} mit.` : '.'));
@@ -1092,17 +1143,17 @@
     const p4 = [];
     if (i.includes('zg')) p4.push(`Für jeden Fall der Zuwiderhandlung gegen das Rückkehrverbot wurde ${T.dat} ein Zwangsgeld in Höhe von ${euro(e.zgHoehe) || PH('Betrag')} angedroht (§§ 51, 53, 56 PolG NRW).` + (i.includes('ersatzhaft') ? ` Zugleich wurde ${T.er} darauf hingewiesen, dass bei Uneinbringlichkeit des Zwangsgeldes Ersatzzwangshaft angeordnet werden kann (§ 54 Abs. 1 PolG NRW).` : ''));
     else if (i.includes('ersatzhaft')) p4.push(`${T.Er} wurde auf die Möglichkeit der Ersatzzwangshaft hingewiesen (§ 54 Abs. 1 PolG NRW).`);
-    if (i.includes('gewahrsam')) p4.push(`${T.Er} wurde darauf hingewiesen, dass ${T.er} bei einem Verstoß gegen das Rückkehrverbot zu dessen Durchsetzung in Gewahrsam genommen werden kann (§ 35 Abs. 1 Nr. 4 PolG NRW).`);
-    if (i.includes('rechtsbehelf')) p4.push(`Über die Möglichkeit, gegen die Verfügung Klage beim Verwaltungsgericht zu erheben und vorläufigen Rechtsschutz zu beantragen, wurde ${T.er} unterrichtet; ${T.er} wurde darauf hingewiesen, dass die Verfügung als unaufschiebbare Anordnung eines Polizeivollzugsbeamten sofort vollziehbar ist (§ 80 Abs. 2 Satz 1 Nr. 2 VwGO).`);
+    if (i.includes('gewahrsam')) p4.push(`${T.Er} wurde darauf hingewiesen, dass ${T.er} bei einem Verstoß gegen das Rückkehrverbot in Gewahrsam genommen werden kann, wenn dies unerlässlich ist, um das Rückkehrverbot durchzusetzen (§ 35 Abs. 1 Nr. 4 PolG NRW).`);
+    if (i.includes('rechtsbehelf')) p4.push(`${T.Er} wurde darüber unterrichtet, dass ${T.er} gegen die Verfügung Klage beim Verwaltungsgericht erheben und dort die Anordnung der aufschiebenden Wirkung beantragen kann (§ 80 Abs. 5 VwGO). Ferner wurde ${T.er} darauf hingewiesen, dass die Klage keine aufschiebende Wirkung hat (§ 80 Abs. 2 Satz 1 Nr. 2 VwGO) und die Verfügung daher sofort durchgesetzt werden kann (§ 50 Abs. 1 PolG NRW).`);
     if (i.includes('beratung')) p4.push(`${T.Er} wurde auf Beratungsangebote für Menschen hingewiesen, die in Beziehungen Gewalt ausüben.`);
     if (i.includes('verstanden')) p4.push(`${T.Er} erklärte, die Erläuterungen verstanden zu haben.`);
     const p5 = [];
     const mitZg = i.includes('zg') ? ' einschließlich der Zwangsgeldandrohung' : '';
     p5.push({ vorort: `Die schriftliche Bestätigung der Verfügung${mitZg} wurde ${T.dat}${um(e.schriftZeit)} vor Ort gegen Empfangsbekenntnis ausgehändigt (§ 5 Abs. 1 LZG NRW).`, verweigert: `Die Annahme der schriftlichen Bestätigung der Verfügung${mitZg} verweigerte ${T.er}${um(e.schriftZeit)}; das Schriftstück wurde am Ort der Zustellung zurückgelassen (§ 5 Abs. 2 LZG NRW i. V. m. § 179 ZPO).`, wache: `Die schriftliche Bestätigung der Verfügung${mitZg} liegt bei der ${has(e.wache) ? str(e.wache) : 'Polizeiwache'} zur Abholung bereit; ${T.nom} wurde darauf hingewiesen.`, post: `Die schriftliche Bestätigung der Verfügung${mitZg} wird ${T.dat} förmlich zugestellt.` }[e.schrift] || '');
-    if (C.nachtEr(d) && ['vorort', 'verweigert'].includes(e.schrift) && e.erlaubnis === 'ja') p5.push('Die Erlaubnis der Behördenleitung für die Zustellung zur Nachtzeit bzw. an einem Sonn- oder Feiertag lag vor (§ 5 Abs. 3 LZG NRW).');
+    if (C.nachtEr(d) && ['vorort', 'verweigert'].includes(e.schrift) && e.erlaubnis === 'ja') p5.push(`Die Zustellung ${C.nachtErArt(d)} erfolgte mit Erlaubnis des Behördenleiters (§ 5 Abs. 3 Satz 1 LZG NRW).`);
     const p6 = [];
     p6.push({ ok: `${T.Er} nahm die Maßnahme ohne Widerspruch zur Kenntnis.`, widerspruch: `${T.Er} widersprach der Maßnahme` + (has(e.reaktionText) ? ` und äußerte, ${endDot(slot(e.reaktionText))}` : '.'), text: has(e.reaktionText) ? `${T.Er} äußerte, ${endDot(slot(e.reaktionText))}` : '' }[e.reaktion] || '');
-    if (e.verlassen === 'freiwillig') p6.push(`${T.Er} verließ die Wohnung${um(e.verlassenZeit)} freiwillig.` + (has(e.wohin) ? ` ${T.Er} begab sich nach eigenen Angaben ${endDot(slot(e.wohin))}` : ''));
+    if (e.verlassen === 'freiwillig') p6.push(`${T.Er} verließ die Wohnung${um(e.verlassenZeit)} ohne Anwendung von Zwang.` + (has(e.wohin) ? ` ${T.Er} begab sich nach eigenen Angaben ${endDot(slot(e.wohin))}` : ''));
     else if (e.verlassen === 'festnahme') p6.push(`${T.Er} wurde${um(e.verlassenZeit)} vorläufig festgenommen (§ 127 Abs. 2 StPO).`);
     else if (['zwang', 'gewahrsam'].includes(e.verlassen)) p6.push(`Die Wohnung verließ ${T.er} erst nach Anwendung unmittelbaren Zwangs (siehe Zwang und Gewahrsam).`);
     p6.push(satz(e.text));
@@ -1113,32 +1164,46 @@
     const p1 = anordnung(d, x, 'ein Rückkehrverbot');
     const p2 = [];
     const wie = { telefon: 'telefonisch erreicht', ort: `an ${T.sein}em Aufenthaltsort aufgesucht` }[a.erreichbar];
-    if (wie && a.anh === 'ja') p2.push(`${T.Nom} wurde${um(a.anhZeit)} ${wie}. ${T.Er} wurde als Beschuldigte${T.g === 'm' ? 'r' : ''} belehrt und zu den Vorwürfen und der beabsichtigten Maßnahme angehört, bevor über das Rückkehrverbot entschieden wurde.` + (has(a.anhText) ? ` ${T.Er} äußerte, ${endDot(slot(a.anhText))}` : ''));
-    else if (wie) p2.push(`${T.Nom} wurde${um(a.anhZeit)} ${wie}.`);
-    else if (a.erreichbar === 'nein') p2.push(`${T.Nom} war nicht erreichbar; von einer vorherigen Anhörung wurde deshalb abgesehen (§ 28 Abs. 2 Nr. 1 VwVfG NRW). Sie wird beim Antreffen nachgeholt.`);
+    const spaet = C.nach(a.anhZeit, get(d, 'wv.zeit'));
     const ti = arr(a.telInh);
+    if (wie) p2.push(`${T.Nom} wurde${um(a.anhZeit)} ${wie}.`);
     if (a.erreichbar === 'telefon') {
       if (ti.includes('nummer')) p2.push('Die Rufnummer war aus den Angaben der Beteiligten bzw. dem Datenbestand bekannt.');
       if (ti.includes('identitaet')) p2.push('Die Identität des Gesprächspartners wurde durch Kontrollfragen überprüft.');
     }
-    p2.push({ pers: `Das Rückkehrverbot wurde ${T.dat}${um(a.bekanntZeit)} persönlich bekanntgegeben.`, tel: `Das Rückkehrverbot wurde ${T.dat}${um(a.bekanntZeit)} telefonisch bekanntgegeben${ti.includes('bereich') ? '; dabei wurden der räumliche Bereich und das Ende der Maßnahme genannt' : ''}${ti.includes('zg') ? (ti.includes('bereich') ? ' und' : '; dabei wurde') + ' auf das angedrohte Zwangsgeld hingewiesen' : ''}.`, nein: `Eine Bekanntgabe war bislang nicht möglich; das Rückkehrverbot ist ${T.dat} gegenüber noch nicht wirksam.` }[a.bekannt] || '');
+    if (wie && a.anh === 'ja') p2.push(`${T.Er} wurde als Beschuldigte${T.g === 'm' ? 'r' : ''} belehrt und zu den Vorwürfen und der beabsichtigten Maßnahme angehört${spaet ? '' : ', bevor über das Rückkehrverbot entschieden wurde'}.` + (has(a.anhText) ? ` ${T.Er} äußerte, ${endDot(slot(a.anhText))}` : ''));
+    else if (a.erreichbar === 'nein') p2.push(`${T.Nom} war nicht erreichbar; von einer vorherigen Anhörung wurde deshalb abgesehen (§ 28 Abs. 2 Nr. 1 VwVfG NRW). Sie ist beim Antreffen ${T.gen} nachzuholen.`);
+    p2.push({ pers: `Das Rückkehrverbot wurde ${T.dat}${um(a.bekanntZeit)} persönlich bekanntgegeben.`, tel: `Das Rückkehrverbot wurde ${T.dat}${um(a.bekanntZeit)} telefonisch bekanntgegeben.`, nein: `Eine Bekanntgabe war bislang nicht möglich; das Rückkehrverbot ist ${T.dat} gegenüber noch nicht wirksam.` }[a.bekannt] || '');
+    if (['pers', 'tel'].includes(a.bekannt)) {
+      const bd = [ti.includes('bereich') ? 'der räumliche Bereich genau bezeichnet' : '', ti.includes('dauer') ? `das Ende der Maßnahme mit Ablauf des ${fmtDate(x.ende)} benannt` : ''].filter(Boolean);
+      if (bd.length) p2.push(`Dabei wurde${bd.length > 1 ? 'n' : ''} ${T.dat} ${bd.join(' und ')} (§ 34a ${[ti.includes('bereich') ? 'Abs. 1 Satz 2' : '', ti.includes('dauer') ? 'Abs. 6 Satz 2' : ''].filter(Boolean).join(', ')} PolG NRW).`);
+      if (ti.includes('verlaengerung')) p2.push(verlSatz(x, T));
+      if (ti.includes('zg')) p2.push(`${T.Er} wurde auf die beabsichtigte Androhung eines Zwangsgeldes für jeden Fall der Zuwiderhandlung hingewiesen.`);
+      if (ti.includes('anschrift')) p2.push(`${T.Er} wurde aufgefordert, eine Anschrift oder eine zustellungsbevollmächtigte Person zum Zweck von Zustellungen zu benennen (§ 34a Abs. 3 PolG NRW).` + (has(a.anschrift) ? ` ${T.Er} benannte ${endDot(slot(a.anschrift))}` : ''));
+      if (ti.includes('gegenst')) p2.push(`Mit ${T.dat} wurde abgesprochen, wie ${T.er} dringend benötigte Gegenstände des persönlichen Bedarfs erhält (§ 34a Abs. 2 PolG NRW).`);
+    }
     const p3 = [];
     const zgS = '';
-    if (has(a.zgHoehe)) p3.push(`Die schriftliche Verfügung enthält die Androhung eines Zwangsgeldes in Höhe von ${euro(a.zgHoehe)} für jeden Fall der Zuwiderhandlung (§§ 51, 53, 56 PolG NRW).`);
-    const wache = has(a.wache) ? str(a.wache) : 'Polizeiwache';
+    if (has(a.zgHoehe)) p3.push(`Die schriftliche Verfügung enthält die Androhung eines Zwangsgeldes in Höhe von ${euro(a.zgHoehe)} für jeden Fall der Zuwiderhandlung (§§ 51, 53, 56 PolG NRW).` + (a.ersatzhaft === 'ja' ? ' Sie enthält zudem den Hinweis, dass bei Uneinbringlichkeit des Zwangsgeldes Ersatzzwangshaft angeordnet werden kann (§ 54 Abs. 1 PolG NRW).' : ''));
+    const wache = bei(a.wache), fo = arr(a.form);
+    if (['briefkasten', 'niederlegung'].includes(a.zust)) p3.push(`Eine Ersatzzustellung durch Übergabe an ${G.akk} (§ 178 Abs. 1 Nr. 1 ZPO) schied aus, weil ${G.er} ${T.dat} als gefährdete Person mit gegenläufigen Interessen gegenübersteht (§ 178 Abs. 2 ZPO entsprechend).`);
     const grund = a.zustGrund ? { keinbk: 'ein zur Wohnung gehörender Briefkasten nicht vorhanden ist', zuordnung: 'ein Briefkasten nicht eindeutig zuzuordnen war', unzug: 'der Briefkasten nicht zugänglich war' }[a.zustGrund] : '';
     const grundT = has(a.zustGrundText) ? slot(a.zustGrundText) : grund;
     p3.push({
       pers: `Die schriftliche Verfügung${zgS} wurde ${T.dat}${um(a.zustZeit)} persönlich gegen Empfangsbekenntnis ausgehändigt (§ 5 Abs. 1 LZG NRW).`,
       briefkasten: `Da ${T.nom} nicht angetroffen wurde, wurde die schriftliche Verfügung${zgS}${um(a.zustZeit)} im Wege der Ersatzzustellung in den zur Wohnung gehörenden Briefkasten eingelegt (§ 5 Abs. 2 LZG NRW i. V. m. § 180 ZPO).`,
-      niederlegung: `Da ${T.nom} nicht angetroffen wurde und ${grundT || PH('Grund, warum das Einlegen in den Briefkasten nicht möglich war')}, wurde die schriftliche Verfügung${zgS}${um(a.zustZeit)} bei der ${wache} niedergelegt (§ 5 Abs. 2 LZG NRW i. V. m. § 181 Abs. 1 ZPO). Über die Niederlegung wurde eine schriftliche Mitteilung ${a.mitteilung === 'bk' ? 'in den Briefkasten eingelegt' : a.mitteilung === 'tuer' ? 'an der Wohnungstür angeheftet' : PH('wo hinterlassen')}; darin wurde ${T.nom} darauf hingewiesen, dass ${T.er} die für ${T.ihn} bestimmten Schriftstücke bei der ${wache} abholen kann. Das Schriftstück wird drei Monate zur Abholung bereitgehalten (§ 181 Abs. 2 ZPO).`,
-      hinweis: `An der Wohnungstür wurde${um(a.zustZeit)} eine Mitteilung hinterlassen, dass sich ${T.nom} bei der ${wache} melden und dort die für ${T.ihn} bestimmten Schriftstücke abholen kann. Eine förmliche Zustellung ist damit nicht erfolgt.`,
+      niederlegung: `Da ${T.nom} nicht angetroffen wurde und ${grundT || PH('Grund, warum das Einlegen in den Briefkasten nicht möglich war')}, wurde die schriftliche Verfügung${zgS}${um(a.zustZeit)} bei ${wache} niedergelegt (§ 5 Abs. 2 Satz 1 und 3 LZG NRW i. V. m. § 181 Abs. 1 ZPO). Über die Niederlegung wurde eine schriftliche Mitteilung${fo.includes('formular') ? ' auf dem vorgesehenen Vordruck' : ''} ${a.mitteilung === 'bk' ? 'in den Briefkasten eingelegt' : a.mitteilung === 'tuer' ? 'an der Wohnungstür angeheftet, da eine Abgabe in der bei gewöhnlichen Briefen üblichen Weise nicht möglich war' : PH('wo hinterlassen')}; darin wurde ${T.nom} darauf hingewiesen, dass ${T.er} das Schriftstück bei ${wache} abholen kann. Das Schriftstück wird drei Monate zur Abholung bereitgehalten (§ 181 Abs. 2 Satz 1 ZPO).`,
+      hinweis: `An der Wohnungstür wurde${um(a.zustZeit)} eine Mitteilung hinterlassen, dass sich ${T.nom} bei ${wache} melden und dort die für ${T.ihn} bestimmten Schriftstücke abholen kann. Eine förmliche Zustellung ist damit nicht erfolgt.`,
       post: `Die schriftliche Verfügung${zgS} wird ${T.dat} mit Postzustellungsurkunde zugestellt (§ 3 LZG NRW).`
     }[a.zust] || '');
-    if (C.nachtAbw(d) && ['pers', 'briefkasten', 'niederlegung'].includes(a.zust) && a.erlaubnis === 'ja') p3.push('Die Erlaubnis der Behördenleitung für die Zustellung zur Nachtzeit bzw. an einem Sonn- oder Feiertag lag vor (§ 5 Abs. 3 LZG NRW).');
+    if (['briefkasten', 'niederlegung'].includes(a.zust)) {
+      if (fo.includes('umschlag')) p3.push(`Auf dem Umschlag wurde das Datum der Zustellung vermerkt (§ ${a.zust === 'briefkasten' ? '180 Satz 3' : '181 Abs. 1 Satz 5'} ZPO).`);
+      if (fo.includes('vermerk')) p3.push('Die Gründe der Ersatzzustellung wurden in der Akte vermerkt (§ 5 Abs. 2 LZG NRW).');
+    }
+    if (C.nachtAbw(d) && ['pers', 'briefkasten', 'niederlegung'].includes(a.zust) && a.erlaubnis === 'ja') p3.push(`Die Zustellung ${C.nachtAbwArt(d)} erfolgte mit Erlaubnis des Behördenleiters (§ 5 Abs. 3 Satz 1 LZG NRW).`);
     const p4 = [];
-    p4.push({ spaeter: `Die Schlüssel ${T.gen} sollen beim Antreffen sichergestellt werden.`, schloss: `${G.Dat} wurde der Austausch des Schlosses empfohlen.`, sicher: 'Die Schlüssel wurden sichergestellt (§ 43 Nr. 1 PolG NRW).' }[a.schluessel] || '');
-    p4.push(...pick({ folge: 'Die Folgeschicht wurde beauftragt, die Verfügung bei Antreffen auszuhändigen.', streife: 'Die Wohnung wird im Rahmen der Streife aufgesucht.', fahndung: 'Eine Nahbereichsfahndung wurde durchgeführt.' }, arr(a.weiter)));
+    p4.push({ spaeter: `Die Schlüssel sollen beim Antreffen ${T.gen} sichergestellt werden.`, schloss: `${G.Dat} wurde der Austausch des Schlosses empfohlen.`, sicher: 'Die Schlüssel wurden sichergestellt (§ 43 Nr. 1 PolG NRW).' }[a.schluessel] || '');
+    p4.push(...pick({ folge: `Die Folgeschicht wurde beauftragt, die Verfügung beim Antreffen ${T.gen} persönlich auszuhändigen.`, streife: 'Die Wohnung wird im Rahmen der Streife aufgesucht.', fahndung: 'Eine Nahbereichsfahndung wurde durchgeführt.' }, arr(a.weiter)));
     p4.push(satz(a.weiterText));
     return B(p1, P(...p2), P(...p3), P(...p4), mittelSatz(d));
   }
@@ -1175,9 +1240,11 @@
   }
   function s63(d, x) {
     const s = get(d, 'straf') || {}, t = [];
-    const del = mit(arr(s.delikte).map(k => C.DELIKT[k]).filter(Boolean).map(v => (/^eines /.test(v) ? v : 'der ' + v)), s.delikteFrei);
+    const del = mit(delSort(arr(s.delikte)).map(k => C.DELIKT[k]).filter(Boolean).map(v => (/^eines /.test(v) ? v : 'der ' + v)), s.delikteFrei);
     if (del.length) t.push(`Von Amts wegen wurde Strafanzeige wegen des Verdachts ${joinList(del)} gefertigt.`);
-    if (inc(d, 'os.hinweise', 'amtswegen')) t.push('Die Beteiligten wurden darüber informiert, dass die Tat unabhängig von einem Strafantrag von Amts wegen verfolgt wird.');
+    if (has(s.drohung)) t.push(`Der Wortlaut der Drohung wurde wie folgt geschildert: ${quote(s.drohung)}`);
+    if (s.oeff === 'ja') t.push(`Ein Strafantrag liegt bislang nicht vor; es wird angeregt, das besondere öffentliche Interesse an der Strafverfolgung zu bejahen (§ 230 Abs. 1${arr(s.delikte).includes('303') ? ', § 303c' : ''} StGB).`);
+    if (inc(d, 'os.hinweise', 'amtswegen')) t.push('Die Beteiligten wurden darüber informiert, dass die Polizei beim Verdacht einer Straftat von Amts wegen Strafanzeige erstattet und über die weitere Verfolgung die Staatsanwaltschaft entscheidet.');
     t.push(...pick({ notruf: 'Die Sicherung der Notrufaufzeichnung wurde veranlasst.', wohnung: 'Vom Zustand der Wohnung wurden Lichtbilder gefertigt.', tatmittel: has(s.tatmittel) ? `Als Tatmittel wurde sichergestellt: ${endDot(slot(s.tatmittel))}` : 'Das Tatmittel wurde sichergestellt.', handy: 'Ein Mobiltelefon wurde als Beweismittel sichergestellt.', bodycam: 'Der Einsatz wurde mit der Bodycam aufgezeichnet (§ 15c PolG NRW).', kleidung: 'Kleidung wurde als Spurenträger gesichert.' }, arr(s.beweise)));
     t.push(satz(s.beweiseText));
     t.push({ richter: `Bei ${x.T.dat} wurde${um(s.blutZeit)} auf richterliche Anordnung eine Blutprobe entnommen (§ 81a StPO).`, eil: `Der Versuch, eine richterliche Anordnung zu erlangen, blieb${um(s.blutZeit)} ohne Erfolg; wegen Gefährdung des Untersuchungserfolgs wurde die Entnahme einer Blutprobe angeordnet (§ 81a Abs. 2 StPO).` }[x.da ? s.blut : ''] || '');
@@ -1185,17 +1252,17 @@
   }
   function s64(d, x) {
     const { G, T } = x, o = get(d, 'os') || {}, h = arr(o.hinweise), t = [];
-    if (h.includes('gewschg')) t.push(`${G.Nom} wurde auf die Möglichkeit hingewiesen, zivilrechtlichen Schutz nach dem Gewaltschutzgesetz zu beantragen` + (x.wv ? `. ${G.Er} wurde außerdem darüber unterrichtet, dass sich das Rückkehrverbot verlängert, wenn der Antrag bis zum Ablauf des ${fmtDate(x.ende)} gestellt wird – bis zur gerichtlichen Entscheidung, längstens bis zum Ablauf des ${fmtDate(x.max)} (§ 34a Abs. 4, 5 PolG NRW).` : '.'));
-    if (h.includes('beratung')) t.push(has(o.stelle) ? `Als Beratungsstelle wurde ${G.dat} benannt: ${endDot(str(o.stelle))}` : `${G.Dat} wurde eine geeignete Beratungsstelle benannt.`);
-    if (h.includes('daten')) t.push({ ja: `In die Weitergabe ${G.sein}es Namens, ${G.sein}er Anschrift und Telefonnummer an die Beratungsstelle willigte ${G.er} ein (§ 34a Abs. 4 PolG NRW).`, nein: `In die Weitergabe ${G.sein}er Kontaktdaten an die Beratungsstelle willigte ${G.er} nicht ein; die Weitergabe unterbleibt.` }[o.einwilligung] || `Die Weitergabe ${G.sein}er Kontaktdaten an eine Beratungsstelle wurde ${G.dat} angeboten.`);
-    const unt = [h.includes('doku') ? 'eine Kopie der Einsatzdokumentation' : '', h.includes('merkblatt') ? 'das Merkblatt mit Hilfsangeboten' : ''].filter(Boolean);
+    if (h.includes('gewschg')) t.push(`${G.Nom} wurde auf die Möglichkeit hingewiesen, zivilrechtlichen Schutz nach dem Gewaltschutzgesetz zu beantragen (§ 34a Abs. 4 PolG NRW).` + (x.wv ? ` ${G.Er} wurde außerdem darüber unterrichtet, dass die Maßnahme mit dem Tag der gerichtlichen Entscheidung, spätestens jedoch mit Ablauf des ${fmtDate(x.max)}, endet, wenn ${G.er} bis zum Ablauf des ${fmtDate(x.ende)} einen Antrag auf zivilrechtlichen Schutz mit dem Ziel des Erlasses einer einstweiligen Anordnung stellt (§ 34a Abs. 5 Satz 2, Abs. 6 Satz 2 PolG NRW).` : ''));
+    if (h.includes('beratung')) t.push(has(o.stelle) ? `${G.Dat} wurde als Beratungsstelle „${slot(o.stelle)}“ benannt.` : `${G.Dat} wurde eine geeignete Beratungsstelle benannt.`);
+    if (h.includes('daten')) t.push({ ja: `In die Weitergabe ${G.sein}es Namens, ${G.sein}er Anschrift und ${G.sein}er Telefonnummer an die Beratungsstelle willigte ${G.er} ein (§ 34a Abs. 4 PolG NRW).`, nein: `In die Weitergabe ${G.sein}er Kontaktdaten an die Beratungsstelle willigte ${G.er} nicht ein; die Weitergabe unterbleibt.` }[o.einwilligung] || `Die Weitergabe ${G.sein}er Kontaktdaten an eine Beratungsstelle wurde ${G.dat} angeboten.`);
+    const unt = [h.includes('doku') ? 'eine Ausfertigung der Dokumentation über den polizeilichen Einsatz zur Vorlage beim Familiengericht' : '', h.includes('merkblatt') ? 'das Merkblatt mit Hilfsangeboten' : ''].filter(Boolean);
     if (unt.length) t.push(`${G.Dat} ${unt.length > 1 ? 'wurden' : 'wurde'} ${joinList(unt)} ausgehändigt.`);
     if (h.includes('stpo')) t.push(`${G.Nom} wurde über ${G.sein}e Rechte als Verletzte${G.g === 'm' ? 'r' : ''} im Strafverfahren unterrichtet (§§ 406i ff. StPO).`);
-    if (h.includes('notruf')) t.push(`${G.Nom} wurde angewiesen, bei einer Rückkehr ${T.gen} sofort den Notruf 110 zu wählen.`);
+    if (h.includes('notruf')) t.push(`${G.Dat} wurde geraten, bei einer Rückkehr ${T.gen} sofort den Notruf 110 zu wählen.`);
     if (h.includes('schloss')) t.push(`${G.Dat} wurde empfohlen, das Schloss der Wohnungstür auszutauschen.`);
-    if (h.includes('getrennt') && x.da) t.push(`Die Hinweise wurden ${G.dat} ohne Beisein ${T.gen} erteilt.`);
+    if (h.includes('getrennt') && x.da) t.push(`Die Hinweise wurden ${G.dat} in Abwesenheit ${T.gen} erteilt.`);
     t.push(satz(o.text));
-    t.push({ wohnung: `${G.Nom} verbleibt in der Wohnung.`, frauenhaus: `${G.Nom} wurde in einer Schutzeinrichtung untergebracht.`, dritte: `${G.Nom} begab sich zu Verwandten bzw. Bekannten.` }[o.verbleib] || '');
+    t.push({ wohnung: `${G.Nom} verblieb in der Wohnung.`, frauenhaus: `${G.Nom} wurde in einer Schutzeinrichtung untergebracht.`, dritte: `${G.Nom} begab sich zu Verwandten bzw. Bekannten.` }[o.verbleib] || '');
     const k = get(d, 'kind') || {}, n = C.kinderL(d).length;
     if (n) {
       t.push({ gs: `${n === 1 ? 'Das Kind verblieb' : 'Die Kinder verblieben'} bei ${G.dat}.`, dritte: `${n === 1 ? 'Das Kind wurde' : 'Die Kinder wurden'} von Verwandten bzw. Nachbarn betreut.`, jugendamt: `${n === 1 ? 'Das Kind wurde' : 'Die Kinder wurden'} durch das Jugendamt untergebracht.` }[k.betreuung] || '');
@@ -1243,7 +1310,7 @@
   function kurz(d) {
     const x = ctx(d), { G, T } = x, e = get(d, 'einsatz') || {}, t = [];
     const gw = mit(pick(C.GEWALT, arr(get(d, 'lage.gewalt'))), get(d, 'lage.gewaltFrei'));
-    t.push(`Am ${has(e.datum) ? fmtDate(e.datum) : PH('Datum')}${has(e.zeit) ? ' gegen ' + fmtTime(e.zeit) : ''} kam es an der Anschrift ${x.adr || PH('Anschrift')} zu einem Einsatz wegen häuslicher Gewalt${gw.length ? ' (' + joinList(gw) + ')' : ''}.`);
+    t.push(`Am ${has(e.datum) ? fmtDate(e.datum) : PH('Datum')}${has(e.zeit) ? ' gegen ' + fmtTime(e.zeit) : ''} kam es an der Anschrift ${adrMitte(x.adr || PH('Anschrift'))} zu einem Einsatz wegen häuslicher Gewalt${gw.length ? ' (' + joinList(gw) + ')' : ''}.`);
     const g0 = (ofRole(d, 'gs')[0] || {}).p || {};
     if (has(g0.bez) && T.i >= 0) t.push(`Beteiligt waren ${G.nom} (${str(g0.bez)}) und ${T.nom}.`);
     if (has(g0.kern)) t.push(`Nach Angaben ${G.gen} habe ${T.nom} ${G.ihn} ${endDot(slot(g0.kern))}`);
@@ -1252,7 +1319,7 @@
     if (x.wv) t.push(`Gegen ${T.akk} wurde ${x.da ? 'eine Wohnungsverweisung mit Rückkehrverbot' : 'ein Rückkehrverbot'} bis zum Ablauf des ${fmtDate(x.ende)} angeordnet (§ 34a PolG NRW).`);
     else if (C.wvNein(d)) t.push('Von einer Wohnungsverweisung wurde abgesehen.');
     if (C.gewahrsam(d)) t.push(`${T.Nom} wurde zur Durchsetzung in Gewahrsam genommen.`);
-    const del = mit(arr(get(d, 'straf.delikte')).map(k => C.DELIKT[k]).filter(Boolean).map(s => (/^eines /.test(s) ? s : 'der ' + s)), get(d, 'straf.delikteFrei'));
+    const del = mit(delSort(arr(get(d, 'straf.delikte'))).map(k => C.DELIKT[k]).filter(Boolean).map(s => (/^eines /.test(s) ? s : 'der ' + s)), get(d, 'straf.delikteFrei'));
     if (del.length) t.push(`Strafanzeige wegen des Verdachts ${joinList(del)} wurde gefertigt.`);
     const n = C.kinderL(d).length, ja = get(d, 'kind.jugendamt');
     if (n) t.push(`Im Haushalt ${n === 1 ? 'lebt ein Kind' : `leben ${ZAHL[n] || n} Kinder`}${ja === 'sofort' ? '; das Jugendamt wurde verständigt' : ja === 'bericht' ? '; das Jugendamt erhält eine Mitteilung' : ''}.`);
@@ -1264,10 +1331,11 @@
     if (!C.wvJa(d)) return '';
     const x = ctx(d, { vfg: true }), { G, T } = x, w = get(d, 'wv') || {}, p = get(d, 'prog') || {};
     const was = x.da ? 'eine Wohnungsverweisung mit Rückkehrverbot' : 'ein Rückkehrverbot';
-    const a1 = P(anordnung(d, x, was), `Wird innerhalb dieser Frist zivilrechtlicher Schutz beantragt, endet die Maßnahme mit dem Tag der gerichtlichen Entscheidung, spätestens mit Ablauf des ${fmtDate(x.max)} (§ 34a Abs. 5 Satz 2 PolG NRW).`);
-    const gsZ = people(d, q => ['gs', 'zeuge'].includes(q.rolle) && q.da !== 'nein').map(({ i }) => aussageGs(d, x, i, { ohneBel: true }));
+    const a1 = P(anordnung(d, x, was), `Stellt ${G.nom} während der Dauer der Maßnahme einen Antrag auf zivilrechtlichen Schutz mit dem Ziel des Erlasses einer einstweiligen Anordnung, endet die Maßnahme mit dem Tag der gerichtlichen Entscheidung, spätestens jedoch mit Ablauf des ${fmtDate(x.max)} (§ 34a Abs. 5 Satz 2 PolG NRW).`);
+    const gsZ = people(d, q => ['gs', 'zeuge'].includes(q.rolle) && q.da !== 'nein').map(({ i }) => { const tx = aussageGs(d, x, i, { ohneBel: true }); return has(tx) ? `Angaben ${x.R(i).gen}: ${tx}` : ''; });
     const a2 = B(s1(d, x), s22(d, x), s23(d, x), s31(d, x), s32(d, x), s33(d, x), ...gsZ);
-    const a3 = x.da ? B(anhoerung(d, x) || PH('Anhörung'), aussageBs(d, x, { ohneBel: true })) : s61weg(d, x).split('\n\n')[1] || '';
+    const ein = x.da ? aussageBs(d, x, { ohneBel: true }) : '';
+    const a3 = x.da ? B(anhoerung(d, x) || PH('Anhörung'), has(ein) ? `Zur Sache: ${ein}` : '') : s61weg(d, x).split('\n\n')[1] || '';
     const a4 = s5(d, x);
     const e = [];
     e.push(`Die Maßnahme richtet sich gegen ${T.akk}, weil von ${T.ihm} die Gefahr ausgeht.`);
@@ -1276,15 +1344,16 @@
     if (w.dauer === '14') e.push('Die Maßnahme wurde für die gesetzliche Regeldauer von 14 Tagen angeordnet (§ 34a Abs. 5 Satz 1 PolG NRW).');
     else if (w.dauer === 'kuerzer') e.push(`Die Dauer wurde abweichend von der Regel verkürzt${has(w.dauerGrund) ? ', weil ' + slot(w.dauerGrund) : ''}.`);
     const h = get(d, 'anh') || {};
-    if (h.bindung === 'nein') e.push(`Eine berufliche oder versorgende Bindung ${T.gen} an die Wohnung, die eine Beschränkung auf Wohn- und Nebenräume erfordern würde (§ 34a Abs. 1 Satz 3 PolG NRW), wurde erfragt und besteht nach ${T.sein}en Angaben nicht.`);
+    if (h.bindung === 'nein') e.push(`Eine berufliche oder versorgende Bindung ${T.gen} an die Wohnung, die eine Beschränkung auf Wohn- und Nebenräume rechtfertigen könnte (§ 34a Abs. 1 Satz 3 PolG NRW), wurde erfragt und besteht nach ${T.sein}en Angaben nicht.`);
     else if (['arbeit', 'pflege'].includes(h.bindung)) e.push(`Die von ${T.dat} angegebene Bindung an die Wohnung wurde berücksichtigt; ${PH('Abwägung, ob eine Beschränkung auf Wohn- und Nebenräume in Betracht kommt (§ 34a Abs. 1 Satz 3 PolG NRW)')}.`);
     if (has(h.unterkunft)) e.push(`${T.Er} kann nach eigenen Angaben ${slot(h.unterkunft)} unterkommen.`);
-    if (ofRole(d, 'gs').some(y => y.p.wille === 'ablehnt') && !arr(p.bst).includes('wille')) e.push(`Dass ${G.nom} die Maßnahme ablehnt, steht ihr nicht entgegen; der Schutz von Leib, Leben und Freiheit steht nicht zu ihrer Disposition.`);
+    if (ofRole(d, 'gs').some(y => y.p.wille === 'ablehnt') && !arr(p.bst).includes('wille')) e.push(`Dass ${G.nom} die Maßnahme ablehnt, steht der Maßnahme nicht entgegen; der Schutz von Leib, Leben und Freiheit steht nicht zu ${G.sein}er Disposition.`);
+    e.push(`Die Maßnahme ist angemessen. Der Eingriff in die Rechte ${T.gen} aus Art. 11 Abs. 1 und Art. 13 Abs. 1 GG ist zeitlich befristet und auf den bezeichneten Bereich beschränkt; ihm steht der Schutz von Leib, Leben und Freiheit ${G.gen} (Art. 2 Abs. 2 GG) gegenüber, der hier überwiegt.`);
     const zg = x.da ? (inc(d, 'er.inh', 'zg') ? get(d, 'er.zgHoehe') : '') : get(d, 'abw.zgHoehe');
     const z = [];
     if (has(zg) || (x.da && inc(d, 'er.inh', 'zg'))) z.push(`Für jeden Fall der Zuwiderhandlung wird ein Zwangsgeld in Höhe von ${euro(zg) || PH('Betrag')} angedroht (§§ 51, 53, 56 PolG NRW).`);
-    if (x.da ? inc(d, 'er.inh', 'ersatzhaft') : has(zg)) z.push('Ist das Zwangsgeld uneinbringlich, kann das Verwaltungsgericht Ersatzzwangshaft anordnen (§ 54 Abs. 1 PolG NRW).');
-    z.push('Die Verfügung ist als unaufschiebbare Anordnung eines Polizeivollzugsbeamten sofort vollziehbar (§ 80 Abs. 2 Satz 1 Nr. 2 VwGO).', '[Rechtsbehelfsbelehrung nach Vordruck der Behörde]');
+    if (x.da ? inc(d, 'er.inh', 'ersatzhaft') : get(d, 'abw.ersatzhaft') === 'ja') z.push('Ist das Zwangsgeld uneinbringlich, kann das Verwaltungsgericht Ersatzzwangshaft anordnen (§ 54 Abs. 1 PolG NRW).');
+    z.push('Eine Klage hat keine aufschiebende Wirkung; die Verfügung ist als unaufschiebbare Anordnung eines Polizeivollzugsbeamten sofort vollziehbar (§ 80 Abs. 2 Satz 1 Nr. 2 VwGO) und kann sofort durchgesetzt werden (§ 50 Abs. 1 PolG NRW).', '[Rechtsbehelfsbelehrung nach Vordruck der Behörde]');
     return [
       `Begründung – ${x.da ? 'Wohnungsverweisung mit Rückkehrverbot' : 'Rückkehrverbot'} (§ 34a PolG NRW)`,
       '1. Anordnung\n' + a1,
@@ -1293,7 +1362,7 @@
       '4. Gefahrenprognose\n' + (a4 || PH('Gefahrenprognose')),
       '5. Ermessen und Verhältnismäßigkeit\n' + P(...e),
       '6. Zwangsmittel und Hinweise\n' + P(...z)
-    ].join('\n\n');
+    ].join('\n\n').replace(/geschädigte(n?) Person/g, 'gefährdete$1 Person').replace(/beschuldigte(n?) Person/g, 'betroffene$1 Person');
   }
 
   /* ---------- Noch zu erledigen ---------- */
@@ -1308,10 +1377,14 @@
       const r = x.R(i);
       add(!has(p.da), `${r.Nom}: vermerken, ob ${r.er} beim Eintreffen vor Ort war.`);
       if (p.verletzt === 'ja') {
-        add(!has(p.rtw) && p.rolle !== 'bs', `${r.Nom}: fragen, ob ${r.er} einen Rettungswagen oder ärztliche Hilfe benötigt, und die Antwort festhalten.`);
+        add(!has(p.rtw) && !['bs', 'kind'].includes(p.rolle), `${r.Nom}: fragen, ob ${r.er} einen Rettungswagen oder ärztliche Hilfe benötige, und die Antwort festhalten.`);
+        add(!has(p.rtw) && p.rolle === 'kind', `${r.Nom}: ärztliche Versorgung mit der sorgeberechtigten Person klären und festhalten.`);
+        add(p.rolle === 'kind' && p.foto === 'ja' && (!p.fotoKind || p.fotoKind === 'offen'), `${r.Nom}: Grundlage der Lichtbilder klären (§ 81c Abs. 3, § 52 Abs. 2 Satz 2 StPO) – verwertbar ggf. nur mit Einwilligung eines Ergänzungspflegers.`);
+        add(p.rolle === 'kind' && !markOfSafe(d, 'kindergewalt'), `${r.Nom}: Ursache der Verletzungen klären und vermerken; bei Gewalt gegen das Kind sofort das Jugendamt einschalten.`);
+        add(p.rolle !== 'bs' && C.halsAngriff(d, p) && p.wuergArzt !== 'ja', `${r.Nom}: wegen des Angriffs gegen den Hals eine zeitnahe ärztliche Untersuchung dringend empfehlen und vermerken.`);
         add(!['ja', 'abgelehnt'].includes(p.foto), `${r.Nom}: Lichtbilder der Verletzungen fertigen und der Strafanzeige beifügen${p.rolle === 'bs' ? ' (§ 81b Abs. 1 StPO)' : ''}.`);
-        add(p.rolle !== 'bs' && p.foto === 'ja' && C.angehoerig(p) && p.fotoBel !== 'ja', `${r.Nom}: Belehrung über das Weigerungsrecht vor den Lichtbildern vermerken (§ 81c Abs. 3 StPO).`);
-        add(p.rolle !== 'bs' && p.attest !== 'ja', `${r.Nom}: auf ärztliche Dokumentation der Verletzungen (Attest) hinweisen.`);
+        add(!['bs', 'kind'].includes(p.rolle) && p.foto === 'ja' && C.angehoerig(p) && p.fotoBel !== 'ja', `${r.Nom}: Belehrung über das Weigerungsrecht vor den Lichtbildern vermerken (§ 81c Abs. 3 StPO).`);
+        add(!['bs', 'kind'].includes(p.rolle) && p.attest !== 'ja', `${r.Nom}: auf ärztliche Dokumentation der Verletzungen (Attest) hinweisen.`);
       }
       if (['gs', 'zeuge'].includes(p.rolle) && p.da !== 'nein') {
         add(!has(p.bel), `${r.Nom}: Belehrung vermerken – wer, wann, welche Inhalte.`);
@@ -1319,6 +1392,7 @@
         add(['52', '57', 'bs'].includes(p.bel) && !arr(p.belInh).length, `${r.Nom}: Inhalte der Belehrung antippen.`);
         add(p.bel === '52' && !arr(p.belInh).includes('zvr'), `${r.Nom}: Belehrung über das Zeugnisverweigerungsrecht vermerken (§ 52 Abs. 3 StPO).`);
         add(p.bel === '52' && !has(p.belErkl), `${r.Nom}: Erklärung nach der Belehrung vermerken (aussagebereit oder Zeugnisverweigerung).`);
+        add(p.bel === '52' && C.minderj(p), `${r.Nom}: minderjährig – Verstandesreife und Zustimmung des gesetzlichen Vertreters prüfen (§ 52 Abs. 2 StPO); ggf. Ergänzungspfleger.`);
         add(p.bel === 'bs' && !has(p.bsVert), `${r.Nom}: Entscheidung über die Verteidigerkonsultation vermerken (§ 168b Abs. 3 Satz 2 StPO).`);
         add(p.bel === '57' && C.zvrOf(p.bez) !== false && p.rolle === 'gs', `${r.Nom}: prüfen, ob ein Zeugnisverweigerungsrecht besteht (§ 52 Abs. 1 StPO, z. B. Verlöbnis) – dann nach § 52 belehren.`);
         add(p.modus === 'folgt' || (p.modus === 'jetzt' && !has(p.text)), `${r.Nom}: Schilderung nachtragen.`);
@@ -1344,13 +1418,15 @@
       const hi = arr(h.inh);
       add(x.wv && !hi.includes('vorwurf'), 'Anhörung zur Wohnungsverweisung vermerken: Vorwürfe mitgeteilt, Gelegenheit zur Äußerung (§ 28 VwVfG NRW, OVG NRW 5 A 3548/20).');
       add(x.wv && hi.length && !(has(h.zeit) && has(h.von)), 'Uhrzeit und Person der Anhörung nachtragen.');
+      add(x.wv && C.nach(h.zeit, w.zeit), 'Die Anhörung liegt nach der Uhrzeit der Anordnung – Reihenfolge prüfen; eine nachgeholte Anhörung gesondert vermerken (§ 45 Abs. 1 Nr. 3 VwVfG NRW).');
     }
     // Kinder
     if (C.kinderDa(d)) {
       add(!k.betreuung, 'Betreuung der Kinder klären und festhalten.');
       add(!k.jugendamt, 'Verständigung des Jugendamts prüfen und Ergebnis vermerken (§ 27 Abs. 2 PolG NRW).');
-      add(k.jugendamt === 'bericht', 'Mitteilung an das Jugendamt fertigen (§ 27 Abs. 2 PolG NRW).');
-      add(markOfSafe(d, 'kindergewalt') && k.jugendamt !== 'sofort', 'Gewalt gegen ein Kind: Jugendamt sofort einschalten.');
+      const kg = markOfSafe(d, 'kindergewalt');
+      add(kg && k.jugendamt !== 'sofort', 'Gewalt gegen ein Kind: Jugendamt sofort einschalten (Bereitschaftsdienst) und die Verständigung vermerken.');
+      add(!kg && k.jugendamt === 'bericht', 'Mitteilung an das Jugendamt fertigen (§ 27 Abs. 2 PolG NRW).');
     }
     // Prognose
     add(!pr.gefahr, 'Gefahrenprognose abschließen: gegenwärtige Gefahr ja oder nein.');
@@ -1376,7 +1452,7 @@
         add(!has(e.schluessel), 'Haus- und Wohnungsschlüssel: Herausgabe verlangen und Ergebnis vermerken.');
         add(['sicher', 'weg'].includes(e.schluessel) && e.schluesselBesch !== 'ja', 'Bescheinigung über die sichergestellten Schlüssel aushändigen (§ 44 Abs. 2 PolG NRW).');
         add(!e.schrift || e.schrift === 'offen', 'Schriftliche Bestätigung mit Zwangsgeldandrohung zustellen (§ 56 Abs. 6 PolG NRW).');
-        add(C.nachtEr(d) && ['vorort', 'verweigert'].includes(e.schrift) && e.erlaubnis !== 'ja', 'Zustellung zur Nachtzeit / am Sonn- oder Feiertag: Erlaubnis der Behördenleitung klären (§ 5 Abs. 3 LZG NRW) – bei verweigerter Annahme sonst unwirksam.');
+        add(C.nachtEr(d) && ['vorort', 'verweigert'].includes(e.schrift) && e.erlaubnis !== 'ja', 'Zustellung zur Nachtzeit / am Sonn- oder Feiertag: Erlaubnis des Behördenleiters klären (§ 5 Abs. 3 LZG NRW) – bei verweigerter Annahme sonst unwirksam.');
         add(e.schrift === 'verweigert', 'Annahme verweigert: Zustellung prüfen; das Schriftstück darf nicht in der Wohnung zurückbleiben, wenn es die Person dort nicht erreicht – beim nächsten Antreffen erneut aushändigen.');
         add(!e.verlassen, 'Vermerken, wie die Person die Wohnung verlassen hat.');
       }
@@ -1387,8 +1463,14 @@
         add(a.zust === 'niederlegung' && !a.zustGrund && !has(a.zustGrundText), 'Niederlegung: Grund vermerken, warum das Einlegen in den Briefkasten nicht möglich war (§ 181 Abs. 1 ZPO).');
         add(a.zust === 'hinweis', 'Nur Hinweis an der Tür – keine Zustellung: Verfügung mit Zwangsgeldandrohung förmlich zustellen bzw. beim Abholen gegen Empfangsbekenntnis aushändigen.');
         add(!has(a.zgHoehe), 'Zwangsgeld in bestimmter Höhe in der schriftlichen Verfügung androhen (§ 56 Abs. 5 PolG NRW).');
-        add(C.nachtAbw(d) && ['pers', 'briefkasten', 'niederlegung'].includes(a.zust) && a.erlaubnis !== 'ja', 'Zustellung zur Nachtzeit / am Sonn- oder Feiertag: Erlaubnis der Behördenleitung klären (§ 5 Abs. 3 LZG NRW).');
+        add(C.nachtAbw(d) && ['pers', 'briefkasten', 'niederlegung'].includes(a.zust) && a.erlaubnis !== 'ja', 'Zustellung zur Nachtzeit / am Sonn- oder Feiertag: Erlaubnis des Behördenleiters klären (§ 5 Abs. 3 LZG NRW).');
         add(a.erreichbar === 'nein', 'Anhörung beim Antreffen nachholen und die Verfügung überprüfen (§ 28 Abs. 2 VwVfG NRW).');
+        add(['telefon', 'ort'].includes(a.erreichbar) && a.anh !== 'ja', 'Die Person ist erreichbar: vor der Entscheidung als Beschuldigte/r belehren und anhören (§ 136 StPO, § 28 Abs. 1 VwVfG NRW).');
+        add(a.anh === 'ja' && C.nach(a.anhZeit, w.zeit), 'Die Anhörung liegt nach der Uhrzeit der Anordnung – Reihenfolge prüfen; eine nachgeholte Anhörung gesondert vermerken (§ 45 Abs. 1 Nr. 3 VwVfG NRW).');
+        add(has(a.zgHoehe) && a.ersatzhaft !== 'ja', 'Hinweis auf Ersatzzwangshaft in die schriftliche Verfügung aufnehmen – sonst kann sie später nicht angeordnet werden (§ 54 Abs. 1 PolG NRW).');
+        add(['briefkasten', 'niederlegung'].includes(a.zust) && !arr(a.form).includes('umschlag'), 'Datum der Zustellung auf dem Umschlag vermerken (§ 180 Satz 3 bzw. § 181 Abs. 1 Satz 5 ZPO).');
+        add(['briefkasten', 'niederlegung'].includes(a.zust) && !arr(a.form).includes('vermerk'), 'Gründe der Ersatzzustellung in der Akte vermerken (§ 5 Abs. 2 LZG NRW).');
+        add(a.zust === 'niederlegung' && !has(a.wache), 'Ort der Niederlegung angeben – Behörde mit Sitz am Zustellort bzw. am Ort des Amtsgerichts oder Geschäftsstelle des Amtsgerichts.');
       }
     }
     if (C.gewahrsam(d)) {
@@ -1398,7 +1480,11 @@
       add(!arr(g.erledigt).includes('benachr'), 'Benachrichtigung einer Vertrauensperson ermöglichen (§ 37 Abs. 2 PolG NRW).');
     }
     // Strafverfahren
-    add(!arr(get(d, 'straf.delikte')).length && !has(get(d, 'straf.delikteFrei')), 'Strafanzeige von Amts wegen fertigen und Delikte benennen.');
+    const sd = arr(get(d, 'straf.delikte'));
+    add(!sd.length && !has(get(d, 'straf.delikteFrei')), 'Strafanzeige von Amts wegen fertigen und Delikte benennen.');
+    add(['223', '303'].some(q => sd.includes(q)) && !sd.includes('224') && !ofRole(d, 'gs').some(y => y.p.antrag === 'ja') && get(d, 'straf.oeff') !== 'ja', 'Kein Strafantrag: besonderes öffentliches Interesse an der Strafverfolgung anregen (§ 230 Abs. 1 StGB).');
+    add(['241', '2412'].some(q => sd.includes(q)) && !has(get(d, 'straf.drohung')), 'Bedrohung: Wortlaut der Drohung möglichst wörtlich festhalten.');
+    add(arr(get(d, 'eintreff.sofort')).includes('waffen') && !arr(get(d, 'eintreff.sofort')).includes('besch'), 'Bescheinigung über die sichergestellten Gegenstände aushändigen (§ 44 Abs. 2 PolG NRW).');
     add(markOfSafe(d, 'waffenzugang') && !ab.includes('waffen'), 'Waffenbehörde unterrichten (§ 6a Abs. 2 WaffG) und Sicherstellung von Waffen prüfen.');
     // Opferschutz
     add(!os.includes('gewschg'), 'Auf zivilrechtlichen Schutz nach dem Gewaltschutzgesetz hinweisen (§ 34a Abs. 4 PolG NRW).');
@@ -1406,7 +1492,7 @@
     add(!os.includes('daten'), 'Weitergabe der Kontaktdaten an eine Beratungsstelle anbieten (§ 34a Abs. 4 PolG NRW).');
     add(os.includes('daten') && !get(d, 'os.einwilligung'), 'Einwilligung in die Datenweitergabe vermerken.');
     add(!os.includes('stpo'), 'Über die Rechte als Verletzte/r unterrichten (§§ 406i ff. StPO).');
-    add(x.wv && !os.includes('notruf'), 'Geschädigte Person anweisen, bei einer Rückkehr sofort 110 zu wählen.');
+    add(x.wv && !os.includes('notruf'), 'Der geschädigten Person raten, bei einer Rückkehr sofort 110 zu wählen.');
     // Abschluss
     add(x.wv && !ab.includes('kontrolle'), 'Kontrolle des Rückkehrverbots vormerken – mindestens einmal (§ 34a Abs. 7 PolG NRW).');
     add(x.wv && !ab.includes('folge'), 'Folgeschichten über das Rückkehrverbot informieren.');
