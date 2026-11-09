@@ -45,7 +45,9 @@ Acht Phasen, vorweg die Weichen-Fragen („Worum geht es?“). Es erscheinen nur
 
 ## 3 · Bedienkonzept
 
-**Ankreuzen vor Schreiben.** Fast alles läuft über Ja/Nein, Auswahl und Mehrfachauswahl. Freitext gibt es nur dort, wo der Einzelfall zählt – und dort mit festem Satzanfang im Feld und einem grauen Beispiel, wie der Satz weitergeht. Tippvorschläge ergänzen häufige Formulierungen.
+**Ankreuzen, aber nie abschließend.** Fast alles läuft über Ja/Nein, Auswahl und Mehrfachauswahl. Die Listen sind Schnellwahl, keine abschließende Aufzählung: Unter den Listen zu Zustand, Verhalten, Verletzungen, Tatsachen für den Zutritt, Kindern, Vorerkenntnissen, Stützen, Warnsignalen und Delikten steht ein Feld „Weiteres in eigenen Worten“, das den Satz der Liste fortsetzt – mit festem Satzanfang und einem grauen Beispiel. Wo eine Auswahl „Sonstige“ kennt, fragt ein Feld „Wer genau?“. Für alles Übrige gibt es je Abschnitt ein optionales Feld für einen ganzen Satz (Zutritt, Maßnahmen, Versorgung, Vollzug, Zwang, Beweise, Opferschutz) und am Ende „Bemerkungen“ (Abschnitt 6.3).
+
+**Schilderung statt Chips.** Was geschehen sein soll, steht in der Schilderung in eigenen Worten, nicht in einer Auswahlliste. Nur wenn die Schilderung nachgetragen wird, fragt der Assistent nach dem Kern des Vorwurfs in einem Satz – damit Sachverhalt und Begründung am Einsatztag tragen.
 
 **Schilderungen nachtragen.** Bei der geschädigten Person, der beschuldigten Person und jedem Zeugen lässt sich wählen: jetzt aufnehmen, später nachtragen, keine Angaben. „Später“ setzt im Text einen Platzhalter in eckigen Klammern und einen Eintrag in „Noch zu erledigen“.
 
@@ -63,7 +65,7 @@ Acht Phasen, vorweg die Weichen-Fragen („Worum geht es?“). Es erscheinen nur
 
 | Reiter | Inhalt |
 | --- | --- |
-| **Sachverhalt** | 1 Einsatz · 2 Feststellungen vor Ort · 3 Schilderungen · 4 Bewertung · 5 Maßnahmen · 6 Sonstiges. Rollen statt Namen („die Geschädigte“, „der Beschuldigte“); Klarnamen nur auf ausdrücklichen Wunsch. |
+| **Sachverhalt** | 1 Einsatz · 2 Feststellungen vor Ort · 3 Schilderungen · 4 Bewertung · 5 Maßnahmen · 6 Sonstiges (mit Bemerkungen). Rollen statt Namen („die Geschädigte“, „der Beschuldigte“); Klarnamen nur auf ausdrücklichen Wunsch. |
 | **Begründung § 34a** | Erscheint, wenn die Wohnungsverweisung angeordnet wurde: Anordnung mit Bereich und Enddatum · Sachverhalt · Anhörung · Gefahrenprognose · Ermessen und Verhältnismäßigkeit · Zwangsmittel und Hinweise. In der Sprache des Gefahrenabwehrrechts („Betroffener“, „gefährdete Person“). |
 | **Kurzfassung** | Wenige Sätze für Übergabe und Lagemeldung. |
 | **Noch zu erledigen** | Fehlende Pflichten mit Norm, abhakbar und als Todos in den Planner übernehmbar. |
