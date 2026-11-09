@@ -585,7 +585,7 @@ details.adv[open] summary::before{content:"–"}
 .area-pane{display:none}
 body:not([data-area=heute]) .pane-heute{display:none}
 body[data-area=heute] .pane-heute{display:grid}
-body[data-area=routinen] .pane-routinen,body[data-area=team] .pane-team,body[data-area=ablage] .pane-ablage,body[data-area=waffg] .pane-waffg{display:block}
+body[data-area=routinen] .pane-routinen,body[data-area=team] .pane-team,body[data-area=ablage] .pane-ablage,body[data-area=waffg] .pane-waffg,body[data-area=freiheit] .pane-freiheit{display:block}
 .area-head{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;margin:4px 2px 18px}
 .area-h{font-size:clamp(30px,3.4vw,40px);font-weight:400;letter-spacing:-.03em;line-height:1.05;margin-top:6px}
 .area-sub{margin-top:6px;font-size:13px;color:var(--text-3)}
@@ -896,7 +896,68 @@ textarea.input.wf-text{min-height:230px;font-size:13px;line-height:1.55}
 .wf-merk li::before{content:"✓";color:var(--lime)}
 .wf-see{display:flex;flex-wrap:wrap;gap:6px}
 .wf-see-b{height:auto;min-height:32px;padding:6px 12px;text-align:left;line-height:1.3}
-#wiH{letter-spacing:.12em;line-height:1.4}
+#wiH,#feiH{letter-spacing:.12em;line-height:1.4}
+/* FE-Prüfung */
+.fe-tabs{display:inline-flex;margin:0 0 16px}
+.fe-tabs button{gap:8px}
+.fe-tab-n{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:var(--lime);color:#141414;font-size:10.5px}
+.fe-tab-n:empty{display:none}
+.pane-freiheit[data-view=pruefen] .fe-map,.pane-freiheit[data-view=karte] .fe-pruefen{display:none}
+.fe-anl{margin-bottom:6px}
+.fe-tri button{min-width:52px}
+.fe-jump{display:none;width:100%;margin-top:14px}
+.fe-level{margin-top:14px;font:300 clamp(30px,3.4vw,44px)/1.05 var(--font);letter-spacing:-.03em;color:var(--text)}
+.fe-level[data-level=greift]{color:var(--lime)}
+.fe-level[data-level=offen]{color:var(--accent)}
+.fe-level[data-level=keine]{color:var(--coral)}
+.fe-level[data-level=leer]{color:var(--text-3)}
+.fe-norm{height:auto;min-height:24px;padding:3px 10px;white-space:normal;line-height:1.35}
+.fe-fhead{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-bottom:10px}
+.fe-fhead .wf-i{margin:-6px -6px -6px auto}
+.fe-norm{max-width:100%}
+.fe-zweck{font-size:11.5px;color:var(--text-3)}
+.fe-src{flex:none}
+.fe-check{margin:4px 0 0;padding-left:20px;display:flex;flex-direction:column;gap:6px;font-size:13px;line-height:1.5;color:var(--text-2)}
+.fe-map{padding:20px}
+.fe-map-lead{margin:6px 0 16px;font-size:12.5px;line-height:1.7;color:var(--text-2)}
+.fe-key{display:inline-flex;align-items:center;gap:6px;margin-right:8px;white-space:nowrap}
+.fe-key::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--k)}
+.fe-key[data-st=greift],.fe-leaf[data-st=greift]{--k:var(--lime)}
+.fe-key[data-st=offen],.fe-leaf[data-st=offen]{--k:var(--accent)}
+.fe-key[data-st=gesperrt],.fe-leaf[data-st=gesperrt]{--k:var(--coral)}
+.fe-key[data-st=nicht],.fe-leaf[data-st=nicht]{--k:var(--text-3)}
+.fe-flow{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.fe-node{position:relative;padding:0 0 22px 22px;border-left:2px solid var(--line-2);margin-left:11px}
+.fe-node:last-child{border-left-color:transparent;padding-bottom:0}
+.fe-node::before{content:"";position:absolute;left:-7px;top:6px;width:12px;height:12px;border-radius:50%;background:#1b1b1d;border:2px solid var(--accent)}
+.fe-q{display:flex;align-items:center;gap:10px;min-height:28px}
+.fe-q-n{flex:none;font-size:11px;color:var(--text-3)}
+.fe-q-t{flex:1;min-width:0;font-size:15px;font-weight:500;line-height:1.35}
+.fe-q .wf-i{margin:-6px}
+.fe-q-note{margin:6px 0 0;font-size:12.5px;line-height:1.5;color:var(--text-3)}
+.fe-branch{margin-top:10px}
+.fe-branch-h,.fe-col-h{display:flex;flex-direction:column;gap:2px;margin:0 0 8px;font-size:11px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--text-2)}
+.fe-col-h small{font-size:10.5px;font-weight:400;letter-spacing:.04em;text-transform:none;color:var(--text-3)}
+.fe-cols{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:12px}
+.fe-col{min-width:0;padding:12px;border-radius:16px;background:rgba(255,255,255,.025);border:1px solid var(--line)}
+.fe-leaves{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:6px}
+.fe-cols .fe-leaves{grid-template-columns:1fr}
+.fe-leaf{--k:transparent;position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;min-height:52px;padding:8px 12px 8px 14px;border-radius:12px;background:rgba(255,255,255,.04);border:1px solid var(--line);text-align:left;transition:background-color .15s ease,border-color .15s ease,transform .14s var(--ease-out)}
+.fe-leaf::before{content:"";position:absolute;left:0;top:10px;bottom:10px;width:3px;border-radius:0 3px 3px 0;background:var(--k)}
+.fe-leaf:active{transform:scale(.98)}
+@media (hover:hover) and (pointer:fine){.fe-leaf:hover{background:rgba(255,255,255,.07);border-color:var(--line-2)}}
+.fe-leaf[data-st=greift]{background:rgba(198,220,122,.08);border-color:rgba(198,220,122,.35)}
+.fe-leaf[data-st=offen]{background:rgba(236,217,111,.06);border-color:rgba(236,217,111,.3)}
+.fe-leaf[data-st=gesperrt]{background:rgba(255,138,114,.06);border-color:rgba(255,138,114,.3)}
+.fe-leaf-n{font-size:10.5px;color:var(--text-3)}
+.fe-leaf-l{font-size:13px;line-height:1.3;overflow-wrap:anywhere}
+.fe-leaf-s{font-size:11px;color:var(--k)}
+.fe-steps{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 0;padding:0;list-style:none;counter-reset:fes}
+.fe-steps li{counter-increment:fes;display:inline-flex;align-items:center;gap:8px;min-height:34px;padding:6px 12px 6px 8px;border-radius:999px;background:rgba(255,255,255,.04);border:1px solid var(--line);font-size:12.5px}
+.fe-steps li::before{content:counter(fes);display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font:600 11px/1 var(--mono)}
+.fe-sinn{margin-left:6px;height:auto;min-height:22px;padding:2px 8px;font-size:10.5px}
+@media (max-width:1100px){.fe-cols{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:760px){.fe-jump{display:flex;justify-content:center}.fe-cols{grid-template-columns:1fr}.fe-map{padding:16px 14px}.fe-node{padding-left:16px}.fe-tabs{display:flex}.fe-tabs button{flex:1}}
 @media (max-width:760px){.wf-info{width:100%}.wf-compact{grid-template-columns:1fr 1fr}.wf-sb-n{max-width:38%}}
 @media (max-width:360px){.wf-compact{grid-template-columns:1fr}}
 @media (max-width:1100px){.wf-layout{grid-template-columns:1fr}}
@@ -1505,6 +1566,7 @@ dialog.brief-dlg.open .brief{opacity:1;transform:none}
     <button type="button" data-area="team" aria-current="false"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8.5" r="3.2"/><path d="M3 19.5c.9-3.3 3.3-5 6-5s5.1 1.7 6 5"/><path d="M15.5 5.6a3 3 0 0 1 0 5.8M17.5 14.8c1.7.6 3 2.2 3.5 4.7"/></svg>Team<span class="n" id="nTeam" hidden></span></button>
     <button type="button" data-area="ablage" aria-current="false"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg>Ablage<span class="n" id="nAblage" hidden></span></button>
     <button type="button" data-area="waffg" aria-current="false"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5v17M8 20.5h8M5 7h14"/><path d="M5 7l-2.6 6.2a2.8 2.8 0 0 0 5.2 0zM19 7l-2.6 6.2a2.8 2.8 0 0 0 5.2 0z"/></svg>WaffG<span class="n" id="nWaffg" hidden></span></button>
+    <button type="button" data-area="freiheit" aria-current="false"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="7" cy="14.5" r="3.8"/><circle cx="17" cy="14.5" r="3.8"/><path d="M10.8 14.5h2.4M7 10.7V7.2a1.6 1.6 0 0 1 1.6-1.6h6.8A1.6 1.6 0 0 1 17 7.2v3.5"/></svg>FE-Prüfung<span class="n" id="nFreiheit" hidden></span></button>
     <button type="button" data-area="schreiben" aria-current="false"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1-4L16 5a2.1 2.1 0 0 1 3 3L8 19z"/></svg>Schreiben<span class="n" id="nSchreiben" hidden></span></button>
   </nav>
 
@@ -1683,6 +1745,18 @@ dialog.brief-dlg.open .brief{opacity:1;transform:none}
       </div>
     </div>
     <p class="wf-foot"><b>Keine Rechtsberatung – Orientierungshilfe.</b> Bildet alle Umgangsarten des § 1 Abs. 3 mit den Straf- und Bußgeldnormen der §§ 51 bis 53 WaffG und § 22a KrWaffKontrG ab. Nicht abgebildet sind u. a. Altbesitz-Übergangsregeln (§ 58), Melde- und Anzeigepflichten im Detail, Sportschützen- und Sammlerregeln sowie der Inhalt einzelner Landesverordnungen und Allgemeinverfügungen. Im Zweifel: Fachanwalt für Waffenrecht, Waffenbehörde oder Feststellungsbescheid des BKA (§ 2 Abs. 5). Wortlaute: amtliche Fassung (gesetze-im-internet.de), WaffG zuletzt geändert durch Art. 12 Abs. 20 G v. 22.10.2026 (BGBl. I Nr. 318). Weiterentwicklung des VUF-Prüfstands.</p>
+  </section>
+
+  <!-- FE-Prüfung (Freiheitsentziehung) -->
+  <section class="area-pane pane-freiheit" aria-labelledby="feH" data-view="pruefen">
+    <div class="area-head"><div><span class="spaced">Freiheitsentziehung &middot; NRW</span><h1 class="area-h" id="feH">FE-Prüfung</h1><p class="area-sub">Lage auf der Straße eingeben – geprüft werden alle Wege: Vollzug, StPO, OWiG, PolG NRW und Sonderrecht, jeweils mit Merkmalen, Rechtsfolge und Verfahren.</p></div></div>
+    <div class="seg fe-tabs" id="feTabs" role="tablist" aria-label="Ansicht"><button type="button" role="tab" data-fe-tab="pruefen" aria-selected="true" aria-pressed="true">Prüfen</button><button type="button" role="tab" data-fe-tab="karte" aria-selected="false" aria-pressed="false">Gesamtkarte<span class="fe-tab-n mono" id="feTabMapN"></span></button></div>
+    <div class="wf-layout fe-pruefen">
+      <div class="card wf-form-card"><div id="feForm"></div></div>
+      <div class="wf-side"><article class="card wf-res fe-res" id="feRes" aria-live="polite"></article></div>
+    </div>
+    <article class="card fe-map" id="feMap"></article>
+    <p class="wf-foot"><b>Keine Rechtsberatung – Orientierungshilfe.</b> Bundesrecht (GG, StPO, OWiG, AufenthG, IfSG, JuSchG, SGB VIII, FamFG, BGB) im amtlichen Wortlaut, Stand 07.11.2026. PolG NRW, PsychKG NRW und Art. 5 EMRK sinngemäß – Nummerierung und Höchstdauern (§ 35, § 38 PolG NRW) vor Verwendung am aktuellen Wortlaut prüfen. Nicht abgebildet sind u. a. Strafvollzugs-, Wehr- und Zivilprozessrecht (z. B. Erzwingungshaft nach ZPO).</p>
   </section>
 
   <!-- Schriftliche Arbeiten -->
@@ -1890,6 +1964,14 @@ dialog.brief-dlg.open .brief{opacity:1;transform:none}
 </dialog>
 
 <!-- WaffG-Erläuterung -->
+<dialog class="dlg sheet-dlg" id="feInfoDlg" aria-labelledby="feiH">
+  <div class="sheet wf-info">
+    <div class="sheet-head"><h3 id="feiH">Erläuterung</h3><button type="button" class="icon-btn sm" data-close aria-label="Schließen"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+    <div id="feiBody"></div>
+    <div class="sheet-foot"><span class="grow"></span><button type="button" class="btn btn-ghost" data-close>Schließen</button></div>
+  </div>
+</dialog>
+
 <dialog class="dlg sheet-dlg" id="wfInfoDlg" aria-labelledby="wiH">
   <div class="sheet wf-info">
     <div class="sheet-head"><h3 id="wiH">Erläuterung</h3><button type="button" class="icon-btn sm" data-close aria-label="Schließen"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
@@ -2152,6 +2234,7 @@ dialog.brief-dlg.open .brief{opacity:1;transform:none}
 <script src="vendor/hash-wasm/argon2.umd.min.js"></script>
 <script src="js/vault.js"></script>
 <script src="js/app.js"></script>
+<script src="js/fe.js"></script>
 <script src="js/vuf.js"></script>
 <script src="js/vermisst.js"></script>
 <script src="js/hg.js"></script>

@@ -1991,7 +1991,7 @@ async function loadDemo() {
 }
 
 /* ======================= Bereiche ======================= */
-const AREAS = ['heute', 'routinen', 'team', 'ablage', 'waffg', 'schreiben'];
+const AREAS = ['heute', 'routinen', 'team', 'ablage', 'waffg', 'freiheit', 'schreiben'];
 function syncDockTabs() {
   const heute = document.body.dataset.area === 'heute';
   $$('.dock-btn[data-tab]').forEach(b => b.setAttribute('aria-pressed', String(heute && b.dataset.tab === document.body.dataset.tab)));
@@ -2014,6 +2014,7 @@ function renderArea() {
   else if (a === 'team') renderTeam();
   else if (a === 'ablage') renderAblage();
   else if (a === 'waffg') renderWaffg();
+  else if (a === 'freiheit' && window.WFE) WFE.render();
   else if (a === 'schreiben' && window.WWriter) WWriter.render();
   const set = (id, n) => { const el = $(id); el.textContent = n || ''; el.hidden = !n; };
   set('#nRoutinen', state.routines.filter(r => routineDue(r)).length);
@@ -2028,6 +2029,7 @@ function contextNew() {
   else if (a === 'team') openPersonDialog(null);
   else if (a === 'ablage') $('#fileInput').click();
   else if (a === 'waffg') wfReset();
+  else if (a === 'freiheit') { if (window.WFE) WFE.reset(); }
   else if (a === 'schreiben') { if (window.WWriter) WWriter.newDoc(); }
   else openComposer();
 }
@@ -4489,7 +4491,7 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { closeMenu(); return; }
   const k = e.key.toLowerCase();
   if (k === 'n') { e.preventDefault(); contextNew(); }
-  else if (/^[1-6]$/.test(e.key)) { e.preventDefault(); setArea(AREAS[Number(e.key) - 1]); }
+  else if (/^[1-7]$/.test(e.key)) { e.preventDefault(); setArea(AREAS[Number(e.key) - 1]); }
   else if (e.key === '/') { e.preventDefault(); if (mobileMQ.matches) searchBox.classList.add('expanded'); searchInput.focus(); }
   else if (k === 'd' && !e.repeat) { e.preventDefault(); dongleAction(); }
   else if (k === 'e' && !e.repeat) { e.preventDefault(); if (liveShift()) addOp(); else toast('Einsätze gehören zu einer laufenden Schicht – erst eindongeln (D).'); }
