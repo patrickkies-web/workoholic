@@ -14,6 +14,7 @@
   if (window.WVermisst) MODULES[window.WVermisst.id] = window.WVermisst;
   if (window.WHG) MODULES[window.WHG.id] = window.WHG;
   if (window.WFEB) MODULES[window.WFEB.id] = window.WFEB;
+  if (window.WSKZ) MODULES[window.WSKZ.id] = window.WSKZ;
   /** Module, die man direkt neu anlegen kann (der FE-Bericht entsteht nur aus der FE-Prüfung). */
   const creatable = () => Object.values(MODULES).filter(m => !m.noNew);
   /** Beschriftungen je Modul (m.labels), sonst die der Verkehrsunfallflucht. */
@@ -120,6 +121,8 @@
         const m = mod(doc()); const txt = m && typeof m[f.fn] === 'function' ? m[f.fn](d) : '';
         return `<div class="w-q full w-out"><div class="w-out-h"><span class="w-lbl">${esc(R(f.l, d, item) || 'Text')}</span><button type="button" class="btn btn-light btn-sm" data-copy-out="${esc(f.fn)}">Kopieren</button></div>${f.h ? `<p class="w-hint">${esc(R(f.h, d, item))}</p>` : ''}<pre class="w-out-t" data-fn="${esc(f.fn)}">${esc(txt || '– noch nichts erfasst –')}</pre></div>`;
       }
+      /* Eigenes Bedienelement eines Moduls (z. B. Zeichenfläche); das Modul füllt es über m.mount(el, k, data, api) */
+      case 'custom': return `<div class="w-q full w-custom" data-custom="${esc(f.k)}"></div>`;
       /* Zwischentitel: gliedert einen Schritt in Abschnitte (keine Antwort, kein Datenfeld) */
       case 'head': return `<div class="w-q full w-head"><span class="w-head-t">${esc(R(f.text, d, item))}</span>${f.h ? `<span class="w-head-h">${esc(R(f.h, d, item))}</span>` : ''}</div>`;
       case 'yn': {
@@ -360,6 +363,7 @@
       </div>`;
     remember();
     layoutSentences();
+    mountCustom(d, m);
   }
   const visibleKeys = (st, data) => st.fields.filter(f => !f.when || f.when(data)).map(f => f.k || f.text).join('|');
 
@@ -478,6 +482,14 @@
     let h = ta.scrollHeight;
     if (!ta.value && ta.placeholder) { ta.value = ta.placeholder; h = Math.max(h, ta.scrollHeight); ta.value = ''; }
     ta.style.height = h + 'px';
+  }
+  /** Eigene Bedienelemente der Module einhängen; Änderungen laufen über api.set → verschlüsselt speichern. */
+  function mountCustom(d, m) {
+    if (typeof m.mount !== 'function') return;
+    $$('#wFields [data-custom]').forEach(el => {
+      try { m.mount(el, el.dataset.custom, d.data, { set: (path, v) => { setP(d.data, path, v); persist(); }, get: path => getP(d.data, path), title: () => d.title || m.name }); }
+      catch (e) { el.textContent = 'Dieses Element konnte nicht geladen werden.'; }
+    });
   }
   function layoutSentences() {
     $$('#wMain .w-sent').forEach(box => {

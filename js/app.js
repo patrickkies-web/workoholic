@@ -2599,6 +2599,31 @@ async function addFiles(list) {
   if (added) { commit(); FileSync.kick(); }
   toast(`${added} ${added === 1 ? 'Datei' : 'Dateien'} verschlüsselt abgelegt${tooBig.length ? ` · ${tooBig.length} zu groß (max. 20 MB)` : ''}`);
 }
+/** Bild/Datei aus einem Modul (z. B. Unfallskizze) verschlüsselt in der Ablage speichern – gibt die Datei-ID zurück. */
+async function addBlob(blob, name, folder) {
+  if (!S || !blob) return null;
+  await refreshLocal();
+  if (!local.ok) { toast('Die Dateiablage ist in diesem Browser-Modus nicht verfügbar.'); return null; }
+  if (blob.size > V.MAX_FILE) { toast('Datei zu groß (max. 20 MB).'); return null; }
+  const id = uid();
+  try {
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    const rec = await V.encryptFile(S.dek, id, bytes);
+    bytes.fill(0);
+    await IDB.put(id, rec);
+  } catch (e) { toast(e && e.name === 'QuotaExceededError' ? 'Gerätespeicher voll – Bild konnte nicht gespeichert werden.' : 'Bild konnte nicht verschlüsselt werden.'); return null; }
+  local.ids.add(id);
+  const now = Date.now();
+  state.files.push(normFile({ id, name, type: blob.type || 'application/octet-stream', size: blob.size, folder: folder || '', added: now, remote: false, u: now }));
+  commit(); FileSync.kick();
+  return id;
+}
+async function fileBlob(id) {
+  if (!S) return null;
+  const f = state.files.find(x => x.id === id); if (!f) return null;
+  const bytes = await fileBytes(f);
+  return new Blob([bytes], { type: f.type || 'application/octet-stream' });
+}
 async function fileBytes(f) {
   let rec = await IDB.get(f.id).catch(() => null);
   if (!rec) {
@@ -4562,6 +4587,8 @@ window.WBridge = Object.freeze({
   preset: () => { if (!S) return null; const sh = liveShift(); return sh ? { einsatz: shiftCrewPreset(sh) } : null; },
   /** Offenen Punkt als Todo in den Planner übernehmen (z. B. „Lichtbildmappe fertigen“). */
   addTodo(title, notes = '') { if (!S || !String(title || '').trim()) return null; const it = normItem({ id: uid(), title: String(title).trim(), notes: String(notes || ''), kind: 'todo', mode: 'einmalig' }); state.items.push(it); commit(); return it; },
+  /** Verschlüsselte Ablage für Module: Bild speichern (→ ID) und wieder lesen (→ Blob). */
+  addBlob, fileBlob,
   toast, ask, openDlg, closeDlg, download, esc, uid, hm, pad, mobile: () => mobileMQ.matches,
   bump
 });

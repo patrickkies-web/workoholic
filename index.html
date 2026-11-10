@@ -1029,6 +1029,38 @@ button.fe-oref{text-decoration:underline;text-decoration-color:var(--line-2);tex
 .fe-steps li::before{content:counter(fes);display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font:600 11px/1 var(--mono)}
 .fe-sinn{margin-left:6px;height:auto;min-height:22px;padding:2px 8px;font-size:10.5px}
 .fe-sheet .fe-gk-i{display:flex;align-items:center;gap:2px;margin-bottom:14px}
+/* Unfallskizze (Schreiben) */
+.sk{display:flex;flex-direction:column;gap:12px;min-width:0}
+.sk-drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:200px;padding:24px 18px;border-radius:20px;border:1.5px dashed rgba(236,217,111,.45);background:rgba(236,217,111,.05);text-align:center;cursor:pointer;transition:background-color .15s ease,transform .16s var(--ease-out)}
+.sk-drop:active{transform:scale(.99)}
+.sk-drop b{font-size:16px;font-weight:500;color:var(--text)}
+.sk-drop span{max-width:420px;font-size:12.5px;line-height:1.5;color:var(--text-3)}
+.sk-drop .sk-drop-i{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-size:26px;line-height:1}
+.sk-sec{display:flex;flex-direction:column;gap:6px;min-width:0}
+.sk-sec .w-lbl small{font-weight:400;color:var(--text-3)}
+.sk-up .chip{min-width:44px;justify-content:center;font-family:var(--mono)}
+.sk-vs{display:flex;flex-wrap:wrap;gap:6px}
+.sk-v,.sk-add{display:inline-flex;align-items:center;gap:7px;min-height:38px;padding:6px 13px;border-radius:999px;background:rgba(255,255,255,.04);border:1px solid var(--line-2);color:var(--text);font-size:13px;transition:background-color .15s ease,transform .16s var(--ease-out)}
+.sk-v i{width:12px;height:12px;border-radius:50%;background:var(--c);box-shadow:0 0 0 2px rgba(0,0,0,.4)}
+.sk-v.on{background:rgba(255,255,255,.1);border-color:var(--c)}
+.sk-add{border-style:dashed;color:var(--accent);border-color:rgba(236,217,111,.45)}
+.sk-v:active,.sk-add:active{transform:scale(.97)}
+.sk-types{padding:8px;border-radius:14px;background:rgba(255,255,255,.03);border:1px solid var(--line)}
+.sk-tools{display:flex;flex-wrap:wrap;gap:6px}
+.sk-tools .btn[aria-pressed=true]{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.sk-hint{margin:0;padding:9px 12px;border-radius:12px;background:rgba(255,255,255,.04);font-size:12.5px;line-height:1.45;color:var(--text-2)}
+.sk-hint[data-mode=draw],.sk-hint[data-mode=hit]{background:rgba(236,217,111,.1);color:var(--accent)}
+.sk-stage{position:relative;display:flex;justify-content:center;width:100%;border-radius:16px;overflow:hidden;border:1px solid var(--line-2);background:#0c0c0d;touch-action:pan-y}
+.sk-stage[data-mode=draw],.sk-stage[data-mode=hit]{touch-action:none;border-color:rgba(236,217,111,.6);box-shadow:0 0 0 2px rgba(236,217,111,.18)}
+.sk-cv{display:block;max-width:100%}
+.sk-stage[data-mode=draw] .sk-cv{cursor:crosshair}
+.sk-stage[data-mode=hit] .sk-cv{cursor:cell}
+.sk-sum{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.sk-sum li{position:relative;padding:9px 12px 9px 30px;border-radius:12px;background:rgba(255,255,255,.04);font-size:13px;line-height:1.45;color:var(--text-2)}
+.sk-sum li::before{content:"";position:absolute;left:12px;top:13px;width:10px;height:10px;border-radius:50%;background:var(--c,#ff2d2d)}
+.sk-sum li b{color:var(--text);font-weight:500;margin-right:4px}
+.sk-replace{align-self:flex-start}
+.sk-pre{margin:0;padding:14px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid var(--line);white-space:pre-wrap;font:400 12.5px/1.55 var(--mono);color:var(--text-2);overflow-wrap:anywhere}
 .fe-conf{list-style:none;margin:16px 0 0;padding:0;display:flex;flex-direction:column}
 .fe-conf li{display:flex;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
 .fe-conf li:first-child{border-top:0}
@@ -2439,6 +2471,7 @@ dialog.brief-dlg.open .brief{opacity:1;transform:none}
 <script src="js/vermisst.js"></script>
 <script src="js/hg.js"></script>
 <script src="js/febericht.js"></script>
+<script src="js/skizze.js"></script>
 <script src="js/writer.js"></script>
 </body>
 </html>
