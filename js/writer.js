@@ -443,7 +443,8 @@
     const pre = preset && typeof preset === 'object' ? preset : ((W().preset && W().preset()) || {});
     const data = { ...pre, einsatz: { datum: todayKey(0), zeit: nowHM(), ...(pre.einsatz || {}) } };
     for (const k of Object.keys(data.einsatz)) if (data.einsatz[k] == null || data.einsatz[k] === '' || (Array.isArray(data.einsatz[k]) && !data.einsatz[k].length)) delete data.einsatz[k];
-    const d = W().add({ type: m.id, title: m.name, status: 'entwurf', step: 0, data });
+    let t0 = ''; try { t0 = (m.title && m.title(data)) || ''; } catch (e) { t0 = ''; }
+    const d = W().add({ type: m.id, title: (t0 || m.name).slice(0, 120), status: 'entwurf', step: 0, data });
     if (!d) { W().toast('Vorgang konnte nicht angelegt werden.'); return; }
     open(d.id, 'wizard');
     setTimeout(() => { const f = $('#wFields input, #wFields button'); if (f && !W().mobile()) f.focus(); }, 60);
