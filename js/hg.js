@@ -521,7 +521,8 @@
         { k: 'tatort.geschoss', t: 'choice', l: 'Geschoss', o: GESCHOSS_UI, when: d => ['mfh', 'wgh'].includes(get(d, 'tatort.art')) },
         { k: 'tatort.seite', t: 'choice', l: 'Lage der Wohnung', o: SEITE, when: d => ['mfh', 'wgh'].includes(get(d, 'tatort.art')) },
         { t: 'head', text: 'Personen vor Ort' },
-        { k: 'pers', t: 'list', l: '', item: (it, i) => (i === 0 ? 'Diese Person hat die Beamten erwartet' : pl(it, i)), add: 'Weitere Person', min1: true, max: 12, sub: [
+        { k: 'pers', t: 'list', wizard: true, l: '', item: (it, i) => (i === 0 ? 'Diese Person hat die Beamten erwartet' : pl(it, i)), add: 'Person hinzufügen', done: 'Alle Personen erfasst', min1: true, max: 12, sub: [
+          { t: 'head', text: 'Person' },
           { k: 'rolle', t: 'choice', l: 'Rolle', o: (d, it) => [['gs', 'Geschädigt'], ...(ofRole(d, 'bs').some(y => rawList(d)[y.i] !== it) ? [] : [['bs', 'Beschuldigt']]), ['zeuge', 'Zeugin / Zeuge'], ['kind', 'Kind']] },
           { k: 'geschlecht', t: 'choice', l: 'Geschlecht', o: (d, it) => (it.rolle === 'kind' ? [['w', 'Mädchen'], ['m', 'Junge']] : [['w', 'weiblich'], ['m', 'männlich'], ['d', 'divers']]), when: (d, it) => has(it.rolle) },
           { k: 'p.vorname', t: 'text', l: 'Vorname', ph: 'Vorname', w: 'half', max: 60, when: (d, it) => has(it.rolle) },
@@ -530,6 +531,7 @@
           { k: 'eltern', t: 'multi', l: 'Kind von', o: (d, it) => rawList(d).map((q, j) => [q, j]).filter(([q]) => q && q !== it && q.rolle && q.rolle !== 'kind').map(([q, j]) => [String(j), pl(q, j)]), when: (d, it) => it.rolle === 'kind' && rawList(d).some(q => q && q !== it && q.rolle && q.rolle !== 'kind') },
           { k: 'zu', t: 'choice', l: 'Beziehung zu', o: (d, it) => rawList(d).map((q, j) => [q, j]).filter(([q]) => q && q !== it && q.rolle && q.rolle !== 'kind').map(([q, j]) => [String(j), pl(q, j)]), when: (d, it) => it.rolle !== 'kind' && has(it.rolle) && rawList(d).indexOf(it) > 0 && rawList(d).filter(q => q && q !== it && q.rolle && q.rolle !== 'kind').length > 1 },
           { k: 'rel', t: 'choice', l: (d, it) => { const L = rawList(d), j = has(it.zu) ? Number(it.zu) : 0; return `Beziehung zu ${L[j] ? pl(L[j], j) : 'der ersten Person'}`; }, o: (d, it) => Object.entries(REL).map(([k, v]) => [k, v[gKey(it)]]), when: (d, it) => it.rolle !== 'kind' && has(it.rolle) && rawList(d).indexOf(it) > 0 },
+          { t: 'head', text: (d, it) => (rawList(d).indexOf(it) === 0 ? 'Erwartet' : 'Angetroffen'), when: (d, it) => has(it.rolle) },
           { k: 'wo', t: 'choice', l: (d, it) => (rawList(d).indexOf(it) === 0 ? 'Wo wurden die Beamten erwartet?' : 'Wo angetroffen?'), o: (d, it) => (rawList(d).indexOf(it) === 0 ? WO_ERW : WO_WEITER.filter(([k]) => k !== 'nah' || it.rolle === 'bs')), when: (d, it) => has(it.rolle) },
           { k: 'woText', t: 'text', l: 'Wo genau? (optional)', ph: 'im Wohnzimmer', max: 120, sugg: RAUM_SUGG, when: (d, it) => it.wo === 'wohnung' },
           { k: 'nahOrt', t: 'text', l: 'Wo angetroffen?', pre: 'Angetroffen', ph: 'in der Bahnhofstraße, etwa 200 m von der Wohnung entfernt', max: 160, when: (d, it) => it.wo === 'nah' },
@@ -542,11 +544,11 @@
           { t: 'head', text: 'Verletzungen', when: (d, it) => has(it.rolle) && it.wo !== 'nicht' },
           { k: 'vgrad', t: 'choice', l: 'Verletzungsgrad', o: VGRAD, when: (d, it) => has(it.rolle) && it.wo !== 'nicht' },
           { k: 'verl', t: 'multi', l: 'Art der Verletzung', o: Object.entries(VART).map(([k, v]) => [k, cap(v)]), when: (d, it) => ['leicht', 'schwer', 'lebens'].includes(it.vgrad) },
-          { k: 'verlFrei', t: 'text', l: 'Weitere Verletzungen (optional)', ph: 'abgebrochener Schneidezahn', max: 160, when: (d, it) => ['leicht', 'schwer', 'lebens'].includes(it.vgrad) },
-          { k: 'verlWo', t: 'text', l: 'Wo am Körper?', ph: 'am linken Auge und am Hals', join: ' und ', max: 160, sugg: [['Gesicht', 'im Gesicht'], ['Kopf', 'am Kopf'], ['Hals', 'am Hals'], ['Arme', 'an den Armen'], ['Hände', 'an den Händen'], ['Oberkörper', 'am Oberkörper'], ['Beine', 'an den Beinen']], when: (d, it) => ['leicht', 'schwer', 'lebens'].includes(it.vgrad) },
+          ...Object.entries(VART).map(([vk, vl]) => ({ k: `verlOrt.${vk}`, t: 'text', l: `${cap(vl)} – wo?`, ph: { wuergemale: 'am Hals', nase: '', abwehr: 'an beiden Unterarmen' }[vk] ?? 'z. B. am linken Auge', max: 120, when: (d, it) => ['leicht', 'schwer', 'lebens'].includes(it.vgrad) && arr(it.verl).includes(vk) })),
+          { k: 'verlFrei', t: 'text', l: 'Weitere Verletzungen (optional)', ph: 'Schürfwunde am rechten Knie', max: 160, when: (d, it) => ['leicht', 'schwer', 'lebens'].includes(it.vgrad) },
           { k: 'rtw', t: 'choice', l: 'Rettungswagen', o: RTW2, when: (d, it) => ['leicht', 'schwer', 'lebens'].includes(it.vgrad) },
           { k: 'kh', t: 'text', l: 'Welches Krankenhaus?', ph: 'z. B. Mathias-Spital Rheine', recent: true, max: 80, when: (d, it) => it.rtw === 'kh' },
-          { k: 'attest', t: 'yn', l: 'Auf ärztliches Attest hingewiesen?', when: (d, it) => ['leicht', 'schwer', 'lebens'].includes(it.vgrad) && it.rolle !== 'kind' },
+          { k: 'attest', t: 'yn', l: 'Auf ärztliches Attest hingewiesen?', h: 'Ein Attest dokumentiert die Verletzungen und kann zur Akte gegeben werden.', when: (d, it) => ['leicht', 'schwer', 'lebens'].includes(it.vgrad) && it.rolle !== 'kind' && ['nein', 'abgelehnt'].includes(it.rtw) },
           { t: 'head', text: 'Alkohol und Drogen', when: (d, it) => has(it.rolle) && it.rolle !== 'kind' && it.wo !== 'nicht' },
           { k: 'konsum', t: 'yn', l: 'Anhaltspunkte für einen vorherigen Konsum?', when: (d, it) => has(it.rolle) && it.rolle !== 'kind' && it.wo !== 'nicht' },
           { k: 'stoff', t: 'multi', l: 'Konsum von …', o: STOFF_UI, when: (d, it) => it.konsum === 'ja' },
@@ -1014,11 +1016,12 @@
     const sub = () => (t.length ? r.Er : r.Nom);
     if (p.vgrad === 'unverletzt') t.push(`${sub()} war unverletzt.`);
     else if (['leicht', 'schwer', 'lebens'].includes(p.vgrad)) {
-      const arten = [...arr(p.verl).map(k => C.VART[k]).filter(Boolean), ...(has(p.verlFrei) ? [slot(p.verlFrei)] : [])];
-      const det = arten.length ? ` (${joinList(arten)}${has(p.verlWo) ? ' ' + slot(p.verlWo) : ''})` : (has(p.verlWo) ? ` (${slot(p.verlWo)})` : '');
+      const ort = p.verlOrt && typeof p.verlOrt === 'object' ? p.verlOrt : {};
+      const arten = [...arr(p.verl).filter(k => C.VART[k]).map(k => C.VART[k] + (has(ort[k]) ? ' ' + slot(ort[k]) : '')), ...(has(p.verlFrei) ? [slot(p.verlFrei)] : [])];
+      const det = arten.length ? ` (${arten.join(', ')}${has(p.verlWo) && !Object.keys(ort).length ? ' ' + slot(p.verlWo) : ''})` : (has(p.verlWo) ? ` (${slot(p.verlWo)})` : '');
       t.push(`${sub()} war ${{ leicht: 'leicht', schwer: 'schwer', lebens: 'lebensgefährlich' }[p.vgrad]} verletzt${det}.`);
       t.push({ nein: `Einen Rettungswagen benötigte ${r.er} auf Nachfrage nicht.`, abgelehnt: `Einen angebotenen Rettungswagen lehnte ${r.er} ab.`, vorort: `Ein Rettungswagen wurde angefordert; ${r.er} wurde vor Ort versorgt.`, kh: `Ein Rettungswagen wurde angefordert, der ${r.akk} in ${has(p.kh) ? 'das ' + str(p.kh) : 'ein Krankenhaus'} brachte.` }[p.rtw] || '');
-      if (p.attest === 'ja') t.push(`${r.Er} wurde auf die Möglichkeit eines ärztlichen Attests hingewiesen.`);
+      if (p.attest === 'ja') t.push(`${r.Er} wurde darauf hingewiesen, dass ${r.er} die Verletzungen durch ein ärztliches Attest dokumentieren lassen und dieses zur Akte reichen kann.`);
     }
     if (p.konsum === 'nein') t.push(`Anhaltspunkte für einen vorherigen Konsum von Alkohol oder Betäubungsmitteln ergaben sich bei ${r.dat} nicht.`);
     else if (p.konsum === 'ja') {
@@ -1698,7 +1701,7 @@
         add(p.rolle !== 'bs' && C.halsAngriff(d, p) && p.wuergArzt !== 'ja', `${r.Nom}: wegen des Angriffs gegen den Hals eine zeitnahe ärztliche Untersuchung dringend empfehlen und vermerken.`);
         add(!['ja', 'abgelehnt'].includes(p.foto), `${r.Nom}: Lichtbilder der Verletzungen fertigen und der Strafanzeige beifügen${p.rolle === 'bs' ? ' (§ 81b Abs. 1 StPO)' : ''}.`);
         add(!['bs', 'kind'].includes(p.rolle) && p.foto === 'ja' && C.angehoerig(p) && p.fotoBel !== 'ja', `${r.Nom}: Belehrung über das Weigerungsrecht vor den Lichtbildern vermerken (§ 81c Abs. 3 StPO).`);
-        add(!['bs', 'kind'].includes(p.rolle) && p.attest !== 'ja', `${r.Nom}: auf ärztliche Dokumentation der Verletzungen (Attest) hinweisen.`);
+        add(!['bs', 'kind'].includes(p.rolle) && p.attest !== 'ja' && (!has(p.vgrad) || ['nein', 'abgelehnt'].includes(p.rtw)), `${r.Nom}: darauf hinweisen, dass ein ärztliches Attest die Verletzungen dokumentiert und zur Akte gegeben werden kann.`);
       }
       if (['gs', 'zeuge'].includes(p.rolle) && p.da !== 'nein') {
         add(!has(p.bel), `${r.Nom}: Belehrung vermerken – wer, wann, welche Inhalte.`);
