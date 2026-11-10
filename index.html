@@ -1215,6 +1215,13 @@ button.fe-mk:active{transform:scale(.985)}
 body[data-area=schreiben] .pane-schreiben{display:grid}
 .w-side{min-height:200px}
 .w-side .card-head{margin-bottom:12px}
+.w-skq{display:flex;align-items:center;gap:12px;width:100%;margin:0 0 12px;padding:11px 14px;border-radius:16px;background:rgba(236,217,111,.08);border:1px solid rgba(236,217,111,.3);text-align:left;transition:background-color .15s ease,transform .16s var(--ease-out)}
+.w-skq:active{transform:scale(.985)}
+@media (hover:hover) and (pointer:fine){.w-skq:hover{background:rgba(236,217,111,.13)}}
+.w-skq svg.i{width:22px;height:22px;flex:none;color:var(--accent)}
+.w-skq span{display:flex;flex-direction:column;gap:2px;min-width:0}
+.w-skq b{font-size:14px;font-weight:500;color:var(--text)}
+.w-skq small{font-size:11.5px;color:var(--text-3)}
 .w-side sup{font:500 10px var(--mono);color:var(--text-3);margin-left:3px;vertical-align:super}
 .w-docs{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
 .w-doc{display:grid;grid-template-columns:44px minmax(0,1fr) auto;gap:12px;align-items:center;width:100%;padding:9px 12px 9px 9px;border-radius:19px;background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.055);text-align:left;transition:background-color .15s ease,border-color .15s ease,transform .16s var(--ease-out)}
@@ -1998,6 +2005,7 @@ dialog.brief-dlg.open .brief{opacity:1;transform:none}
         <div><span class="spaced">Schriftliche Arbeiten</span><h2 class="card-title">Vorgänge<sup id="wCount">0</sup></h2></div>
         <button class="icon-btn" type="button" data-w="new" aria-label="Neuer Vorgang"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
       </div>
+      <button type="button" class="w-skq" data-w="new" data-mod="skizze"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18l5-12 4 8 3-5 4 9"/><circle cx="17" cy="6" r="2"/></svg><span><b>Unfallskizze</b><small>Luftbild, Fahrzeuge, Fahrwege, Kollisionsort</small></span></button>
       <div id="wList"></div>
     </aside>
     <article class="card w-main" id="wMain"></article>
