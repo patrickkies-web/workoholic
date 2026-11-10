@@ -904,7 +904,7 @@ textarea.input.wf-text{min-height:230px;font-size:13px;line-height:1.55}
 .fe-actor-l{font-size:12px;color:var(--text-3);white-space:nowrap}
 .fe-actor-seg{flex-wrap:nowrap}
 .fe-actor-seg button{height:34px;padding:0 13px}
-.pane-freiheit[data-view=gehen] .fe-map,.pane-freiheit[data-view=wege] .fe-wiz{display:none}
+.pane-freiheit[data-view=gehen] .fe-map,.pane-freiheit[data-view=gehen] .fe-lex,.pane-freiheit[data-view=wege] .fe-wiz,.pane-freiheit[data-view=wege] .fe-lex,.pane-freiheit[data-view=lex] .fe-wiz,.pane-freiheit[data-view=lex] .fe-map{display:none}
 .fe-wiz{display:grid;grid-template-columns:minmax(0,860px);gap:18px;align-items:start}
 .fe-way{display:none;position:sticky;top:calc(16px + var(--sat));padding:20px}
 .fe-how,.fe-way-l{list-style:none;margin:14px 0 0;padding:0;display:flex;flex-direction:column}
@@ -1029,6 +1029,78 @@ button.fe-oref{text-decoration:underline;text-decoration-color:var(--line-2);tex
 .fe-steps li::before{content:counter(fes);display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font:600 11px/1 var(--mono)}
 .fe-sinn{margin-left:6px;height:auto;min-height:22px;padding:2px 8px;font-size:10.5px}
 .fe-sheet .fe-gk-i{display:flex;align-items:center;gap:2px;margin-bottom:14px}
+.fe-term{display:inline;padding:0;margin:0;border:0;background:none;font:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;text-align:inherit;text-decoration:underline;text-decoration-style:dotted;text-decoration-thickness:1.5px;text-decoration-color:rgba(236,217,111,.6);text-underline-offset:.22em;cursor:pointer;border-radius:4px;-webkit-tap-highlight-color:rgba(236,217,111,.18)}
+@media (hover:hover) and (pointer:fine){.fe-term:hover{color:var(--accent);text-decoration-color:var(--accent)}}
+.fe-term:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.fe-mlink{display:inline-grid;place-items:center;width:26px;height:22px;margin:-2px 0 -4px 2px;padding:0;border:0;border-radius:999px;background:rgba(236,217,111,.1);color:var(--accent);vertical-align:middle}
+.fe-mlink svg.i{width:13px;height:13px}
+.fe-lex{max-width:860px;padding:20px}
+.lx-search{display:flex;align-items:center;gap:10px;height:48px;padding:0 14px;border-radius:16px;background:rgba(255,255,255,.05);border:1px solid var(--line-2);transition:border-color .15s ease}
+.lx-search:focus-within{border-color:rgba(236,217,111,.55)}
+.lx-search svg.i{width:18px;height:18px;flex:none;color:var(--text-3)}
+.lx-search input{flex:1;min-width:0;height:100%;background:none;border:0;outline:0;color:var(--text);font-size:16px}
+.lx-search input::placeholder{color:var(--text-3)}
+.lx-groups{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 4px}
+.lx-groups button{height:34px;padding:0 13px;border-radius:999px;background:rgba(255,255,255,.04);border:1px solid var(--line);color:var(--text-2);font-size:12.5px;transition:background-color .15s ease,color .15s ease,transform .16s var(--ease-out)}
+.lx-groups button:active{transform:scale(.97)}
+.lx-groups button[aria-pressed=true]{background:var(--text);color:#111;border-color:transparent}
+.lx-letter{position:sticky;top:0;z-index:1;margin:16px 0 6px;padding:4px 2px;font:600 12px/1 var(--mono);color:var(--accent);background:linear-gradient(180deg,#1b1b1d 60%,rgba(27,27,29,0))}
+.lx-rows{display:grid;grid-template-columns:minmax(0,1fr);gap:6px}
+@media (min-width:1000px){.lx-rows{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.pane-freiheit[data-view=lex] .fe-actor{display:none}
+.lx-row{display:flex;align-items:center;gap:12px;width:100%;min-height:60px;padding:11px 12px 11px 14px;border-radius:16px;background:rgba(255,255,255,.035);border:1px solid var(--line);text-align:left;transition:background-color .15s ease,border-color .15s ease,transform .16s var(--ease-out)}
+.lx-row:active{transform:scale(.985)}
+@media (hover:hover) and (pointer:fine){.lx-row:hover{background:rgba(255,255,255,.07);border-color:var(--line-2)}}
+.lx-row-txt{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.lx-row-t{font-size:15px;line-height:1.3;color:var(--text);overflow-wrap:anywhere}
+.lx-row-k{font-size:12.5px;line-height:1.4;color:var(--text-3);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.lx-row-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:3px}
+.lx-row-g,.lx-row-n{font-size:10.5px;line-height:1;padding:4px 8px;border-radius:999px;background:rgba(255,255,255,.05);color:var(--text-2);white-space:nowrap}
+.lx-row-n{background:rgba(198,220,122,.1);color:var(--lime)}
+.lx-row svg.i{width:16px;height:16px;flex:none;color:var(--text-3)}
+.lx-empty{margin:18px 2px;font-size:13.5px;color:var(--text-3)}
+.lx-h{margin:2px 0 0;font-size:clamp(24px,3vw,30px);font-weight:400;letter-spacing:-.02em;line-height:1.15;overflow-wrap:break-word;hyphens:auto;-webkit-hyphens:auto}
+.lx-kurz{margin:12px 0 0;padding:13px 15px;border-radius:16px;background:var(--accent-soft);color:var(--text);font-size:15px;line-height:1.5}
+.lx-yn{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}
+.lx-yn section{min-width:0;padding:12px 12px 10px;border-radius:16px;border:1px solid var(--line)}
+.lx-yn section[data-k=ja]{background:rgba(198,220,122,.05);border-color:rgba(198,220,122,.2)}
+.lx-yn section[data-k=nein]{background:rgba(240,135,106,.05);border-color:rgba(240,135,106,.2)}
+.lx-yn h4{margin:0 0 8px;font-size:10.5px;font-weight:500;letter-spacing:.14em;text-transform:uppercase}
+.lx-yn section[data-k=ja] h4{color:var(--lime)}
+.lx-yn section[data-k=nein] h4{color:var(--coral)}
+.lx-yn ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:7px}
+.lx-yn li{position:relative;padding-left:18px;font-size:13px;line-height:1.45;color:var(--text-2)}
+.lx-yn li::before{position:absolute;left:0;top:0;font-weight:600}
+.lx-yn section[data-k=ja] li::before{content:"✓";color:var(--lime)}
+.lx-yn section[data-k=nein] li::before{content:"✕";color:var(--coral)}
+.lx-arg section[data-k=ja] li::before{content:"+"}
+.lx-arg section[data-k=nein] li::before{content:"−"}
+.lx-rs{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.lx-r{border-radius:14px;background:rgba(255,255,255,.035);border:1px solid var(--line)}
+.lx-r summary{display:flex;flex-direction:column;gap:4px;padding:10px 12px;cursor:pointer;list-style:none}
+.lx-r summary::-webkit-details-marker{display:none}
+.lx-r-h{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;font-size:12px;color:var(--text-2)}
+.lx-r-h b{font-weight:600;color:var(--text)}
+.lx-r-h em{margin-left:auto;font-style:normal;font-size:11px;color:var(--rc)}
+.lx-dot{width:8px;height:8px;border-radius:50%;background:var(--rc)}
+.lx-r{--rc:var(--text-3)}
+.lx-r[data-r=pro]{--rc:var(--lime)}
+.lx-r[data-r=contra]{--rc:var(--coral)}
+.lx-r-k{font-size:13px;line-height:1.5;color:var(--text-2)}
+.lx-r:not([open]) .lx-r-k{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.lx-r-d{padding:0 12px 11px;font:500 11.5px/1.5 var(--mono);color:var(--text-3);overflow-wrap:anywhere}
+.lx-r-d a{color:var(--accent);text-decoration:underline;text-underline-offset:3px}
+.lx-more{margin-top:16px;border-top:1px solid var(--line)}
+.lx-more>summary{display:flex;align-items:center;min-height:48px;cursor:pointer;list-style:none;font-size:13px;color:var(--text-2)}
+.lx-more>summary::-webkit-details-marker{display:none}
+.lx-more>summary::after{content:"+";margin-left:auto;font:500 16px/1 var(--mono);color:var(--text-3)}
+.lx-more[open]>summary::after{content:"−"}
+.lx-see{display:flex;flex-wrap:wrap;gap:6px}
+.lx-chip{min-height:34px;padding:6px 12px;border-radius:999px;background:rgba(255,255,255,.04);border:1px solid var(--line-2);color:var(--text);font-size:12.5px;text-align:left;transition:background-color .15s ease,transform .16s var(--ease-out)}
+.lx-chip:active{transform:scale(.97)}
+.lx-all{width:100%;margin-top:16px}
+@media (max-width:560px){.lx-yn{grid-template-columns:1fr}}
+@media (max-width:760px){.fe-lex{padding:16px 14px}}
 .fe-need-h small,.wf-info .f-label small{display:block;margin-top:3px;font-size:11px;font-weight:400;letter-spacing:0;text-transform:none;color:var(--text-3)}
 .fe-mb{display:flex;align-items:flex-start;gap:8px;width:100%;min-height:24px;padding:0;text-align:left;font:inherit;line-height:inherit;color:inherit;border-radius:6px}
 .fe-mb span{flex:1;min-width:0;text-decoration:underline dotted;text-decoration-color:rgba(255,255,255,.28);text-underline-offset:4px;overflow-wrap:anywhere}
@@ -1861,11 +1933,18 @@ dialog.brief-dlg.open .brief{opacity:1;transform:none}
   <section class="area-pane pane-freiheit" aria-labelledby="feH" data-view="gehen">
     <div class="area-head"><div><span class="spaced">Freiheitsentziehung &middot; NRW</span><h1 class="area-h" id="feH">FE-Prüfung</h1><p class="area-sub">Eine Frage pro Blatt: Du wählst, was vorliegt – das nächste Blatt zeigt nur noch die Wege, die dann in Betracht kommen, und was dafür vorliegen muss. Am Ende steht „rechtmäßig“ mit Rechtsgrundlage und Formvorschriften – oder „nicht rechtmäßig“ mit Alternativen.</p></div></div>
     <div class="fe-bar">
-      <div class="seg fe-tabs" id="feTabs" role="tablist" aria-label="Ansicht"><button type="button" role="tab" data-fe-tab="gehen" aria-selected="true" aria-pressed="true">Entscheiden</button><button type="button" role="tab" data-fe-tab="wege" aria-selected="false" aria-pressed="false">Alle Wege</button></div>
+      <div class="seg fe-tabs" id="feTabs" role="tablist" aria-label="Ansicht"><button type="button" role="tab" data-fe-tab="gehen" aria-selected="true" aria-pressed="true">Entscheiden</button><button type="button" role="tab" data-fe-tab="wege" aria-selected="false" aria-pressed="false">Alle Wege</button><button type="button" role="tab" data-fe-tab="lex" aria-selected="false" aria-pressed="false">Lexikon</button></div>
       <div class="fe-actor"><span class="fe-actor-l">Wer handelt?</span><div class="seg fe-actor-seg" id="feActor" role="group" aria-label="Wer handelt?"><button type="button" data-fe-pol="1" aria-pressed="true">Polizei</button><button type="button" data-fe-pol="0" aria-pressed="false">Privatperson</button></div><button type="button" class="wf-i" data-fei="akteur" aria-label="Erläuterung: Wer handelt?"><span aria-hidden="true">i</span></button></div>
     </div>
     <div class="fe-wiz"><article class="card fe-sheet" id="feSheet" aria-live="polite"></article><aside class="card fe-way" id="feWay" aria-label="Dein Weg"></aside></div>
     <article class="card fe-map" id="feMap"></article>
+    <article class="card fe-lex" id="feLex">
+      <div class="card-head"><div><span class="spaced">Nachschlagen</span><h2 class="card-title">Lexikon der Freiheitsentziehung</h2></div><span class="pill fe-src" id="feLexN"></span></div>
+      <p class="fe-map-lead">Jeder Begriff kurz erklärt – mit Fällen, in denen er vorliegt oder nicht, Argumenten für beide Richtungen und Urteilen. Unterstrichene Wörter in der Prüfung führen direkt hierher.</p>
+      <label class="lx-search"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg><span class="sr">Begriff suchen</span><input type="search" id="feLexQ" placeholder="Begriff suchen, z. B. frische Tat" autocomplete="off" spellcheck="false" enterkeyhint="search"></label>
+      <div class="lx-groups" id="feLexG" role="group" aria-label="Themen"></div>
+      <div id="feLexList"></div>
+    </article>
     <p class="wf-foot"><b>Keine Rechtsberatung – Orientierungshilfe.</b> Bundesrecht (GG, StPO, OWiG, AufenthG, IfSG, JuSchG, SGB VIII, FamFG, BGB) im amtlichen Wortlaut, Stand 07.11.2026. PolG NRW, PsychKG NRW und Art. 5 EMRK sinngemäß – Nummerierung und Höchstdauern (§ 35, § 38 PolG NRW) vor Verwendung am aktuellen Wortlaut prüfen. Nicht abgebildet sind u. a. Strafvollzugs-, Wehr- und Zivilprozessrecht (z. B. Erzwingungshaft nach ZPO).</p>
   </section>
 
