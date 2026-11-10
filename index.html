@@ -1029,6 +1029,17 @@ button.fe-oref{text-decoration:underline;text-decoration-color:var(--line-2);tex
 .fe-steps li::before{content:counter(fes);display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font:600 11px/1 var(--mono)}
 .fe-sinn{margin-left:6px;height:auto;min-height:22px;padding:2px 8px;font-size:10.5px}
 .fe-sheet .fe-gk-i{display:flex;align-items:center;gap:2px;margin-bottom:14px}
+.fe-conf{list-style:none;margin:16px 0 0;padding:0;display:flex;flex-direction:column}
+.fe-conf li{display:flex;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.fe-conf li:first-child{border-top:0}
+.fe-conf-n{flex:none;display:grid;place-items:center;width:28px;height:22px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-size:11px}
+.fe-conf-end .fe-conf-n{background:rgba(198,220,122,.14);color:var(--lime)}
+.fe-conf-b{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.fe-conf-q{font-size:12.5px;line-height:1.4;color:var(--text-3)}
+.fe-conf-a{font-size:14.5px;line-height:1.4;color:var(--text);overflow-wrap:anywhere}
+.fe-conf-c{font-size:13px;line-height:1.45;color:var(--lime)}
+.fe-conf-c::before{content:"✓ ";font-weight:600}
+.fe-conf-end .fe-conf-a{color:var(--lime)}
 .fe-term{display:inline;padding:0;margin:0;border:0;background:none;font:inherit;line-height:inherit;letter-spacing:inherit;color:inherit;text-align:inherit;text-decoration:underline;text-decoration-style:dotted;text-decoration-thickness:1.5px;text-decoration-color:rgba(236,217,111,.6);text-underline-offset:.22em;cursor:pointer;border-radius:4px;-webkit-tap-highlight-color:rgba(236,217,111,.18)}
 @media (hover:hover) and (pointer:fine){.fe-term:hover{color:var(--accent);text-decoration-color:var(--accent)}}
 .fe-term:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -2427,6 +2438,7 @@ dialog.brief-dlg.open .brief{opacity:1;transform:none}
 <script src="js/vuf.js"></script>
 <script src="js/vermisst.js"></script>
 <script src="js/hg.js"></script>
+<script src="js/febericht.js"></script>
 <script src="js/writer.js"></script>
 </body>
 </html>

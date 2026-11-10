@@ -13,6 +13,9 @@
   if (window.WVUF) MODULES[window.WVUF.id] = window.WVUF;
   if (window.WVermisst) MODULES[window.WVermisst.id] = window.WVermisst;
   if (window.WHG) MODULES[window.WHG.id] = window.WHG;
+  if (window.WFEB) MODULES[window.WFEB.id] = window.WFEB;
+  /** Module, die man direkt neu anlegen kann (der FE-Bericht entsteht nur aus der FE-Prüfung). */
+  const creatable = () => Object.values(MODULES).filter(m => !m.noNew);
   /** Beschriftungen je Modul (m.labels), sonst die der Verkehrsunfallflucht. */
   const lab = (m, k, def) => (m && m.labels && m.labels[k]) || def;
   /** Zusätzliche Reiter eines Moduls im Ergebnis (m.extraTabs: [{k, l, when?, hint?, text}]). */
@@ -308,7 +311,7 @@
     const q = (($('#search') || {}).value || '').trim().toLocaleLowerCase('de');
     const rows = docs.slice().sort((a, b) => (b.u || b.updatedAt || 0) - (a.u || a.updatedAt || 0)).filter(d => !q || (d.title + ' ' + (mod(d) ? mod(d).subtitle(d.data) : '')).toLocaleLowerCase('de').includes(q));
     $('#wCount').textContent = docs.length;
-    if (!rows.length) { host.innerHTML = `<div class="empty w-empty"><h3>${docs.length ? 'Nichts gefunden' : 'Noch kein Vorgang'}</h3><p>${docs.length ? 'Suche anpassen.' : 'Ein Vorgang führt dich Schritt für Schritt durch die Aufnahme – alles wird verschlüsselt gespeichert, du kannst jederzeit unterbrechen.'}</p>${docs.length ? '' : `<div class="row">${Object.values(MODULES).map((m, i) => `<button type="button" class="btn ${i ? 'btn-ghost' : 'btn-accent'} btn-sm" data-w="new" data-mod="${esc(m.id)}">${esc(lab(m, 'newBtn', 'Neue ' + m.name.replace(/ ohne Personenschaden$/, '')))}</button>`).join('')}</div>`}</div>`; return; }
+    if (!rows.length) { host.innerHTML = `<div class="empty w-empty"><h3>${docs.length ? 'Nichts gefunden' : 'Noch kein Vorgang'}</h3><p>${docs.length ? 'Suche anpassen.' : 'Ein Vorgang führt dich Schritt für Schritt durch die Aufnahme – alles wird verschlüsselt gespeichert, du kannst jederzeit unterbrechen.'}</p>${docs.length ? '' : `<div class="row">${creatable().map((m, i) => `<button type="button" class="btn ${i ? 'btn-ghost' : 'btn-accent'} btn-sm" data-w="new" data-mod="${esc(m.id)}">${esc(lab(m, 'newBtn', 'Neue ' + m.name.replace(/ ohne Personenschaden$/, '')))}</button>`).join('')}</div>`}</div>`; return; }
     host.innerHTML = `<ul class="w-docs">${rows.map(d => {
       const m = mod(d); const total = m ? visibleSteps(m, d.data).length : 1;
       const pct = d.status === 'fertig' ? 100 : Math.round(Math.min(d.step, total) / total * 100);
@@ -361,7 +364,7 @@
   const visibleKeys = (st, data) => st.fields.filter(f => !f.when || f.when(data)).map(f => f.k || f.text).join('|');
 
   function introHtml() {
-    const mods = Object.values(MODULES);
+    const mods = creatable();
     return `<div class="w-intro">
       <span class="spaced">Schriftliche Arbeiten</span>
       <h2 class="w-intro-h">Aufnehmen, ohne zu tippen.</h2>
@@ -435,8 +438,8 @@
   /** Neuer Vorgang. Ohne Typ und mit mehreren Modulen: erst die Auswahl zeigen. `preset` füllt Daten vor (z. B. Besatzung aus der laufenden Schicht). */
   function newDoc(type, preset) {
     if (!W() || !W().unlocked()) return;
-    if (!type && Object.keys(MODULES).length > 1) { U.view = 'list'; U.id = null; renderMain(); renderList(); window.scrollTo({ top: 0 }); return; }
-    const m = MODULES[type] || Object.values(MODULES)[0]; if (!m) return;
+    if (!type && creatable().length > 1) { U.view = 'list'; U.id = null; renderMain(); renderList(); window.scrollTo({ top: 0 }); return; }
+    const m = MODULES[type] || creatable()[0]; if (!m) return;
     const pre = preset && typeof preset === 'object' ? preset : ((W().preset && W().preset()) || {});
     const data = { ...pre, einsatz: { datum: todayKey(0), zeit: nowHM(), ...(pre.einsatz || {}) } };
     for (const k of Object.keys(data.einsatz)) if (data.einsatz[k] == null || data.einsatz[k] === '' || (Array.isArray(data.einsatz[k]) && !data.einsatz[k].length)) delete data.einsatz[k];

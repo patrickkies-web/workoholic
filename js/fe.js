@@ -508,7 +508,7 @@
   N.no_bf = { leaf: 'no', tip: 'v_uhaft', why: 'Ohne gültigen Befehl oder bei Zweifeln an der Identität ist eine Ergreifung nicht zulässig.', alt: [['idf_g', 'Identität klären']] };
 
   /* ======================= Navigation im Baum ======================= */
-  const fe = { pol: true, path: [], cur: 'start', tab: 'gehen', anim: 0, outline: null, lexQ: '', lexG: '' };
+  const fe = { pol: true, path: [], cur: 'start', tab: 'gehen', anim: 0, outline: null, lexQ: '', lexG: '', pick: false };
   const ctx = () => ({ pol: fe.pol });
   const val = x => (typeof x === 'function' ? x(ctx()) : x);
   const goOf = o => val(o.go);
@@ -537,13 +537,14 @@
   function conds() { const out = []; for (let k = lastJump() + 1; k < fe.path.length; k++) { const s = fe.path[k]; const o = N[s.n].opts[s.o]; if (o && o.c) out.push(o.c); } return out; }
   function stepText(s) { if (s.j) return { k: 'Stattdessen', a: s.l, q: 'Stattdessen' }; const n = N[s.n]; return { k: n.k, a: n.opts[s.o].l, q: n.q }; }
   function choose(i) {
+    fe.pick = false;
     const n = N[fe.cur]; if (!n || n.leaf) return; const o = n.opts[i]; if (!o || (o.pol && !fe.pol)) return;
     fe.path.push({ n: fe.cur, o: i }); fe.cur = goOf(o); fe.anim = 1; render(); settle();
   }
-  function jump(t, l) { if (!N[t] || !linkOk(t)) return; fe.path.push({ n: fe.cur, j: t, l }); fe.cur = t; fe.anim = 1; render(); settle(); }
-  function back() { if (!fe.path.length) return; fe.cur = fe.path.pop().n; fe.anim = -1; render(); settle(); }
-  function toStep(k) { if (k < 0 || k >= fe.path.length) return; fe.cur = fe.path[k].n; fe.path = fe.path.slice(0, k); fe.anim = -1; render(); settle(); }
-  function goTo(id) { const p = pathTo(id) || pathTo(id, true); if (!p) return false; fe.path = p; fe.cur = id; fe.tab = 'gehen'; fe.anim = 1; render(); settle(); return true; }
+  function jump(t, l) { fe.pick = false; if (!N[t] || !linkOk(t)) return; fe.path.push({ n: fe.cur, j: t, l }); fe.cur = t; fe.anim = 1; render(); settle(); }
+  function back() { fe.pick = false; if (!fe.path.length) return; fe.cur = fe.path.pop().n; fe.anim = -1; render(); settle(); }
+  function toStep(k) { fe.pick = false; if (k < 0 || k >= fe.path.length) return; fe.cur = fe.path[k].n; fe.path = fe.path.slice(0, k); fe.anim = -1; render(); settle(); }
+  function goTo(id) { fe.pick = false; const p = pathTo(id) || pathTo(id, true); if (!p) return false; fe.path = p; fe.cur = id; fe.tab = 'gehen'; fe.anim = 1; render(); settle(); return true; }
   function setPol(v) {
     fe.pol = !!v; fe.outline = null;
     if (!fe.pol) {
@@ -605,13 +606,52 @@
         ${L.alt && linkBtns(L.alt) ? `<span class="wf-gk">Stattdessen prüfen</span><div class="fe-links">${linkBtns(L.alt)}</div>` : ''}`;
     }
     h += `${laws ? `<span class="wf-gk">Wortlaut</span><span class="wf-laws">${laws}</span>` : ''}
-      <div class="wf-actions"><button type="button" class="btn btn-accent" data-fe-copy>Vermerk kopieren</button></div>`;
+      <div class="wf-actions">${L.leaf === 'ok' ? '<button type="button" class="btn btn-accent" data-fe-pick>Diesen Weg wählen</button><button type="button" class="btn btn-ghost" data-fe-copy>Vermerk kopieren</button>' : '<button type="button" class="btn btn-accent" data-fe-copy>Vermerk kopieren</button>'}</div>
+      ${L.leaf === 'ok' ? '<p class="fe-mini">„Diesen Weg wählen“ zeigt alle Voraussetzungen noch einmal der Reihe nach und legt danach den Bericht an – mit Formvorschriften-Check und Textbausteinen.</p>' : ''}`;
     return h;
+  }
+  /* ======================= Weg bestätigen → Bericht ======================= */
+  function kindOf(id) {
+    if (id === 'ok_127_1') return fe.pol ? 'stpo' : 'jedermann';
+    if (/^ok_127/.test(id)) return 'stpo';
+    if (id === 'ok_164') return 's164';
+    if (/^ok_(163b|owi_idf)/.test(id)) return 'idf';
+    if (/^ok_bp_/.test(id)) return 'bp';
+    if (/^ok_bf_(vollstr|erzw)$/.test(id)) return 'vollstr';
+    if (/^ok_bf_/.test(id)) return 'vollzug';
+    if (/^ok_(35_abs2|jusch_)/.test(id)) return 'jusch';
+    if (/^ok_(psychkg|bgb1831|sgb42|ew_psych|auf|ifsg)$/.test(id)) return 'sonder';
+    return 'polg';
+  }
+  function pickSteps() {
+    const lj = lastJump();
+    return fe.path.map((s, k) => { const t = stepText(s), o = s.j ? null : N[s.n].opts[s.o]; return { q: t.q, a: t.a, k: t.k, c: k > lj && o && o.c ? o.c : '' }; });
+  }
+  function pickHtml(id, L) {
+    const st = pickSteps(), nC = st.filter(x => x.c).length, verf = val(L.verf) || [];
+    return `<div class="fe-kick"><span class="fe-badge">Weg bestätigen</span><span class="fe-k"></span>${iBtn(L.tip, '')}</div>
+      <h2 class="fe-qh" id="feQ" tabindex="-1">Diesen Weg wählen?</h2>
+      <div class="fe-normrow"><span class="fe-gk">Rechtsgrundlage</span><span class="pill pill-outline mono fe-norm">${esc(L.norm)}</span></div>
+      <p class="fe-lead">Von oben nach unten noch einmal prüfen, ob alles so vorliegt. Danach legt die App den Bericht an – mit diesen Antworten vorausgefüllt.</p>
+      <ol class="fe-conf">${st.map((x, i) => `<li><span class="fe-conf-n mono">${pad(i + 1)}</span><span class="fe-conf-b"><span class="fe-conf-q">${esc(x.q)}</span><span class="fe-conf-a">${esc(x.a)}</span>${x.c ? `<span class="fe-conf-c">${termLine(x.c)}</span>` : ''}</span></li>`).join('')}<li class="fe-conf-end"><span class="fe-conf-n mono">✓</span><span class="fe-conf-b"><span class="fe-conf-q">Ergebnis</span><span class="fe-conf-a">Freiheitsentziehung rechtmäßig – ${esc(L.norm)}</span></span></li></ol>
+      <span class="wf-gk">Danach fragt der Bericht ab</span>
+      <ul class="wf-hints"><li>Person: männlich oder weiblich, Name – für die richtige Satzführung</li><li>Lage: Zeitpunkt des Ergreifens, Ort, Anlass, Sachverhalt</li>${nC ? `<li>Begründung zu ${nC === 1 ? 'der Voraussetzung' : `allen ${nC} Voraussetzungen`} – Satzanfang steht fest, das Graue zeigt, wie es weitergeht</li>` : ''}<li>Formvorschriften: ${esc(verf.length ? verf.map(v => v.split(/[;(–]/)[0].trim()).slice(0, 4).join(' · ') : 'Grund, Belehrung, Benachrichtigung, Richter')} – erledigt, nicht erfolgt oder entfällt</li></ul>
+      <div class="wf-actions"><button type="button" class="btn btn-accent" data-fe-confirm>Weg bestätigen – Bericht anlegen</button><button type="button" class="btn btn-ghost" data-fe-unpick>Zurück zum Ergebnis</button></div>
+      <p class="fe-mini">Der Bericht wird verschlüsselt unter „Schreiben“ gespeichert und lässt sich jederzeit unterbrechen.</p>`;
+  }
+  function pickConfirm() {
+    const L = N[fe.cur]; if (!L || L.leaf !== 'ok') return;
+    if (!window.WWriter) { B().toast('„Schreiben“ ist nicht verfügbar'); return; }
+    const base = (B().preset && B().preset()) || {};
+    const preset = { ...base, fe: { leaf: fe.cur, norm: L.norm, folge: val(L.folge), verf: val(L.verf) || [], hin: L.hin || [], kind: kindOf(fe.cur), pol: fe.pol, zeuge: fe.cur === 'ok_163b2', steps: pickSteps() } };
+    fe.pick = false; render();
+    const nav = document.querySelector('#areas [data-area="schreiben"]'); if (nav) nav.click();
+    window.WWriter.newDoc('fe', preset);
   }
   function sheetHtml() {
     const id = fe.cur, n = N[id];
     return `<ol class="fe-trail" aria-label="Dein Weg">${trailHtml()}</ol>
-      <div class="fe-body${fe.anim > 0 ? ' fe-in-f' : fe.anim < 0 ? ' fe-in-b' : ''}">${n.leaf ? leafHtml(id, n) : nodeHtml(id, n)}</div>
+      <div class="fe-body${fe.anim > 0 ? ' fe-in-f' : fe.anim < 0 ? ' fe-in-b' : ''}">${n.leaf ? (fe.pick && n.leaf === 'ok' ? pickHtml(id, n) : leafHtml(id, n)) : nodeHtml(id, n)}</div>
       <div class="fe-nav"><button type="button" class="btn btn-ghost" data-fe-back${fe.path.length ? '' : ' disabled'}><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>Zurück</button><span class="grow"></span>${fe.path.length ? '<button type="button" class="btn btn-ghost" data-fe-reset>Neu beginnen</button>' : ''}</div>`;
   }
 
@@ -769,7 +809,7 @@
     if (fe.tab === 'lex') renderLex();
     if (fe.tab === 'wege') { if (!fe.outline) fe.outline = outlineHtml(); const m = $('#feMap'); if (m.dataset.pol !== String(fe.pol) || !m.firstChild) { m.innerHTML = fe.outline; m.dataset.pol = String(fe.pol); } }
   }
-  function reset() { fe.path = []; fe.cur = 'start'; fe.tab = 'gehen'; fe.anim = 0; render(); }
+  function reset() { fe.pick = false; fe.path = []; fe.cur = 'start'; fe.tab = 'gehen'; fe.anim = 0; render(); }
   function bind() {
     const root = $('.pane-freiheit'); if (!root) return;
     root.addEventListener('click', async e => {
@@ -782,7 +822,10 @@
       const c = e.target.closest('button[data-fe-crumb]'); if (c) { toStep(+c.dataset.feCrumb); return; }
       const j = e.target.closest('button[data-fe-jump]'); if (j) { jump(j.dataset.feJump, j.dataset.feL || ''); return; }
       const g = e.target.closest('button[data-fe-go]'); if (g) { goTo(g.dataset.feGo); return; }
-      if (e.target.closest('[data-fe-back]')) { back(); return; }
+      if (e.target.closest('[data-fe-pick]')) { fe.pick = true; fe.anim = 1; render(); settle(); return; }
+      if (e.target.closest('[data-fe-unpick]')) { fe.pick = false; fe.anim = -1; render(); settle(); return; }
+      if (e.target.closest('[data-fe-confirm]')) { pickConfirm(); return; }
+      if (e.target.closest('[data-fe-back]')) { if (fe.pick) { fe.pick = false; fe.anim = -1; render(); settle(); return; } back(); return; }
       if (e.target.closest('[data-fe-reset]')) { reset(); settle(); return; }
       if (e.target.closest('[data-fe-copy]')) {
         try { await navigator.clipboard.writeText(vermerk()); B().toast('Vermerk kopiert'); } catch (er) { B().toast('Kopieren nicht möglich'); }
@@ -797,5 +840,5 @@
     });
   }
   bind();
-  window.WFE = Object.freeze({ render, reset, choose, back, jump, goTo, setPol, pathTo, conds, vermerk, state: () => ({ cur: fe.cur, path: fe.path.slice(), pol: fe.pol, tab: fe.tab }), openLex, termify, N, TIPS, LAW, LEX, LINK });
+  window.WFE = Object.freeze({ render, reset, choose, back, jump, goTo, setPol, pathTo, conds, vermerk, state: () => ({ cur: fe.cur, path: fe.path.slice(), pol: fe.pol, tab: fe.tab, pick: fe.pick }), pickConfirm, kindOf, openLex, termify, N, TIPS, LAW, LEX, LINK });
 })();

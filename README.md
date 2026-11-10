@@ -144,6 +144,7 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 - 67 Fragen, 72 Ergebnisse, 35 Rechtsgrundlagen (StPO, OWiG, PolG NRW, PsychKG NRW, BGB, JuSchG, SGB VIII, AufenthG, IfSG); bis zu 11 Fragen bis zum Ergebnis. Polizei oder Privatperson umschaltbar (Privatpersonen nur § 127 Abs. 1 StPO).
 - **Dein Weg:** Am Desktop Seitenleiste mit allen Schritten und erfüllten Voraussetzungen, am Handy einzeilige Wegleiste – jeder Schritt antippbar zum Neu-Abzweigen.
 - **Alle Wege:** Übersicht, aus demselben Baum erzeugt, nach Ausgangslage aufgeklappt; jede Frage und jedes Ergebnis springt mit vollständigem Weg in die Entscheidung.
+- **Diesen Weg wählen → Bericht:** Beim Ergebnis „rechtmäßig“ zeigt ein Knopf den ganzen Weg noch einmal chronologisch (Frage → Antwort → erfüllte Voraussetzung) zum Bestätigen. Danach entsteht unter „Schreiben“ ein **FE-Bericht**, vorausgefüllt mit Rechtsgrundlage und Prüfweg: männlich oder weiblich (steuert die Satzführung), Lage, **Begründung je Voraussetzung** (fester Satzanfang, grau die Fortsetzung), **Formvorschriften-Check** passend zur Rechtsgrundlage (StPO, Jedermann, Identität, § 164, Blutprobe, PolG NRW, Jugendschutz, Sonderrecht, Vollzug/Vollstreckung) – je Punkt erledigt, nicht erfolgt (mit Grund) oder entfällt, mit Uhrzeit. Ergebnis: Vermerk, Kurzsachverhalt, **offene Punkte mit Angriffspunkten** (z. B. fehlende Belehrungsinhalte nach § 114b, keine Benachrichtigung, Fixierung ohne Richter) und Personalien.
 - Bundesrecht im amtlichen Wortlaut (Stand 07.11.2026); **PolG NRW, PsychKG NRW und Art. 5 EMRK sinngemäß** – Nummerierung und Höchstdauern vor Verwendung am aktuellen Wortlaut prüfen. Keine Rechtsberatung.
 
 **Schreiben (Schriftliche Arbeiten)**
@@ -188,6 +189,7 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 | `js/vermisst.js` | Modul Vermisste Person: Fragenkatalog, Übersicht, Kurzsachverhalt, Fahndung, offene Punkte |
 | `js/hg.js` | Modul Häusliche Gewalt: Fragenkatalog, Sachverhalt und Begründung § 34a |
 | `js/fe.js` | Bereich FE-Prüfung: Entscheidungsbaum Freiheitsentziehung, Normtexte, Übersicht „Alle Wege“ |
+| `js/febericht.js` | Schreiben-Modul „Freiheitsentziehung – Bericht“: aus dem gewählten Prüfweg, Formvorschriften-Check, Vermerk |
 | `docs/VUF-MASTERPLAN.md` | Masterplan: Grundlagen, Ablauf, Fragen, Satzführung, Sicherheit, Ausbau |
 | `docs/HG-MASTERPLAN.md` | Masterplan Häusliche Gewalt: Grundlagen, Ablauf, Bedienung, Ausgaben, Grenzen |
 | `vendor/hash-wasm/` | Argon2id (hash-wasm 4.12.0, MIT), unverändert aus npm |
