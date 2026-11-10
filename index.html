@@ -1060,6 +1060,49 @@ button.fe-oref{text-decoration:underline;text-decoration-color:var(--line-2);tex
 .sk-sum li::before{content:"";position:absolute;left:12px;top:13px;width:10px;height:10px;border-radius:50%;background:var(--c,#ff2d2d)}
 .sk-sum li b{color:var(--text);font-weight:500;margin-right:4px}
 .sk-replace{align-self:flex-start}
+.sk-prev{position:relative;display:flex;justify-content:center;width:100%;padding:0;border-radius:16px;overflow:hidden;border:1px solid var(--line-2);background:#0c0c0d;cursor:zoom-in;transition:transform .16s var(--ease-out),border-color .15s ease}
+.sk-prev:active{transform:scale(.99)}
+@media (hover:hover) and (pointer:fine){.sk-prev:hover{border-color:rgba(236,217,111,.5)}}
+.sk-prev-b{position:absolute;left:10px;bottom:10px;padding:6px 12px;border-radius:999px;background:rgba(10,10,11,.78);color:var(--text);font-size:12px;font-weight:500;pointer-events:none;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+/* Vollbild-Editor der Unfallskizze */
+body.skx-open{overflow:hidden}
+body.skx-open .toasts{bottom:calc(132px + var(--sab))}
+.skx{position:fixed;inset:0;z-index:140;display:flex;flex-direction:column;background:#0c0c0d;color:var(--text);overscroll-behavior:contain}
+.skx-top{display:flex;align-items:center;gap:8px;padding:calc(8px + var(--sat)) calc(10px + var(--sar)) 8px calc(10px + var(--sal));background:rgba(20,20,22,.96);border-bottom:1px solid var(--line)}
+.skx-top .grow,.skx-row .grow{flex:1 1 auto;min-width:0}
+.skx-zoom{display:flex;align-items:center;height:34px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.05);overflow:hidden}
+.skx-zoom button{height:100%;min-width:38px;padding:0 10px;font-size:15px;color:var(--text);transition:background-color .15s ease}
+.skx-zoom button[data-x=zfit]{font-size:12px;border-left:1px solid var(--line);border-right:1px solid var(--line)}
+.skx-zoom button:active{background:rgba(255,255,255,.1)}
+.skx-stage{position:relative;flex:1 1 auto;min-height:0;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none}
+.skx-stage canvas{position:absolute;inset:0;display:block;touch-action:none;cursor:grab}
+.skx-stage[data-mode=pre] canvas,.skx-stage[data-mode=post] canvas{cursor:crosshair}
+.skx-stage[data-mode=hit] canvas{cursor:cell}
+.skx-hint{position:absolute;left:50%;top:10px;transform:translateX(-50%);width:max-content;max-width:calc(100% - 128px);margin:0;padding:7px 13px;border-radius:999px;background:rgba(10,10,11,.8);color:var(--text-2);font-size:12px;line-height:1.35;text-align:center;pointer-events:none;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.skx-stage:is([data-mode=pre],[data-mode=post],[data-mode=hit]) .skx-hint{background:var(--accent);color:var(--accent-ink);font-weight:500}
+.skx-bar{display:flex;flex-direction:column;gap:8px;padding:10px calc(10px + var(--sar)) calc(10px + var(--sab)) calc(10px + var(--sal));background:rgba(20,20,22,.96);border-top:1px solid var(--line)}
+.skx-row{display:flex;align-items:center;flex-wrap:wrap;gap:6px;width:100%;max-width:760px;min-width:0;margin:0 auto}
+.skx-two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.skx-row .chip{height:38px;padding:0 14px;font-size:13px;color:var(--text);border-style:solid}
+.skx-name{display:inline-flex;align-items:center;gap:7px;margin-right:4px;font-size:13.5px;font-weight:500}
+.skx-name i,.skx-v i{width:12px;height:12px;flex:none;border-radius:50%;background:var(--c);box-shadow:0 0 0 2px rgba(0,0,0,.4)}
+.skx-b{display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-width:0;padding:8px 10px 8px 44px;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid var(--line-2);text-align:left;position:relative;transition:transform .16s var(--ease-out),background-color .15s ease}
+.skx-b:active{transform:scale(.97)}
+.skx-b b{font-size:13.5px;font-weight:500;color:var(--text)}
+.skx-b small{font-size:11px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.skx-b b{white-space:nowrap}
+.skx-b.on{border-color:var(--c);background:rgba(255,255,255,.08)}
+.skx-b::before{content:"";position:absolute;left:12px;top:50%;width:24px;height:0;border-top:4px solid var(--c)}
+.skx-post::before{border-top-style:dashed}
+.skx-b::after{content:"";position:absolute;left:30px;top:50%;margin-top:-6px;border:6px solid transparent;border-left:8px solid var(--c);border-right:0}
+.skx-pre::after{left:20px}
+.skx-vs{gap:6px;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}
+.skx-vs::-webkit-scrollbar{display:none}
+.skx-v{display:inline-flex;align-items:center;gap:7px;flex:none;min-height:36px;padding:5px 12px;border-radius:999px;background:rgba(255,255,255,.04);border:1px solid var(--line-2);color:var(--text);font-size:12.5px;transition:transform .16s var(--ease-out)}
+.skx-v:active{transform:scale(.97)}
+.skx-size{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--text-3)}
+.skx-size button{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--text);font-size:16px;transition:transform .16s var(--ease-out)}
+.skx-size button:active{transform:scale(.94)}
 .sk-pre{margin:0;padding:14px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid var(--line);white-space:pre-wrap;font:400 12.5px/1.55 var(--mono);color:var(--text-2);overflow-wrap:anywhere}
 .fe-conf{list-style:none;margin:16px 0 0;padding:0;display:flex;flex-direction:column}
 .fe-conf li{display:flex;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
@@ -2005,7 +2048,7 @@ dialog.brief-dlg.open .brief{opacity:1;transform:none}
         <div><span class="spaced">Schriftliche Arbeiten</span><h2 class="card-title">Vorgänge<sup id="wCount">0</sup></h2></div>
         <button class="icon-btn" type="button" data-w="new" aria-label="Neuer Vorgang"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
       </div>
-      <button type="button" class="w-skq" data-w="new" data-mod="skizze"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18l5-12 4 8 3-5 4 9"/><circle cx="17" cy="6" r="2"/></svg><span><b>Unfallskizze</b><small>Luftbild, Fahrzeuge, Fahrwege, Kollisionsort</small></span></button>
+      <button type="button" class="w-skq" data-w="new" data-mod="skizze"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18l5-12 4 8 3-5 4 9"/><circle cx="17" cy="6" r="2"/></svg><span><b>Unfallskizze</b><small>Luftbild, Fahrzeuge, woher und wohin, Kollisionsort</small></span></button>
       <div id="wList"></div>
     </aside>
     <article class="card w-main" id="wMain"></article>
