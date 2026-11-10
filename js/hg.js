@@ -100,30 +100,41 @@
   const ofRole = (d, r) => plist(d).map((p, i) => ({ p, i })).filter(y => isP(y.p) && y.p.rolle === r);
   const gOf = p => (p && (p.geschlecht === 'w' || p.geschlecht === 'm') ? p.geschlecht : 'd');
 
-  /** Personenreferenz mit Fällen und Pronomen. Mehrere gleicher Rolle: „die Geschädigte zu 1“, „die Zeugin Z 02“, „Kind 2“. */
+  /** Name zur Unterscheidung: der Nachname; teilt eine andere Person den Nachnamen, mit Vorname. */
+  function nameTag(d, i) {
+    const L = plist(d), q = (L[i] && L[i].p) || {};
+    const nn = str(q.nachname), vn = str(q.vorname);
+    if (!nn) return vn;
+    const gleich = L.some((o, j) => j !== i && isP(o) && str(get(o, 'p.nachname')).toLowerCase() === nn.toLowerCase());
+    return gleich && vn ? `${vn} ${nn}` : nn;
+  }
+  /** Personenreferenz mit Fällen und Pronomen. Mehrere gleicher Rolle: „die Geschädigte Muster“, bei gleichem Nachnamen „die Geschädigte Anna Muster“; ohne Namen „die Geschädigte zu 1“. */
   function ref(d, i, o = {}) {
     const p = i >= 0 ? (plist(d)[i] || {}) : { rolle: o.role || 'gs' };
     const r = p.rolle;
     const same = i >= 0 ? ofRole(d, r) : [];
     const n = same.findIndex(y => y.i === i) + 1, many = same.length > 1;
     const kl = get(d, 'meta.klarnamen') === 'ja' && !o.vfg;
-    const g = gOf(p);
-    let f, pr;
+    const g = gOf(p), tag = many && i >= 0 ? nameTag(d, i) : '';
+    const KIND = ['das Kind', 'dem Kind', 'das Kind', 'des Kindes'];
+    let f, pr, bare;
     if (r === 'kind') {
       const vn = kl && has(get(p, 'p.vorname')) ? str(get(p, 'p.vorname')) : '';
+      bare = KIND;
       if (vn) { f = [vn, vn, vn, 'von ' + vn]; pr = PRON[g === 'd' ? 'n' : g]; }
+      else if (tag) { f = KIND.map(s => `${s} ${tag}`); pr = PRON.n; }
       else if (many) { const t = `Kind ${n}`; f = [t, t, t, 'von ' + t]; pr = PRON.n; }
-      else { f = ['das Kind', 'dem Kind', 'das Kind', 'des Kindes']; pr = PRON.n; }
+      else { f = KIND; pr = PRON.n; }
     } else {
       const role = o.vfg ? ({ gs: 'gp', bs: 'bt' }[r] || r) : r;
       const base = (NOUN[role] || NOUN.gs).all || (NOUN[role] || NOUN.gs)[g];
-      const suf = many ? (r === 'zeuge' ? ` Z ${String(n).padStart(2, '0')}` : ` zu ${n}`) : '';
-      f = base.map(s => s + suf);
+      const suf = !many ? '' : tag ? ' ' + tag : (r === 'zeuge' ? ` Z ${String(n).padStart(2, '0')}` : ` zu ${n}`);
+      f = base.map(s => s + suf); bare = base;
       pr = role === 'gp' ? PRON.w : PRON[g];
     }
     const name = kl && r !== 'kind' && has(get(p, 'p.nachname')) ? [g === 'w' ? 'Frau' : g === 'm' ? 'Herr' : '', str(get(p, 'p.vorname')), str(get(p, 'p.nachname'))].filter(Boolean).join(' ') : '';
     return {
-      i, p, r, g, n, many, name, d,
+      i, p, r, g, n, many, name, d, bare: { nom: bare[0], dat: bare[1], akk: bare[2], gen: bare[3] },
       nom: f[0], dat: f[1], akk: f[2], gen: f[3], Nom: cap(f[0]), Dat: cap(f[1]), Akk: cap(f[2]),
       er: pr[0], ihm: pr[1], ihn: pr[2], sein: pr[3], Er: cap(pr[0]), Ihm: cap(pr[1]), Sein: cap(pr[3]),
       First: cap(f[0]) + (name ? `, ${name},` : '')
@@ -170,6 +181,8 @@
   function pl(it, i) {
     if (!isP(it)) return `Person ${i + 1}`;
     const r = (ROLLE_UI[it.rolle] || {})[gOf(it)] || 'Person';
+    const nm = [str(get(it, 'p.vorname')), str(get(it, 'p.nachname'))].filter(Boolean).join(' ');
+    if (nm) return `${nm} (${it.rolle === 'kind' ? 'Kind' : r})`;
     const z = [it.rolle === 'kind' ? (KBEZ_UI[it.kbez] || '') : str(it.bez), has(it.alter) ? `${it.alter} J.` : '', str(get(it, 'p.nachname'))].filter(Boolean);
     return r + (z.length ? ' · ' + z.join(', ') : '');
   }
@@ -509,9 +522,8 @@
 
     /* ---------- Eintreffsituation ---------- */
     {
-      id: 'eintreffen', phase: 'Eintreffen', title: 'Eintreffsituation', lead: 'Wo ist die Tatörtlichkeit, wer hat die Beamten erwartet, wer wurde außerdem angetroffen – und in welchem Zustand.', gen: ['eintreffen'],
+      id: 'eintreffen', phase: 'Eintreffen', title: 'Tatörtlichkeit', lead: 'Um welche Örtlichkeit es sich handelt.', gen: ['eintreffen'],
       fields: [
-        { t: 'head', text: 'Tatörtlichkeit' },
         { t: 'preset', l: '', o: d => (has(get(d, 'ort.strasse')) ? [['Anschrift aus der Einsatzvergabe übernehmen', { 'tatort.strasse': get(d, 'ort.strasse'), 'tatort.hausnr': get(d, 'ort.hausnr') || '', 'tatort.stadt': get(d, 'ort.stadt') || '' }, [get(d, 'ort.strasse'), get(d, 'ort.hausnr')].filter(has).join(' ')]] : []) },
         { k: 'tatort.strasse', t: 'text', l: 'Straße', ph: 'Musterstraße', w: 'half' },
         { k: 'tatort.hausnr', t: 'text', l: 'Hausnummer', ph: '5', w: 'half' },
@@ -520,7 +532,13 @@
         { k: 'tatort.artText', t: 'text', l: 'Was genau?', pre: 'Bei der Tatörtlichkeit handelt es sich um', ph: 'eine Gartenlaube', max: 120, when: d => get(d, 'tatort.art') === 'frei' },
         { k: 'tatort.geschoss', t: 'choice', l: 'Geschoss', o: GESCHOSS_UI, when: d => ['mfh', 'wgh'].includes(get(d, 'tatort.art')) },
         { k: 'tatort.seite', t: 'choice', l: 'Lage der Wohnung', o: SEITE, when: d => ['mfh', 'wgh'].includes(get(d, 'tatort.art')) },
-        { t: 'head', text: 'Personen vor Ort' },
+      ]
+    },
+
+    /* ---------- Personen vor Ort ---------- */
+    {
+      id: 'personen', phase: 'Eintreffen', title: 'Personen vor Ort', lead: 'Wer hat die Beamten erwartet, wer wurde außerdem angetroffen – und in welchem Zustand.', gen: ['eintreffen'],
+      fields: [
         { k: 'pers', t: 'list', wizard: true, l: '', item: (it, i) => (i === 0 ? 'Diese Person hat die Beamten erwartet' : pl(it, i)), add: 'Person hinzufügen', done: 'Alle Personen erfasst', min1: true, max: 12, sub: [
           { t: 'head', text: 'Person' },
           { k: 'rolle', t: 'choice', l: 'Rolle', o: (d, it) => [['gs', 'Geschädigt'], ...(ofRole(d, 'bs').some(y => rawList(d)[y.i] !== it) ? [] : [['bs', 'Beschuldigt']]), ['zeuge', 'Zeugin / Zeuge'], ['kind', 'Kind']] },
@@ -963,9 +981,10 @@
       const c = cap(C.besatzung(w));
       if (w.auftrag === 'ort' && mehrere) t.push(`${c} suchte die Einsatzörtlichkeit auf.`);
       else if (w.auftrag === 'nah' || w.auftrag === 'aufenthalt') {
-        const was = w.auftrag === 'nah' ? `suchte den Nahbereich nach ${T.dat} ab` : `suchte ${has(w.ziel) ? slot(w.ziel) : PH('Aufenthaltsort')} auf`;
+        const traf = nw && nw.i === w.i;
+        const was = w.auftrag === 'nah' ? `suchte den Nahbereich${traf ? '' : ` nach ${T.dat}`} ab` : `suchte ${has(w.ziel) ? slot(w.ziel) : PH('Aufenthaltsort')} auf`;
         let erg = '';
-        if (nw && nw.i === w.i) erg = ` und traf ${w.auftrag === 'nah' ? T.ihn : T.akk} ${has(bp.nahOrt) ? slot(bp.nahOrt) : (w.auftrag === 'nah' ? 'im Nahbereich' : 'dort')} an`;
+        if (traf) { const wo = has(bp.nahOrt) ? slot(bp.nahOrt) : ''; erg = ` und traf ${wo ? '' : w.auftrag === 'nah' ? 'dabei ' : 'dort '}${adrMitte(vorstellen(d, x, y.i, 'akk'))}${wo ? ' ' + wo : ''} an`; }
         else if (bp.da === 'nein') erg = `; ${T.nom} wurde ${w.auftrag === 'nah' ? 'dabei' : 'dort'} nicht angetroffen`;
         t.push(`${c} ${was}${erg}.`);
       } else if (w.auftrag === 'unterst') t.push(`Zur Unterstützung kam ${C.besatzung(w)} hinzu.`);
@@ -989,8 +1008,7 @@
     const r = x.R(i), p = r.p, q = p.p || {};
     const name = [str(q.vorname), str(q.nachname)].filter(has).join(' ');
     const alter = has(p.alter) ? `${p.alter} ${Number(p.alter) === 1 ? 'Jahr' : 'Jahre'}` : '';
-    let rolle = r[fall] || r.nom;
-    if (p.rolle === 'kind' && name) rolle = { nom: 'das Kind', dat: 'dem Kind', akk: 'das Kind', gen: 'des Kindes' }[fall];
+    const rolle = name ? r.bare[fall] || r.bare.nom : r[fall] || r.nom;
     const kopf = `${rolle}${name ? ' ' + name : ''}${alter ? ` (${alter})` : ''}`;
     // Beziehung als Nachsatz: „Ehemann der Geschädigten“, „gemeinsame Tochter der Geschädigten und des Beschuldigten“
     let bez = '';
