@@ -209,10 +209,17 @@
   }
 
   /* ======================= Schritte ======================= */
+  /** Ganzer Prüfweg (Zeilen) – für die Vorschau „So steht es im Bericht“. */
   const wegInfo = d => {
     const f = fe(d);
     if (!f.norm) return 'Dieser Bericht entsteht aus der FE-Prüfung: Dort den Weg bis zum Ergebnis gehen und „Diesen Weg wählen“ antippen.';
     return `Rechtsgrundlage: ${f.norm}\n` + steps(d).map((s, i) => `${i + 1}. ${s.q} → ${s.a}${s.c ? `  ✓ ${s.c}` : ''}`).join('\n');
+  };
+  /** Kurzfassung für den ersten Schritt (eine Zeile statt Textblock). */
+  const wegKurz = d => {
+    const f = fe(d), n = conds(d).length;
+    if (!f.norm) return wegInfo(d);
+    return `Weg bestätigt: ${f.norm} · ${steps(d).length} Schritte · ${n} ${n === 1 ? 'Voraussetzung' : 'Voraussetzungen'} – die Begründung folgt in Schritt 3. Den ganzen Weg zeigt „So steht es im Bericht“.`;
   };
   const SLOTS = 14;
   const slotFields = Array.from({ length: SLOTS }, (_, i) => ({
@@ -225,8 +232,8 @@
   const STEPS = [
     { id: 'person', phase: 'Person', title: 'Wer ist betroffen?', lead: 'Das Geschlecht steuert die Satzführung im Bericht („der Beschuldigte“ / „die Beschuldigte“).', gen: ['1'],
       fields: [
-        { t: 'info', text: d => wegInfo(d) },
         { k: 'p.geschlecht', t: 'choice', l: 'Ist die Person männlich oder weiblich?', req: true, o: [['m', 'Männlich'], ['w', 'Weiblich']] },
+        { t: 'info', text: d => wegKurz(d) },
         { k: 'p', t: 'person', l: d => (fe(d).zeuge ? 'Zeugin / Zeuge' : ROLE[kind(d)] === 'b' ? 'Beschuldigte Person' : 'Betroffene Person'), fields: ['nachname', 'vorname', 'geb'] },
         { k: 'p.staat', t: 'text', l: 'Staatsangehörigkeit', ph: 'deutsch', w: 'half', h: 'Bei ausländischer Staatsangehörigkeit wird die Konsularbelehrung abgefragt.' },
         { k: 'p.minderj', t: 'yn', l: 'Minderjährig?', w: 'half', when: d => !has(get(d, 'p.geb')) }
