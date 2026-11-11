@@ -428,8 +428,55 @@
     host.innerHTML = `<ul class="w-docs">${rows.map(d => {
       const m = mod(d); const total = m ? visibleSteps(m, d.data).length : 1;
       const pct = d.status === 'fertig' ? 100 : Math.round(Math.min(d.step, total) / total * 100);
-      return `<li><button type="button" class="w-doc${d.id === U.id ? ' on' : ''}" data-open="${d.id}"><span class="w-doc-tile${d.status === 'fertig' ? ' done' : ''}">${m ? esc(m.kurz) : '?'}</span><span class="w-doc-main"><span class="w-doc-t">${esc(d.title || (m ? m.name : 'Vorgang'))}</span><span class="w-doc-s">${esc(m ? m.subtitle(d.data) || m.name : d.type)}</span></span><span class="w-doc-side"><span class="pill ${d.status === 'fertig' ? 'pill-lime' : 'pill-quiet'}">${d.status === 'fertig' ? 'Fertig' : pct + ' %'}</span><span class="w-doc-when">${fmtWhen(d.u || d.updatedAt)}</span></span></button></li>`;
+      return `<li data-sw="${d.id}"><button type="button" class="w-sw-del" data-sw-del="${d.id}" tabindex="-1" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>Löschen</button><button type="button" class="w-doc${d.id === U.id ? ' on' : ''}" data-open="${d.id}"><span class="w-doc-tile${d.status === 'fertig' ? ' done' : ''}">${m ? esc(m.kurz) : '?'}</span><span class="w-doc-main"><span class="w-doc-t">${esc(d.title || (m ? m.name : 'Vorgang'))}</span><span class="w-doc-s">${esc(m ? m.subtitle(d.data) || m.name : d.type)}</span></span><span class="w-doc-side"><span class="pill ${d.status === 'fertig' ? 'pill-lime' : 'pill-quiet'}">${d.status === 'fertig' ? 'Fertig' : pct + ' %'}</span><span class="w-doc-when">${fmtWhen(d.u || d.updatedAt)}</span></span></button></li>`;
     }).join('')}</ul>`;
+  }
+
+  /* ---------- Vorgangsliste: nach links wischen löscht (mit Rückgängig) ----------
+     Ganz durchwischen (über 45 % der Breite) löscht sofort; ein kürzerer Wisch lässt die Zeile offen und zeigt „Löschen“ zum Antippen. */
+  const SW = { li: null, mode: '', x0: 0, y0: 0, base: 0, dx: 0, w: 0, id: null, pid: null, at: 0 };
+  const SW_OPEN = 104;
+  function swSet(li, x, anim) { const c = $('.w-doc', li); if (!c) return; c.style.transition = anim ? 'transform .24s var(--ease-out)' : 'none'; c.style.transform = x ? `translateX(${x}px)` : ''; }
+  function swClose(except) { $$('#wList li.open').forEach(li => { if (li !== except) { li.classList.remove('open'); swSet(li, 0, true); } }); }
+  function swDelete(id, li) {
+    const d = W().find(id); if (!d) return;
+    const title = String(d.title || 'Vorgang');
+    const go = () => { const snap = W().remove(id); if (!snap) return; if (U.id === id) { U.id = null; U.view = 'list'; renderMain(); } renderList(); W().toast(`Gelöscht: ${title.length > 40 ? title.slice(0, 39) + '…' : title}`, { undo: snap }); };
+    if (!li || matchMedia('(prefers-reduced-motion: reduce)').matches) return go();
+    li.classList.add('gone'); const c = $('.w-doc', li); c.style.transition = 'transform .2s var(--ease-out)'; c.style.transform = 'translateX(-110%)';
+    setTimeout(go, 200);
+  }
+  const wl = $('#wList');
+  if (wl) {
+    wl.addEventListener('pointerdown', e => {
+      const li = e.target.closest('li[data-sw]'); if (!li || e.button > 0 || e.target.closest('.w-sw-del')) return;
+      swClose(li);
+      const base = li.classList.contains('open') ? -SW_OPEN : 0;
+      Object.assign(SW, { li, mode: '', x0: e.clientX, y0: e.clientY, base, dx: base, w: li.offsetWidth, id: li.dataset.sw, pid: e.pointerId });
+    });
+    wl.addEventListener('pointermove', e => {
+      if (!SW.li || e.pointerId !== SW.pid) return;
+      const dx = e.clientX - SW.x0, dy = e.clientY - SW.y0;
+      if (!SW.mode) {
+        if (Math.abs(dy) > 10 && Math.abs(dy) >= Math.abs(dx)) { SW.li = null; return; } // senkrecht: Liste scrollt
+        if (Math.abs(dx) < 10 || Math.abs(dx) < Math.abs(dy) * 1.2 || (dx > 0 && !SW.base)) return;
+        SW.mode = 'x'; SW.li.classList.add('sw'); try { SW.li.setPointerCapture(e.pointerId); } catch (er) { /* egal */ }
+      }
+      const x = Math.min(0, SW.base + dx); SW.dx = x;
+      SW.li.classList.toggle('arm', -x > SW.w * 0.45);
+      swSet(SW.li, x, false);
+    });
+    const swEnd = e => {
+      if (!SW.li || e.pointerId !== SW.pid) return;
+      const li = SW.li; SW.li = null;
+      if (SW.mode !== 'x') return;
+      SW.at = Date.now(); li.classList.toggle('sw', false);
+      if (e.type === 'pointerup' && -SW.dx > SW.w * 0.45) { li.classList.toggle('arm', false); li.classList.toggle('open', false); swDelete(SW.id, li); }
+      else if (-SW.dx > 56) { li.classList.toggle('arm', false); li.classList.add('open'); swSet(li, -SW_OPEN, true); }
+      else { li.classList.toggle('arm', false); li.classList.toggle('open', false); swSet(li, 0, true); }
+    };
+    wl.addEventListener('pointerup', swEnd); wl.addEventListener('pointercancel', swEnd);
+    document.addEventListener('pointerdown', e => { if (!e.target.closest || !e.target.closest('#wList li.open')) swClose(); }, true);
   }
 
   /* ======================= Assistent ======================= */
@@ -745,7 +792,8 @@
         else if (a === 'done') { const d = doc(); if (d) { d.status = d.status === 'fertig' ? 'entwurf' : 'fertig'; persist(true); renderMain(); W().toast(d.status === 'fertig' ? 'Als fertig markiert' : 'Wieder geöffnet'); } }
         return;
       }
-      if (b.dataset.open) { open(b.dataset.open); return; }
+      if (b.dataset.swDel) { swDelete(b.dataset.swDel, b.closest('li')); return; }
+      if (b.dataset.open) { if (Date.now() - SW.at < 400) return; if (b.closest('li.open')) { swClose(); return; } open(b.dataset.open); return; }
       if (b.dataset.jump) { U.step = Number(b.dataset.jump); const d = doc(); if (d) { d.step = Math.max(d.step || 0, U.step); persist(false); } renderMain(); return; }
       if (b.dataset.edit != null) { U.view = 'wizard'; U.step = Number(b.dataset.edit) || 0; renderMain(); window.scrollTo({ top: 0 }); return; }
       if (b.dataset.tab) { U.tab = b.dataset.tab; renderMain(); return; }
