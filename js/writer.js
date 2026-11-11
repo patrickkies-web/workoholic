@@ -14,6 +14,10 @@
   if (window.WVermisst) MODULES[window.WVermisst.id] = window.WVermisst;
   if (window.WHG) MODULES[window.WHG.id] = window.WHG;
   if (window.WAnzeige) MODULES[window.WAnzeige.id] = window.WAnzeige;
+  if (window.WFEB) MODULES[window.WFEB.id] = window.WFEB;
+  if (window.WSKZ) MODULES[window.WSKZ.id] = window.WSKZ;
+  /** Module, die man direkt neu anlegen kann (der FE-Bericht entsteht nur aus der FE-Prüfung). */
+  const creatable = () => Object.values(MODULES).filter(m => !m.noNew);
   /** Beschriftungen je Modul (m.labels), sonst die der Verkehrsunfallflucht. */
   const lab = (m, k, def) => (m && m.labels && m.labels[k]) || def;
   /** Zusätzliche Reiter eines Moduls im Ergebnis (m.extraTabs: [{k, l, when?, hint?, text}]). */
@@ -118,6 +122,8 @@
         const m = mod(doc()); const txt = m && typeof m[f.fn] === 'function' ? m[f.fn](d) : '';
         return `<div class="w-q full w-out"><div class="w-out-h"><span class="w-lbl">${esc(R(f.l, d, item) || 'Text')}</span><button type="button" class="btn btn-light btn-sm" data-copy-out="${esc(f.fn)}">Kopieren</button></div>${f.h ? `<p class="w-hint">${esc(R(f.h, d, item))}</p>` : ''}<pre class="w-out-t" data-fn="${esc(f.fn)}">${esc(txt || '– noch nichts erfasst –')}</pre></div>`;
       }
+      /* Eigenes Bedienelement eines Moduls (z. B. Zeichenfläche); das Modul füllt es über m.mount(el, k, data, api) */
+      case 'custom': return `<div class="w-q full w-custom" data-custom="${esc(f.k)}"></div>`;
       /* Zwischentitel: gliedert einen Schritt in Abschnitte (keine Antwort, kein Datenfeld) */
       case 'head': return `<div class="w-q full w-head"><span class="w-head-t">${esc(R(f.text, d, item))}</span>${f.h ? `<span class="w-head-h">${esc(R(f.h, d, item))}</span>` : ''}</div>`;
       case 'yn': {
@@ -418,7 +424,7 @@
     const q = (($('#search') || {}).value || '').trim().toLocaleLowerCase('de');
     const rows = docs.slice().sort((a, b) => (b.u || b.updatedAt || 0) - (a.u || a.updatedAt || 0)).filter(d => !q || (d.title + ' ' + (mod(d) ? mod(d).subtitle(d.data) : '')).toLocaleLowerCase('de').includes(q));
     $('#wCount').textContent = docs.length;
-    if (!rows.length) { host.innerHTML = `<div class="empty w-empty"><h3>${docs.length ? 'Nichts gefunden' : 'Noch kein Vorgang'}</h3><p>${docs.length ? 'Suche anpassen.' : 'Ein Vorgang führt dich Schritt für Schritt durch die Aufnahme – alles wird verschlüsselt gespeichert, du kannst jederzeit unterbrechen.'}</p>${docs.length ? '' : `<div class="row">${Object.values(MODULES).map((m, i) => `<button type="button" class="btn ${i ? 'btn-ghost' : 'btn-accent'} btn-sm" data-w="new" data-mod="${esc(m.id)}">${esc(lab(m, 'newBtn', 'Neue ' + m.name.replace(/ ohne Personenschaden$/, '')))}</button>`).join('')}</div>`}</div>`; return; }
+    if (!rows.length) { host.innerHTML = `<div class="empty w-empty"><h3>${docs.length ? 'Nichts gefunden' : 'Noch kein Vorgang'}</h3><p>${docs.length ? 'Suche anpassen.' : 'Ein Vorgang führt dich Schritt für Schritt durch die Aufnahme – alles wird verschlüsselt gespeichert, du kannst jederzeit unterbrechen.'}</p>${docs.length ? '' : `<div class="row">${creatable().map((m, i) => `<button type="button" class="btn ${i ? 'btn-ghost' : 'btn-accent'} btn-sm" data-w="new" data-mod="${esc(m.id)}">${esc(lab(m, 'newBtn', 'Neue ' + m.name.replace(/ ohne Personenschaden$/, '')))}</button>`).join('')}</div>`}</div>`; return; }
     host.innerHTML = `<ul class="w-docs">${rows.map(d => {
       const m = mod(d); const total = m ? visibleSteps(m, d.data).length : 1;
       const pct = d.status === 'fertig' ? 100 : Math.round(Math.min(d.step, total) / total * 100);
@@ -467,17 +473,18 @@
       </div>`;
     remember();
     layoutSentences();
+    mountCustom(d, m);
   }
   const visibleKeys = (st, data) => st.fields.filter(f => !f.when || f.when(data)).map(f => f.k || f.text).join('|');
 
   function introHtml() {
-    const mods = Object.values(MODULES);
+    const mods = creatable();
     return `<div class="w-intro">
       <span class="spaced">Schriftliche Arbeiten</span>
       <h2 class="w-intro-h">Aufnehmen, ohne zu tippen.</h2>
       <p class="w-intro-p">Fragen beantworten – Ja/Nein, antippen, Zahlen – und am Ende steht ein fertiger Text in sauberer Satzführung, bei der Verkehrsunfallflucht der vollständige Befundbericht. Es erscheinen nur Fragen, die zu deinem Fall passen; jede lässt sich überspringen. Alles bleibt verschlüsselt in deinem Tresor; jeder Schritt wird sofort gesichert, du kannst jederzeit unterbrechen.</p>
       <div class="w-mods">${mods.map(m => `<button type="button" class="w-mod" data-w="new" data-mod="${esc(m.id)}"><span class="w-mod-tile">${esc(m.kurz)}</span><span><b>${esc(m.name)}</b><small>${new Set(m.steps.map(s => s.phase)).size} Phasen, nur passende Fragen · ${esc(m.desc || 'Befundbericht nach Anlage 6, Kurzsachverhalt, Fahndungstext, offene Punkte')}</small></span></button>`).join('')}</div>
-      <p class="w-hint">Tastatur: <b class="kbd">N</b> neuer Vorgang · <b class="kbd">S</b> Bereich wechseln (<b class="kbd">6</b>) · <b class="kbd">⌘/Strg ⏎</b> weiter</p>
+      <p class="w-hint">Tastatur: <b class="kbd">N</b> neuer Vorgang · <b class="kbd">S</b> Bereich wechseln (<b class="kbd">7</b>) · <b class="kbd">⌘/Strg ⏎</b> weiter</p>
     </div>`;
   }
 
@@ -545,14 +552,15 @@
   /** Neuer Vorgang. Ohne Typ und mit mehreren Modulen: erst die Auswahl zeigen. `preset` füllt Daten vor (z. B. Besatzung aus der laufenden Schicht). */
   function newDoc(type, preset) {
     if (!W() || !W().unlocked()) return;
-    if (!type && Object.keys(MODULES).length > 1) { U.view = 'list'; U.id = null; renderMain(); renderList(); window.scrollTo({ top: 0 }); return; }
-    const m = MODULES[type] || Object.values(MODULES)[0]; if (!m) return;
+    if (!type && creatable().length > 1) { U.view = 'list'; U.id = null; renderMain(); renderList(); window.scrollTo({ top: 0 }); return; }
+    const m = MODULES[type] || creatable()[0]; if (!m) return;
     const pre = preset && typeof preset === 'object' ? preset : ((W().preset && W().preset()) || {});
     const data = { ...pre, einsatz: { datum: todayKey(0), zeit: nowHM(), ...(pre.einsatz || {}) } };
     for (const k of Object.keys(data.einsatz)) if (data.einsatz[k] == null || data.einsatz[k] === '' || (Array.isArray(data.einsatz[k]) && !data.einsatz[k].length)) delete data.einsatz[k];
     // inherit: Einstellungen wie die eigene Vorlage aus dem letzten Vorgang desselben Moduls übernehmen
     for (const ik of (m.inherit || [])) { const prev = (W().docs() || []).filter(x => x.type === m.id && x.data && x.data[ik] != null).sort((a, b) => (b.u || 0) - (a.u || 0))[0]; if (prev) data[ik] = JSON.parse(JSON.stringify(prev.data[ik])); }
-    const d = W().add({ type: m.id, title: m.name, status: 'entwurf', step: 0, data });
+    let t0 = ''; try { t0 = (m.title && m.title(data)) || ''; } catch (e) { t0 = ''; }
+    const d = W().add({ type: m.id, title: (t0 || m.name).slice(0, 120), status: 'entwurf', step: 0, data });
     if (!d) { W().toast('Vorgang konnte nicht angelegt werden.'); return; }
     open(d.id, 'wizard');
     setTimeout(() => { const f = $('#wFields input, #wFields button'); if (f && !W().mobile()) f.focus(); }, 60);
@@ -586,6 +594,14 @@
     let h = ta.scrollHeight;
     if (!ta.value && ta.placeholder) { ta.value = ta.placeholder; h = Math.max(h, ta.scrollHeight); ta.value = ''; }
     ta.style.height = h + 'px';
+  }
+  /** Eigene Bedienelemente der Module einhängen; Änderungen laufen über api.set → verschlüsselt speichern. */
+  function mountCustom(d, m) {
+    if (typeof m.mount !== 'function') return;
+    $$('#wFields [data-custom]').forEach(el => {
+      try { m.mount(el, el.dataset.custom, d.data, { set: (path, v) => { setP(d.data, path, v); persist(); }, get: path => getP(d.data, path), title: () => d.title || m.name }); }
+      catch (e) { el.textContent = 'Dieses Element konnte nicht geladen werden.'; }
+    });
   }
   function layoutSentences() {
     $$('#wMain .w-sent').forEach(box => {
