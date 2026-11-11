@@ -93,12 +93,18 @@
     const L = forId => label(f, forId, d, item);
     switch (f.t) {
       case 'info': return `<div class="w-q full"><div class="w-info">${esc(R(f.text, d, item))}</div></div>`;
+      case 'head': return `<div class="w-q full w-grp-h" role="heading" aria-level="3">${esc(R(f.l, d, item))}</div>`;
       case 'yn': {
         const o = Array.isArray(R(f.o, d, item)) ? R(f.o, d, item) : [['ja', 'Ja'], ['nein', 'Nein']];
         return `${Q}${L()}<div class="w-seg" role="group" aria-label="${esc(R(f.l, d, item) || '')}">${o.map(([val, lab]) => `<button type="button" class="w-opt${val === 'ja' ? ' yes' : val === 'nein' ? ' no' : ''}" data-set="${esc(k)}" data-v="${esc(val)}" aria-pressed="${String(v === val)}">${esc(lab)}</button>`).join('')}</div></div>`;
       }
       case 'choice': return `${Q}${L()}<div class="w-chips" role="group">${R(f.o, d, item).map(([val, lab]) => `<button type="button" class="chip" data-set="${esc(k)}" data-v="${esc(val)}" aria-pressed="${String(v === val)}">${esc(lab)}</button>`).join('')}</div></div>`;
-      case 'multi': { const a = Array.isArray(v) ? v : []; return `${Q}${L()}<div class="w-chips" role="group">${R(f.o, d, item).map(([val, lab]) => `<button type="button" class="chip" data-toggle="${esc(k)}" data-v="${esc(val)}" aria-pressed="${String(a.includes(val))}">${esc(lab)}</button>`).join('')}</div></div>`; }
+      case 'multi': {
+        const a = Array.isArray(v) ? v : [], opts = R(f.o, d, item);
+        // Welche Werte fliegen raus, wenn dieser gewählt wird? excl: [['keine', '*'], ['trocken', 'nass']]
+        const weg = val => (f.excl || []).flatMap(([x, y]) => (y === '*' ? (val === x ? opts.map(o => o[0]).filter(o => o !== x) : [x]) : val === x ? [y] : val === y ? [x] : []));
+        return `${Q}${L()}<div class="w-chips" role="group">${opts.map(([val, lab]) => `<button type="button" class="chip" data-toggle="${esc(k)}" data-v="${esc(val)}"${weg(val).length ? ` data-x="${esc(weg(val).join(' '))}"` : ''}${f.max ? ` data-max="${f.max}"` : ''} aria-pressed="${String(a.includes(val))}">${esc(lab)}</button>`).join('')}</div></div>`;
+      }
       case 'text': case 'area': {
         if (f.pre || f.t === 'area') return sentenceHtml(f, k, v, d, item, half, ans);
         const ph = R(f.ph, d, item) || '';
@@ -228,6 +234,7 @@
     if (!d || U.view === 'list') { U.view = 'list'; remember(); host.innerHTML = introHtml(); return; }
     const m = mod(d);
     if (!m) { host.innerHTML = `<div class="empty w-empty"><h3>Unbekanntes Modul „${esc(d.type)}“</h3><p>Dieser Vorgang stammt aus einer neueren Version.</p></div>`; return; }
+    if (m.migrate && m.migrate(d.data)) persist(false);
     U.lastJson = stable(d.data);
     if (U.view === 'result') { host.innerHTML = resultHtml(d, m); remember(); return; }
     const steps = visibleSteps(m, d.data);
@@ -282,8 +289,8 @@
     const tabs = [['bericht', 'Befundbericht'], ['kurz', 'Kurzsachverhalt'], ...(fah ? [['fahndung', 'Fahndung']] : []), ['offen', `Offene Punkte${offen.length ? ' · ' + offen.length : ''}`], ['pers', 'Personalien']];
     if (!tabs.some(t => t[0] === U.tab)) U.tab = 'bericht';
     let body = '';
-    if (U.tab === 'bericht') body = `<div class="w-report">${sec.map(([n, t, txt, sid]) => txt == null ? `<h3 class="w-rh">${n} ${esc(t)}</h3>` : `<div class="w-rs"><h4 class="w-rsh">${n} ${esc(t)}<button type="button" class="link" data-edit="${esc(stepForSection(m, sid, d.data))}">Bearbeiten</button></h4><div class="w-rb${/\[[^\]]+\]/.test(txt) ? ' has-ph' : ''}">${reportHtml(txt)}</div></div>`).join('')}</div>`;
-    else if (U.tab === 'kurz') body = `<div class="w-report"><p class="w-hint">Für die Kurzbeschreibung im Vorgang und die Unfallmitteilung. Vor dem Nachsenden der Unfallmitteilung ist der Kurzsachverhalt aus der ViVA-Kurzbeschreibung zu löschen (DA 1.1).</p><div class="w-rb">${reportHtml(m.kurzText(d.data))}</div></div>`;
+    if (U.tab === 'bericht') body = `<div class="w-report">${sec.map(([n, t, txt, sid]) => txt == null ? `<h3 class="w-rh">${n} ${esc(t)}</h3>` : `<div class="w-rs"><h4 class="w-rsh">${n} ${esc(t)}<button type="button" class="link" data-edit="${esc(stepForSection(m, sid, d.data))}">Bearbeiten</button></h4><div class="w-rb${/\[[^\]]+\]/.test(txt) ? ' has-ph' : ''}">${reportHtml(txt, m)}</div></div>`).join('')}</div>`;
+    else if (U.tab === 'kurz') body = `<div class="w-report"><p class="w-hint">Für die Kurzbeschreibung im Vorgang und die Unfallmitteilung. Vor dem Nachsenden der Unfallmitteilung ist der Kurzsachverhalt aus der ViVA-Kurzbeschreibung zu löschen (DA 1.1).</p><div class="w-rb">${reportHtml(m.kurzText(d.data), m)}</div></div>`;
     else if (U.tab === 'fahndung') body = `<div class="w-report"><p class="w-hint">Für die Leitstelle / Funkfahndung – kurz und sendefähig.</p><div class="w-rb">${esc(fah)}</div></div>`;
     else if (U.tab === 'offen') body = `<div class="w-report">${offen.length ? `<ul class="w-offen">${offen.map((o, i) => `<li><label class="check-line"><input type="checkbox" data-offen="${i}"> <span>${esc(o)}</span></label></li>`).join('')}</ul><p class="w-hint">Angehakte Punkte landen als Todos im Planner.</p><button type="button" class="btn btn-ghost btn-sm" data-w="todos">Ausgewählte als Todos anlegen</button>` : '<div class="empty w-empty"><h3>Nichts offen</h3><p>Alle Pflichtpunkte aus Erlass und Dienstanweisung sind abgedeckt.</p></div>'}</div>`;
     else body = `<div class="w-report"><p class="w-hint">Gesondert vom Befundbericht – Telefonnummern nur auf dem Original (DA 1.1). Nicht in den Berichtstext kopieren.</p><div class="w-rb mono-sm">${esc(m.personalien(d.data))}</div></div>`;
@@ -314,7 +321,11 @@
     return j < 0 ? 0 : j;
   }
   /** Berichtstext → HTML: Platzhalter markieren, Zwischenzeilen (Fahrzeug UB 01, UB 02, Z 01) hervorheben. */
-  const reportHtml = t => esc(t).replace(/^(Fahrzeug UB \d{2}|UB \d{2}|Z \d{2})$/gm, '<b class="w-rlab">$1</b>').replace(/\[([^\]]+)\]/g, '<mark>[$1]</mark>');
+  const reEsc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const reportHtml = (t, m) => {
+    const extra = (m && m.labels || []).map(l => '|' + reEsc(esc(l))).join('');
+    return esc(t).replace(new RegExp(`^(Fahrzeug UB \\d{2}|UB \\d{2}|Z \\d{2}${extra})$`, 'gm'), '<b class="w-rlab">$1</b>').replace(/\[([^\]]+)\]/g, '<mark>[$1]</mark>');
+  };
   function currentText(d, m) {
     if (U.tab === 'kurz') return m.kurzText(d.data);
     if (U.tab === 'fahndung') return m.fahndung(d.data);
@@ -421,10 +432,16 @@
     persist(false);
     if (rerender) { renderMain(); if (!off) focusNext(k); } else schedulePreview();
   }
-  function toggleVal(k, v) {
+  function toggleVal(k, v, excl, max) {
     const d = doc(); if (!d) return;
-    const a = Array.isArray(getP(d.data, k)) ? getP(d.data, k).slice() : [];
-    const i = a.indexOf(v); if (i >= 0) a.splice(i, 1); else a.push(v);
+    let a = Array.isArray(getP(d.data, k)) ? getP(d.data, k).slice() : [];
+    const i = a.indexOf(v);
+    if (i >= 0) a.splice(i, 1);
+    else {
+      if (excl) { const x = excl.split(' '); a = a.filter(e => !x.includes(e)); }
+      a.push(v);
+      if (max && a.length > max) a = a.slice(a.length - max); // älteste Auswahl weicht
+    }
     setP(d.data, k, a.length ? a : undefined);
     persist(false); renderMain();
   }
@@ -518,7 +535,7 @@
         return;
       }
       if (b.dataset.set) { setVal(b.dataset.set, b.dataset.n ? Number(b.dataset.v) : b.dataset.v); return; }
-      if (b.dataset.toggle) { toggleVal(b.dataset.toggle, b.dataset.v); return; }
+      if (b.dataset.toggle) { toggleVal(b.dataset.toggle, b.dataset.v, b.dataset.x, Number(b.dataset.max) || 0); return; }
       if (b.dataset.step) { const d = doc(); if (!d) return; const cur = Number(getP(d.data, b.dataset.step)); const inp = $(`[data-k="${CSS.escape(b.dataset.step)}"]`, root); const min = inp && inp.min !== '' ? Number(inp.min) : 0, max = inp && inp.max !== '' ? Number(inp.max) : Infinity; const v = Math.max(min, Math.min(max, (Number.isFinite(cur) && has(getP(d.data, b.dataset.step)) ? cur : 0) + Number(b.dataset.d))); setP(d.data, b.dataset.step, v); persist(false); if (inp) inp.value = v; schedulePreview(); $$(`[data-set="${CSS.escape(b.dataset.step)}"]`, root).forEach(c => c.setAttribute('aria-pressed', String(Number(c.dataset.v) === v))); return; }
       if (b.dataset.part) { const d = doc(); if (!d) return; const k = b.dataset.part, a = Array.isArray(getP(d.data, k)) ? getP(d.data, k).slice() : []; const i = a.findIndex(p => p && p.name === b.dataset.v); if (i >= 0) a.splice(i, 1); else a.push({ name: b.dataset.v, alt: 'nein' }); setP(d.data, k, a.length ? a : undefined); persist(false); renderMain(); if (i < 0) setTimeout(() => { const c = $(`#wpart-${a.length - 1}`); if (c) c.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 30); return; }
       if (b.dataset.partDel) { const d = doc(); if (!d) return; const a = getP(d.data, b.dataset.partDel).slice(); a.splice(Number(b.dataset.i), 1); setP(d.data, b.dataset.partDel, a.length ? a : undefined); persist(false); renderMain(); return; }
