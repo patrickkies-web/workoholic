@@ -100,6 +100,12 @@
   /** „der Zeuge“ / „die Geschädigte“ … */
   const rolleArt = p => { const r = ROLLE[p.rolle]; if (!r) return '[Rolle]'; return p.g === 'm' || p.g === 'w' ? r.art[p.g] : `[${r.art.m}/${r.art.w}]`; };
 
+  /** Besatzung mit Amtsbezeichnung (aus dem Vorgang, sonst aus Team und früheren Vorgängen), ohne Doppelte. */
+  function crewNamen(data) {
+    const out = [], seen = new Set();
+    for (const c of crewOf(data)) { const k = nameKey(c.name); if (seen.has(k)) continue; seen.add(k); out.push({ grad: has(c.grad) ? str(c.grad) : rankFor(c.name), name: str(c.name) }); }
+    return out;
+  }
   /** „den eingesetzten Beamten“ – nur wenn ausschließlich Beamtinnen eingesetzt sind: „Beamtinnen“. */
   function beamte(data) {
     const gs = crewOf(data).map(c => offG({ grad: has(c.grad) ? c.grad : rankFor(c.name) }));
@@ -109,7 +115,7 @@
   function gegenText(data, p, noDem = false) {
     p = p || {};
     const g = arr(p.gegen);
-    if (g.some(x => x && x.ref === 'alle')) return `gegenüber den eingesetzten ${beamte(data)}`;
+    if (g.some(x => x && x.ref === 'alle')) { const c = crewNamen(data); return c.length ? 'gegenüber ' + joinUnd(c.map(offName)) : `gegenüber den eingesetzten ${beamte(data)}`; }
     const list = [], seen = new Set();
     for (const x of g) {
       const o = x && x.ref === 'bel' ? p.bel : x;
@@ -129,16 +135,22 @@
     const r = ROLLE[p.rolle];
     const wer = pron ? PR(p).er : `${rolleArt(p)} ${nameOf(data, i)}`;
     const durch = p.bel && has(p.bel.name) ? offName(p.bel) : '[belehrende Person]';
+    const um = has(p.belZeit) ? ` um ${str(p.belZeit)} Uhr` : '';
+    const vw = r && r.tat && has(p.vorwurf) ? str(p.vorwurf) : '';
     let bel;
     if (!r) bel = 'Nach erfolgter [Belehrung]';
     else if (r.zeug) bel = 'Nach erfolgter zeugenschaftlicher Belehrung' + (p.zvr ? ' mit besonderem Hinweis auf das Zeugnisverweigerungsrecht gemäß § 52 StPO' : '');
-    else if (p.rolle === 'bs') bel = 'Nach erfolgter Beschuldigtenbelehrung';
-    else bel = 'Nach erfolgter Betroffenenbelehrung gemäß § 55 OWiG';
-    if (p.keine && r) return `${bel} durch ${durch} erklärte ${wer}, ${keineWas(p)}.`;
+    else if (p.rolle === 'bs') bel = vw ? `Nach Eröffnung des Tatvorwurfs (${vw}) und erfolgter Beschuldigtenbelehrung` : 'Nach erfolgter Beschuldigtenbelehrung';
+    else bel = vw ? `Nach Eröffnung des Vorwurfs (${vw}) und erfolgter Betroffenenbelehrung gemäß § 55 OWiG` : 'Nach erfolgter Betroffenenbelehrung gemäß § 55 OWiG';
+    const start = `${bel} durch ${durch}${um}`;
+    if (p.keine && r) return `${start} erklärte ${wer}, ${p.verst ? 'die Belehrung verstanden zu haben und ' : ''}${keineWas(p)}.`;
     const gg = gegenText(data, p);
     const bereit = r && r.zeug && p.zvr && p.bereit !== false;
-    const bereitSatz = pron ? `erklärte ${wer} sich zur Aussage bereit und machte ${gg}` : `erklärte sich ${wer} zur Aussage bereit und machte ${gg}`;
-    return `${bel} durch ${durch} ${bereit ? bereitSatz : `machte ${wer} ${gg}`} sinngemäß folgende Angaben:`;
+    let mitte;
+    if (p.verst) mitte = `erklärte ${wer}, die Belehrung verstanden zu haben${bereit ? ' und aussagen zu wollen' : ''}, und machte ${gg}`;
+    else if (bereit) mitte = pron ? `erklärte ${wer} sich zur Aussage bereit und machte ${gg}` : `erklärte sich ${wer} zur Aussage bereit und machte ${gg}`;
+    else mitte = `machte ${wer} ${gg}`;
+    return `${start} ${mitte} sinngemäß folgende Angaben:`;
   }
   const schilderung = p => str(p && p.text).replace(/\r\n?/g, '\n').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n');
 
@@ -226,46 +238,38 @@
       ['m_stolper', 'Stolpern, Stürzen', 'Stolpern bzw. Stürzen ohne äußeren Anlass', 'ad'],
       ['m_langsam', 'Bewegungen verlangsamt', 'verlangsamte Bewegungen und Reaktionen', 'ad'],
       ['m_fein', 'Feinmotorik gestört (z. B. Papiere)', 'Schwierigkeiten bei der Feinmotorik, z. B. beim Heraussuchen der Dokumente', 'ad'],
-      ['m_fahrig', 'fahrig, hektisch', 'fahrige, hektische Bewegungen', 'd'],
-      ['m_unruhe', 'motorische Unruhe', 'ausgeprägte motorische Unruhe', 'd'],
+      ['m_fahrig', 'fahrig, hektisch', 'fahrige, hektische Bewegungen', 'd', 1],
+      ['m_unruhe', 'motorische Unruhe', 'ausgeprägte motorische Unruhe', 'd', 1],
       ['m_kiefer', 'Kiefermahlen, Zähneknirschen', 'Kiefermahlen bzw. Zähneknirschen', 'd'],
       ['m_zuck', 'Muskelzucken', 'unwillkürliches Muskelzucken', 'd']
     ]],
     ['Verhalten und Stimmung', [
-      ['v_distanz', 'distanzlos', 'distanzloses Verhalten', 'ad'],
-      ['v_aggr', 'aggressiv, gereizt', 'aggressives, gereiztes Verhalten', 'ad'],
-      ['v_enthemmt', 'enthemmt', 'enthemmtes Verhalten', 'a'],
-      ['v_redselig', 'auffallend redselig', 'auffallende Redseligkeit', 'a'],
-      ['v_weiner', 'weinerlich', 'weinerliches Verhalten', 'a'],
-      ['v_euphor', 'euphorisch, aufgekratzt', 'euphorische, aufgekratzte Stimmung', 'd'],
-      ['v_albern', 'albern, grundloses Lachen', 'albernes Verhalten mit grundlosem Lachen', 'd'],
-      ['v_nervoes', 'nervös, unruhig', 'auffallende Nervosität und Unruhe', 'd'],
-      ['v_angst', 'misstrauisch, ängstlich', 'misstrauisches, ängstliches Verhalten', 'd'],
-      ['v_apath', 'teilnahmslos, apathisch', 'teilnahmsloses, apathisches Verhalten', 'ad'],
-      ['v_stimmung', 'Stimmung schwankt stark', 'stark wechselnde Stimmung', 'ad']
+      ['v_distanz', 'distanzlos', 'distanzloses Verhalten', 'ad', 1],
+      ['v_aggr', 'aggressiv, gereizt', 'aggressives, gereiztes Verhalten', 'ad', 1],
+      ['v_enthemmt', 'enthemmt', 'enthemmtes Verhalten', 'a', 1],
+      ['v_redselig', 'auffallend redselig', 'auffallende Redseligkeit', 'a', 1],
+      ['v_weiner', 'weinerlich', 'weinerliches Verhalten', 'a', 1],
+      ['v_euphor', 'euphorisch, aufgekratzt', 'euphorische, aufgekratzte Stimmung', 'd', 1],
+      ['v_albern', 'albern, grundloses Lachen', 'albernes Verhalten mit grundlosem Lachen', 'd', 1],
+      ['v_nervoes', 'nervös, unruhig', 'auffallende Nervosität und Unruhe', 'd', 1],
+      ['v_angst', 'misstrauisch, ängstlich', 'misstrauisches, ängstliches Verhalten', 'd', 1],
+      ['v_apath', 'teilnahmslos, apathisch', 'teilnahmsloses, apathisches Verhalten', 'ad', 1],
+      ['v_stimmung', 'Stimmung schwankt stark', 'stark wechselnde Stimmung', 'ad', 1]
     ]],
     ['Bewusstsein und Orientierung', [
-      ['b_benommen', 'benommen, schläfrig', 'Benommenheit und Schläfrigkeit', 'ad'],
+      ['b_benommen', 'benommen, schläfrig', 'Benommenheit und Schläfrigkeit', 'ad', 1],
       ['b_nicken', 'nickt wiederholt ein', 'wiederholtes Einnicken', 'd'],
-      ['b_orient', 'nicht orientiert', 'eingeschränkte Orientierung zu Zeit, Ort oder Situation', 'ad'],
+      ['b_orient', 'nicht orientiert', 'eingeschränkte Orientierung zu Zeit, Ort oder Situation', 'ad', 1],
       ['b_antwort', 'antwortet verzögert', 'verzögerte Antworten auf Fragen', 'ad'],
-      ['b_konz', 'kaum konzentriert', 'deutliche Konzentrationsschwäche', 'ad'],
-      ['b_denken', 'Gedanken sprunghaft', 'sprunghafter, ungeordneter Gedankengang', 'd'],
-      ['b_erinn', 'Erinnerungslücken', 'Erinnerungslücken', 'ad']
+      ['b_konz', 'kaum konzentriert', 'deutliche Konzentrationsschwäche', 'ad', 1],
+      ['b_denken', 'Gedanken sprunghaft', 'sprunghafter, ungeordneter Gedankengang', 'd', 1],
+      ['b_erinn', 'Erinnerungslücken', 'Erinnerungslücken', 'ad', 1]
     ]],
     ['Körper', [
       ['k_erbr', 'Übelkeit, Erbrechen', 'Übelkeit bzw. Erbrechen', 'ad'],
       ['k_naess', 'Einnässen', 'Einnässen', 'a'],
       ['k_puls', 'Puls erkennbar beschleunigt', 'erkennbar beschleunigter Puls', 'd'],
       ['k_atem', 'Atmung auffällig', 'auffällig flache bzw. beschleunigte Atmung', 'd']
-    ]],
-    ['Tests vor Ort', [
-      ['t_fnt', 'Finger-Nase-Test unsicher', 'unsicherer Finger-Nase-Test', 'ad'],
-      ['t_romb', 'Romberg-Test: Schwanken', 'deutliches Schwanken beim Romberg-Test', 'ad'],
-      ['t_rzeit', 'Romberg-Test: Zeitgefühl weicht ab', 'deutlich abweichende Zeitschätzung beim Romberg-Test (30 Sekunden)', 'd'],
-      ['t_bein', 'Einbeinstand unsicher', 'unsicherer Einbeinstand', 'ad'],
-      ['t_linie', 'Gehen auf Linie unsicher', 'unsicheres Gehen auf einer gedachten Linie', 'ad'],
-      ['t_dreh', 'Drehbewegung unsicher', 'unsichere Drehbewegung', 'ad']
     ]],
     ['Umfeld und Gegenstände', [
       ['u_beh', 'Alkoholbehältnisse in Reichweite', 'geöffnete bzw. leere Alkoholbehältnisse in Reichweite', 'a'],
@@ -275,6 +279,20 @@
     ]]
   ];
   const WAHR_ALL = WAHR.flatMap(([, items]) => items);
+  /** Tests vor Ort – aktive Mitwirkung, deshalb eigener Satz mit Hinweis auf die Freiwilligkeit. */
+  const TV = [['fnt', 'Finger-Nase-Test', 'verfehlte zweimal die Nasenspitze'], ['romb', 'Romberg-Test', 'deutliches Schwanken'], ['bein', 'Einbeinstand', 'musste nach 5 Sekunden absetzen'], ['linie', 'Gehen auf einer gedachten Linie', 'wich mehrfach seitlich ab'], ['dreh', 'Drehbewegung', 'geriet ins Taumeln']];
+  /** Woran die Folgefähigkeit erkennbar war (+ = konnte folgen, − = nicht/eingeschränkt). */
+  const FAKT = [
+    ['fragen', '+', 'Fragen sinnvoll beantwortet', 'beantwortete Fragen sinnvoll und zusammenhängend'],
+    ['pers', '+', 'Personalien fehlerfrei', p => `gab ${PR(p).sein === 'ihr' ? 'ihre' : PR(p).sein === 'sein' ? 'seine' : '[seine/ihre]'} Personalien fehlerfrei an`],
+    ['anw', '+', 'Anweisungen umgesetzt', 'setzte Anweisungen ohne Wiederholung um'],
+    ['wied', '+', 'Belehrung wiedergegeben', 'gab den Inhalt der Belehrung mit eigenen Worten wieder'],
+    ['wdh', '-', 'Fragen mehrfach wiederholt', null],
+    ['bezug', '-', 'Antworten ohne Bezug zur Frage', 'antwortete wiederholt ohne Bezug zur Frage'],
+    ['anwn', '-', 'Anweisungen nicht umgesetzt', 'setzte Anweisungen nicht oder nur verzögert um']
+  ];
+  /** Wer die Auffälligkeiten festgestellt hat – ohne eigene Auswahl die belehrende Person. */
+  const beobachter = p => (Array.isArray(p.wahrVon) ? p.wahrVon : p.bel && has(p.bel.name) ? [p.bel] : []).filter(o => o && has(o.name));
   const einOf = p => arr(p && p.ein).filter(k => k === 'alk' || k === 'drog');
   /** Passt der Punkt zu dem, worauf es Hinweise gibt? */
   const passt = (tags, e) => (e.includes('alk') && tags.includes('a')) || (e.includes('drog') && tags.includes('d'));
@@ -285,18 +303,32 @@
   const mgl = v => { const s = str(v); if (!s) return ''; const n = Number(s.replace(',', '.')); return Number.isFinite(n) ? n.toFixed(2).replace('.', ',') : s; };
   const grund = g => str(g).replace(/^(da|weil)\s+/i, '').replace(/[.!?]+$/, '');
 
-  /** Gewählte Wahrnehmungen, die zum Konsum passen, in Katalogreihenfolge – dazu eigene Formulierungen. */
+  /** Gewählte Wahrnehmungen, die zum Konsum passen, in Katalogreihenfolge – wertende mit Beispiel – dazu eigene Formulierungen. */
   function wahrItems(p) {
-    const e = einOf(p), sel = arr(p.wahr);
-    return [...WAHR_ALL.filter(([k, , , tags]) => sel.includes(k) && passt(tags, e)).map(x => x[2]), ...arr(p.wahrFrei).map(str).filter(Boolean)];
+    const e = einOf(p), sel = arr(p.wahr), bsp = (p.wahrBsp && typeof p.wahrBsp === 'object') ? p.wahrBsp : {};
+    const item = ([k, , t, , b]) => (b ? `${t} (${str(bsp[k]) || '[woran erkennbar?]'})` : t);
+    return [...WAHR_ALL.filter(([k, , , tags]) => sel.includes(k) && passt(tags, e)).map(item), ...arr(p.wahrFrei).map(str).filter(Boolean)];
+  }
+  /** Tests vor Ort als Aufzählung (oder Ablehnung). */
+  function tvText(p) {
+    const tv = p.tv || {}, pr = PR(p);
+    if (tv.st === 'abgelehnt') return { text: `Die Teilnahme an Tests zur Überprüfung der Koordination lehnte ${pr.er} nach dem Hinweis auf die Freiwilligkeit ab.`, frei: 'abgelehnt' };
+    if (tv.st !== 'ok') return { text: '', frei: '' };
+    const rows = TV.filter(([k]) => tv[k] === 'sicher' || tv[k] === 'unsicher').map(([k, l]) => {
+      let t = `– ${l}: ${tv[k]}`;
+      if (tv[k] === 'unsicher' && has(tv[k + 'D'])) t += `, ${str(tv[k + 'D']).replace(/[.]+$/, '')}`;
+      if (k === 'romb' && has(tv.rombZ)) t += `; die 30 Sekunden schätzte ${pr.er} nach ${str(tv.rombZ)} Sekunden ab`;
+      return t;
+    });
+    return { text: [`Nach dem Hinweis, dass die Teilnahme freiwillig ist, führte ${pr.er} folgende Tests durch:`, ...(rows.length ? rows : ['– [Ergebnisse antippen]'])].join('\n'), frei: 'ok' };
   }
   /**
    * Atemalkoholtest und Drogenvortest – stehen nach der Belehrung, jeweils mit dem Hinweis auf die Freiwilligkeit.
    * Der zweite Test knüpft an den ersten an („Zudem …“, „… hingegen …“).
    */
-  function testSaetze(p) {
+  function testSaetze(p, prevStart = '') {
     const pr = PR(p), r = ROLLE[p.rolle] || {}, e = einOf(p), out = [];
-    let prev = '';
+    let prev = prevStart;
     for (const kind of ['aat', 'dt']) {
       if (!e.includes(kind === 'aat' ? 'alk' : 'drog')) continue;
       const t = p[kind] || {}, name = kind === 'aat' ? 'Atemalkoholtest' : 'Drogenvortest';
@@ -312,15 +344,26 @@
         prev = 'abgelehnt'; continue;
       }
       const wer = von || '[Beamtin/Beamter]', wann = um || 'um [Uhrzeit]';
-      const mittels = t.art === 'urin' ? ' mittels Urin' : t.art === 'speichel' ? ' mittels Speichelwischtest' : ' mittels [Urin/Speichel]';
-      const [art, rel] = kind === 'aat' ? (t.art === 'beweis' ? ['eine beweissichere Atemalkoholmessung', 'die'] : ['einen Atemalkoholvortest', 'den']) : [`einen Drogenvortest${mittels}`, 'den'];
-      if (prev === 'ok') out.push(`Zudem willigte ${pr.er} in ${art.replace(/^einen /, 'einen ebenfalls freiwilligen ').replace(/^eine /, 'eine ebenfalls freiwillige ')} ein, ${rel} ${wer} ${wann} durchführte.`);
-      else if (prev === 'abgelehnt') out.push(`Mit einem freiwilligen Drogenvortest${mittels}, den ${wer} ${wann} durchführte, war ${pr.er} hingegen einverstanden.`);
-      else out.push(`Nach dem Hinweis, dass die Teilnahme freiwillig ist, willigte ${pr.er} in ${art} ein, ${rel} ${wer} ${wann} durchführte.`);
-      if (kind === 'aat') out.push(`Die Messung ergab einen Wert von ${mgl(t.wert) || '[Wert]'} mg/l.`);
-      else {
+      // [Akk.-Artikel, Dat.-Artikel, Adj. Akk., Adj. Akk. „ebenfalls“, Adj. Dat., Nomen Akk., Nomen Dat., Relativpronomen, Zusatz]
+      let w;
+      if (kind === 'aat') {
+        const ger = ` mit dem Gerät ${has(t.geraet) ? str(t.geraet) : '[Gerät]'}`;
+        w = t.art === 'beweis' ? ['eine', 'einer', '', 'ebenfalls freiwillige ', 'freiwilligen ', 'beweissichere Atemalkoholmessung', 'beweissicheren Atemalkoholmessung', 'die', ger] : ['einen', 'einem', '', 'ebenfalls freiwilligen ', 'freiwilligen ', 'Atemalkoholvortest', 'Atemalkoholvortest', 'den', ger];
+      } else {
+        const mittels = t.art === 'urin' ? ' mittels Urinschnelltest (nal von minden)' : t.art === 'speichel' ? ' mittels Speichelwischtest (Drugwipe)' : ' mittels [Urin/Speichel]';
+        w = ['einen', 'einem', '', 'ebenfalls freiwilligen ', 'freiwilligen ', 'Drogenvortest', 'Drogenvortest', 'den', mittels];
+      }
+      const [akk, dat, , ebf, adjD, nA, nD, rel, zus] = w;
+      if (prev === 'ok') out.push(`Zudem willigte ${pr.er} in ${akk} ${ebf}${nA}${zus} ein, ${rel} ${wer} ${wann} durchführte.`);
+      else if (prev === 'abgelehnt') out.push(`Mit ${dat} ${adjD}${nD}${zus}, ${rel} ${wer} ${wann} durchführte, war ${pr.er} hingegen einverstanden.`);
+      else out.push(`Nach dem Hinweis, dass die Teilnahme freiwillig ist, willigte ${pr.er} in ${akk} ${nA}${zus} ein, ${rel} ${wer} ${wann} durchführte.`);
+      if (kind === 'aat') {
+        out.push(`${t.art === 'beweis' ? 'Die Messung' : 'Der Vortest'} ergab einen Wert von ${mgl(t.wert) || '[Wert]'} mg/l.`);
+        if (has(t.trink)) out.push(`Nach eigenen Angaben trank ${pr.er} zuletzt gegen ${str(t.trink)} Uhr.`);
+        if (has(t.beob)) out.push(`Ab ${str(t.beob)} Uhr stand ${pr.er} bis zur Messung unter ständiger Beobachtung, sodass ein Nachtrunk ausgeschlossen ist.`);
+      } else {
         const stoffe = STOFFE.filter(([k]) => arr(t.stoffe).includes(k)).map(x => x[1]);
-        out.push(t.erg === 'neg' ? 'Der Test verlief negativ.' : t.erg === 'pos' ? `Der Test verlief positiv auf ${stoffe.length ? joinUnd(stoffe) : '[Stoffgruppe]'}.` : 'Der Test verlief [Ergebnis].');
+        out.push(t.erg === 'neg' ? 'Der Vortest verlief negativ.' : t.erg === 'pos' ? `Der Vortest verlief positiv auf ${stoffe.length ? joinUnd(stoffe) : '[Stoffgruppe]'}.` : 'Der Vortest verlief [Ergebnis].');
       }
       prev = 'ok';
     }
@@ -332,19 +375,28 @@
     if (!e.length) return '';
     const pr = PR(p), A = e.includes('alk'), D = e.includes('drog');
     const was = A && D ? 'einen vorangegangenen Konsum von Alkohol und anderen berauschenden Mitteln' : A ? 'einen vorangegangenen Alkoholkonsum' : 'einen vorangegangenen Konsum berauschender Mittel';
+    const beo = beobachter(p), wer = beo.length ? joinUnd(beo.map(offName)) : '[Beamtin/Beamter]';
     const items = wahrItems(p);
-    const head = `Vor Ort ergaben sich bei ${pr.ihm} Hinweise auf ${was} ${A && D ? 'sowie' : 'und'} eine daraus resultierende Beeinflussung. Dafür sprachen folgende Wahrnehmungen und Feststellungen:`;
+    const head = `${wer} ${beo.length > 1 ? 'stellten' : 'stellte'} bei ${pr.ihm} vor Ort folgende Auffälligkeiten fest, die auf ${was} hinwiesen:`;
     const list = (items.length ? items : ['[Wahrnehmungen antippen]']).map(t => '– ' + t);
+    const tv = tvText(p);
     const t = [];
     if (p.konsum === 'ja') t.push(satz(`Auf Nachfrage räumte ${pr.er} ein, ${str(p.konsumText) || '[was, wann und wie viel konsumiert wurde]'}`));
     else if (p.konsum === 'nein') t.push(`Auf Nachfrage bestritt ${pr.er}, ${A && D ? 'Alkohol oder andere berauschende Mittel' : A ? 'Alkohol' : 'berauschende Mittel'} konsumiert zu haben.`);
     else if (p.konsum === 'keine') t.push(`Zum Konsum machte ${pr.er} keine Angaben.`);
     const f = FOLGE.find(x => x[0] === p.folge);
+    const durch = beo.length ? joinUnd(beo.map(offName)) : `die eingesetzten ${beamte(data)}`;
     if (!f) t.push('[Konnte den Ausführungen, Fragen und Anweisungen folgen?]');
-    else if (p.folgeArt === 'eindruck') t.push(`Auf die eingesetzten ${beamte(data)} wirkte ${pr.er} so, als könne ${pr.er} den Ausführungen, Fragen und Anweisungen ${f[2]}.`);
-    else t.push(`Nach den Wahrnehmungen der eingesetzten ${beamte(data)} konnte ${pr.er} den Ausführungen, Fragen und Anweisungen ${f[2]}.`);
-    t.push(...testSaetze(p));
-    return [head, ...list, t.filter(Boolean).join(' ')].filter(Boolean).join('\n');
+    else if (p.folgeArt === 'eindruck') t.push(`Auf ${durch} wirkte ${pr.er} so, als könne ${pr.er} den Ausführungen, Fragen und Anweisungen ${f[2]}.`);
+    else t.push(`Nach den Wahrnehmungen ${beo.length ? 'von ' + durch : `der eingesetzten ${beamte(data)}`} konnte ${pr.er} den Ausführungen, Fragen und Anweisungen ${f[2]}.`);
+    if (f) {
+      const sel = arr(p.folgeFakt), vis = FAKT.filter(([k, s]) => sel.includes(k) && (f[0] === 'eingeschr' || (f[0] === 'ja' ? s === '+' : s === '-')));
+      const vp = vis.filter(x => x[3]).map(x => (typeof x[3] === 'function' ? x[3](p) : x[3]));
+      if (vp.length) t.push(`${pr.Er} ${joinUnd(vp)}.`);
+      if (vis.some(x => x[0] === 'wdh')) t.push('Fragen mussten mehrfach wiederholt werden.');
+    }
+    t.push(...testSaetze(p, tv.frei));
+    return [head, ...list, tv.text, t.filter(Boolean).join(' ')].filter(Boolean).join('\n');
   }
 
   /** Keine Angaben: Beschuldigte/Betroffene zur Sache, Zeugen mit § 52 verweigern das Zeugnis, sonst keine Angaben zum Sachverhalt. */
@@ -360,11 +412,17 @@
     const p = arr(data.personen)[i] || {}, r = ROLLE[p.rolle], pr = PR(p);
     const wer = pron ? pr.Er : `${herrFrau(p)} ${nameOf(data, i)}`;
     const durch = p.bel && has(p.bel.name) ? offName(p.bel) : '[belehrende Person]';
-    if (!r) return `${wer} wurde durch ${durch} [als Zeuge/Beschuldigter] belehrt.`;
+    const um = has(p.belZeit) ? ` um ${str(p.belZeit)} Uhr` : '';
+    if (!r) return `${wer} wurde${um} durch ${durch} [als Zeuge/Beschuldigter] belehrt.`;
     const als = r.zeug ? (p.g === 'w' ? 'Zeugin' : p.g === 'm' ? 'Zeuge' : '[Zeuge/Zeugin]') : (p.g === 'm' || p.g === 'w' ? r[p.g] : r.x);
-    const base = `${wer} wurde durch ${durch} als ${als}${r.owi ? ' gemäß § 55 OWiG' : ''} belehrt`;
-    if (!(r.zeug && p.zvr)) return base + '.';
-    const folge = p.keine ? `, woraufhin ${pr.er} erklärte, ${keineWas(p)}` : p.bereit !== false ? `, woraufhin ${pr.er} sich zur Aussage bereit erklärte` : '';
+    let base = `${wer} wurde${um} durch ${durch} als ${als}${r.owi ? ' gemäß § 55 OWiG' : ''} belehrt`;
+    if (r.tat && has(p.vorwurf)) base += `, nachdem ${pr.ihm} der ${r.owi ? 'Vorwurf' : 'Tatvorwurf'} (${str(p.vorwurf)}) eröffnet worden war`;
+    if (!(r.zeug && p.zvr)) return base + '.' + (p.verst ? ` ${pr.Er} erklärte, die Belehrung verstanden zu haben.` : '');
+    const verst = p.verst ? 'die Belehrung verstanden zu haben' : '';
+    let folge = '';
+    if (p.keine) folge = `, woraufhin ${pr.er} erklärte, ${verst ? verst + ' und ' : ''}${keineWas(p)}`;
+    else if (p.bereit !== false) folge = verst ? `, woraufhin ${pr.er} erklärte, ${verst} und aussagen zu wollen` : `, woraufhin ${pr.er} sich zur Aussage bereit erklärte`;
+    else if (verst) folge = `, woraufhin ${pr.er} erklärte, ${verst}`;
     return `${base} und dabei besonders auf ${pr.sein} Zeugnisverweigerungsrecht gemäß § 52 StPO hingewiesen${folge}.`;
   }
   /** Der Satz direkt vor der Schilderung. Mit Alkohol/Drogen dazwischen: „Zum Sachverhalt machte er gegenüber … folgende Angaben:“ */
@@ -444,6 +502,10 @@
     const e = einOf(p);
     if (e.length) {
       if (!wahrItems(p).length) m.push('Wahrnehmungen');
+      const bsp = (p.wahrBsp && typeof p.wahrBsp === 'object') ? p.wahrBsp : {};
+      for (const [k, l, , tags, b] of WAHR_ALL) if (b && arr(p.wahr).includes(k) && passt(tags, e) && !has(bsp[k])) m.push(`Beispiel zu „${l}“`);
+      if (p.tv && p.tv.st === 'ok' && !TV.some(([k]) => p.tv[k])) m.push('Ergebnisse der Tests vor Ort');
+      if (p.aat && p.aat.st === 'ok' && e.includes('alk') && !has(p.aat.geraet)) m.push('Atemalkoholtest: Gerät');
       if (!p.folge) m.push('Folgefähigkeit');
       const r = ROLLE[p.rolle] || {};
       for (const [k, on, l] of [['aat', e.includes('alk'), 'Atemalkoholtest'], ['dt', e.includes('drog'), 'Drogenvortest']]) {
@@ -572,7 +634,7 @@
     const g = arr(p.gegen);
     const belOn = g.some(x => x && x.ref === 'bel'), alleOn = g.some(x => x && x.ref === 'alle');
     const others = g.map((x, j) => [x, j]).filter(([x]) => x && !x.ref && has(x.name));
-    const gegenChips = `<div class="w-chips">${hasBel ? `<button type="button" class="chip" data-sd="gbel" aria-pressed="${String(belOn)}">${esc(offName(p.bel))}<small class="sd-sm">hat belehrt</small></button>` : ''}<button type="button" class="chip" data-sd="galle" aria-pressed="${String(alleOn)}">den eingesetzten ${beamte(data)}</button></div>`;
+    const gegenChips = `<div class="w-chips">${hasBel ? `<button type="button" class="chip" data-sd="gbel" aria-pressed="${String(belOn)}">${esc(offName(p.bel))}<small class="sd-sm">hat belehrt</small></button>` : ''}<button type="button" class="chip" data-sd="galle" aria-pressed="${String(alleOn)}">${crewNamen(data).length ? 'Alle: ' + esc(crewNamen(data).map(offName).join(', ')) : `den eingesetzten ${beamte(data)}`}</button></div>`;
     return `${topBar('menu', `Schilderungen · Person ${i + 1} von ${P.length}`, heading(data, i))}
       <div class="w-grid sd-grid">
         <div class="w-q full w-head"><span class="w-head-t">Person</span></div>
@@ -584,6 +646,7 @@
         <div class="w-q full w-head"><span class="w-head-t">Verständigung und Belehrung</span><span class="w-head-h">Kommt zuerst – Fragen zum Konsum und Tests stehen im Text erst danach.</span></div>
         ${spracheHtml(p, base)}
         <div class="w-q" data-q="bel"><span class="w-lbl">Belehrt durch <i class="w-req" title="Pflicht">•</i></span>${r ? `<p class="w-hint">${esc(r.bel)}</p>` : ''}${hasBel ? `<div class="sd-toks">${tok(p.bel, `${base}.bel`, 'unbel')}</div>` : ta(api, data, 'bel', 'sdBel', 'Namen tippen, z. B. Schulz')}</div>
+        ${belZusatzHtml(p, base)}
         ${r && r.zeug ? `<div class="w-q" data-q="zvr"><span class="w-lbl">Belehrung</span><div class="w-chips"><button type="button" class="chip" data-sd="zvr" aria-pressed="${String(!!p.zvr)}">Besonderer Hinweis auf das Zeugnisverweigerungsrecht</button>${p.zvr && !p.keine ? `<button type="button" class="chip" data-sd="bereit" aria-pressed="${String(p.bereit !== false)}">Zur Aussage bereit erklärt</button>` : ''}</div><p class="w-hint sd-hint">Steht mit „gemäß § 52 StPO“ im Text. Gilt für Verlobte, Ehegatten, eingetragene Lebenspartner, Verwandte und Verschwägerte der beschuldigten Person.</p></div>` : ''}
         <div class="w-q full w-head"><span class="w-head-t">Alkohol und Drogen</span></div>
         ${einflussHtml(api, data, p, base)}
@@ -598,6 +661,18 @@
   }
 
   /* ---------- Maske: Deutschkenntnisse, Alkohol/Drogen ---------- */
+  const VORWURF = {
+    bs: ['Körperverletzung', 'gefährliche Körperverletzung', 'Bedrohung', 'Beleidigung', 'Sachbeschädigung', 'Diebstahl', 'Hausfriedensbruch', 'Widerstand gegen Vollstreckungsbeamte', 'Trunkenheit im Verkehr', 'unerlaubtes Entfernen vom Unfallort', 'fahrlässige Körperverletzung', 'Fahren ohne Fahrerlaubnis'],
+    betr: ['Fahren unter Alkoholeinfluss (§ 24a Abs. 1 StVG)', 'Fahren unter der Wirkung berauschender Mittel (§ 24a Abs. 2 StVG)', 'Rotlichtverstoß', 'Geschwindigkeitsüberschreitung', 'Benutzung eines Mobiltelefons']
+  };
+  const zeitIn = (id, path, val) => `<div class="sd-time"><input class="input mono" type="time" id="${id}" data-sk="${esc(path)}" value="${esc(val || '')}"><button type="button" class="chip sm" data-sd="now" data-p="${esc(path)}">Jetzt</button></div>`;
+  /** Uhrzeit der Belehrung, Tatvorwurf (Beschuldigte/Betroffene) und „Belehrung verstanden“. */
+  function belZusatzHtml(p, base) {
+    const r = ROLLE[p.rolle]; if (!r) return '';
+    const vw = r.tat ? `<div><label class="w-lbl" for="sdVw">${r.owi ? 'Vorwurf' : 'Tatvorwurf'} (eröffnet)</label>${textIn('sdVw', `${base}.vorwurf`, p.vorwurf, r.owi ? 'z. B. Rotlichtverstoß' : 'z. B. Körperverletzung')}<div class="w-chips sd-sugg">${VORWURF[p.rolle].map(v => `<button type="button" class="chip sm" data-sd="set" data-p="${base}.vorwurf" data-v="${esc(v)}" aria-pressed="${String(str(p.vorwurf) === v)}">${esc(v)}</button>`).join('')}</div></div>` : '';
+    return `<div class="w-q" data-q="belz"><div class="sd-two"><div><label class="w-lbl" for="sdBelZ">Uhrzeit der Belehrung</label>${zeitIn('sdBelZ', `${base}.belZeit`, p.belZeit)}</div>${vw}</div></div>
+        <div class="w-q" data-q="verst"><div class="w-chips"><button type="button" class="chip" data-sd="tog" data-p="${base}.verst" aria-pressed="${String(!!p.verst)}">Hat erklärt, die Belehrung verstanden zu haben</button></div><p class="w-hint sd-hint">Steht dann im Text. Gerade bei Alkohol, Drogen oder wenig Deutsch wichtig.</p></div>`;
+  }
   const seg = (path, cur, opts, cls = 'w-seg') => `<div class="${cls}" role="group">${opts.map(([v, l]) => `<button type="button" class="${cls === 'w-seg' ? 'w-opt' : 'chip'}" data-sd="set" data-p="${esc(path)}" data-v="${esc(v)}" aria-pressed="${String(cur === v)}">${esc(l)}</button>`).join('')}</div>`;
   const flips = (path, cur, opts, extra = () => '') => `<div class="w-chips">${opts.map(([v, l]) => `<button type="button" class="chip" data-sd="flip" data-p="${esc(path)}" data-v="${esc(v)}" aria-pressed="${String(arr(cur).includes(v))}">${esc(l)}${extra(v)}</button>`).join('')}</div>`;
   const textIn = (id, path, val, ph, extra = '') => `<input class="input" id="${id}" data-sk="${esc(path)}" value="${esc(val || '')}" placeholder="${esc(ph)}" autocomplete="off" spellcheck="false" maxlength="240"${extra}>`;
@@ -624,15 +699,18 @@
     if (t.st === 'ok' || t.st === 'abgelehnt') {
       const von = t.von && has(t.von.name) ? `<div class="sd-toks">${tok(t.von, `${path}.von`, 'unoff', null, ` data-p="${esc(path)}.von"`)}</div>` : ta(api, data, kind, A ? 'sdAat' : 'sdDt', 'Namen tippen');
       more += `<div class="sd-two" data-q="${kind}d"><div><span class="w-lbl">${t.st === 'ok' ? 'Durchgeführt durch' : 'Angeboten durch'}${t.st === 'ok' ? ' <i class="w-req" title="Pflicht">•</i>' : ''}</span>${von}</div>
-        <div><label class="w-lbl" for="${A ? 'sdAatZ' : 'sdDtZ'}">Uhrzeit${t.st === 'ok' ? ' <i class="w-req" title="Pflicht">•</i>' : ''}</label><div class="sd-time"><input class="input mono" type="time" id="${A ? 'sdAatZ' : 'sdDtZ'}" data-sk="${esc(path)}.zeit" value="${esc(t.zeit || '')}"><button type="button" class="chip sm" data-sd="now" data-p="${esc(path)}.zeit">Jetzt</button></div></div></div>`;
+        <div><label class="w-lbl" for="${A ? 'sdAatZ' : 'sdDtZ'}">Uhrzeit${t.st === 'ok' ? ' <i class="w-req" title="Pflicht">•</i>' : ''}</label>${zeitIn(A ? 'sdAatZ' : 'sdDtZ', `${path}.zeit`, t.zeit)}</div></div>`;
     }
     if (t.st === 'ok' && A) {
-      more += `<div class="sd-two" data-q="aatw"><div><span class="w-lbl">Art</span>${seg(`${path}.art`, t.art || 'vortest', [['vortest', 'Vortest (Handgerät)'], ['beweis', 'Beweissicher']], 'w-chips')}</div>
+      const geraete = [...new Set([...api.docs().filter(x => x && x.type === 'sch').flatMap(x => arr(x.data && x.data.personen)).map(q => q && q.aat && str(q.aat.geraet)).filter(Boolean), 'Dräger Alcotest 5820', 'Dräger Alcotest 6820', 'Dräger Alcotest 9510 (Evidential)'])].slice(0, 5);
+      more += `<div class="sd-inl" data-q="aatg"><label class="w-lbl" for="sdAatGer">Gerät <i class="w-req" title="Pflicht">•</i></label>${textIn('sdAatGer', `${path}.geraet`, t.geraet, 'z. B. Dräger Alcotest 5820')}<div class="w-chips sd-sugg">${geraete.map(g => `<button type="button" class="chip sm" data-sd="set" data-p="${path}.geraet" data-v="${esc(g)}" aria-pressed="${String(str(t.geraet) === g)}">${esc(g)}</button>`).join('')}</div></div>
+        <div class="sd-two" data-q="aatt"><div><label class="w-lbl" for="sdAatTr">Zuletzt getrunken (eigene Angabe)</label>${zeitIn('sdAatTr', `${path}.trink`, t.trink)}</div><div><label class="w-lbl" for="sdAatBe">Unter Beobachtung seit</label>${zeitIn('sdAatBe', `${path}.beob`, t.beob)}</div></div>
+        <div class="sd-two" data-q="aatw"><div><span class="w-lbl">Art</span>${seg(`${path}.art`, t.art || 'vortest', [['vortest', 'Vortest (Handgerät)'], ['beweis', 'Beweissicher']], 'w-chips')}</div>
         <div><label class="w-lbl" for="sdAatW">Ergebnis <i class="w-req" title="Pflicht">•</i></label><div class="sd-unit"><input class="input mono" id="sdAatW" data-sk="${esc(path)}.wert" value="${esc(t.wert || '')}" placeholder="0,42" inputmode="decimal" autocomplete="off" maxlength="6"><span class="w-unit">mg/l</span></div></div></div>
         <p class="w-hint sd-hint">Für Straftaten nach §§ 315c, 316 StGB ist die Blutprobe maßgeblich – der Atemalkoholwert ersetzt sie nicht.</p>`;
     }
     if (t.st === 'ok' && !A) {
-      more += `<div class="sd-inl" data-q="dtart"><span class="w-lbl">Art <i class="w-req" title="Pflicht">•</i></span>${seg(`${path}.art`, t.art, [['urin', 'Urin'], ['speichel', 'Speichel (Wischtest)']], 'w-chips')}</div>
+      more += `<div class="sd-inl" data-q="dtart"><span class="w-lbl">Art <i class="w-req" title="Pflicht">•</i></span>${seg(`${path}.art`, t.art, [['speichel', 'Speichel – Drugwipe'], ['urin', 'Urin – nal von minden']], 'w-chips')}</div>
         <div class="sd-inl" data-q="dterg"><span class="w-lbl">Ergebnis <i class="w-req" title="Pflicht">•</i></span>${seg(`${path}.erg`, t.erg, [['neg', 'Negativ'], ['pos', 'Positiv']])}</div>
         ${t.erg === 'pos' ? `<div class="sd-inl" data-q="dtst"><span class="w-lbl">Positiv auf</span>${flips(`${path}.stoffe`, t.stoffe, STOFFE)}</div>` : ''}
         <p class="w-hint sd-hint">Ein positiver Vortest begründet den Verdacht – Blutprobe prüfen (§ 81a StPO, bei Ordnungswidrigkeiten § 46 Abs. 4 OWiG).</p>`;
@@ -665,13 +743,32 @@
       return `<div class="sd-wg"><span class="w-mk-gt">${esc(g)}${n ? ` · ${n}` : ''}</span><div class="w-chips">${vis.map(([k, l, , tags]) => `<button type="button" class="chip" data-sd="flip" data-p="${base}.wahr" data-v="${k}" aria-pressed="${String(sel.includes(k))}">${esc(l)}${both && tags !== 'ad' ? `<small class="sd-sm">${tags === 'a' ? 'Alk.' : 'Drog.'}</small>` : ''}</button>`).join('')}</div></div>`;
     }).join('');
     const nSel = wahrItems(p).length;
+    // Wer hat es festgestellt? (Besatzung und schon genannte Beamte; ohne Auswahl die belehrende Person)
+    const beo = beobachter(p).map(o => nameKey(o.name));
+    const kand = pool(api, data).filter(o => o.src !== 'team').slice(0, 8);
+    const vonHtml = `<div class="sd-inl" data-q="wvon"><span class="w-lbl">Festgestellt durch</span><div class="w-chips">${kand.map(o => `<button type="button" class="chip" data-sd="wvon" data-v="${esc(JSON.stringify({ grad: o.grad || '', name: o.name }))}" aria-pressed="${String(beo.includes(nameKey(o.name)))}">${esc(offName({ grad: o.grad || rankFor(o.name), name: o.name }))}</button>`).join('')}</div><p class="w-hint sd-hint">Im Text: „${esc(beo.length ? joinUnd(beobachter(p).map(offName)) : '[Beamtin/Beamter]')} ${beo.length > 1 ? 'stellten' : 'stellte'} … fest“.</p></div>`;
+    // Wertende Punkte: woran war es erkennbar?
+    const bspSel = WAHR_ALL.filter(([k, , , tags, b]) => b && sel.includes(k) && passt(tags, e));
+    const bsp = (p.wahrBsp && typeof p.wahrBsp === 'object') ? p.wahrBsp : {};
+    const bspHtml = bspSel.length ? `<div class="sd-wg" data-q="wbsp"><span class="w-mk-gt">Woran erkennbar?</span><p class="w-hint">Statt einer Wertung ein konkretes Beispiel – steht in Klammern dahinter.</p>${bspSel.map(([k, l]) => `<div class="sd-inl"><label class="w-hint" for="sdB_${k}">${esc(l)}</label>${textIn('sdB_' + k, `${base}.wahrBsp.${k}`, bsp[k], 'z. B. schrie die Beamten wiederholt an')}</div>`).join('')}</div>` : '';
+    // Tests vor Ort
+    const tv = p.tv || {};
+    const tvRows = tv.st === 'ok' ? TV.map(([k, l, ph]) => `<div class="sd-tv"><span class="sd-tv-l">${esc(l)}</span>${seg(`${base}.tv.${k}`, tv[k] || '', [['', '—'], ['sicher', 'sicher'], ['unsicher', 'unsicher']], 'w-chips')}${tv[k] === 'unsicher' ? textIn(`sdTv_${k}`, `${base}.tv.${k}D`, tv[k + 'D'], 'z. B. ' + ph) : ''}${k === 'romb' && tv[k] ? `<div class="sd-unit"><label class="w-hint" for="sdTvZ">30 Sekunden geschätzt nach</label><input class="input mono" id="sdTvZ" data-sk="${base}.tv.rombZ" value="${esc(tv.rombZ || '')}" inputmode="numeric" placeholder="–" maxlength="3"><span class="w-unit">s</span></div>` : ''}</div>`).join('') : '';
+    const tvHtml = `<div class="sd-sub" data-q="tv"><span class="w-lbl">Tests vor Ort</span><p class="w-hint">Freiwillig – im Text mit Hinweis auf die Freiwilligkeit.</p>${seg(`${base}.tv.st`, tv.st || 'nein', [['ok', 'Durchgeführt'], ['abgelehnt', 'Abgelehnt'], ['nein', 'Nicht durchgeführt']], 'w-chips')}${tvRows}</div>`;
+    // Woran war die Folgefähigkeit erkennbar?
+    const fv = p.folge ? FAKT.filter(([, sg]) => p.folge === 'eingeschr' || (p.folge === 'ja' ? sg === '+' : sg === '-')) : [];
+    const faktHtml = fv.length ? `<div class="sd-inl" data-q="fakt"><span class="w-lbl">Woran erkennbar?</span>${flips(`${base}.folgeFakt`, p.folgeFakt, fv.map(([k, , l]) => [k, l]))}</div>` : '';
+    const warn = ROLLE[p.rolle] && ROLLE[p.rolle].tat && (p.folge === 'eingeschr' || p.folge === 'nein') && !p.verst ? '<div class="w-info">Konnte er nur eingeschränkt folgen, ist entscheidend, ob die Belehrung verstanden wurde. Wenn ja: oben „Hat erklärt, die Belehrung verstanden zu haben“ antippen und hier belegen, woran es erkennbar war. Wenn nein: Befragung zur Sache zurückstellen.</div>' : '';
     const frei = arr(p.wahrFrei).map((t, j) => `<span class="sd-tok"><b>${esc(t)}</b><button type="button" data-sd="unwf" data-j="${j}" aria-label="${esc(t)} entfernen">${ICON_X}</button></span>`).join('');
     const konsum = `<span class="w-lbl">Angaben zum Konsum</span>${seg(`${base}.konsum`, p.konsum, [['ja', 'Räumte Konsum ein'], ['nein', 'Bestritt Konsum'], ['keine', 'Keine Angaben']], 'w-chips')}${p.konsum === 'ja' ? `<div class="sd-inl" data-q="konstext"><label class="w-hint" for="sdKons">„Auf Nachfrage räumte ${pr.er} ein, …“</label>${textIn('sdKons', `${base}.konsumText`, p.konsumText, 'gegen 20:00 Uhr zwei Bier getrunken zu haben')}</div>` : ''}`;
-    const folge = `<span class="w-lbl">Konnte ${pr.er === 'sie' ? 'sie' : pr.er === 'er' ? 'er' : 'die Person'} den Ausführungen, Fragen und Anweisungen folgen? <i class="w-req" title="Pflicht">•</i></span>${seg(`${base}.folge`, p.folge, FOLGE)}<div class="sd-inl sd-gap" data-q="folgeart"><span class="w-lbl">Formulierung</span>${seg(`${base}.folgeArt`, p.folgeArt === 'eindruck' ? 'eindruck' : 'wahr', [['wahr', 'Nach den Wahrnehmungen'], ['eindruck', 'Wirkte so (Eindruck)']], 'w-chips')}</div>`;
+    const folge = `<span class="w-lbl">Konnte ${pr.er === 'sie' ? 'sie' : pr.er === 'er' ? 'er' : 'die Person'} den Ausführungen, Fragen und Anweisungen folgen? <i class="w-req" title="Pflicht">•</i></span>${seg(`${base}.folge`, p.folge, FOLGE)}${faktHtml}${warn}<div class="sd-inl sd-gap" data-q="folgeart"><span class="w-lbl">Formulierung</span>${seg(`${base}.folgeArt`, p.folgeArt === 'eindruck' ? 'eindruck' : 'wahr', [['wahr', 'Nach den Wahrnehmungen'], ['eindruck', 'Wirkte so (Eindruck)']], 'w-chips')}</div>`;
     return `${head}<div class="w-q"><div class="w-sub sd-box">
-      <div data-q="wahr"><span class="w-lbl">Wahrnehmungen und Feststellungen <i class="w-req" title="Pflicht">•</i>${nSel ? `<span class="sd-cnt mono">${nSel}</span>` : ''}</span><p class="w-hint">Alles antippen, was vor Ort auffiel – erscheint im Text als Aufzählung.</p>
+      ${vonHtml}
+      <div data-q="wahr" class="sd-gap"><span class="w-lbl">Wahrnehmungen und Feststellungen <i class="w-req" title="Pflicht">•</i>${nSel ? `<span class="sd-cnt mono">${nSel}</span>` : ''}</span><p class="w-hint">Alles antippen, was vor Ort auffiel – erscheint im Text als Aufzählung. Wertende Punkte fragen gleich nach einem Beispiel.</p>
       ${groups}</div>
+      ${bspHtml}
       <div class="sd-wg" data-q="wf"><span class="w-mk-gt">Eigene Wahrnehmung</span>${frei ? `<div class="sd-toks">${frei}</div>` : ''}<div class="sd-add-in"><input class="input" id="sdWf" data-wf="1" value="${esc(V.q.wf || '')}" placeholder="z. B. Hose im Schritt durchnässt" autocomplete="off" spellcheck="true" enterkeyhint="done" maxlength="200"><button type="button" class="btn btn-ghost btn-sm" data-sd="wfadd">Hinzufügen</button></div></div>
+      ${tvHtml}
       <div class="sd-sub" data-q="konsum">${konsum}</div>
       <div class="sd-sub" data-q="folge">${folge}</div>
       ${e.includes('alk') ? testHtml(api, data, p, base, 'aat') : ''}
@@ -846,6 +943,13 @@
         setPath(data, path, a2.length ? a2 : undefined); save(); return true;
       }
       case 'frist': { const p = cur(); if (!p) return true; if (p.saFrist === false) delete p.saFrist; else p.saFrist = false; save(); return true; }
+      case 'wvon': {
+        const p = cur(); if (!p) return true; let o = null; try { o = JSON.parse(b.dataset.v); } catch (er) { return true; }
+        o = { grad: str(o.grad) || rankFor(o.name), name: str(o.name) }; if (!o.grad) delete o.grad;
+        const list = beobachter(p).slice(), k = list.findIndex(x => nameKey(x.name) === nameKey(o.name));
+        if (k >= 0) list.splice(k, 1); else list.push(o);
+        p.wahrVon = list; save(); return true;
+      }
       case 'tog': setPath(data, b.dataset.p, getPath(data, b.dataset.p) ? undefined : true); save(); return true;
       case 'now': { const d0 = new Date(); setPath(data, b.dataset.p, `${String(d0.getHours()).padStart(2, '0')}:${String(d0.getMinutes()).padStart(2, '0')}`); save(); return true; }
       case 'unoff': setPath(data, b.dataset.p, undefined); save(); return true;
@@ -918,6 +1022,6 @@
     text: data => [['', 'Schilderungen', paket(data), '']],
     preview: () => '', kurzText: () => '', fahndung: () => '', offen: () => [], personalien: () => '',
     screen: { open, render, mounted, click, input, change, keydown, submit },
-    core: { nameOf, kuerzel, heading, einleitung, gegenText, block, paket, spracheText, einflussText, belehrungSatz, vorText, strafantragText, WAHR, fehlt, cleanNr, canonRank, parseFree: (data, q, team = []) => parseFree({ team: () => team, docs: () => [] }, data, q), setRanks: m => { RANKS = new Map(Object.entries(m || {}).map(([k, v]) => [nameKey(k), v])); } }
+    core: { nameOf, kuerzel, heading, einleitung, gegenText, block, paket, spracheText, einflussText, belehrungSatz, vorText, strafantragText, WAHR, TV, FAKT, fehlt, cleanNr, canonRank, parseFree: (data, q, team = []) => parseFree({ team: () => team, docs: () => [] }, data, q), setRanks: m => { RANKS = new Map(Object.entries(m || {}).map(([k, v]) => [nameKey(k), v])); } }
   });
 })(typeof window !== 'undefined' ? window : globalThis);
