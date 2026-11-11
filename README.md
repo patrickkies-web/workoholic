@@ -116,7 +116,7 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 - Fällige Routinen werden markiert und in der Navigation gezählt.
 
 **Team**
-- Personenbaum: Wer berichtet an wen, beliebig viele Rollen pro Person, optional Kontakt.
+- Personenbaum: Wer berichtet an wen, **Amtsbezeichnung** (Auswahlliste, z. B. POK, PKin – erscheint in Besatzungen und Berichten als „Amtsbezeichnung Nachname“; aus älteren Rollen wie „Pkin“ oder „Polizeioberkommissarin“ wird sie erkannt), beliebig viele Rollen pro Person, optional Kontakt.
 - Notizen je Person mit automatischem Zeitstempel, chronologisch nach Tagen gruppiert (neueste oben). Nachträgliche Änderungen werden als „bearbeitet“ markiert.
 - Offene Anfragen und Stundenbuchungen der Person aus dem Planner erscheinen direkt in ihrem Bereich.
 
