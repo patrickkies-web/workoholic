@@ -347,6 +347,25 @@
   const kontakt = d => get(d, 'gesch.kontakt') || ({ ja: 'vorort', nein: 'telefon' }[get(d, 'gesch.anwesend')] || '');
   const erreicht = d => kontakt(d) !== 'nein';
   const zeugenJa = d => get(d, 'zg.vorhanden') === 'ja' || (get(d, 'zg.vorhanden') !== 'nein' && arr(get(d, 'zeugen')).length > 0);
+  const fmtD = iso => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); return m ? `${m[3]}.${m[2]}.` : ''; };
+  /** Uhrzeit, auf die sich die Verhältnisse beziehen: Eintreffen, sonst Einsatzübernahme. */
+  const aufnahmeZeit = d => get(d, 'einsatz.eintreffZeit') || get(d, 'einsatz.zeit') || '';
+  /** Licht zur Aufnahmezeit – Sonnenauf- und -untergang für das Münsterland (52,1° N, 7,5° O) mit Zeitgleichung
+   *  und Refraktion, ±40 Min bürgerliche Dämmerung. Nur als Vorschlag, die Auswahl bleibt bei dir. */
+  function lichtNach(d) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(get(d, 'einsatz.datum') || ''), t = /^(\d{1,2}):(\d{2})/.exec(aufnahmeZeit(d));
+    if (!m || !t) return null;
+    const day = new Date(+m[1], +m[2] - 1, +m[3], 12), N = Math.round((day - new Date(+m[1], 0, 1, 12)) / 864e5) + 1;
+    const rad = Math.PI / 180, lat = 52.1 * rad, dec = -23.44 * rad * Math.cos(2 * Math.PI / 365 * (N + 10));
+    const cw = (Math.sin(-0.833 * rad) - Math.sin(lat) * Math.sin(dec)) / (Math.cos(lat) * Math.cos(dec));
+    const half = Math.acos(Math.max(-1, Math.min(1, cw))) / rad * 4; // Minuten
+    const B = 2 * Math.PI * (N - 81) / 364, eot = 9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B);
+    const noon = 720 - 7.5 * 4 - eot - day.getTimezoneOffset(); // Ortszeit in Minuten
+    const now = +t[1] * 60 + +t[2];
+    if (now >= noon - half && now <= noon + half) return 'tag';
+    if (now >= noon - half - 40 && now <= noon + half + 40) return 'daemmerung';
+    return 'dunkel';
+  }
   const alk = d => get(d, 'taeter.person.alkohol') === 'ja';
   const wert = d => Number(get(d, 'ub02.wert')) || 0;
   const freiModus = d => ['frei', 'beobachtet'].includes(get(d, 'gesch.modus'));
@@ -434,8 +453,10 @@
         { k: 'zeit.art', t: 'choice', l: 'Angabe', req: true, o: d => (geparkt(d) ? [['zeitraum', 'Zeitraum (abgestellt → bemerkt)'], ['zeitpunkt', 'Genauer Zeitpunkt bekannt'], ['unbekannt', 'Unbekannt']] : [['zeitpunkt', 'Zeitpunkt'], ['zeitraum', 'Zeitraum'], ['unbekannt', 'Unbekannt']]) },
         { k: 'zeit.vonDatum', t: 'date', l: d => (geparkt(d) ? 'Abgestellt am' : 'Von (Datum)'), w: 'half', q: 'gestern', when: d => get(d, 'zeit.art') === 'zeitraum' },
         { k: 'zeit.vonZeit', t: 'time', l: d => (geparkt(d) ? 'um (Uhrzeit)' : 'Von (Uhrzeit)'), w: 'half', when: d => get(d, 'zeit.art') === 'zeitraum' },
+        { t: 'preset', when: d => get(d, 'zeit.art') === 'zeitraum' && has(get(d, 'einsatz.datum')), o: d => [[geparkt(d) ? 'Bemerkt kurz vor der Meldung' : 'Endet mit der Meldung', { 'zeit.bisDatum': get(d, 'einsatz.datum'), 'zeit.bisZeit': get(d, 'einsatz.zeit') || null }, `${fmtD(get(d, 'einsatz.datum'))}${has(get(d, 'einsatz.zeit')) ? ' · ' + get(d, 'einsatz.zeit') + ' Uhr' : ''} übernehmen`]] },
         { k: 'zeit.bisDatum', t: 'date', l: d => (geparkt(d) ? 'Schaden bemerkt am' : 'Bis (Datum)'), w: 'half', q: 'heute', when: d => get(d, 'zeit.art') === 'zeitraum' },
         { k: 'zeit.bisZeit', t: 'time', l: d => (geparkt(d) ? 'um (Uhrzeit)' : 'Bis (Uhrzeit)'), w: 'half', q: 'jetzt', when: d => get(d, 'zeit.art') === 'zeitraum' },
+        { t: 'preset', when: d => get(d, 'zeit.art') === 'zeitpunkt' && has(get(d, 'einsatz.datum')), o: d => [['Kurz vor der Meldung', { 'zeit.datum': get(d, 'einsatz.datum'), 'zeit.zeit': get(d, 'einsatz.zeit') || null }, `${fmtD(get(d, 'einsatz.datum'))}${has(get(d, 'einsatz.zeit')) ? ' · ' + get(d, 'einsatz.zeit') + ' Uhr' : ''} übernehmen`]] },
         { k: 'zeit.datum', t: 'date', l: 'Datum', w: 'half', q: 'heute', when: d => get(d, 'zeit.art') === 'zeitpunkt' },
         { k: 'zeit.zeit', t: 'time', l: 'Uhrzeit (ca.)', w: 'half', q: 'jetzt', when: d => get(d, 'zeit.art') === 'zeitpunkt' }
       ]
@@ -488,6 +509,12 @@
     {
       id: 'strasse', phase: 'Unfallort', title: 'Straße & Verkehrsregelung', lead: 'Wie ist die Straße an der Unfallstelle beschaffen?', gen: ['2.1'], when: istStrasse,
       fields: [
+        { t: 'preset', l: 'Schnellwahl – füllt die typischen Angaben, danach nur Abweichungen ändern', o: [
+          ['Wohnstraße innerorts', { 'ort.lage': 'innerorts', 'ort.strassentyp': 'gemeinde', 'ort.tempo': 50, 'ort.tempoGrund': 'ortschaft', 'ort.fahrstreifen': 1, 'ort.trennung': 'keine', 'ort.verlauf': 'gerade', 'ort.steigung': 'eben' }, '50 km/h · keine Markierung'],
+          ['Tempo-30-Zone', { 'ort.lage': 'innerorts', 'ort.strassentyp': 'gemeinde', 'ort.tempo': 30, 'ort.tempoGrund': 'zone', 'ort.fahrstreifen': 1, 'ort.trennung': 'keine', 'ort.verlauf': 'gerade', 'ort.steigung': 'eben' }, 'Zeichen 274.1'],
+          ['Hauptstraße innerorts', { 'ort.lage': 'innerorts', 'ort.tempo': 50, 'ort.tempoGrund': 'ortschaft', 'ort.fahrstreifen': 1, 'ort.trennung': 'leitlinie', 'ort.verlauf': 'gerade', 'ort.steigung': 'eben' }, '50 km/h · Leitlinie'],
+          ['Landstraße', { 'ort.lage': 'ausserorts', 'ort.tempo': 100, 'ort.tempoGrund': null, 'ort.fahrstreifen': 1, 'ort.trennung': 'leitlinie', 'ort.verlauf': 'gerade', 'ort.steigung': 'eben' }, '100 km/h · Leitlinie']
+        ] },
         { k: 'ort.tempo', t: 'number', l: 'Zulässige Höchstgeschwindigkeit (km/h)', q: [30, 50, 70, 100], w: 'half', min: 5, max: 130, step: 10 },
         { k: 'ort.tempoGrund', t: 'choice', l: 'Grundlage', o: [['vz274', 'Zeichen 274'], ['zone', 'Zone (Zeichen 274.1)'], ['ortschaft', 'Geschlossene Ortschaft'], ['bereich', 'Verkehrsberuhigter Bereich']], when: d => has(get(d, 'ort.tempo')) },
         { k: 'ort.fahrstreifen', t: 'number', l: 'Fahrstreifen je Richtung', q: [1, 2], w: 'half', min: 1, max: 6, step: 1 },
@@ -503,22 +530,31 @@
       id: 'verhaeltnisse', phase: 'Unfallort', title: 'Verhältnisse vor Ort', lead: 'Ankreuzen, was du feststellst. Auswahl wie in der Unfallmitteilung NRW (Bl. 2), die Ziffer steht in Klammern.', gen: ['2.1'],
       fields: [
         { k: 'ort.verhBezug', t: 'choice', l: 'Die Angaben gelten …', o: [['aufnahme', 'bei der Unfallaufnahme'], ['beide', 'zur Unfallzeit und bei der Aufnahme']], h: 'Bei bekannter Unfallzeit: Waren die Verhältnisse damals dieselben?', when: d => get(d, 'zeit.art') === 'zeitpunkt' },
-        { t: 'head', l: 'Licht' },
+        { t: 'preset', l: d => (lichtNach(d) ? `Schnellwahl – Licht passend zu ${aufnahmeZeit(d)} Uhr` : 'Schnellwahl'), o: d => {
+          const l = lichtNach(d) || 'tag', L = { tag: 'Tag', daemmerung: 'Dämmerung', dunkel: 'Dunkel' }[l];
+          return [
+            [`${L} · trocken`, { 'ort.licht': l, 'ort.zustand': ['trocken'], 'ort.witterung': ['keine'], 'ort.sicht': 'gut' }, 'keine Witterungseinflüsse · gute Sicht'],
+            [`${L} · Regen`, { 'ort.licht': l, 'ort.zustand': ['nass'], 'ort.witterung': ['regen'], 'ort.sicht': 'eingeschraenkt' }, 'nasse Fahrbahn'],
+            [`${L} · Nebel`, { 'ort.licht': l, 'ort.zustand': ['nass'], 'ort.witterung': ['nebel'], 'ort.sicht': 'eingeschraenkt' }, 'feuchte Fahrbahn'],
+            ...(l === 'tag' ? [['Tag · blendende Sonne', { 'ort.licht': 'tag', 'ort.zustand': ['trocken'], 'ort.witterung': ['sonne'], 'ort.sicht': 'eingeschraenkt' }, 'Blendung']] : [])
+          ];
+        } },
+        { t: 'head', text: 'Licht' },
         { k: 'ort.licht', t: 'choice', l: 'Lichtverhältnisse', req: true, o: C.verhOpt('licht') },
         { k: 'ort.beleuchtung', t: 'choice', l: d => ({ parkplatz: 'Parkplatzbeleuchtung', parkhaus: 'Beleuchtung im Parkhaus' }[get(d, 'ort.art')] || 'Straßenbeleuchtung'), o: C.verhOpt('beleuchtung'), when: d => ['daemmerung', 'dunkel'].includes(get(d, 'ort.licht')) },
-        { t: 'head', l: d => (istStrasse(d) ? 'Fahrbahn' : 'Verkehrsfläche') },
+        { t: 'head', text: d => (istStrasse(d) ? 'Fahrbahn' : 'Verkehrsfläche') },
         { k: 'ort.zustand', t: 'multi', l: 'Straßenzustand', h: 'Höchstens zwei Angaben, z. B. „nass/feucht“ und „schlüpfrig“.', req: true, max: 2, excl: [['trocken', 'nass']], o: C.verhOpt('zustand') },
         { k: 'ort.winterDurch', t: 'multi', l: 'Winterglatt durch', o: C.verhOpt('winterDurch'), when: d => arr(get(d, 'ort.zustand')).includes('winterglatt') },
         { k: 'ort.schluepfrigDurch', t: 'multi', l: 'Schlüpfrig durch', o: C.verhOpt('schluepfrigDurch'), when: d => arr(get(d, 'ort.zustand')).includes('schluepfrig') },
         { k: 'ort.belag', t: 'choice', l: 'Belag', o: C.verhOpt('belag') },
         { k: 'ort.decke', t: 'multi', l: 'Zustand der Fahrbahndecke', excl: [['intakt', '*']], o: C.verhOpt('decke') },
-        { t: 'head', l: 'Witterung & Sicht' },
+        { t: 'head', text: 'Witterung & Sicht' },
         { k: 'ort.witterung', t: 'multi', l: 'Witterungsverhältnisse', h: '„keine besonderen“ heißt: kein Niederschlag, kein Nebel, kein Sturm, keine blendende Sonne.', req: true, excl: [['keine', '*'], ['sicht50', 'sicht100']], o: C.verhOpt('witterung') },
         { k: 'ort.sonneRichtung', t: 'text', l: 'Aus welcher Richtung?', pre: 'Die Sonne blendete', ph: 'aus westlicher Richtung', sugg: [['aus Richtung …', 'aus Richtung '], ['entgegen der Fahrtrichtung', 'entgegen der Fahrtrichtung ']], when: d => arr(get(d, 'ort.witterung')).includes('sonne') },
         { k: 'ort.sicht', t: 'choice', l: 'Sichtverhältnisse', o: C.verhOpt('sicht') },
         { k: 'ort.sichtHindernis', t: 'multi', l: 'Eingeschränkt durch', o: C.verhOpt('sichtHindernis'), when: d => ['eingeschraenkt', 'schlecht'].includes(get(d, 'ort.sicht')) },
         { k: 'ort.sichtText', t: 'text', l: 'Wodurch sonst?', pre: 'Die Sicht war zudem eingeschränkt durch', ph: 'einen am Fahrbahnrand abgestellten Lkw', when: d => arr(get(d, 'ort.sichtHindernis')).includes('sonst') },
-        { t: 'head', l: 'Verkehrslage' },
+        { t: 'head', text: 'Verkehrslage' },
         { k: 'ort.verkehr', t: 'choice', l: 'Verkehrsaufkommen', o: C.verhOpt('verkehr') },
         { k: 'ort.verkehrAnlass', t: 'multi', l: 'Besonderer Anlass', o: C.verhOpt('verkehrAnlass'), when: d => has(get(d, 'ort.verkehr')) }
       ]
@@ -664,7 +700,7 @@
 
     /* ---------- Phase 7: Verursacher ---------- */
     {
-      id: 'taeter', phase: 'Verursacher', title: 'Hinweise auf den Verursacher', lead: d => (zeugenJa(d) && !hinweise(d) ? 'Du hast Zeugen erfasst – haben sich daraus Hinweise ergeben?' : 'Stand jetzt – lässt sich jederzeit ändern.'), gen: ['4.1'],
+      id: 'taeter', phase: 'Verursacher', title: 'Hinweise auf den Verursacher', when: d => get(d, 'taeter.hinweise') !== 'nein' || zeugenJa(d) || get(d, 'massnahmen.zeugensucheErgebnis') === 'hinweise' || get(d, 'dritte.vorhanden') === 'ja', lead: d => (zeugenJa(d) && !hinweise(d) ? 'Du hast Zeugen erfasst – haben sich daraus Hinweise ergeben?' : 'Stand jetzt – lässt sich jederzeit ändern.'), gen: ['4.1'],
       fields: [
         { k: 'taeter.hinweise', t: 'yn', l: 'Gibt es Hinweise auf den Verursacher?' },
         { k: 'taeter.quelle', t: 'multi', l: 'Woher stammen die Hinweise? (Mehrfachauswahl)', o: [['zeuge', 'Zeugen'], ['zettel', 'Zettel am Fahrzeug'], ['kamera', 'Video / Dashcam'], ['teile', 'Fahrzeugteile'], ['gesch', 'Geschädigte/r'], ['spuren', 'Spurenbild'], ['selbst', 'Selbstmeldung']], when: hinweise },
@@ -765,6 +801,7 @@
     {
       id: 'massnahmen1', phase: 'Maßnahmen', title: 'Unfallmitteilung & Dokumentation', lead: 'Unfallmitteilung, Lichtbilder, Skizze, Anzeige', gen: ['6.1'],
       fields: [
+        { t: 'preset', l: 'Schnellwahl', o: d => [['Üblicher Abschluss', { 'massnahmen.unfallmitteilung': erreicht(d) && kontakt(d) !== 'telefon' ? 'vorort' : 'nachgesandt', 'massnahmen.lichtbilder': 'ja', 'massnahmen.anzeige': 'ja' }, `${erreicht(d) && kontakt(d) !== 'telefon' ? 'Durchschrift ausgehändigt' : 'Unfallmitteilung folgt'} · Lichtbilder · Anzeige`]] },
         { k: 'massnahmen.unfallmitteilung', t: 'choice', l: 'Unfallmitteilung', h: d => 'DA 1.1: vor Ort eine Durchschrift aushändigen; sonst unverzüglich nachsenden und den Versand im Text vermerken.' + (erreicht(d) ? '' : ' Die geschädigte Person wurde nicht erreicht – also nachsenden.'), o: d => (erreicht(d) ? [['vorort', 'Durchschrift vor Ort ausgehändigt'], ['nachgesandt', 'Wird nachgesandt'], ['digital', 'Digital per E-Mail übersandt'], ['keine', 'Nicht ausgehändigt']] : [['nachgesandt', 'Wird nachgesandt'], ['digital', 'Digital per E-Mail übersandt'], ['keine', 'Noch nicht']]) },
         { k: 'massnahmen.lichtbilder', t: 'yn', l: 'Lichtbilder gefertigt?' },
         { k: 'massnahmen.lichtbilderAnzahl', t: 'number', l: 'Anzahl ca.', q: [4, 8, 12, 20], w: 'half', min: 1, max: 500, step: 1, when: d => get(d, 'massnahmen.lichtbilder') === 'ja' },
