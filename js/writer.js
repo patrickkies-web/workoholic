@@ -13,6 +13,7 @@
   if (window.WVUF) MODULES[window.WVUF.id] = window.WVUF;
   if (window.WVermisst) MODULES[window.WVermisst.id] = window.WVermisst;
   if (window.WHG) MODULES[window.WHG.id] = window.WHG;
+  if (window.WAnzeige) MODULES[window.WAnzeige.id] = window.WAnzeige;
   /** Beschriftungen je Modul (m.labels), sonst die der Verkehrsunfallflucht. */
   const lab = (m, k, def) => (m && m.labels && m.labels[k]) || def;
   /** Zusätzliche Reiter eines Moduls im Ergebnis (m.extraTabs: [{k, l, when?, hint?, text}]). */
@@ -162,6 +163,34 @@
         const chips = team.length ? `<div class="w-crew-team"><div class="w-chips">${team.slice(0, 40).map(p => { const g = rankOf(p.roles); return `<button type="button" class="chip sm" data-crew-pick="${esc(k)}" data-v="${esc(JSON.stringify({ grad: g, name: p.name }))}">+ ${esc([g, p.name].filter(Boolean).join(' '))}</button>`; }).join('')}</div></div>` : '';
         return `<div class="w-q full">${L()}${chips}<div class="w-crew">${rows.map((r, i) => `<div class="w-crew-row">${sel(r, i)}<input class="input" data-k="${esc(k)}.${i}.name" value="${esc(r && r.name || '')}" placeholder="Name" autocomplete="off" spellcheck="false" maxlength="60"><button type="button" class="icon-btn sm" data-crew-del="${i}" data-crew-k="${esc(k)}" aria-label="Entfernen" ${rows.length === 1 && !has(r && r.name) ? 'disabled' : ''}><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>`).join('')}</div>${rows.length < max ? `<button type="button" class="chip" data-crew-add="${esc(k)}">+ Weitere Person</button>` : ''}${lastCrew(rows, k)}</div>`;
       }
+      /* Streifenwagen: je Fahrzeug eine Karte, Personen per Anfangsbuchstaben aus Team und früheren Vorgängen */
+      case 'streifen': {
+        const cars = Array.isArray(v) && v.length ? v : [{}];
+        const any = cars.some(w => w && Array.isArray(w.crew) && w.crew.some(c => c && has(c.name)));
+        const cards = cars.map((w, ci) => {
+          const crew = (w && Array.isArray(w.crew) ? w.crew : []).map((c, pi) => [c, pi]).filter(([c]) => c && has(c.name));
+          return `<div class="w-sub w-car"><div class="w-sub-h">SW ${ci + 1}<b>Streifenwagen ${ci + 1}</b><span class="grow"></span>${cars.length > 1 ? `<button type="button" class="link danger" data-car-del="${esc(k)}" data-i="${ci}">Entfernen</button>` : ''}</div>${crew.length ? `<div class="w-pers-row">${crew.map(([c, pi]) => `<span class="w-pers">${has(c.grad) ? `<i>${esc(c.grad)}</i>` : ''}<span>${esc(c.name)}</span><button type="button" data-pers-del="${esc(k)}" data-i="${ci}.${pi}" aria-label="${esc([c.grad, c.name].filter(Boolean).join(' '))} entfernen"><svg class="i" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg></button></span>`).join('')}</div>` : ''}<div class="w-combo"><input class="input" id="${fid(k)}-${ci}" data-combo="pers" data-ck="${esc(k)}" data-ci="${ci}" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-label="Person für Streifenwagen ${ci + 1}" placeholder="${crew.length ? '+ weitere Person' : 'Person, z. B. M …'}" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="done" maxlength="60"></div></div>`;
+        }).join('');
+        return `${Q}${L()}<div class="w-cars">${cards}</div><div class="w-quick w-car-add"><button type="button" class="chip" data-car-add="${esc(k)}">+ Streifenwagen</button>${any ? '' : lastWagen(k)}</div><p class="w-hint">Anfangsbuchstaben tippen: Vorschläge aus deinem Team und früheren Vorgängen. Enter übernimmt, neue Namen gehen auch. Im Text stehen Amtsbezeichnung und Nachname.</p></div>`;
+      }
+      /* Anschrift im Kreis Gütersloh: Straße mit Vorschlägen (PLZ, Ort), Ortsteil zum Antippen – gemerkt aus früheren Vorgängen */
+      case 'adresse': {
+        const o = (v && typeof v === 'object') ? v : {};
+        const G = window.WGT;
+        const list = G ? G.ortsteile(o.ort) : [];
+        const cur = String(o.ortsteil || '').trim(), mem = otMemory(o.ort, o.strasse);
+        const opts = list.slice(); if (cur && cur !== '-' && !opts.includes(cur)) opts.push(cur);
+        const note = cur && cur !== '-' && cur === mem ? 'aus einem früheren Vorgang' : (!list.length && has(o.ort) ? 'für diesen Ort nicht hinterlegt – frei eintragen' : '');
+        const inp = (sub, l, ph, extra = '', cls = 'half') => `<div class="w-q ${cls}"><label class="w-lbl" for="${fid(k + '.' + sub)}">${l}</label><input class="input" id="${fid(k + '.' + sub)}" data-k="${esc(k)}.${sub}" value="${esc(o[sub] ?? '')}" placeholder="${esc(ph)}" autocomplete="off" spellcheck="false" ${extra}></div>`;
+        return `${Q}${L()}<div class="w-grid w-addr">
+          <div class="w-q half w-combo a-str"><label class="w-lbl" for="${fid(k + '.strasse')}">Straße</label><input class="input" id="${fid(k + '.strasse')}" data-k="${esc(k)}.strasse" data-combo="str" data-ck="${esc(k)}" role="combobox" aria-autocomplete="list" aria-expanded="false" value="${esc(o.strasse ?? '')}" placeholder="z. B. Am Fichtenbusch" autocomplete="off" spellcheck="false" enterkeyhint="next" maxlength="120"></div>
+          ${inp('hausnr', 'Hausnummer', '32', 'maxlength="12" enterkeyhint="next"', 'half a-hnr')}
+          ${inp('plz', 'PLZ', '33378', 'inputmode="numeric" maxlength="5" enterkeyhint="next"', 'half a-plz')}
+          ${inp('ort', 'Ort', 'Rheda-Wiedenbrück', `list="wGtOrte" maxlength="60" data-rerender="1" enterkeyhint="next"`, 'half a-ort')}
+          <datalist id="wGtOrte">${(G ? G.orte() : []).map(x => `<option value="${esc(x)}"></option>`).join('')}</datalist>
+          <div class="w-q full a-ot"><span class="w-lbl">Ortsteil${note ? ` <i class="w-ot-note">· ${esc(note)}</i>` : ''}</span><div class="w-chips">${opts.map(x => `<button type="button" class="chip" data-set="${esc(k)}.ortsteil" data-v="${esc(x)}" aria-pressed="${String(cur === x)}">${esc(x)}</button>`).join('')}<button type="button" class="chip w-recent" data-set="${esc(k)}.ortsteil" data-v="-" aria-pressed="${String(cur === '-')}">ohne Ortsteil</button></div><input class="input w-after-chips w-ot-free" data-k="${esc(k)}.ortsteil" value="${esc(cur && cur !== '-' && !list.includes(cur) ? cur : '')}" placeholder="anderer Ortsteil" autocomplete="off" spellcheck="false" maxlength="40" aria-label="Anderer Ortsteil" data-rerender="1"></div>
+        </div>${G ? `<p class="w-hint">${G.count().toLocaleString('de-DE')} Straßen im Kreis Gütersloh. ${esc(G.quelle)}.</p>` : ''}</div>`;
+      }
       case 'person': {
         const p = (v && typeof v === 'object') ? v : {};
         const want = f.fields || ['geschlecht', 'nachname', 'vorname', 'geb', 'anschrift', 'tel', 'email'];
@@ -230,6 +259,87 @@
     const crew = crewOf(prev).filter(c => c && has(c.name)).map(c => ({ grad: c.grad || '', name: c.name }));
     const vals = { [k]: crew }; const ruf = k === 'einsatz.kraefte' ? getP(prev.data, 'einsatz.rufname') : ''; if (has(ruf)) vals['einsatz.rufname'] = ruf;
     return `<button type="button" class="chip w-recent" data-multi="${esc(JSON.stringify(vals))}">↺ Wie zuletzt: ${esc(crew.map(c => [c.grad, c.name].filter(Boolean).join(' ')).join(' · '))}${has(ruf) ? ' (' + esc(ruf) + ')' : ''}</button>`;
+  }
+
+  /** „Wie zuletzt“ für alle Streifenwagen eines früheren Vorgangs. */
+  function lastWagen(k) {
+    const docs = ((W() && W().docs()) || []).filter(x => x.id !== U.id).sort((a, b) => (b.u || 0) - (a.u || 0));
+    const crewsOf = x => (getP(x.data, k) || []).map(w => (w && Array.isArray(w.crew) ? w.crew : []).filter(c => c && has(c.name)).map(c => ({ grad: c.grad || '', name: c.name }))).filter(c => c.length);
+    const prev = docs.find(x => Array.isArray(getP(x.data, k)) && crewsOf(x).length);
+    if (!prev) return '';
+    const w = crewsOf(prev);
+    return `<button type="button" class="chip w-recent" data-multi="${esc(JSON.stringify({ [k]: w.map(c => ({ crew: c })) }))}">↺ Wie zuletzt: ${esc(w.map(c => c.map(p => [p.grad, nachname(p.name)].filter(Boolean).join(' ')).join('/')).join(' · '))}</button>`;
+  }
+  /** Ortsteil, der für dieselbe Straße zuletzt gewählt wurde (aus früheren Vorgängen). */
+  function otMemory(ort, strasse) {
+    if (!has(ort) || !has(strasse)) return '';
+    const docs = ((W() && W().docs()) || []).filter(x => x.id !== U.id).sort((a, b) => (b.u || 0) - (a.u || 0));
+    for (const x of docs) { const o = getP(x.data, 'ort'); if (o && o.ort === ort && o.strasse === strasse && has(o.ortsteil) && o.ortsteil !== '-') return o.ortsteil; }
+    return '';
+  }
+  /* ---------- Vorschlagslisten: Kollegen und Straßen ---------- */
+  const fold = s => (window.WGT ? window.WGT.fold(s) : String(s || '').toLowerCase().trim());
+  const gradOf = t => { const m = /^(e?p[ho]?k|p[ho]?m|pka|e?k[ho]?k|kka|ka|p?or|pr|pd|lpd|kr|kor|kd|lkd)(in)?$/i.exec(t || ''); return m ? m[1].toUpperCase() + (m[2] ? 'in' : '') : ''; };
+  const capW = n => (n && n === n.toLowerCase() ? n.replace(/(^|[\s-])(\p{L})/gu, (m, a, b) => a + b.toUpperCase()) : n);
+  const parsePerson = s => { const t = String(s || '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean); const g = gradOf(t[0]); return g ? { grad: g, name: capW(t.slice(1).join(' ')) } : { grad: '', name: capW(t.join(' ')) }; };
+  /** Team (zuletzt im Dienst zuerst) plus alle Besatzungen früherer Vorgänge, nach Häufigkeit. */
+  function crewPool() {
+    const out = new Map();
+    const add = (grad, name, n) => { if (!has(name)) return; const key = nameKey(name); const ex = out.get(key); if (ex) { ex.n += n; if (!ex.grad && has(grad)) ex.grad = grad; } else out.set(key, { grad: grad || '', name: String(name).trim(), n }); };
+    for (const p of ((W() && W().team && W().team()) || [])) add(rankOf(p.roles), p.name, 0);
+    for (const x of ((W() && W().docs()) || [])) { if (x.id === U.id) continue; for (const c of [...(getP(x.data, 'einsatz.kraefte') || []), ...(getP(x.data, 'einsatz.wagen') || []).flatMap(w => (w && Array.isArray(w.crew) ? w.crew : []))]) if (c) add(c.grad, c.name, 1); }
+    return [...out.values()].sort((a, b) => b.n - a.n);
+  }
+  const markHit = (txt, q) => { const toks = fold(q).split(' ').filter(Boolean); const f = fold(txt); if (!toks.length || f.length !== String(txt).length) return esc(txt); const on = new Array(f.length).fill(false); for (const t of toks) { let i = -1; while ((i = f.indexOf(t, i + 1)) >= 0) if (i === 0 || f[i - 1] === ' ') { for (let j = i; j < i + t.length; j++) on[j] = true; break; } } let o = false, r = ''; [...String(txt)].forEach((c, i) => { if (on[i] !== o) { r += on[i] ? '<mark>' : '</mark>'; o = on[i]; } r += esc(c); }); return r + (o ? '</mark>' : ''); };
+  function persItems(q, k) {
+    const toks = fold(q).split(' ').filter(Boolean); if (!toks.length) return [];
+    const d = doc(); const usedK = new Set(((d && getP(d.data, k)) || []).flatMap(w => (w && Array.isArray(w.crew) ? w.crew : [])).filter(c => c && has(c.name)).map(c => nameKey(c.name)));
+    const hits = crewPool().filter(p => !usedK.has(nameKey(p.name)) && toks.every(t => fold(`${p.grad} ${p.name}`).split(' ').some(w => w.startsWith(t)))).slice(0, 7);
+    const typed = parsePerson(q);
+    const out = hits.map(p => ({ val: p, html: `<i class="w-pop-g">${esc(p.grad)}</i><span class="w-pop-m">${markHit(p.name, q)}</span>${p.n > 1 ? `<span class="w-pop-s">${p.n}×</span>` : ''}` }));
+    if (has(typed.name) && !hits.some(p => nameKey(p.name) === nameKey(typed.name))) out.push({ val: typed, cls: 'w-pop-new', html: `<span class="w-pop-m">„${esc([typed.grad, typed.name].filter(Boolean).join(' '))}“ übernehmen</span>` });
+    return hits.length ? [{ head: 'Aus deinem Team' }, ...out] : out;
+  }
+  function strItems(q) {
+    if (!window.WGT) return [];
+    const d = doc(); const docs = ((W() && W().docs()) || []).filter(x => x.id !== (d && d.id)).sort((a, b) => (b.u || 0) - (a.u || 0));
+    const last = docs.map(x => getP(x.data, 'ort.ort')).find(has) || '';
+    return window.WGT.search(q, last).map(s => ({ val: s, html: `<span class="w-pop-m">${markHit(s.strasse, q.replace(/\s+\d+\s?[a-zA-Z]?\s*$/, ''))}</span><span class="w-pop-s">${esc(s.plz)} ${esc(s.ort)}</span>` }));
+  }
+  const CB = { el: null, list: [], act: -1, picked: 0 };
+  function cbClose() { const p = $('#wPop'); if (p) p.remove(); if (CB.el) { CB.el.setAttribute('aria-expanded', 'false'); CB.el.removeAttribute('aria-activedescendant'); } CB.el = null; CB.list = []; CB.act = -1; }
+  function cbDraw(el) {
+    CB.el = el; CB.list = el.dataset.combo === 'pers' ? persItems(el.value, el.dataset.ck) : strItems(el.value);
+    let p = $('#wPop');
+    if (!CB.list.length) { if (p) p.remove(); el.setAttribute('aria-expanded', 'false'); CB.act = -1; return; }
+    if (!p || p.parentNode !== el.parentNode) { if (p) p.remove(); p = document.createElement('ul'); p.id = 'wPop'; p.className = 'w-pop'; p.setAttribute('role', 'listbox'); el.parentNode.append(p); el.setAttribute('aria-controls', 'wPop'); }
+    if (CB.act < 0 || !CB.list[CB.act] || CB.list[CB.act].head) CB.act = CB.list.findIndex(x => !x.head);
+    p.innerHTML = CB.list.map((it, i) => (it.head ? `<li class="w-pop-h" role="presentation">${esc(it.head)}</li>` : `<li role="option" id="wPop-${i}" data-i="${i}" class="${it.cls || ''}" aria-selected="${String(i === CB.act)}">${it.html}</li>`)).join('');
+    el.setAttribute('aria-expanded', 'true'); if (CB.act >= 0) el.setAttribute('aria-activedescendant', 'wPop-' + CB.act);
+  }
+  function cbMove(dir) { const idx = CB.list.map((x, i) => (x.head ? -1 : i)).filter(i => i >= 0); if (!idx.length || !CB.el) return; const p = idx.indexOf(CB.act); CB.act = idx[(p + dir + idx.length) % idx.length]; const el = CB.el; cbDraw(el); const li = $(`#wPop [data-i="${CB.act}"]`); if (li) li.scrollIntoView({ block: 'nearest' }); }
+  function addPers(k, ci, p, refocus) {
+    const d = doc(); if (!d || !p || !has(p.name)) return;
+    const cars = Array.isArray(getP(d.data, k)) && getP(d.data, k).length ? JSON.parse(JSON.stringify(getP(d.data, k))) : [{}];
+    const car = cars[ci] || (cars[ci] = {}); const crew = (Array.isArray(car.crew) ? car.crew : []).filter(c => c && has(c.name));
+    if (cars.some(w => w && Array.isArray(w.crew) && w.crew.some(c => c && nameKey(c.name) === nameKey(p.name)))) return;
+    crew.push({ grad: p.grad || '', name: p.name }); car.crew = crew;
+    setP(d.data, k, cars); persist(false); renderMain();
+    if (refocus) { const el = $(`#wFields [data-combo="pers"][data-ci="${ci}"]`); if (el) el.focus(); }
+  }
+  function pickStreet(k, s) {
+    const d = doc(); if (!d || !s) return;
+    const o = { ...(getP(d.data, k) || {}), strasse: s.strasse, plz: s.plz, ort: s.ort };
+    if (s.hn && !has(o.hausnr)) o.hausnr = s.hn;
+    const mem = otMemory(s.ort, s.strasse); o.ortsteil = mem || '';
+    if (!o.ortsteil) delete o.ortsteil;
+    setP(d.data, k, o); persist(false); renderMain();
+    const nx = $(`#wFields [data-k="${CSS.escape(k + (has(o.hausnr) ? '.ortsteil' : '.hausnr'))}"]`); if (nx && !(W().mobile() && has(o.hausnr))) nx.focus();
+  }
+  function cbPick(el, it) {
+    const kind = el.dataset.combo, k = el.dataset.ck; CB.picked = Date.now();
+    if (kind === 'pers') { const p = it ? it.val : parsePerson(el.value); cbClose(); addPers(k, Number(el.dataset.ci), p, true); }
+    else if (kind === 'str' && it) { cbClose(); pickStreet(k, it.val); }
   }
 
   /* ---------- Karosserie-Picker ---------- */
@@ -440,6 +550,8 @@
     const pre = preset && typeof preset === 'object' ? preset : ((W().preset && W().preset()) || {});
     const data = { ...pre, einsatz: { datum: todayKey(0), zeit: nowHM(), ...(pre.einsatz || {}) } };
     for (const k of Object.keys(data.einsatz)) if (data.einsatz[k] == null || data.einsatz[k] === '' || (Array.isArray(data.einsatz[k]) && !data.einsatz[k].length)) delete data.einsatz[k];
+    // inherit: Einstellungen wie die eigene Vorlage aus dem letzten Vorgang desselben Moduls übernehmen
+    for (const ik of (m.inherit || [])) { const prev = (W().docs() || []).filter(x => x.type === m.id && x.data && x.data[ik] != null).sort((a, b) => (b.u || 0) - (a.u || 0))[0]; if (prev) data[ik] = JSON.parse(JSON.stringify(prev.data[ik])); }
     const d = W().add({ type: m.id, title: m.name, status: 'entwurf', step: 0, data });
     if (!d) { W().toast('Vorgang konnte nicht angelegt werden.'); return; }
     open(d.id, 'wizard');
@@ -655,6 +767,9 @@
       if (b.dataset.partCopy) { const d = doc(); if (!d) return; const a = getP(d.data, b.dataset.partCopy); const i = Number(b.dataset.i); a[i] = { ...JSON.parse(JSON.stringify(a[i - 1])), name: a[i].name }; persist(false); renderMain(); return; }
       if (b.dataset.listAdd) { const d = doc(); if (!d) return; const a = Array.isArray(getP(d.data, b.dataset.listAdd)) ? getP(d.data, b.dataset.listAdd).slice() : []; if (!a.length && b.dataset.min1) a.push({}); a.push({}); setP(d.data, b.dataset.listAdd, a); persist(false); renderMain(); const cs = $$('#wFields .w-item-card'); if (cs.length) cs[cs.length - 1].scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
       if (b.dataset.listDel) { const d = doc(); if (!d) return; const cur = getP(d.data, b.dataset.listDel); if (!Array.isArray(cur)) return; const a = cur.slice(); a.splice(Number(b.dataset.i), 1); setP(d.data, b.dataset.listDel, a.length ? a : undefined); persist(false); renderMain(); return; }
+      if (b.dataset.carAdd) { const d = doc(); if (!d) return; const k = b.dataset.carAdd; const a = Array.isArray(getP(d.data, k)) && getP(d.data, k).length ? getP(d.data, k).slice() : [{}]; a.push({}); setP(d.data, k, a); persist(false); renderMain(); const el = $(`#wFields [data-combo="pers"][data-ci="${a.length - 1}"]`); if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); if (!W().mobile()) el.focus(); } return; }
+      if (b.dataset.carDel) { const d = doc(); if (!d) return; const a = (getP(d.data, b.dataset.carDel) || []).slice(); a.splice(Number(b.dataset.i), 1); setP(d.data, b.dataset.carDel, a.length ? a : undefined); persist(false); renderMain(); return; }
+      if (b.dataset.persDel) { const d = doc(); if (!d) return; const [ci, pi] = b.dataset.i.split('.').map(Number); const a = JSON.parse(JSON.stringify(getP(d.data, b.dataset.persDel) || [])); if (a[ci] && Array.isArray(a[ci].crew)) a[ci].crew.splice(pi, 1); setP(d.data, b.dataset.persDel, a); persist(false); renderMain(); return; }
       if (b.dataset.crewAdd) { const d = doc(); if (!d) return; const a = Array.isArray(getP(d.data, b.dataset.crewAdd)) ? getP(d.data, b.dataset.crewAdd).slice() : [{}]; a.push({}); setP(d.data, b.dataset.crewAdd, a); persist(false); renderMain(); return; }
       if (b.dataset.crewDel != null) { const d = doc(); if (!d) return; const ck = b.dataset.crewK || 'einsatz.kraefte'; const a = (getP(d.data, ck) || []).slice(); a.splice(Number(b.dataset.crewDel), 1); setP(d.data, ck, a.length ? a : undefined); persist(false); renderMain(); return; }
       if (b.dataset.crewPick) { const d = doc(); if (!d) return; let c = {}; try { c = JSON.parse(b.dataset.v); } catch (er) { return; } const ck = b.dataset.crewPick; const a = (Array.isArray(getP(d.data, ck)) ? getP(d.data, ck) : []).filter(r => r && (has(r.name) || has(r.grad))); a.push({ grad: c.grad || '', name: c.name }); setP(d.data, ck, a); persist(false); renderMain(); return; }
@@ -672,6 +787,28 @@
       persist(false); schedulePreview();
       if (el.classList.contains('w-kz') && el.value !== v) { const p = el.selectionStart; el.value = v; try { el.setSelectionRange(p, p); } catch (er) { /* egal */ } }
     });
+    root.addEventListener('input', e => { const el = e.target; if (el.dataset && el.dataset.combo) { CB.act = -1; cbDraw(el); } });
+    root.addEventListener('keydown', e => {
+      const el = e.target; if (!el.dataset || !el.dataset.combo || e.isComposing) return;
+      const open = CB.el === el && !!$('#wPop');
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if (!open) cbDraw(el); cbMove(e.key === 'ArrowDown' ? 1 : -1); return; }
+      if (e.key === 'Escape' && open) { e.stopPropagation(); cbClose(); return; }
+      if (e.key !== 'Enter' || e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (open && CB.act >= 0) { e.preventDefault(); e.stopImmediatePropagation(); cbPick(el, CB.list[CB.act]); return; }
+      if (el.dataset.combo === 'pers' && has(el.value)) { e.preventDefault(); e.stopImmediatePropagation(); cbPick(el, null); return; }
+      cbClose();
+    });
+    root.addEventListener('pointerdown', e => { const li = e.target.closest && e.target.closest('#wPop li[data-i]'); if (!li || !CB.el) return; e.preventDefault(); cbPick(CB.el, CB.list[Number(li.dataset.i)]); });
+    // Verlässt man das Feld mit einem getippten Namen (z. B. Tipp auf „+ Streifenwagen“), wird er trotzdem übernommen
+    root.addEventListener('focusout', e => {
+      const el = e.target; if (!el.dataset || !el.dataset.combo) return;
+      const val = el.value, live = el.isConnected && Date.now() - CB.picked > 400, ck = el.dataset.ck, ci = Number(el.dataset.ci);
+      setTimeout(() => {
+        if (document.activeElement === el) return;
+        if (CB.el === el) cbClose();
+        if (el.dataset.combo === 'pers' && live && has(val) && Date.now() - CB.picked > 400) addPers(ck, ci, parsePerson(val), false);
+      }, 150);
+    });
     root.addEventListener('keydown', e => {
       const el = e.target;
       if (e.key !== 'Enter' || e.shiftKey || e.metaKey || e.ctrlKey || e.altKey || e.isComposing) return;
@@ -687,6 +824,7 @@
       const el = e.target; if (!el.dataset || !el.dataset.k) return;
       const d = doc(); if (!d) return;
       if (el.tagName === 'SELECT') { setP(d.data, el.dataset.k, el.value || undefined); persist(false); schedulePreview(); return; }
+      if (el.dataset.rerender) { renderMain(); return; }
       // Nur neu zeichnen, wenn sich dadurch sichtbare Felder ändern (sonst bleibt der Fokus, wo er ist)
       const st = $('.w-step'); if (!st) return;
       const m = mod(d); const s = m.steps.find(x => x.id === st.dataset.step); if (!s) return;
