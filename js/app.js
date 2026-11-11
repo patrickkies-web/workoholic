@@ -2390,7 +2390,7 @@ function renderTeam() {
     ? `<li class="empty area-empty"><h3>Dein Team.</h3><p>Leg Personen an, gib ihnen Rollen und ordne sie unter. Zu jeder Person sammelst du Notizen mit Datum und Uhrzeit.</p><div class="row"><button type="button" class="btn btn-accent" data-tm-new>${ico('plus')}Erste Person</button></div></li>`
     : rows.length ? rows.map(({ p, depth, kids }) => `<li class="tm-node${p.id === teamUi.pid ? ' sel' : ''}" style="--d:${depth}">
         ${kids ? `<button type="button" class="tm-caret" data-toggle="${p.id}" aria-expanded="${!teamUi.collapsed.has(p.id)}" aria-label="${teamUi.collapsed.has(p.id) ? 'Aufklappen' : 'Zuklappen'}">${ico('chev')}</button>` : '<span class="tm-caret-sp"></span>'}
-        <button type="button" class="tm-row" data-pid="${p.id}" aria-current="${p.id === teamUi.pid}">${avatar(p)}<span class="tm-main"><span class="tm-name">${esc(p.name)}</span><span class="tm-roles">${[rankOfPerson(p), ...p.roles.filter(r => rankNorm(r) !== rankOfPerson(p))].filter(Boolean).map(esc).join(' · ') || 'ohne Rolle'}</span></span>${notesOf(p.id).length ? `<span class="tm-count mono">${notesOf(p.id).length}</span>` : ''}</button>
+        <button type="button" class="tm-row" data-pid="${p.id}" aria-current="${p.id === teamUi.pid}">${avatar(p)}<span class="tm-main"><span class="tm-name">${esc(p.name)}</span><span class="tm-roles">${[rankOfPerson(p), ...p.roles.filter(r => !rankOfPerson(p) || rankNorm(r) !== rankOfPerson(p))].filter(Boolean).map(esc).join(' · ') || 'ohne Rolle'}</span></span>${notesOf(p.id).length ? `<span class="tm-count mono">${notesOf(p.id).length}</span>` : ''}</button>
       </li>`).join('') : '<li class="ca-empty">Niemand passt zur Suche.</li>';
   renderPersonDetail();
 }
@@ -2410,7 +2410,7 @@ function renderPersonDetail() {
   box.innerHTML = `
     <button type="button" class="tm-back link" data-tm-back>← Team</button>
     <div class="tm-head">${avatar(p, 'big')}<div class="tm-head-main"><h2>${esc(p.name)}</h2>
-      <div class="tm-chips">${rankOfPerson(p) ? `<span class="pill pill-lime">${esc(rankOfPerson(p))}</span>` : ''}${p.roles.filter(r => rankNorm(r) !== rankOfPerson(p)).map(r => `<span class="pill pill-quiet">${esc(r)}</span>`).join('') || (rankOfPerson(p) ? '' : '<span class="dim">keine Rolle</span>')}</div></div>
+      <div class="tm-chips">${rankOfPerson(p) ? `<span class="pill pill-lime">${esc(rankOfPerson(p))}</span>` : ''}${p.roles.filter(r => !rankOfPerson(p) || rankNorm(r) !== rankOfPerson(p)).map(r => `<span class="pill pill-quiet">${esc(r)}</span>`).join('') || (rankOfPerson(p) ? '' : '<span class="dim">keine Rolle</span>')}</div></div>
       <button type="button" class="icon-btn" data-tm-edit aria-label="${esc(p.name)} bearbeiten">${ico('edit')}</button></div>
     <dl class="tm-facts">
       <div><dt>Berichtet an</dt><dd>${boss ? `<button type="button" class="link" data-pid="${boss.id}">${esc(boss.name)}</button>` : '—'}</dd></div>
