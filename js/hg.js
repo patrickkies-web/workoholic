@@ -1694,7 +1694,7 @@
     const k = arr(get(data, 'einsatz.kraefte')).filter(c => c && has(c.name));
     if (!k.length || arr(get(data, 'einsatz.wagen')).length) return null;
     const team = (root.WBridge && typeof root.WBridge.team === 'function' && root.WBridge.team()) || [];
-    const rank = n => { const t = team.find(m => str(m.name).toLowerCase() === str(n).toLowerCase()); return t ? (arr(t.roles).find(r => RANK_RE.test(str(r))) || '') : ''; };
+    const rank = n => { const t = team.find(m => str(m.name).toLowerCase() === str(n).toLowerCase()); return t ? str(t.rank) || (arr(t.roles).find(r => RANK_RE.test(str(r))) || '') : ''; };
     const o = JSON.parse(JSON.stringify(data));
     o.einsatz.wagen = [{ crew: k.map(c => ({ grad: str(c.grad) || rank(c.name), name: str(c.name) })) }];
     delete o.einsatz.kraefte;

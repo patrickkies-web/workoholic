@@ -16,6 +16,7 @@
   if (window.WAnzeige) MODULES[window.WAnzeige.id] = window.WAnzeige;
   if (window.WFEB) MODULES[window.WFEB.id] = window.WFEB;
   if (window.WSKZ) MODULES[window.WSKZ.id] = window.WSKZ;
+  if (window.WSchild) MODULES[window.WSchild.id] = window.WSchild;
   /** Module, die man direkt neu anlegen kann (der FE-Bericht entsteht nur aus der FE-Prüfung). */
   const creatable = () => Object.values(MODULES).filter(m => !m.noNew);
   /** Beschriftungen je Modul (m.labels), sonst die der Verkehrsunfallflucht. */
@@ -47,6 +48,10 @@
   const doc = () => (U.id ? W().find(U.id) : null);
   const mod = d => (d && MODULES[d.type]) || null;
   const visibleSteps = (m, d) => m.steps.filter(s => !s.when || s.when(d));
+  /** Module mit eigener Maske (m.screen, z. B. Schilderungen) bekommen eine schmale Schnittstelle: speichern, zeichnen, kopieren. */
+  const screenApi = d => ({ d, persist, render: renderMain, copy, list: () => { U.view = 'list'; U.id = null; renderMain(); renderList(); }, team: () => ((W() && W().team && W().team()) || []), docs: () => ((W() && W().docs()) || []), toast: (t, o) => W().toast(t, o), ask: o => W().ask(o), mobile: () => !!(W() && W().mobile && W().mobile()) });
+  /** [Vorgang, Maske], wenn gerade ein Vorgang mit eigener Maske offen ist. */
+  const screenOf = () => { const d = U.view !== 'list' ? doc() : null; const m = mod(d); return d && m && m.screen ? [d, m.screen] : null; };
 
   let saveTimer = 0, previewTimer = 0;
   function persist(full = false) {
@@ -63,6 +68,9 @@
   /** Amtsbezeichnung aus den Rollen eines Teammitglieds (z. B. Rolle „POK“). */
   const RANK_RE = /^(E?P[HO]?K|P[HO]?M|PKA|E?K[HO]?K|KKA|KA|P?OR|PR|PD|LPD|KR|KOR|KD|LKD)(in)?$/;
   const rankOf = roles => ((Array.isArray(roles) ? roles : []).find(r => RANK_RE.test(String(r).trim())) || '').trim();
+  /** Amtsbezeichnung eines Teammitglieds: eigenes Feld im Team, sonst aus den Rollen. */
+  const rankOfT = p => (p && String(p.rank || '').trim()) || rankOf(p && p.roles);
+  const teamRank = n => { const t = ((W() && W().team && W().team()) || []).find(p => nameKey(p.name) === nameKey(n)); return t ? rankOfT(t) : ''; };
   const nameKey = n => String(n || '').toLowerCase().replace(/\s+/g, ' ').trim();
   /** Nachname aus „Max Müller“, „Müller, Max“ oder „Max von der Heide“. */
   const nachname = n => { n = String(n || '').trim(); if (n.includes(',')) return n.split(',')[0].trim(); const t = n.split(/\s+/); if (t.length < 2) return n; let i = t.length - 1; while (i > 1 && /^(von|van|de|der|den|zu|zur|vom|ten|ter|di|da|del|le|la)$/i.test(t[i - 1])) i--; return t.slice(i).join(' '); };
@@ -131,7 +139,12 @@
         return `${Q}${L()}<div class="w-seg" role="group" aria-label="${esc(R(f.l, d, item) || '')}">${o.map(([val, lab]) => `<button type="button" class="w-opt${val === 'ja' ? ' yes' : val === 'nein' ? ' no' : ''}" data-set="${esc(k)}" data-v="${esc(val)}" aria-pressed="${String(v === val)}">${esc(lab)}</button>`).join('')}</div></div>`;
       }
       case 'choice': return `${Q}${L()}<div class="w-chips" role="group">${R(f.o, d, item).map(([val, lab]) => `<button type="button" class="chip" data-set="${esc(k)}" data-v="${esc(val)}" aria-pressed="${String(v === val)}">${esc(lab)}</button>`).join('')}</div></div>`;
-      case 'multi': { const a = Array.isArray(v) ? v : []; return `${Q}${L()}<div class="w-chips" role="group">${R(f.o, d, item).map(([val, lab]) => `<button type="button" class="chip" data-toggle="${esc(k)}" data-v="${esc(val)}" aria-pressed="${String(a.includes(val))}">${esc(lab)}</button>`).join('')}</div></div>`; }
+      case 'multi': {
+        const a = Array.isArray(v) ? v : [], opts = R(f.o, d, item);
+        // Welche Werte fliegen raus, wenn dieser gewählt wird? excl: [['keine', '*'], ['trocken', 'nass']]
+        const weg = val => (f.excl || []).flatMap(([x, y]) => (y === '*' ? (val === x ? opts.map(o => o[0]).filter(o => o !== x) : [x]) : val === x ? [y] : val === y ? [x] : []));
+        return `${Q}${L()}<div class="w-chips" role="group">${opts.map(([val, lab]) => `<button type="button" class="chip" data-toggle="${esc(k)}" data-v="${esc(val)}"${weg(val).length ? ` data-x="${esc(weg(val).join(' '))}"` : ''}${f.max ? ` data-max="${f.max}"` : ''} aria-pressed="${String(a.includes(val))}">${esc(lab)}</button>`).join('')}</div></div>`;
+      }
       case 'text': case 'area': {
         if (f.pre || f.t === 'area') return sentenceHtml(f, k, v, d, item, half, ans);
         const ph = R(f.ph, d, item) || '';
@@ -166,7 +179,7 @@
         const used = new Set([...rows, ...(getP(d, 'einsatz.kraefte') || []), ...(getP(d, 'einsatz.wagen') || []).flatMap(w => (w && Array.isArray(w.crew) ? w.crew : []))].filter(r => r && has(r.name)).map(r => nameKey(r.name)));
         const team = rows.filter(r => r && has(r.name)).length < max ? ((W() && W().team && W().team()) || []).filter(p => p && has(p.name) && !used.has(nameKey(p.name))) : [];
         const sel = (r, i) => { const g = (r && r.grad) || ''; const list = DGRADE.includes(g) ? DGRADE : [...DGRADE, g]; return `<select class="input w-grad" data-k="${esc(k)}.${i}.grad" aria-label="Amtsbezeichnung">${list.map(x => `<option value="${esc(x)}" ${g === x ? 'selected' : ''}>${esc(x || 'Amtsbez.')}</option>`).join('')}</select>`; };
-        const chips = team.length ? `<div class="w-crew-team"><div class="w-chips">${team.slice(0, 40).map(p => { const g = rankOf(p.roles); return `<button type="button" class="chip sm" data-crew-pick="${esc(k)}" data-v="${esc(JSON.stringify({ grad: g, name: p.name }))}">+ ${esc([g, p.name].filter(Boolean).join(' '))}</button>`; }).join('')}</div></div>` : '';
+        const chips = team.length ? `<div class="w-crew-team"><div class="w-chips">${team.slice(0, 40).map(p => { const g = rankOfT(p); return `<button type="button" class="chip sm" data-crew-pick="${esc(k)}" data-v="${esc(JSON.stringify({ grad: g, name: p.name }))}">+ ${esc([g, p.name].filter(Boolean).join(' '))}</button>`; }).join('')}</div></div>` : '';
         return `<div class="w-q full">${L()}${chips}<div class="w-crew">${rows.map((r, i) => `<div class="w-crew-row">${sel(r, i)}<input class="input" data-k="${esc(k)}.${i}.name" value="${esc(r && r.name || '')}" placeholder="Name" autocomplete="off" spellcheck="false" maxlength="60"><button type="button" class="icon-btn sm" data-crew-del="${i}" data-crew-k="${esc(k)}" aria-label="Entfernen" ${rows.length === 1 && !has(r && r.name) ? 'disabled' : ''}><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>`).join('')}</div>${rows.length < max ? `<button type="button" class="chip" data-crew-add="${esc(k)}">+ Weitere Person</button>` : ''}${lastCrew(rows, k)}</div>`;
       }
       /* Streifenwagen: je Fahrzeug eine Karte, Personen per Anfangsbuchstaben aus Team und früheren Vorgängen */
@@ -175,7 +188,7 @@
         const any = cars.some(w => w && Array.isArray(w.crew) && w.crew.some(c => c && has(c.name)));
         const cards = cars.map((w, ci) => {
           const crew = (w && Array.isArray(w.crew) ? w.crew : []).map((c, pi) => [c, pi]).filter(([c]) => c && has(c.name));
-          return `<div class="w-sub w-car"><div class="w-sub-h">SW ${ci + 1}<b>Streifenwagen ${ci + 1}</b><span class="grow"></span>${cars.length > 1 ? `<button type="button" class="link danger" data-car-del="${esc(k)}" data-i="${ci}">Entfernen</button>` : ''}</div>${crew.length ? `<div class="w-pers-row">${crew.map(([c, pi]) => `<span class="w-pers">${has(c.grad) ? `<i>${esc(c.grad)}</i>` : ''}<span>${esc(c.name)}</span><button type="button" data-pers-del="${esc(k)}" data-i="${ci}.${pi}" aria-label="${esc([c.grad, c.name].filter(Boolean).join(' '))} entfernen"><svg class="i" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg></button></span>`).join('')}</div>` : ''}<div class="w-combo"><input class="input" id="${fid(k)}-${ci}" data-combo="pers" data-ck="${esc(k)}" data-ci="${ci}" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-label="Person für Streifenwagen ${ci + 1}" placeholder="${crew.length ? '+ weitere Person' : 'Person, z. B. M …'}" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="done" maxlength="60"></div></div>`;
+          return `<div class="w-sub w-car"><div class="w-sub-h">SW ${ci + 1}<b>Streifenwagen ${ci + 1}</b><span class="grow"></span>${cars.length > 1 ? `<button type="button" class="link danger" data-car-del="${esc(k)}" data-i="${ci}">Entfernen</button>` : ''}</div>${crew.length ? `<div class="w-pers-row">${crew.map(([c, pi]) => `<span class="w-pers">${has(c.grad || teamRank(c.name)) ? `<i>${esc(c.grad || teamRank(c.name))}</i>` : ''}<span>${esc(c.name)}</span><button type="button" data-pers-del="${esc(k)}" data-i="${ci}.${pi}" aria-label="${esc([c.grad, c.name].filter(Boolean).join(' '))} entfernen"><svg class="i" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg></button></span>`).join('')}</div>` : ''}<div class="w-combo"><input class="input" id="${fid(k)}-${ci}" data-combo="pers" data-ck="${esc(k)}" data-ci="${ci}" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-label="Person für Streifenwagen ${ci + 1}" placeholder="${crew.length ? '+ weitere Person' : 'Person, z. B. M …'}" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="done" maxlength="60"></div></div>`;
         }).join('');
         return `${Q}${L()}<div class="w-cars">${cards}</div><div class="w-quick w-car-add"><button type="button" class="chip" data-car-add="${esc(k)}">+ Streifenwagen</button>${any ? '' : lastWagen(k)}</div><p class="w-hint">Anfangsbuchstaben tippen: Vorschläge aus deinem Team und früheren Vorgängen. Enter übernimmt, neue Namen gehen auch. Im Text stehen Amtsbezeichnung und Nachname.</p></div>`;
       }
@@ -292,7 +305,7 @@
   function crewPool() {
     const out = new Map();
     const add = (grad, name, n) => { if (!has(name)) return; const key = nameKey(name); const ex = out.get(key); if (ex) { ex.n += n; if (!ex.grad && has(grad)) ex.grad = grad; } else out.set(key, { grad: grad || '', name: String(name).trim(), n }); };
-    for (const p of ((W() && W().team && W().team()) || [])) add(rankOf(p.roles), p.name, 0);
+    for (const p of ((W() && W().team && W().team()) || [])) add(rankOfT(p), p.name, 0);
     for (const x of ((W() && W().docs()) || [])) { if (x.id === U.id) continue; for (const c of [...(getP(x.data, 'einsatz.kraefte') || []), ...(getP(x.data, 'einsatz.wagen') || []).flatMap(w => (w && Array.isArray(w.crew) ? w.crew : []))]) if (c) add(c.grad, c.name, 1); }
     return [...out.values()].sort((a, b) => b.n - a.n);
   }
@@ -427,8 +440,9 @@
     if (!rows.length) { host.innerHTML = `<div class="empty w-empty"><h3>${docs.length ? 'Nichts gefunden' : 'Noch kein Vorgang'}</h3><p>${docs.length ? 'Suche anpassen.' : 'Ein Vorgang führt dich Schritt für Schritt durch die Aufnahme – alles wird verschlüsselt gespeichert, du kannst jederzeit unterbrechen.'}</p>${docs.length ? '' : `<div class="row">${creatable().map((m, i) => `<button type="button" class="btn ${i ? 'btn-ghost' : 'btn-accent'} btn-sm" data-w="new" data-mod="${esc(m.id)}">${esc(lab(m, 'newBtn', 'Neue ' + m.name.replace(/ ohne Personenschaden$/, '')))}</button>`).join('')}</div>`}</div>`; return; }
     host.innerHTML = `<ul class="w-docs">${rows.map(d => {
       const m = mod(d); const total = m ? visibleSteps(m, d.data).length : 1;
-      const pct = d.status === 'fertig' ? 100 : Math.round(Math.min(d.step, total) / total * 100);
-      return `<li data-sw="${d.id}"><button type="button" class="w-sw-del" data-sw-del="${d.id}" tabindex="-1" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>Löschen</button><button type="button" class="w-doc${d.id === U.id ? ' on' : ''}" data-open="${d.id}"><span class="w-doc-tile${d.status === 'fertig' ? ' done' : ''}">${m ? esc(m.kurz) : '?'}</span><span class="w-doc-main"><span class="w-doc-t">${esc(d.title || (m ? m.name : 'Vorgang'))}</span><span class="w-doc-s">${esc(m ? m.subtitle(d.data) || m.name : d.type)}</span></span><span class="w-doc-side"><span class="pill ${d.status === 'fertig' ? 'pill-lime' : 'pill-quiet'}">${d.status === 'fertig' ? 'Fertig' : pct + ' %'}</span><span class="w-doc-when">${fmtWhen(d.u || d.updatedAt)}</span></span></button></li>`;
+      const pct = d.status === 'fertig' ? 100 : Math.round(Math.min(d.step, total) / (total || 1) * 100);
+      const pill = d.status === 'fertig' ? 'Fertig' : m && typeof m.pill === 'function' ? m.pill(d.data) : pct + ' %';
+      return `<li data-sw="${d.id}"><button type="button" class="w-sw-del" data-sw-del="${d.id}" tabindex="-1" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>Löschen</button><button type="button" class="w-doc${d.id === U.id ? ' on' : ''}" data-open="${d.id}"><span class="w-doc-tile${d.status === 'fertig' ? ' done' : ''}">${m ? esc(m.kurz) : '?'}</span><span class="w-doc-main"><span class="w-doc-t">${esc(d.title || (m ? m.name : 'Vorgang'))}</span><span class="w-doc-s">${esc(m ? m.subtitle(d.data) || m.name : d.type)}</span></span><span class="w-doc-side"><span class="pill ${d.status === 'fertig' ? 'pill-lime' : 'pill-quiet'}">${esc(pill)}</span><span class="w-doc-when">${fmtWhen(d.u || d.updatedAt)}</span></span></button></li>`;
     }).join('')}</ul>`;
   }
 
@@ -487,9 +501,11 @@
     if (!d || U.view === 'list') { U.view = 'list'; remember(); host.innerHTML = introHtml(); return; }
     const m = mod(d);
     if (!m) { host.innerHTML = `<div class="empty w-empty"><h3>Unbekanntes Modul „${esc(d.type)}“</h3><p>Dieser Vorgang stammt aus einer neueren Version.</p></div>`; return; }
+    if (m.migrate && m.migrate(d.data)) persist(false);
     if (typeof m.upgrade === 'function') { const nd = m.upgrade(d.data); if (nd && typeof nd === 'object') { d.data = nd; persist(true); } }
     { let tt = ''; try { tt = (m.title(d.data) || '').slice(0, 120); } catch (e) { tt = ''; } if (tt && tt !== d.title) persist(true); } // veralteten Titel (z. B. nach Umbenennung eines Moduls) beim Öffnen auffrischen
     U.lastJson = stable(d.data);
+    if (m.screen) { const api = screenApi(d); host.innerHTML = m.screen.render(d, api); remember(); if (m.screen.mounted) m.screen.mounted(host, api); return; }
     if (U.view === 'result') { host.innerHTML = resultHtml(d, m); remember(); return; }
     const steps = visibleSteps(m, d.data);
     U.step = Math.max(0, Math.min(U.step, steps.length - 1));
@@ -531,7 +547,7 @@
       <span class="spaced">Schriftliche Arbeiten</span>
       <h2 class="w-intro-h">Aufnehmen, ohne zu tippen.</h2>
       <p class="w-intro-p">Fragen beantworten – Ja/Nein, antippen, Zahlen – und am Ende steht ein fertiger Text in sauberer Satzführung, bei der Verkehrsunfallflucht der vollständige Befundbericht. Es erscheinen nur Fragen, die zu deinem Fall passen; jede lässt sich überspringen. Alles bleibt verschlüsselt in deinem Tresor; jeder Schritt wird sofort gesichert, du kannst jederzeit unterbrechen.</p>
-      <div class="w-mods">${mods.map(m => `<button type="button" class="w-mod" data-w="new" data-mod="${esc(m.id)}"><span class="w-mod-tile">${esc(m.kurz)}</span><span><b>${esc(m.name)}</b><small>${((n) => (n === 1 ? 'Ein Abschnitt' : n + ' Phasen'))(new Set(m.steps.map(s => s.phase)).size)}, nur passende Fragen · ${esc(m.desc || 'Befundbericht nach Anlage 6, Kurzsachverhalt, Fahndungstext, offene Punkte')}</small></span></button>`).join('')}</div>
+      <div class="w-mods">${mods.map(m => `<button type="button" class="w-mod" data-w="new" data-mod="${esc(m.id)}"><span class="w-mod-tile">${esc(m.kurz)}</span><span><b>${esc(m.name)}</b><small>${m.intro ? esc(m.intro) : `${((n) => (n === 1 ? 'Ein Abschnitt' : n + ' Phasen'))(new Set(m.steps.map(s => s.phase)).size)}, nur passende Fragen · ${esc(m.desc || 'Befundbericht nach Anlage 6, Kurzsachverhalt, Fahndungstext, offene Punkte')}`}</small></span></button>`).join('')}</div>
       <p class="w-hint">Tastatur: <b class="kbd">N</b> neuer Vorgang · <b class="kbd">S</b> Bereich wechseln (<b class="kbd">7</b>) · <b class="kbd">⌘/Strg ⏎</b> weiter</p>
     </div>`;
   }
@@ -546,9 +562,9 @@
     if (!tabs.some(t => t[0] === U.tab)) U.tab = 'bericht';
     const extra = extras.find(t => t.k === U.tab);
     let body = '';
-    if (U.tab === 'bericht') body = `<div class="w-report">${sec.map(([n, t, txt, sid]) => txt == null ? `<h3 class="w-rh">${n} ${esc(t)}</h3>` : `<div class="w-rs"><h4 class="w-rsh">${n} ${esc(t)}<button type="button" class="link" data-edit="${esc(stepForSection(m, sid, d.data))}">Bearbeiten</button></h4><div class="w-rb${/\[[^\]]+\]/.test(txt) ? ' has-ph' : ''}">${reportHtml(txt)}</div></div>`).join('')}</div>`;
-    else if (extra) { const tx = extra.text(d.data) || ''; body = `<div class="w-report">${extra.hint ? `<p class="w-hint">${esc(extra.hint)}</p>` : ''}<div class="w-rb${/\[[^\]]+\]/.test(tx) ? ' has-ph' : ''}">${reportHtml(tx)}</div></div>`; }
-    else if (U.tab === 'kurz') body = `<div class="w-report"><p class="w-hint">${esc(lab(m, 'kurzHint', 'Für die Kurzbeschreibung im Vorgang und die Unfallmitteilung. Vor dem Nachsenden der Unfallmitteilung ist der Kurzsachverhalt aus der ViVA-Kurzbeschreibung zu löschen (DA 1.1).'))}</p><div class="w-rb">${reportHtml(m.kurzText(d.data))}</div></div>`;
+    if (U.tab === 'bericht') body = `<div class="w-report">${sec.map(([n, t, txt, sid]) => txt == null ? `<h3 class="w-rh">${n} ${esc(t)}</h3>` : `<div class="w-rs"><h4 class="w-rsh">${n} ${esc(t)}<button type="button" class="link" data-edit="${esc(stepForSection(m, sid, d.data))}">Bearbeiten</button></h4><div class="w-rb${/\[[^\]]+\]/.test(txt) ? ' has-ph' : ''}">${reportHtml(txt, m)}</div></div>`).join('')}</div>`;
+    else if (extra) { const tx = extra.text(d.data) || ''; body = `<div class="w-report">${extra.hint ? `<p class="w-hint">${esc(extra.hint)}</p>` : ''}<div class="w-rb${/\[[^\]]+\]/.test(tx) ? ' has-ph' : ''}">${reportHtml(tx, m)}</div></div>`; }
+    else if (U.tab === 'kurz') body = `<div class="w-report"><p class="w-hint">${esc(lab(m, 'kurzHint', 'Für die Kurzbeschreibung im Vorgang und die Unfallmitteilung. Vor dem Nachsenden der Unfallmitteilung ist der Kurzsachverhalt aus der ViVA-Kurzbeschreibung zu löschen (DA 1.1).'))}</p><div class="w-rb">${reportHtml(m.kurzText(d.data), m)}</div></div>`;
     else if (U.tab === 'fahndung') body = `<div class="w-report"><p class="w-hint">${esc(lab(m, 'fahndungHint', 'Für die Leitstelle / Funkfahndung – kurz und sendefähig.'))}</p><div class="w-rb">${esc(fah)}</div></div>`;
     else if (U.tab === 'offen') body = `<div class="w-report">${offen.length ? `<ul class="w-offen">${offen.map((o, i) => `<li><label class="check-line"><input type="checkbox" data-offen="${i}"> <span>${esc(o)}</span></label></li>`).join('')}</ul><p class="w-hint">${esc(lab(m, 'offenHint', 'Angehakte Punkte landen als Todos im Planner.'))}</p><button type="button" class="btn btn-ghost btn-sm" data-w="todos">Ausgewählte als Todos anlegen</button>` : `<div class="empty w-empty"><h3>Nichts offen</h3><p>${esc(lab(m, 'offenEmpty', 'Alle Pflichtpunkte aus Erlass und Dienstanweisung sind abgedeckt.'))}</p></div>`}</div>`;
     else body = `<div class="w-report"><p class="w-hint">${esc(lab(m, 'persHint', 'Gesondert vom Befundbericht – Telefonnummern nur auf dem Original (DA 1.1). Nicht in den Berichtstext kopieren.'))}</p><div class="w-rb mono-sm">${esc(m.personalien(d.data))}</div></div>`;
@@ -579,7 +595,11 @@
     return j < 0 ? 0 : j;
   }
   /** Berichtstext → HTML: Platzhalter markieren, Zwischenzeilen (Fahrzeug UB 01, UB 02, Z 01) hervorheben. */
-  const reportHtml = t => esc(t).replace(/^(Fahrzeug UB \d{2}|UB \d{2}|Z \d{2})$/gm, '<b class="w-rlab">$1</b>').replace(/\[([^\]]+)\]/g, '<mark>[$1]</mark>');
+  const reEsc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const reportHtml = (t, m) => {
+    const extra = (m && m.labels || []).map(l => '|' + reEsc(esc(l))).join('');
+    return esc(t).replace(new RegExp(`^(Fahrzeug UB \\d{2}|UB \\d{2}|Z \\d{2}${extra})$`, 'gm'), '<b class="w-rlab">$1</b>').replace(/\[([^\]]+)\]/g, '<mark>[$1]</mark>');
+  };
   function currentText(d, m) {
     const extra = extraTabs(m, d.data).find(t => t.k === U.tab);
     if (extra) return extra.text(d.data) || '';
@@ -594,6 +614,7 @@
   function open(id, view) {
     const d = W().find(id); if (!d) return;
     U.id = id; U.view = view || (d.status === 'fertig' ? 'result' : 'wizard'); U.step = d.step || 0; U.tab = 'bericht';
+    const m0 = mod(d); if (m0 && m0.screen && m0.screen.open) m0.screen.open(d);
     renderMain(); renderList();
     window.scrollTo({ top: 0 });
   }
@@ -708,10 +729,16 @@
     persist(false);
     if (rerender) { renderMain(); if (!off) focusNext(k); } else schedulePreview();
   }
-  function toggleVal(k, v) {
+  function toggleVal(k, v, excl, max) {
     const d = doc(); if (!d) return;
-    const a = Array.isArray(getP(d.data, k)) ? getP(d.data, k).slice() : [];
-    const i = a.indexOf(v); if (i >= 0) a.splice(i, 1); else a.push(v);
+    let a = Array.isArray(getP(d.data, k)) ? getP(d.data, k).slice() : [];
+    const i = a.indexOf(v);
+    if (i >= 0) a.splice(i, 1);
+    else {
+      if (excl) { const x = excl.split(' '); a = a.filter(e => !x.includes(e)); }
+      a.push(v);
+      if (max && a.length > max) a = a.slice(a.length - max); // älteste Auswahl weicht
+    }
     setP(d.data, k, a.length ? a : undefined);
     persist(false); renderMain();
   }
@@ -771,6 +798,7 @@
       if (z && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); z.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
     });
     root.addEventListener('click', e => {
+      const sc = screenOf(); if (sc && sc[1].click && sc[1].click(e, screenApi(sc[0]))) return;
       const sb = e.target.closest('.w-sent');
       if (sb && e.target.tagName !== 'TEXTAREA') { const ta = $('textarea', sb); if (ta) { ta.focus(); const n = ta.value.length; try { ta.setSelectionRange(n, n); } catch (er) { /* egal */ } } return; }
       const b = e.target.closest('button, [data-edit], .w-z'); if (!b) return;
@@ -825,7 +853,7 @@
         persist(false); renderMain(); return;
       }
       if (b.dataset.set) { setVal(b.dataset.set, b.dataset.n ? Number(b.dataset.v) : b.dataset.v); return; }
-      if (b.dataset.toggle) { toggleVal(b.dataset.toggle, b.dataset.v); return; }
+      if (b.dataset.toggle) { toggleVal(b.dataset.toggle, b.dataset.v, b.dataset.x, Number(b.dataset.max) || 0); return; }
       if (b.dataset.step) { const d = doc(); if (!d) return; const cur = Number(getP(d.data, b.dataset.step)); const inp = $(`[data-k="${CSS.escape(b.dataset.step)}"]`, root); const min = inp && inp.min !== '' ? Number(inp.min) : 0, max = inp && inp.max !== '' ? Number(inp.max) : Infinity; const v = Math.max(min, Math.min(max, (Number.isFinite(cur) && has(getP(d.data, b.dataset.step)) ? cur : 0) + Number(b.dataset.d))); setP(d.data, b.dataset.step, v); persist(false); if (inp) inp.value = v; schedulePreview(); $$(`[data-set="${CSS.escape(b.dataset.step)}"]`, root).forEach(c => c.setAttribute('aria-pressed', String(Number(c.dataset.v) === v))); return; }
       if (b.dataset.part) { const d = doc(); if (!d) return; const k = b.dataset.part, a = Array.isArray(getP(d.data, k)) ? getP(d.data, k).slice() : []; const i = a.findIndex(p => p && p.name === b.dataset.v); if (i >= 0) a.splice(i, 1); else a.push({ name: b.dataset.v, alt: 'nein' }); setP(d.data, k, a.length ? a : undefined); persist(false); renderMain(); if (i < 0) setTimeout(() => { const c = $(`#wpart-${a.length - 1}`); if (c) c.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 30); return; }
       if (b.dataset.partDel) { const d = doc(); if (!d) return; const a = getP(d.data, b.dataset.partDel).slice(); a.splice(Number(b.dataset.i), 1); setP(d.data, b.dataset.partDel, a.length ? a : undefined); persist(false); renderMain(); return; }
@@ -840,6 +868,7 @@
       if (b.dataset.crewPick) { const d = doc(); if (!d) return; let c = {}; try { c = JSON.parse(b.dataset.v); } catch (er) { return; } const ck = b.dataset.crewPick; const a = (Array.isArray(getP(d.data, ck)) ? getP(d.data, ck) : []).filter(r => r && (has(r.name) || has(r.grad))); a.push({ grad: c.grad || '', name: c.name }); setP(d.data, ck, a); persist(false); renderMain(); return; }
     });
     root.addEventListener('input', e => {
+      const sc = screenOf(); if (sc && sc[1].input && sc[1].input(e, screenApi(sc[0]))) return;
       const el = e.target; if (!el.dataset || !el.dataset.k) return;
       const d = doc(); if (!d) return;
       if (el.dataset.single && /\n/.test(el.value)) { const p0 = el.selectionStart; el.value = el.value.replace(/\s*\n\s*/g, ' '); try { el.setSelectionRange(p0, p0); } catch (er) { /* egal */ } }
@@ -877,6 +906,7 @@
     root.addEventListener('keydown', e => {
       const el = e.target;
       if (e.key !== 'Enter' || e.shiftKey || e.metaKey || e.ctrlKey || e.altKey || e.isComposing) return;
+      const sc = screenOf(); if (sc && sc[1].keydown && sc[1].keydown(e, screenApi(sc[0]))) return;
       if (!el.closest || !el.closest('#wFields')) return;
       if (el.tagName === 'TEXTAREA' && !el.dataset.single) return;
       if (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') return;
@@ -886,6 +916,7 @@
       if (nx) nx.focus(); else el.blur();
     });
     root.addEventListener('change', e => {
+      const sc = screenOf(); if (sc && sc[1].change && sc[1].change(e, screenApi(sc[0]))) return;
       const el = e.target; if (!el.dataset || !el.dataset.k) return;
       const d = doc(); if (!d) return;
       if (el.tagName === 'SELECT') { setP(d.data, el.dataset.k, el.value || undefined); persist(false); schedulePreview(); return; }
@@ -898,6 +929,7 @@
     document.addEventListener('keydown', e => {
       if (document.body.dataset.area !== 'schreiben' || !W() || !W().unlocked()) return;
       if ($('dialog[open]')) return;
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { const sc = screenOf(); if (sc) { e.preventDefault(); if (sc[1].submit) sc[1].submit(screenApi(sc[0])); return; } }
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && U.view === 'wizard') { e.preventDefault(); const d = doc(); if (!d) return; const steps = visibleSteps(mod(d), d.data); if (U.step < steps.length - 1) go(1); else finish(); }
     });
     const si = $('#search'); if (si) si.addEventListener('input', () => { if (document.body.dataset.area === 'schreiben') renderList(); });
