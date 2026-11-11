@@ -4582,7 +4582,7 @@ window.WBridge = Object.freeze({
   restore: snap => { if (S && snap) restore(snap); },
   name: () => (S ? state.settings.name : ''),
   /** Teamliste für die Besatzung: zuletzt im Dienst zuerst, dann alphabetisch; Rollen enthalten u. a. die Amtsbezeichnung. */
-  team: () => { if (!S) return []; const me = state.settings.name.trim(); const out = me ? [{ name: me, roles: [] }] : []; const seen = new Set(out.map(o => norm(o.name))); for (const c of crewPool()) { const p = (c.id && state.people.find(x => x.id === c.id)) || state.people.find(x => norm(x.name) === norm(c.name)); const n = p ? p.name : c.name; if (!n || seen.has(norm(n))) continue; seen.add(norm(n)); out.push({ name: n, roles: p ? [...p.roles] : [] }); } return out; },
+  team: () => { if (!S) return []; const me = state.settings.name.trim(); const mp = me ? state.people.find(x => norm(x.name) === norm(me)) : null; const out = me ? [{ name: me, roles: mp ? [...mp.roles] : [] }] : []; const seen = new Set(out.map(o => norm(o.name))); for (const c of crewPool()) { const p = (c.id && state.people.find(x => x.id === c.id)) || state.people.find(x => norm(x.name) === norm(c.name)); const n = p ? p.name : c.name; if (!n || seen.has(norm(n))) continue; seen.add(norm(n)); out.push({ name: n, roles: p ? [...p.roles] : [] }); } return out; },
   /** Vorbelegung neuer Vorgänge aus der laufenden Schicht (Rufname, Besatzung). */
   preset: () => { if (!S) return null; const sh = liveShift(); return sh ? { einsatz: shiftCrewPreset(sh) } : null; },
   /** Offenen Punkt als Todo in den Planner übernehmen (z. B. „Lichtbildmappe fertigen“). */

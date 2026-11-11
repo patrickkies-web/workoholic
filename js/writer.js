@@ -16,6 +16,7 @@
   if (window.WAnzeige) MODULES[window.WAnzeige.id] = window.WAnzeige;
   if (window.WFEB) MODULES[window.WFEB.id] = window.WFEB;
   if (window.WSKZ) MODULES[window.WSKZ.id] = window.WSKZ;
+  if (window.WSchild) MODULES[window.WSchild.id] = window.WSchild;
   /** Module, die man direkt neu anlegen kann (der FE-Bericht entsteht nur aus der FE-Prüfung). */
   const creatable = () => Object.values(MODULES).filter(m => !m.noNew);
   /** Beschriftungen je Modul (m.labels), sonst die der Verkehrsunfallflucht. */
@@ -47,6 +48,10 @@
   const doc = () => (U.id ? W().find(U.id) : null);
   const mod = d => (d && MODULES[d.type]) || null;
   const visibleSteps = (m, d) => m.steps.filter(s => !s.when || s.when(d));
+  /** Module mit eigener Maske (m.screen, z. B. Schilderungen) bekommen eine schmale Schnittstelle: speichern, zeichnen, kopieren. */
+  const screenApi = d => ({ d, persist, render: renderMain, copy, list: () => { U.view = 'list'; U.id = null; renderMain(); renderList(); }, team: () => ((W() && W().team && W().team()) || []), docs: () => ((W() && W().docs()) || []), toast: (t, o) => W().toast(t, o), ask: o => W().ask(o), mobile: () => !!(W() && W().mobile && W().mobile()) });
+  /** [Vorgang, Maske], wenn gerade ein Vorgang mit eigener Maske offen ist. */
+  const screenOf = () => { const d = U.view !== 'list' ? doc() : null; const m = mod(d); return d && m && m.screen ? [d, m.screen] : null; };
 
   let saveTimer = 0, previewTimer = 0;
   function persist(full = false) {
@@ -427,8 +432,9 @@
     if (!rows.length) { host.innerHTML = `<div class="empty w-empty"><h3>${docs.length ? 'Nichts gefunden' : 'Noch kein Vorgang'}</h3><p>${docs.length ? 'Suche anpassen.' : 'Ein Vorgang führt dich Schritt für Schritt durch die Aufnahme – alles wird verschlüsselt gespeichert, du kannst jederzeit unterbrechen.'}</p>${docs.length ? '' : `<div class="row">${creatable().map((m, i) => `<button type="button" class="btn ${i ? 'btn-ghost' : 'btn-accent'} btn-sm" data-w="new" data-mod="${esc(m.id)}">${esc(lab(m, 'newBtn', 'Neue ' + m.name.replace(/ ohne Personenschaden$/, '')))}</button>`).join('')}</div>`}</div>`; return; }
     host.innerHTML = `<ul class="w-docs">${rows.map(d => {
       const m = mod(d); const total = m ? visibleSteps(m, d.data).length : 1;
-      const pct = d.status === 'fertig' ? 100 : Math.round(Math.min(d.step, total) / total * 100);
-      return `<li data-sw="${d.id}"><button type="button" class="w-sw-del" data-sw-del="${d.id}" tabindex="-1" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>Löschen</button><button type="button" class="w-doc${d.id === U.id ? ' on' : ''}" data-open="${d.id}"><span class="w-doc-tile${d.status === 'fertig' ? ' done' : ''}">${m ? esc(m.kurz) : '?'}</span><span class="w-doc-main"><span class="w-doc-t">${esc(d.title || (m ? m.name : 'Vorgang'))}</span><span class="w-doc-s">${esc(m ? m.subtitle(d.data) || m.name : d.type)}</span></span><span class="w-doc-side"><span class="pill ${d.status === 'fertig' ? 'pill-lime' : 'pill-quiet'}">${d.status === 'fertig' ? 'Fertig' : pct + ' %'}</span><span class="w-doc-when">${fmtWhen(d.u || d.updatedAt)}</span></span></button></li>`;
+      const pct = d.status === 'fertig' ? 100 : Math.round(Math.min(d.step, total) / (total || 1) * 100);
+      const pill = d.status === 'fertig' ? 'Fertig' : m && typeof m.pill === 'function' ? m.pill(d.data) : pct + ' %';
+      return `<li data-sw="${d.id}"><button type="button" class="w-sw-del" data-sw-del="${d.id}" tabindex="-1" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>Löschen</button><button type="button" class="w-doc${d.id === U.id ? ' on' : ''}" data-open="${d.id}"><span class="w-doc-tile${d.status === 'fertig' ? ' done' : ''}">${m ? esc(m.kurz) : '?'}</span><span class="w-doc-main"><span class="w-doc-t">${esc(d.title || (m ? m.name : 'Vorgang'))}</span><span class="w-doc-s">${esc(m ? m.subtitle(d.data) || m.name : d.type)}</span></span><span class="w-doc-side"><span class="pill ${d.status === 'fertig' ? 'pill-lime' : 'pill-quiet'}">${esc(pill)}</span><span class="w-doc-when">${fmtWhen(d.u || d.updatedAt)}</span></span></button></li>`;
     }).join('')}</ul>`;
   }
 
@@ -490,6 +496,7 @@
     if (typeof m.upgrade === 'function') { const nd = m.upgrade(d.data); if (nd && typeof nd === 'object') { d.data = nd; persist(true); } }
     { let tt = ''; try { tt = (m.title(d.data) || '').slice(0, 120); } catch (e) { tt = ''; } if (tt && tt !== d.title) persist(true); } // veralteten Titel (z. B. nach Umbenennung eines Moduls) beim Öffnen auffrischen
     U.lastJson = stable(d.data);
+    if (m.screen) { const api = screenApi(d); host.innerHTML = m.screen.render(d, api); remember(); if (m.screen.mounted) m.screen.mounted(host, api); return; }
     if (U.view === 'result') { host.innerHTML = resultHtml(d, m); remember(); return; }
     const steps = visibleSteps(m, d.data);
     U.step = Math.max(0, Math.min(U.step, steps.length - 1));
@@ -531,7 +538,7 @@
       <span class="spaced">Schriftliche Arbeiten</span>
       <h2 class="w-intro-h">Aufnehmen, ohne zu tippen.</h2>
       <p class="w-intro-p">Fragen beantworten – Ja/Nein, antippen, Zahlen – und am Ende steht ein fertiger Text in sauberer Satzführung, bei der Verkehrsunfallflucht der vollständige Befundbericht. Es erscheinen nur Fragen, die zu deinem Fall passen; jede lässt sich überspringen. Alles bleibt verschlüsselt in deinem Tresor; jeder Schritt wird sofort gesichert, du kannst jederzeit unterbrechen.</p>
-      <div class="w-mods">${mods.map(m => `<button type="button" class="w-mod" data-w="new" data-mod="${esc(m.id)}"><span class="w-mod-tile">${esc(m.kurz)}</span><span><b>${esc(m.name)}</b><small>${((n) => (n === 1 ? 'Ein Abschnitt' : n + ' Phasen'))(new Set(m.steps.map(s => s.phase)).size)}, nur passende Fragen · ${esc(m.desc || 'Befundbericht nach Anlage 6, Kurzsachverhalt, Fahndungstext, offene Punkte')}</small></span></button>`).join('')}</div>
+      <div class="w-mods">${mods.map(m => `<button type="button" class="w-mod" data-w="new" data-mod="${esc(m.id)}"><span class="w-mod-tile">${esc(m.kurz)}</span><span><b>${esc(m.name)}</b><small>${m.intro ? esc(m.intro) : `${((n) => (n === 1 ? 'Ein Abschnitt' : n + ' Phasen'))(new Set(m.steps.map(s => s.phase)).size)}, nur passende Fragen · ${esc(m.desc || 'Befundbericht nach Anlage 6, Kurzsachverhalt, Fahndungstext, offene Punkte')}`}</small></span></button>`).join('')}</div>
       <p class="w-hint">Tastatur: <b class="kbd">N</b> neuer Vorgang · <b class="kbd">S</b> Bereich wechseln (<b class="kbd">7</b>) · <b class="kbd">⌘/Strg ⏎</b> weiter</p>
     </div>`;
   }
@@ -594,6 +601,7 @@
   function open(id, view) {
     const d = W().find(id); if (!d) return;
     U.id = id; U.view = view || (d.status === 'fertig' ? 'result' : 'wizard'); U.step = d.step || 0; U.tab = 'bericht';
+    const m0 = mod(d); if (m0 && m0.screen && m0.screen.open) m0.screen.open(d);
     renderMain(); renderList();
     window.scrollTo({ top: 0 });
   }
@@ -771,6 +779,7 @@
       if (z && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); z.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
     });
     root.addEventListener('click', e => {
+      const sc = screenOf(); if (sc && sc[1].click && sc[1].click(e, screenApi(sc[0]))) return;
       const sb = e.target.closest('.w-sent');
       if (sb && e.target.tagName !== 'TEXTAREA') { const ta = $('textarea', sb); if (ta) { ta.focus(); const n = ta.value.length; try { ta.setSelectionRange(n, n); } catch (er) { /* egal */ } } return; }
       const b = e.target.closest('button, [data-edit], .w-z'); if (!b) return;
@@ -840,6 +849,7 @@
       if (b.dataset.crewPick) { const d = doc(); if (!d) return; let c = {}; try { c = JSON.parse(b.dataset.v); } catch (er) { return; } const ck = b.dataset.crewPick; const a = (Array.isArray(getP(d.data, ck)) ? getP(d.data, ck) : []).filter(r => r && (has(r.name) || has(r.grad))); a.push({ grad: c.grad || '', name: c.name }); setP(d.data, ck, a); persist(false); renderMain(); return; }
     });
     root.addEventListener('input', e => {
+      const sc = screenOf(); if (sc && sc[1].input && sc[1].input(e, screenApi(sc[0]))) return;
       const el = e.target; if (!el.dataset || !el.dataset.k) return;
       const d = doc(); if (!d) return;
       if (el.dataset.single && /\n/.test(el.value)) { const p0 = el.selectionStart; el.value = el.value.replace(/\s*\n\s*/g, ' '); try { el.setSelectionRange(p0, p0); } catch (er) { /* egal */ } }
@@ -877,6 +887,7 @@
     root.addEventListener('keydown', e => {
       const el = e.target;
       if (e.key !== 'Enter' || e.shiftKey || e.metaKey || e.ctrlKey || e.altKey || e.isComposing) return;
+      const sc = screenOf(); if (sc && sc[1].keydown && sc[1].keydown(e, screenApi(sc[0]))) return;
       if (!el.closest || !el.closest('#wFields')) return;
       if (el.tagName === 'TEXTAREA' && !el.dataset.single) return;
       if (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') return;
@@ -886,6 +897,7 @@
       if (nx) nx.focus(); else el.blur();
     });
     root.addEventListener('change', e => {
+      const sc = screenOf(); if (sc && sc[1].change && sc[1].change(e, screenApi(sc[0]))) return;
       const el = e.target; if (!el.dataset || !el.dataset.k) return;
       const d = doc(); if (!d) return;
       if (el.tagName === 'SELECT') { setP(d.data, el.dataset.k, el.value || undefined); persist(false); schedulePreview(); return; }
@@ -898,6 +910,7 @@
     document.addEventListener('keydown', e => {
       if (document.body.dataset.area !== 'schreiben' || !W() || !W().unlocked()) return;
       if ($('dialog[open]')) return;
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { const sc = screenOf(); if (sc) { e.preventDefault(); if (sc[1].submit) sc[1].submit(screenApi(sc[0])); return; } }
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && U.view === 'wizard') { e.preventDefault(); const d = doc(); if (!d) return; const steps = visibleSteps(mod(d), d.data); if (U.step < steps.length - 1) go(1); else finish(); }
     });
     const si = $('#search'); if (si) si.addEventListener('input', () => { if (document.body.dataset.area === 'schreiben') renderList(); });
