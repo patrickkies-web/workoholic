@@ -317,7 +317,39 @@
     return out;
   }
 
-  root.WVUF_CORE = { get, str, has, num, cap, low, arr, endDot, quote, numWord, euro, joinList, fmtDate, fmtTime, when, period, PH, person, crewText, vehicle, vehicleG, FZ_ART, KAROSSERIE, SCHADEN, VERLAUF, MATERIAL, partAt, partText, slot, sent, VERH, verhOpt, verhNorm, verhBloecke };
+  /** Übertrag für die Unfallmitteilung (Bl. 2): gewählte Werte mit Ziffer, z. B. „Witterungsverhältnisse: 1 Regen · 5 Sichtweite unter 50 m“. */
+  function verhZiffern(raw) {
+    const o = verhNorm(raw);
+    const z = (name, keys) => keys.map(k => VERH[name].find(x => x[0] === k)).filter(x => x && x[2]).map(x => `${x[2]} ${x[1]}`);
+    const licht = z('licht', has(o.licht) ? [o.licht] : []).concat(o.licht !== 'tag' && o.beleuchtung === 'betrieb' ? ['3 Straßenbeleuchtung in Betrieb'] : []);
+    const rows = [
+      ['Lichtverhältnisse', licht],
+      ['Straßenzustand', z('zustand', arr(o.zustand))],
+      ['Witterungsverhältnisse', arr(o.witterung).includes('keine') ? ['– (keine besonderen)'] : z('witterung', arr(o.witterung))]
+    ];
+    return rows.map(([l, v]) => `${l}: ${v.length ? v.join(' · ') : PH('noch nicht gewählt')}`).join('\n');
+  }
+  /**
+   * Licht zur angegebenen Zeit – Sonnenauf- und -untergang für Westfalen (52° N, 7,5° O) mit Zeitgleichung
+   * und Refraktion, ±40 Min bürgerliche Dämmerung. Nur ein Vorschlag; ohne Datum/Uhrzeit: jetzt.
+   */
+  function lichtVorschlag(iso, hhmm) {
+    const n = new Date();
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '') || [0, n.getFullYear(), n.getMonth() + 1, n.getDate()];
+    const t = /^(\d{1,2}):(\d{2})/.exec(hhmm || '') || [0, n.getHours(), n.getMinutes()];
+    const day = new Date(+m[1], +m[2] - 1, +m[3], 12), N = Math.round((day - new Date(+m[1], 0, 1, 12)) / 864e5) + 1;
+    const rad = Math.PI / 180, lat = 52 * rad, dec = -23.44 * rad * Math.cos(2 * Math.PI / 365 * (N + 10));
+    const cw = (Math.sin(-0.833 * rad) - Math.sin(lat) * Math.sin(dec)) / (Math.cos(lat) * Math.cos(dec));
+    const half = Math.acos(Math.max(-1, Math.min(1, cw))) / rad * 4;
+    const B = 2 * Math.PI * (N - 81) / 364, eot = 9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B);
+    const noon = 720 - 7.5 * 4 - eot - day.getTimezoneOffset();
+    const now = +t[1] * 60 + +t[2];
+    if (now >= noon - half && now <= noon + half) return 'tag';
+    if (now >= noon - half - 40 && now <= noon + half + 40) return 'daemmerung';
+    return 'dunkel';
+  }
+
+  root.WVUF_CORE = { get, str, has, num, cap, low, arr, endDot, quote, numWord, euro, joinList, fmtDate, fmtTime, when, period, PH, person, crewText, vehicle, vehicleG, FZ_ART, KAROSSERIE, SCHADEN, VERLAUF, MATERIAL, partAt, partText, slot, sent, VERH, verhOpt, verhNorm, verhBloecke, verhZiffern, lichtVorschlag };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* ======================= Fragenkatalog ======================= */
@@ -1744,7 +1776,8 @@
   root.WVUF = Object.freeze({
     id: 'vuf', name: 'Verkehrsunfallflucht ohne Personenschaden', short: 'VUF Sachschaden', kurz: 'VUF',
     steps: root.WVUF_STEPS, text, plain, preview, kurzText: kurz, fahndung, offen, personalien, title, subtitle, ctx, migrate,
-    labels: ['Unfallörtlichkeit', 'Straße und Verkehrsregelung', 'Fahrbahnverhältnisse', 'Witterungs- und Sichtverhältnisse', 'Verkehrslage'],
+    zwischenzeilen: ['Unfallörtlichkeit', 'Straße und Verkehrsregelung', 'Fahrbahnverhältnisse', 'Witterungs- und Sichtverhältnisse', 'Verkehrslage'],
+    extraTabs: [{ k: 'ziffern', l: 'Ziffern Bl. 2', hint: 'Zum Übertragen in die Unfallmitteilung NRW, Blatt 2 „Zusätzliche Angaben“ (bzw. die Erfassung in ViVA).', text: d => C.verhZiffern(get(d, 'ort')) }],
     hergangVorschlag: d => autoHergang(ctx(d), get(d, 'bewertung') || {})
   });
 })(typeof window !== 'undefined' ? window : globalThis);

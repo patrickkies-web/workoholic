@@ -14,6 +14,7 @@
   if (window.WVermisst) MODULES[window.WVermisst.id] = window.WVermisst;
   if (window.WHG) MODULES[window.WHG.id] = window.WHG;
   if (window.WAnzeige) MODULES[window.WAnzeige.id] = window.WAnzeige;
+  if (window.WUnfallort) MODULES[window.WUnfallort.id] = window.WUnfallort;
   if (window.WFEB) MODULES[window.WFEB.id] = window.WFEB;
   if (window.WSKZ) MODULES[window.WSKZ.id] = window.WSKZ;
   if (window.WSchild) MODULES[window.WSchild.id] = window.WSchild;
@@ -597,7 +598,8 @@
   /** Berichtstext → HTML: Platzhalter markieren, Zwischenzeilen (Fahrzeug UB 01, UB 02, Z 01) hervorheben. */
   const reEsc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const reportHtml = (t, m) => {
-    const extra = (m && m.labels || []).map(l => '|' + reEsc(esc(l))).join('');
+    // Zwischenzeilen eines Moduls (Liste), z. B. „Fahrbahnverhältnisse“ – fett in der Ansicht
+    const extra = (Array.isArray(m && m.zwischenzeilen) ? m.zwischenzeilen : []).map(l => '|' + reEsc(esc(l))).join('');
     return esc(t).replace(new RegExp(`^(Fahrzeug UB \\d{2}|UB \\d{2}|Z \\d{2}${extra})$`, 'gm'), '<b class="w-rlab">$1</b>').replace(/\[([^\]]+)\]/g, '<mark>[$1]</mark>');
   };
   function currentText(d, m) {
