@@ -106,7 +106,7 @@
     return gs.length && gs.every(g => g === 'w') ? 'Beamtinnen' : 'Beamten';
   }
   /** Wem gegenüber: nur die belehrende Person → „diesem/dieser gegenüber“, sonst Namen oder „den eingesetzten Beamten“. */
-  function gegenText(data, p) {
+  function gegenText(data, p, noDem = false) {
     p = p || {};
     const g = arr(p.gegen);
     if (g.some(x => x && x.ref === 'alle')) return `gegenüber den eingesetzten ${beamte(data)}`;
@@ -118,16 +118,16 @@
       seen.add(k); list.push(o);
     }
     if (!list.length) return 'gegenüber [Beamtin/Beamter]';
-    if (list.length === 1 && p.bel && has(p.bel.name) && nameKey(list[0].name) === nameKey(p.bel.name)) {
+    if (!noDem && list.length === 1 && p.bel && has(p.bel.name) && nameKey(list[0].name) === nameKey(p.bel.name)) {
       const gg = offG(p.bel); if (gg) return gg === 'w' ? 'dieser gegenüber' : 'diesem gegenüber';
     }
     return 'gegenüber ' + joinUnd(list.map(offName));
   }
   /** Einleitungssatz vor der Schilderung. */
-  function einleitung(data, i) {
+  function einleitung(data, i, pron = false) {
     const p = arr(data.personen)[i] || {};
     const r = ROLLE[p.rolle];
-    const wer = `${rolleArt(p)} ${nameOf(data, i)}`;
+    const wer = pron ? PR(p).er : `${rolleArt(p)} ${nameOf(data, i)}`;
     const durch = p.bel && has(p.bel.name) ? offName(p.bel) : '[belehrende Person]';
     let bel;
     if (!r) bel = 'Nach erfolgter [Belehrung]';
@@ -136,14 +136,16 @@
     else bel = 'Nach erfolgter Betroffenenbelehrung gemäß § 55 OWiG';
     const gg = gegenText(data, p);
     const bereit = r && r.zeug && p.zvr && p.bereit !== false;
-    return `${bel} durch ${durch} ${bereit ? `erklärte sich ${wer} zur Aussage bereit und machte ${gg}` : `machte ${wer} ${gg}`} sinngemäß folgende Angaben:`;
+    const bereitSatz = pron ? `erklärte ${wer} sich zur Aussage bereit und machte ${gg}` : `erklärte sich ${wer} zur Aussage bereit und machte ${gg}`;
+    return `${bel} durch ${durch} ${bereit ? bereitSatz : `machte ${wer} ${gg}`} sinngemäß folgende Angaben:`;
   }
   const schilderung = p => str(p && p.text).replace(/\r\n?/g, '\n').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n');
 
   /* ---------- Personenbezogene Angaben: Deutschkenntnisse, Alkohol/Drogen, Folgefähigkeit, Tests ---------- */
   const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
   /** Pronomen nach Anrede; ohne Anrede als Platzhalter. */
-  const PR = p => (p.g === 'w' ? { er: 'sie', ihm: 'ihr' } : p.g === 'm' ? { er: 'er', ihm: 'ihm' } : { er: '[er/sie]', ihm: '[ihm/ihr]' });
+  const PR = p => (p.g === 'w' ? { er: 'sie', Er: 'Sie', ihm: 'ihr', sein: 'ihr' } : p.g === 'm' ? { er: 'er', Er: 'Er', ihm: 'ihm', sein: 'sein' } : { er: '[er/sie]', Er: '[Er/Sie]', ihm: '[ihm/ihr]', sein: '[sein/ihr]' });
+  const herrFrau = p => (p.g === 'w' ? 'Frau' : p.g === 'm' ? 'Herr' : '[Herr/Frau]');
   /** „dem Beschuldigten“ / „der Zeugin“ … */
   const rolleDat = p => { const r = ROLLE[p.rolle]; if (!r) return '[der Person]'; return p.g === 'm' || p.g === 'w' ? r.dat[p.g] : `[${r.dat.m}/${r.dat.w}]`; };
   const satz = s => { s = str(s); return s && !/[.!?]$/.test(s) ? s + '.' : s; };
@@ -155,14 +157,17 @@
     const p = arr(data.personen)[i] || {};
     if (p.spr !== 'eingeschr' && p.spr !== 'kein') return '';
     const pr = PR(p), wer = `${cap(rolleArt(p))} ${nameOf(data, i)}`;
-    const t = [p.spr === 'kein' ? `${wer} verfügte über keine Deutschkenntnisse.` : `${wer} verfügte nur über eingeschränkte Deutschkenntnisse.`];
+    const kenntnis = p.spr === 'kein' ? `${wer} verfügte über keine Deutschkenntnisse` : `${wer} verfügte nur über eingeschränkte Deutschkenntnisse`;
     const mit = MITTEL.filter(([k]) => arr(p.sprMittel).includes(k)).map(m => m[2]);
     const parts = [];
     if (has(p.sprAndere)) parts.push(`auf ${str(p.sprAndere)}`);
     if (mit.length) parts.push(`mithilfe ${joinUnd(mit)}`);
-    if (parts.length) t.push(`Die Verständigung erfolgte ${p.spr === 'eingeschr' ? 'zeitweise ' : ''}${parts.join(' sowie ')}.`);
-    else if (p.spr === 'kein') t.push('Die Verständigung erfolgte [auf welche Weise].');
-    if (p.sprVer === 'ja' || p.sprVer === 'nein') t.push(`Nach dem Eindruck der eingesetzten ${beamte(data)} verstand ${pr.er} die Ausführungen und Fragen ${p.sprVer === 'ja' ? 'vollständig' : 'nicht vollständig'}.`);
+    const t = [];
+    if (parts.length) t.push(`${kenntnis}, weshalb die Verständigung ${p.spr === 'eingeschr' ? 'zeitweise ' : ''}${parts.join(' sowie ')} erfolgte.`);
+    else if (p.spr === 'kein') t.push(`${kenntnis}, weshalb die Verständigung [auf welche Weise] erfolgte.`);
+    else t.push(kenntnis + '.');
+    if (p.sprVer === 'ja') t.push(`Nach dem Eindruck der eingesetzten ${beamte(data)} verstand ${pr.er} die Ausführungen und Fragen ${p.spr === 'eingeschr' ? 'dennoch ' : ''}vollständig.`);
+    else if (p.sprVer === 'nein') t.push(`Nach dem Eindruck der eingesetzten ${beamte(data)} verstand ${pr.er} die Ausführungen und Fragen jedoch nicht vollständig.`);
     return t.join(' ');
   }
 
@@ -284,25 +289,41 @@
     const e = einOf(p), sel = arr(p.wahr);
     return [...WAHR_ALL.filter(([k, , , tags]) => sel.includes(k) && passt(tags, e)).map(x => x[2]), ...arr(p.wahrFrei).map(str).filter(Boolean)];
   }
-  function testText(p, kind) {
-    const t = p[kind] || {}, pr = PR(p), r = ROLLE[p.rolle] || {};
-    const um = has(t.zeit) ? ` um ${str(t.zeit)} Uhr` : '', durch = t.von && has(t.von.name) ? ` durch ${offName(t.von)}` : '';
-    const name = kind === 'aat' ? 'Atemalkoholtest' : 'Drogenvortest';
-    if (!t.st) return r.tat ? `[${name}: durchgeführt, abgelehnt oder nicht möglich?]` : '';
-    if (t.st === 'entfaellt') return '';
-    if (t.st === 'abgelehnt') return `Einen${durch}${um} angebotenen freiwilligen ${name} lehnte ${pr.er} ab.`;
-    if (t.st === 'unmoeglich') return `Ein ${name} konnte nicht durchgeführt werden${has(t.grund) ? ', da ' + grund(t.grund) : ''}.`;
-    const wann = `${um || ' um [Uhrzeit]'}${durch || ' durch [Beamtin/Beamter]'}`;
-    if (kind === 'aat') {
-      const w = mgl(t.wert) || '[Wert]';
-      return t.art === 'beweis'
-        ? `Eine freiwillige beweissichere Atemalkoholmessung wurde${wann} durchgeführt und ergab einen Wert von ${w} mg/l.`
-        : `Ein freiwilliger Atemalkoholvortest wurde${wann} durchgeführt und ergab einen Wert von ${w} mg/l.`;
+  /**
+   * Atemalkoholtest und Drogenvortest – stehen nach der Belehrung, jeweils mit dem Hinweis auf die Freiwilligkeit.
+   * Der zweite Test knüpft an den ersten an („Zudem …“, „… hingegen …“).
+   */
+  function testSaetze(p) {
+    const pr = PR(p), r = ROLLE[p.rolle] || {}, e = einOf(p), out = [];
+    let prev = '';
+    for (const kind of ['aat', 'dt']) {
+      if (!e.includes(kind === 'aat' ? 'alk' : 'drog')) continue;
+      const t = p[kind] || {}, name = kind === 'aat' ? 'Atemalkoholtest' : 'Drogenvortest';
+      const von = t.von && has(t.von.name) ? offName(t.von) : '', um = has(t.zeit) ? `um ${str(t.zeit)} Uhr` : '';
+      if (!t.st) { if (r.tat) out.push(`[${name}: durchgeführt, abgelehnt oder nicht möglich?]`); continue; }
+      if (t.st === 'entfaellt') continue;
+      if (t.st === 'unmoeglich') { out.push(`Ein ${name} konnte nicht durchgeführt werden${has(t.grund) ? ', da ' + grund(t.grund) : ''}.`); continue; }
+      if (t.st === 'abgelehnt') {
+        const nach = prev === 'ok' ? ' hingegen' : '';
+        if (von) out.push(`Einen ${name}, den ${von} ${pr.ihm}${um ? ' ' + um : ''} auf freiwilliger Basis anbot, lehnte ${pr.er}${nach} ab.`);
+        else if (um) out.push(`Einen ${name}, der ${pr.ihm} ${um} auf freiwilliger Basis angeboten wurde, lehnte ${pr.er}${nach} ab.`);
+        else out.push(`Einen ${pr.ihm} auf freiwilliger Basis angebotenen ${name} lehnte ${pr.er}${nach} ab.`);
+        prev = 'abgelehnt'; continue;
+      }
+      const wer = von || '[Beamtin/Beamter]', wann = um || 'um [Uhrzeit]';
+      const mittels = t.art === 'urin' ? ' mittels Urin' : t.art === 'speichel' ? ' mittels Speichelwischtest' : ' mittels [Urin/Speichel]';
+      const [art, rel] = kind === 'aat' ? (t.art === 'beweis' ? ['eine beweissichere Atemalkoholmessung', 'die'] : ['einen Atemalkoholvortest', 'den']) : [`einen Drogenvortest${mittels}`, 'den'];
+      if (prev === 'ok') out.push(`Zudem willigte ${pr.er} in ${art.replace(/^einen /, 'einen ebenfalls freiwilligen ').replace(/^eine /, 'eine ebenfalls freiwillige ')} ein, ${rel} ${wer} ${wann} durchführte.`);
+      else if (prev === 'abgelehnt') out.push(`Mit einem freiwilligen Drogenvortest${mittels}, den ${wer} ${wann} durchführte, war ${pr.er} hingegen einverstanden.`);
+      else out.push(`Nach dem Hinweis, dass die Teilnahme freiwillig ist, willigte ${pr.er} in ${art} ein, ${rel} ${wer} ${wann} durchführte.`);
+      if (kind === 'aat') out.push(`Die Messung ergab einen Wert von ${mgl(t.wert) || '[Wert]'} mg/l.`);
+      else {
+        const stoffe = STOFFE.filter(([k]) => arr(t.stoffe).includes(k)).map(x => x[1]);
+        out.push(t.erg === 'neg' ? 'Der Test verlief negativ.' : t.erg === 'pos' ? `Der Test verlief positiv auf ${stoffe.length ? joinUnd(stoffe) : '[Stoffgruppe]'}.` : 'Der Test verlief [Ergebnis].');
+      }
+      prev = 'ok';
     }
-    const mittels = t.art === 'urin' ? ' mittels Urin' : t.art === 'speichel' ? ' mittels Speichelwischtest' : ' mittels [Urin/Speichel]';
-    const stoffe = STOFFE.filter(([k]) => arr(t.stoffe).includes(k)).map(s => s[1]);
-    const erg = t.erg === 'neg' ? 'verlief negativ' : t.erg === 'pos' ? `verlief positiv auf ${stoffe.length ? joinUnd(stoffe) : '[Stoffgruppe]'}` : 'verlief [Ergebnis]';
-    return `Ein freiwilliger Drogenvortest${mittels} wurde${wann} durchgeführt und ${erg}.`;
+    return out;
   }
   /** Hinweise auf Alkohol/Drogen mit Aufzählung, Angaben zum Konsum, Folgefähigkeit und Tests – steht nach der Schilderung. */
   function einflussText(data, i) {
@@ -311,25 +332,44 @@
     const pr = PR(p), A = e.includes('alk'), D = e.includes('drog');
     const was = A && D ? 'einen vorangegangenen Konsum von Alkohol und anderen berauschenden Mitteln' : A ? 'einen vorangegangenen Alkoholkonsum' : 'einen vorangegangenen Konsum berauschender Mittel';
     const items = wahrItems(p);
-    const head = `Bei ${rolleDat(p)} ${nameOf(data, i)} ergaben sich vor Ort Hinweise auf ${was} sowie eine daraus resultierende Beeinflussung. Folgende Wahrnehmungen und Feststellungen konnten bei ${pr.ihm} getroffen werden:`;
+    const head = `Vor Ort ergaben sich bei ${pr.ihm} Hinweise auf ${was} ${A && D ? 'sowie' : 'und'} eine daraus resultierende Beeinflussung. Dafür sprachen folgende Wahrnehmungen und Feststellungen:`;
     const list = (items.length ? items : ['[Wahrnehmungen antippen]']).map(t => '– ' + t);
     const t = [];
     if (p.konsum === 'ja') t.push(satz(`Auf Nachfrage räumte ${pr.er} ein, ${str(p.konsumText) || '[was, wann und wie viel konsumiert wurde]'}`));
-    else if (p.konsum === 'nein') t.push(`Einen Konsum bestritt ${pr.er} auf Nachfrage.`);
+    else if (p.konsum === 'nein') t.push(`Auf Nachfrage bestritt ${pr.er}, ${A && D ? 'Alkohol oder andere berauschende Mittel' : A ? 'Alkohol' : 'berauschende Mittel'} konsumiert zu haben.`);
     else if (p.konsum === 'keine') t.push(`Zum Konsum machte ${pr.er} keine Angaben.`);
     const f = FOLGE.find(x => x[0] === p.folge);
     if (!f) t.push('[Konnte den Ausführungen, Fragen und Anweisungen folgen?]');
     else if (p.folgeArt === 'eindruck') t.push(`Auf die eingesetzten ${beamte(data)} wirkte ${pr.er} so, als könne ${pr.er} den Ausführungen, Fragen und Anweisungen ${f[2]}.`);
     else t.push(`Nach den Wahrnehmungen der eingesetzten ${beamte(data)} konnte ${pr.er} den Ausführungen, Fragen und Anweisungen ${f[2]}.`);
-    if (A) t.push(testText(p, 'aat'));
-    if (D) t.push(testText(p, 'dt'));
+    t.push(...testSaetze(p));
     return [head, ...list, t.filter(Boolean).join(' ')].filter(Boolean).join('\n');
   }
 
-  /** Eine Schilderung: Unterüberschrift, Deutschkenntnisse, Einleitungssatz, Text, Alkohol/Drogen. num = „3.1“ oder ''. */
+  /** „Herr Schneider wurde durch PHK Becker als Beschuldigter belehrt.“ – nach den Deutschkenntnissen mit „Er …“. */
+  function belehrungSatz(data, i, pron = false) {
+    const p = arr(data.personen)[i] || {}, r = ROLLE[p.rolle], pr = PR(p);
+    const wer = pron ? pr.Er : `${herrFrau(p)} ${nameOf(data, i)}`;
+    const durch = p.bel && has(p.bel.name) ? offName(p.bel) : '[belehrende Person]';
+    if (!r) return `${wer} wurde durch ${durch} [als Zeuge/Beschuldigter] belehrt.`;
+    const als = r.zeug ? (p.g === 'w' ? 'Zeugin' : p.g === 'm' ? 'Zeuge' : '[Zeuge/Zeugin]') : (p.g === 'm' || p.g === 'w' ? r[p.g] : r.x);
+    const base = `${wer} wurde durch ${durch} als ${als}${r.owi ? ' gemäß § 55 OWiG' : ''} belehrt`;
+    if (!(r.zeug && p.zvr)) return base + '.';
+    return `${base} und dabei besonders auf ${pr.sein} Zeugnisverweigerungsrecht gemäß § 52 StPO hingewiesen${p.bereit !== false ? `, woraufhin ${pr.er} sich zur Aussage bereit erklärte` : ''}.`;
+  }
+  /** Der Satz direkt vor der Schilderung. Mit Alkohol/Drogen dazwischen: „Zum Sachverhalt machte er gegenüber … folgende Angaben:“ */
+  function vorText(data, i) {
+    const p = arr(data.personen)[i] || {};
+    if (einOf(p).length) return `Zum Sachverhalt machte ${PR(p).er} ${gegenText(data, p, true)} sinngemäß folgende Angaben:`;
+    return einleitung(data, i, !!spracheText(data, i));
+  }
+  /**
+   * Eine Schilderung in der Reihenfolge des Einsatzes: Unterüberschrift, Deutschkenntnisse, Belehrung,
+   * Alkohol/Drogen (mit Fragen und Tests erst nach der Belehrung), zuletzt die Schilderung. num = „3.1“ oder ''.
+   */
   function block(data, i, num = '') {
-    const t = schilderung(arr(data.personen)[i]);
-    return [`${num ? num + ' ' : ''}${heading(data, i)}`, spracheText(data, i), einleitung(data, i), t || '[Schilderung]', einflussText(data, i)].filter(Boolean).join('\n');
+    const p = arr(data.personen)[i] || {}, t = schilderung(p), sp = spracheText(data, i), ein = einOf(p).length;
+    return [`${num ? num + ' ' : ''}${heading(data, i)}`, sp, ein ? belehrungSatz(data, i, !!sp) : '', ein ? einflussText(data, i) : '', vorText(data, i), t || '[Schilderung]'].filter(Boolean).join('\n');
   }
   /** Abschnittsnummer ohne Punkt dahinter: „3.“ → „3“, „3.2.“ → „3.2“. */
   const cleanNr = s => str(s).replace(/[^\d.]/g, '').replace(/\.{2,}/g, '.').replace(/^\.+|\.+$/g, '');
@@ -495,17 +535,21 @@
     const gegenChips = `<div class="w-chips">${hasBel ? `<button type="button" class="chip" data-sd="gbel" aria-pressed="${String(belOn)}">${esc(offName(p.bel))}<small class="sd-sm">hat belehrt</small></button>` : ''}<button type="button" class="chip" data-sd="galle" aria-pressed="${String(alleOn)}">den eingesetzten ${beamte(data)}</button></div>`;
     return `${topBar('menu', `Schilderungen · Person ${i + 1} von ${P.length}`, heading(data, i))}
       <div class="w-grid sd-grid">
+        <div class="w-q full w-head"><span class="w-head-t">Person</span></div>
         <div class="w-q" data-q="rolle"><span class="w-lbl">Rolle <i class="w-req" title="Pflicht">•</i></span><div class="w-chips" role="group" aria-label="Rolle">${roles}</div></div>
         <div class="w-q" data-q="g"><span class="w-lbl">Anrede <i class="w-req" title="Pflicht">•</i></span><div class="w-seg" role="group" aria-label="Anrede">${anr}</div></div>
         <div class="w-q half" data-q="nn"><label class="w-lbl" for="sdNn">Nachname <i class="w-req" title="Pflicht">•</i></label><input class="input" id="sdNn" data-sk="${base}.nachname" data-next="sdVn" value="${esc(p.nachname || '')}" placeholder="z. B. Müller" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="next" maxlength="80"></div>
-        <div class="w-q half" data-q="vn"><label class="w-lbl" for="sdVn">Vorname</label><input class="input" id="sdVn" data-sk="${base}.vorname" data-next="${hasBel ? 'sdText' : 'sdBel'}" value="${esc(p.vorname || '')}" placeholder="z. B. Anna" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="next" maxlength="80"></div>
+        <div class="w-q half" data-q="vn"><label class="w-lbl" for="sdVn">Vorname</label><input class="input" id="sdVn" data-sk="${base}.vorname" data-next="${hasBel ? '' : 'sdBel'}" value="${esc(p.vorname || '')}" placeholder="z. B. Anna" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="next" maxlength="80"></div>
         <p class="sd-im">Im Text: <b data-live="head">${esc(heading(data, i))}</b></p>
+        <div class="w-q full w-head"><span class="w-head-t">Verständigung und Belehrung</span><span class="w-head-h">Kommt zuerst – Fragen zum Konsum und Tests stehen im Text erst danach.</span></div>
         ${spracheHtml(p, base)}
         <div class="w-q" data-q="bel"><span class="w-lbl">Belehrt durch <i class="w-req" title="Pflicht">•</i></span>${r ? `<p class="w-hint">${esc(r.bel)}</p>` : ''}${hasBel ? `<div class="sd-toks">${tok(p.bel, `${base}.bel`, 'unbel')}</div>` : ta(api, data, 'bel', 'sdBel', 'Namen tippen, z. B. Schulz')}</div>
-        <div class="w-q" data-q="gegen"><span class="w-lbl">Gegenüber <i class="w-req" title="Pflicht">•</i></span>${gegenChips}${others.length ? `<div class="sd-toks">${others.map(([x, j]) => tok(x, `${base}.gegen.${j}`, 'ungegen', j)).join('')}</div>` : ''}${ta(api, data, 'gegen', 'sdGegen', 'Weitere Person tippen …')}<p class="sd-im">Im Text: <b data-live="gegen">${esc(gegenText(data, p))}</b></p></div>
         ${r && r.zeug ? `<div class="w-q" data-q="zvr"><span class="w-lbl">Belehrung</span><div class="w-chips"><button type="button" class="chip" data-sd="zvr" aria-pressed="${String(!!p.zvr)}">Besonderer Hinweis auf das Zeugnisverweigerungsrecht</button>${p.zvr ? `<button type="button" class="chip" data-sd="bereit" aria-pressed="${String(p.bereit !== false)}">Zur Aussage bereit erklärt</button>` : ''}</div><p class="w-hint sd-hint">Steht mit „gemäß § 52 StPO“ im Text. Gilt für Verlobte, Ehegatten, eingetragene Lebenspartner, Verwandte und Verschwägerte der beschuldigten Person.</p></div>` : ''}
-        <div class="w-q" data-q="text"><label class="w-lbl" for="sdText">Schilderung <i class="w-req" title="Pflicht">•</i></label><div class="sd-sent" data-sd="focus"><span class="sd-intro" data-live="intro">${esc(einleitung(data, i))}</span><textarea class="sd-text" id="sdText" data-sk="${base}.text" placeholder="Was hat die Person sinngemäß geschildert? Ich-Form oder indirekte Rede." autocomplete="off" autocapitalize="sentences" spellcheck="true" maxlength="12000">${esc(p.text || '')}</textarea></div></div>
+        <div class="w-q full w-head"><span class="w-head-t">Alkohol und Drogen</span></div>
         ${einflussHtml(api, data, p, base)}
+        <div class="w-q full w-head"><span class="w-head-t">Schilderung</span><span class="w-head-h">Wem gegenüber und was die Person geschildert hat – steht im Text ganz unten.</span></div>
+        <div class="w-q" data-q="gegen"><span class="w-lbl">Gegenüber <i class="w-req" title="Pflicht">•</i></span>${gegenChips}${others.length ? `<div class="sd-toks">${others.map(([x, j]) => tok(x, `${base}.gegen.${j}`, 'ungegen', j)).join('')}</div>` : ''}${ta(api, data, 'gegen', 'sdGegen', 'Weitere Person tippen …')}<p class="sd-im">Im Text: <b data-live="gegen">${esc(gegenText(data, p))}</b></p></div>
+        <div class="w-q" data-q="text"><label class="w-lbl" for="sdText">Schilderung <i class="w-req" title="Pflicht">•</i></label><div class="sd-sent" data-sd="focus"><span class="sd-intro" data-live="intro">${esc(vorText(data, i))}</span><textarea class="sd-text" id="sdText" data-sk="${base}.text" placeholder="Was hat die Person sinngemäß geschildert? Ich-Form oder indirekte Rede." autocomplete="off" autocapitalize="sentences" spellcheck="true" maxlength="12000">${esc(p.text || '')}</textarea></div></div>
         <div class="w-q"><div class="w-out"><div class="w-out-h"><span class="w-lbl">So steht es in der Anzeige</span><button type="button" class="btn btn-light btn-sm" data-sd="copy1" data-i="${i}">Kopieren</button></div><pre class="w-out-t" data-live="block">${esc(block(data, i))}</pre></div></div>
       </div>
       <div class="w-nav"><button type="button" class="btn btn-ghost btn-sm btn-danger" data-sd="del">Entfernen</button><span class="grow"></span><span class="w-nav-i mono">${i + 1} / ${P.length}</span><button type="button" class="btn btn-accent" data-sd="done1">Abschließen</button></div>`;
@@ -552,7 +596,7 @@
         <p class="w-hint sd-hint">Ein positiver Vortest begründet den Verdacht – Blutprobe prüfen (§ 81a StPO, bei Ordnungswidrigkeiten § 46 Abs. 4 OWiG).</p>`;
     }
     if (t.st === 'unmoeglich') more += `<div class="sd-inl" data-q="${kind}g"><label class="w-hint" for="${A ? 'sdAatG' : 'sdDtG'}">„… konnte nicht durchgeführt werden, da …“</label>${textIn(A ? 'sdAatG' : 'sdDtG', `${path}.grund`, t.grund, A ? 'er nicht ausreichend pusten konnte' : 'sie keinen Urin abgeben konnte')}</div>`;
-    return `<div class="sd-sub" data-q="${kind}"><span class="w-lbl">${ttl}${ROLLE[p.rolle] && ROLLE[p.rolle].tat ? ' <i class="w-req" title="Pflicht">•</i>' : ''}</span>${seg(`${path}.st`, t.st, TEST_ST, 'w-chips')}${more}</div>`;
+    return `<div class="sd-sub" data-q="${kind}"><span class="w-lbl">${ttl}${ROLLE[p.rolle] && ROLLE[p.rolle].tat ? ' <i class="w-req" title="Pflicht">•</i>' : ''}</span><p class="w-hint">Erst nach der Belehrung anbieten und auf die Freiwilligkeit hinweisen – so steht es auch im Text.</p>${seg(`${path}.st`, t.st, TEST_ST, 'w-chips')}${more}</div>`;
   }
 
   function einflussHtml(api, data, p, base) {
@@ -571,8 +615,7 @@
     const konsum = `<span class="w-lbl">Angaben zum Konsum</span>${seg(`${base}.konsum`, p.konsum, [['ja', 'Räumte Konsum ein'], ['nein', 'Bestritt Konsum'], ['keine', 'Keine Angaben']], 'w-chips')}${p.konsum === 'ja' ? `<div class="sd-inl" data-q="konstext"><label class="w-hint" for="sdKons">„Auf Nachfrage räumte ${pr.er} ein, …“</label>${textIn('sdKons', `${base}.konsumText`, p.konsumText, 'gegen 20:00 Uhr zwei Bier getrunken zu haben')}</div>` : ''}`;
     const folge = `<span class="w-lbl">Konnte ${pr.er === 'sie' ? 'sie' : pr.er === 'er' ? 'er' : 'die Person'} den Ausführungen, Fragen und Anweisungen folgen? <i class="w-req" title="Pflicht">•</i></span>${seg(`${base}.folge`, p.folge, FOLGE)}<div class="sd-inl sd-gap" data-q="folgeart"><span class="w-lbl">Formulierung</span>${seg(`${base}.folgeArt`, p.folgeArt === 'eindruck' ? 'eindruck' : 'wahr', [['wahr', 'Nach den Wahrnehmungen'], ['eindruck', 'Wirkte so (Eindruck)']], 'w-chips')}</div>`;
     return `${head}<div class="w-q"><div class="w-sub sd-box">
-      <div class="w-sub-h"><b>${both ? 'Alkohol und Drogen' : e[0] === 'alk' ? 'Alkohol' : 'Drogen'}</b><span class="grow"></span><span class="sd-cnt mono">${nSel}</span></div>
-      <div data-q="wahr"><span class="w-lbl">Wahrnehmungen und Feststellungen <i class="w-req" title="Pflicht">•</i></span><p class="w-hint">Alles antippen, was vor Ort auffiel – erscheint im Text als Aufzählung.</p>
+      <div data-q="wahr"><span class="w-lbl">Wahrnehmungen und Feststellungen <i class="w-req" title="Pflicht">•</i>${nSel ? `<span class="sd-cnt mono">${nSel}</span>` : ''}</span><p class="w-hint">Alles antippen, was vor Ort auffiel – erscheint im Text als Aufzählung.</p>
       ${groups}</div>
       <div class="sd-wg" data-q="wf"><span class="w-mk-gt">Eigene Wahrnehmung</span>${frei ? `<div class="sd-toks">${frei}</div>` : ''}<div class="sd-add-in"><input class="input" id="sdWf" data-wf="1" value="${esc(V.q.wf || '')}" placeholder="z. B. Hose im Schritt durchnässt" autocomplete="off" spellcheck="true" enterkeyhint="done" maxlength="200"><button type="button" class="btn btn-ghost btn-sm" data-sd="wfadd">Hinzufügen</button></div></div>
       <div class="sd-sub" data-q="konsum">${konsum}</div>
@@ -632,7 +675,7 @@
     const data = api.d.data, host = $('#wMain'); if (!host) return;
     const put = (k, t) => host.querySelectorAll(`[data-live="${k}"]`).forEach(n => { n.textContent = t; });
     const p = arr(data.personen)[V.i];
-    if (V.s === 'person' && p) { put('head', heading(data, V.i)); put('intro', einleitung(data, V.i)); put('block', block(data, V.i)); put('gegen', gegenText(data, p)); }
+    if (V.s === 'person' && p) { put('head', heading(data, V.i)); put('intro', vorText(data, V.i)); put('block', block(data, V.i)); put('gegen', gegenText(data, p)); }
     if (V.s === 'done') { const nr = cleanNr(data.nr); put('paket', paket(data)); put('nrhint', nrHint(nr)); host.querySelectorAll('[data-sd="set"][data-p="nr"]').forEach(c => c.setAttribute('aria-pressed', String(c.dataset.v === nr))); }
   }
   const isEmpty = p => !p || (!has(p.nachname) && !has(p.vorname) && !has(p.text) && !(p.bel && has(p.bel.name)) && !arr(p.gegen).some(x => x && !x.ref));
@@ -794,7 +837,7 @@
     if (el.dataset.wf) { e.preventDefault(); const b = $('[data-sd="wfadd"]'); if (b) b.click(); return true; }
     if (el.dataset.next) {
       e.preventDefault();
-      const n = document.getElementById(el.dataset.next) || $('#sdText');
+      const n = el.dataset.next ? document.getElementById(el.dataset.next) : null;
       if (n) n.focus(); else el.blur();
       return true;
     }
@@ -819,6 +862,6 @@
     text: data => [['', 'Schilderungen', paket(data), '']],
     preview: () => '', kurzText: () => '', fahndung: () => '', offen: () => [], personalien: () => '',
     screen: { open, render, mounted, click, input, change, keydown, submit },
-    core: { nameOf, kuerzel, heading, einleitung, gegenText, block, paket, spracheText, einflussText, WAHR, fehlt, cleanNr, canonRank, parseFree: (data, q, team = []) => parseFree({ team: () => team, docs: () => [] }, data, q), setRanks: m => { RANKS = new Map(Object.entries(m || {}).map(([k, v]) => [nameKey(k), v])); } }
+    core: { nameOf, kuerzel, heading, einleitung, gegenText, block, paket, spracheText, einflussText, belehrungSatz, vorText, WAHR, fehlt, cleanNr, canonRank, parseFree: (data, q, team = []) => parseFree({ team: () => team, docs: () => [] }, data, q), setRanks: m => { RANKS = new Map(Object.entries(m || {}).map(([k, v]) => [nameKey(k), v])); } }
   });
 })(typeof window !== 'undefined' ? window : globalThis);
