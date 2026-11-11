@@ -1,6 +1,6 @@
 # Workoholic
 
-Arbeitsseite für Anfragen von Kollegen, eigene Todos und Aufgaben, mit Stempeluhr zum **Eindongeln / Ausdongeln**, Terminen, Routinen, Team, Ablage, WaffG-Prüfstand – und dem Bereich **Schreiben** zum Aufnehmen von Vorgängen per Antippen (derzeit: Verkehrsunfallflucht ohne Personenschaden, Vermisste Person und Häusliche Gewalt).
+Arbeitsseite für Anfragen von Kollegen, eigene Todos und Aufgaben, mit Stempeluhr zum **Eindongeln / Ausdongeln**, Terminen, Routinen, Team, Ablage, WaffG-Prüfstand – und dem Bereich **Schreiben** zum Aufnehmen von Vorgängen per Antippen (derzeit: Verkehrsunfallflucht ohne Personenschaden, Vermisste Person, Häusliche Gewalt und Schilderungen).
 Alle Daten sind **Ende-zu-Ende verschlüsselt**. Synchronisiert wird über ein eigenes privates GitHub-Repo, das nur Chiffretext enthält.
 
 ---
@@ -95,7 +95,7 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 - **+ Einsatz** (oder Taste `E`) legt den nächsten Einsatz an (E1, E2 …, Beginn jetzt). Das Blatt hat drei nummerierte Abschnitte, deren Nummer gelb wird, sobald sie erledigt sind: **1 Lage** (Stichwort, Ort), **2 Verlauf** (Beginn/Ende, auch über Mitternacht, Notizen), **3 Abschluss**.
 - **Vorschläge** erscheinen nur, solange das Stichwort leer ist: die sechs meistgenutzten, der Rest hinter *Mehr*; beim Tippen werden sie gefiltert. Bei Maßnahmen stehen vier Vorschläge da, bereits angelegte verschwinden.
 - **Abschluss:** erst das Ergebnis als Freitext („Lage beruhigt, Platzverweis“), dann die Folgearbeiten: *Keine Maßnahmen* (und keine schriftlichen Arbeiten) oder *Maßnahmen*. Nur bei *Maßnahmen* erscheinen **To-dos** – sie hängen am Einsatz, erscheinen gleichzeitig im Planner (mit Einsatz-Pille) und lassen sich als wichtig markieren. Erledigt man sie im Planner, gilt der Einsatz als abgeschlossen.
-- **Schriftliche Arbeit** direkt aus dem Einsatz starten (Verkehrsunfallflucht, Vermisste Person): Datum, Uhrzeit, Rufname und Besatzung sind vorbelegt; ein verknüpftes To-do erledigt sich, sobald der Vorgang als fertig markiert ist.
+- **Schriftliche Arbeit** direkt aus dem Einsatz starten (Verkehrsunfallflucht, Vermisste Person, Häusliche Gewalt, Schilderungen): Datum, Uhrzeit, Rufname und Besatzung sind vorbelegt; ein verknüpftes To-do erledigt sich, sobald der Vorgang als fertig markiert ist.
 - **Routinen je Schicht:** Im Routinen-Editor an Schicht-Vorlagen und/oder Einsatzmittel binden („Fahrzeugcheck“ nur für `Stf 21/03`, „Schichtübergabe“ nur für Früh- und Spätdienst). Gebundene Routinen erscheinen in Vorschau, Briefing und Schichtkarte mit Fortschritt je Schicht.
 
 **Stunden für Kollegen buchen**
@@ -154,6 +154,12 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 - **Häusliche Gewalt (NRW):** Personen zuerst – jede beteiligte Person wird einmal angelegt (Rolle, Geschlecht, Beziehung, vor Ort, verletzt); danach fragt der Assistent je Person nur, was passt. Phasen: Einsatz → Personen → Eintreffen → Umstände → Schilderungen → Prognose → Maßnahmen → Abschluss. Abgefragt werden u. a. Zutritt mit Tatsachen, Zustand und Alkohol je Person, Verletzungen und Rettungswagen je verletzter Person, Kinder, Belehrungen mit belehrender Person, Uhrzeit und Inhalten (Schnellwahl „Vollständig nach Vordruck“), Anhörung, Gefahrenprognose mit 35 Umständen (festgestellt / geschildert / angenommen, vormarkiert aus früheren Antworten) und Textbausteinen, Eröffnung der Wohnungsverweisung als Checkliste (Bereich, Ende, Verlängerung, Gegenstände, Anschrift, Schlüssel, Zwangsgeld, Ersatzzwangshaft, Gewahrsam, Rechtsbehelf, schriftliche Bestätigung), bei Abwesenheit Bekanntgabe mit Checkliste und Zustellung (vorsorgliche Ersatzzustellung in den Briefkasten oder Niederlegung mit Mitteilung, Förmlichkeiten, Erlaubnis des Behördenleiters zur Nachtzeit). Dazu Würgen (Beschwerden, ärztliche Untersuchung, § 224 Abs. 1 Nr. 5), Lichtbilder bei Kindern (§ 81c Abs. 3), § 230 StGB und Wortlaut einer Drohung. Grundsatz: Im Text steht nur, was angetippt oder eingetragen wurde; Fehlendes erscheint als [Platzhalter].
   - **Ergebnis:** **Sachverhalt** in sieben Abschnitten (Einsatzanlass, Eintreffsituation, Tatörtlichkeit und Umstände, Schilderungen, Gefahrenprognose, Maßnahmen, Abschluss), **Begründung § 34a**, **Kurzfassung**, **Noch zu erledigen** (fehlende Pflichten mit Norm, als Todos übernehmbar) und **Personalien**. „Kopieren“ kopiert den geöffneten Reiter. Ältere Vorgänge werden beim Öffnen übernommen. Keine Rechtsberatung; Vordrucke, Rechtsbehelfsbelehrung und Erlasslage der Behörde gehen vor. Konzept und Grenzen: [`docs/HG-MASTERPLAN.md`](docs/HG-MASTERPLAN.md).
 
+- **Schilderungen** – die Schilderungen aller Personen eines Vorgangs nacheinander erfassen und als Paket in die Anzeige kopieren:
+  - **Worum geht es?** *Strafanzeige* (Nachname ausgeschrieben, bei gleichem Nachnamen mit Vorname) oder *Verkehrsangelegenheit* (nur Anfangsbuchstabe „M.“; teilen sich Personen den Buchstaben, kommt der des Vornamens davor „A. M.“, reicht das nicht, der zweite „An. M.“).
+  - **Person hinzufügen** mit einem Tipp auf die Rolle: Zeuge/Zeugin, Geschädigte/r (Belehrung wie bei Zeugen), Beschuldigte/r, in Verkehrsangelegenheiten zusätzlich Betroffene/r (§ 55 OWiG). Je Person: Anrede, Name, **belehrt durch** (Namen tippen – Vorschläge aus Besatzung und Team, im Text Amtsbezeichnung + Nachname; fehlt die Amtsbezeichnung, steht eine Auswahl daneben), **gegenüber** (Chip mit der belehrenden Person, „den eingesetzten Beamten“ oder weitere Namen), bei Zeugen und Geschädigten der Chip **Besonderer Hinweis auf das Zeugnisverweigerungsrecht** (im Text „gemäß § 52 StPO“, dazu „erklärte sich … zur Aussage bereit“, abwählbar) und die **Schilderung**.
+  - Satzbau nach Geschlecht und Rolle: „Nach erfolgter zeugenschaftlicher Belehrung durch POKin Schulz machte die Zeugin Müller dieser gegenüber sinngemäß folgende Angaben:“ – ist nur die belehrende Person Gesprächspartner, steht „diesem/dieser gegenüber“; „den eingesetzten Beamtinnen“, wenn nur Beamtinnen eingesetzt sind.
+  - **Abschließen** zeigt den fertigen Abschnitt mit Kopieren und führt zurück zur Liste (Reihenfolge mit ↑ änderbar). **Alle Schilderungen hinzugefügt** → Abschnittsnummer wählen (2–6 oder frei, z. B. 3) → **Gesamtpaket** „3 Schilderungen“ mit „3.1 Schilderung der Frau …“, „3.2 …“ – ohne Punkt hinter der Zahl. `⌘/Strg + Enter` schließt eine Person ab bzw. kopiert das Paket.
+
 **Tastatur:** `N` neu (je nach Bereich) · `/` suchen · `1`–`6` Bereiche · `S` schreiben · `D` dongeln · `E` Einsatz · `L` sperren · `Strg/⌘ + Enter` speichern bzw. weiter
 
 **Backups:** *⋯ → Verschlüsseltes Backup* speichert eine `.vault`-Datei. Einspielen geht per Zusammenführen oder Ersetzen.
@@ -177,6 +183,7 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 | `js/vuf.js` | Modul Verkehrsunfallflucht: Fragenkatalog und Textgenerator |
 | `js/vermisst.js` | Modul Vermisste Person: Fragenkatalog, Übersicht, Kurzsachverhalt, Fahndung, offene Punkte |
 | `js/hg.js` | Modul Häusliche Gewalt: Fragenkatalog, Sachverhalt und Begründung § 34a |
+| `js/schilderung.js` | Modul Schilderungen: Personenliste, Maske je Person, Satzbau nach Rolle und Geschlecht, Namenskürzel, Gesamtpaket |
 | `docs/VUF-MASTERPLAN.md` | Masterplan: Grundlagen, Ablauf, Fragen, Satzführung, Sicherheit, Ausbau |
 | `docs/HG-MASTERPLAN.md` | Masterplan Häusliche Gewalt: Grundlagen, Ablauf, Bedienung, Ausgaben, Grenzen |
 | `vendor/hash-wasm/` | Argon2id (hash-wasm 4.12.0, MIT), unverändert aus npm |
