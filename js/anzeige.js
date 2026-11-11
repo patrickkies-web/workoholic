@@ -25,7 +25,8 @@
   const endDot = s => { s = str(s); return !s ? '' : /[.!?…]$/.test(s) ? s : s + '.'; };
   const PH = t => `[${t}]`;
   const nachname = n => { n = str(n); if (n.includes(',')) return n.split(',')[0].trim(); const t = n.split(' '); if (t.length < 2) return n; let i = t.length - 1; while (i > 1 && /^(von|van|de|der|den|zu|zur|vom|ten|ter|di|da|del|le|la)$/i.test(t[i - 1])) i--; return t.slice(i).join(' '); };
-  const kName = c => [str(c && c.grad), nachname(c && c.name)].filter(Boolean).join(' ');
+  /** Im Text: Amtsbezeichnung + Nachname; fehlt die Amtsbezeichnung, steht dort [Amtsbezeichnung]. */
+  const kName = c => `${has(c && c.grad) ? str(c.grad) : PH('Amtsbezeichnung')} ${nachname(c && c.name)}`;
   const GT = () => root.WGT || { ortsteile: () => [] };
 
   /** Streifenwagen mit Besatzung (nur Personen mit Namen); leere Fahrzeuge zählen nicht. */
