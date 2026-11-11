@@ -310,7 +310,7 @@
     if (!window.WGT) return [];
     const d = doc(); const docs = ((W() && W().docs()) || []).filter(x => x.id !== (d && d.id)).sort((a, b) => (b.u || 0) - (a.u || 0));
     const last = docs.map(x => getP(x.data, 'ort.ort')).find(has) || '';
-    return window.WGT.search(q, last).map(s => ({ val: s, html: `<span class="w-pop-m">${markHit(s.strasse, q.replace(/\s+\d+\s?[a-zA-Z]?\s*$/, ''))}</span><span class="w-pop-s">${esc(s.plz)} ${esc(s.ort)}</span>` }));
+    return window.WGT.search(q, last, 14).map(s => ({ val: s, cls: 'w-pop-2', html: `<span class="w-pop-m">${markHit(s.strasse, q.replace(/\s+\d+\s?[a-zA-Z]?\s*$/, ''))}</span><span class="w-pop-s">${esc(s.plz)} ${esc(s.ort)}</span>` }));
   }
   const CB = { el: null, list: [], act: -1, picked: 0 };
   function cbClose() { const p = $('#wPop'); if (p) p.remove(); if (CB.el) { CB.el.setAttribute('aria-expanded', 'false'); CB.el.removeAttribute('aria-activedescendant'); } CB.el = null; CB.list = []; CB.act = -1; }
