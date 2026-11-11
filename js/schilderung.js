@@ -382,7 +382,7 @@
   const ICON_UP = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>';
   const ICON_BACK = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6l-6 6 6 6"/></svg>';
   /** Ansicht je Vorgang: 'menu' (Liste mit +), 'person' (Maske), 'done' (Gesamtpaket). q = Suchtext der Namensfelder. */
-  const V = { id: null, s: 'menu', i: -1, last: -1, q: { bel: '', gegen: '' }, focus: '' };
+  const V = { id: null, s: 'menu', i: -1, last: -1, q: { bel: '', gegen: '' }, focus: '', guide: '' };
   const $ = s => document.querySelector(s);
   const top0 = () => { try { window.scrollTo({ top: 0 }); } catch (e) { /* egal */ } };
 
@@ -495,16 +495,16 @@
     const gegenChips = `<div class="w-chips">${hasBel ? `<button type="button" class="chip" data-sd="gbel" aria-pressed="${String(belOn)}">${esc(offName(p.bel))}<small class="sd-sm">hat belehrt</small></button>` : ''}<button type="button" class="chip" data-sd="galle" aria-pressed="${String(alleOn)}">den eingesetzten ${beamte(data)}</button></div>`;
     return `${topBar('menu', `Schilderungen · Person ${i + 1} von ${P.length}`, heading(data, i))}
       <div class="w-grid sd-grid">
-        <div class="w-q"><span class="w-lbl">Rolle <i class="w-req" title="Pflicht">•</i></span><div class="w-chips" role="group" aria-label="Rolle">${roles}</div></div>
-        <div class="w-q"><span class="w-lbl">Anrede <i class="w-req" title="Pflicht">•</i></span><div class="w-seg" role="group" aria-label="Anrede">${anr}</div></div>
-        <div class="w-q half"><label class="w-lbl" for="sdNn">Nachname <i class="w-req" title="Pflicht">•</i></label><input class="input" id="sdNn" data-sk="${base}.nachname" data-next="sdVn" value="${esc(p.nachname || '')}" placeholder="z. B. Müller" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="next" maxlength="80"></div>
-        <div class="w-q half"><label class="w-lbl" for="sdVn">Vorname</label><input class="input" id="sdVn" data-sk="${base}.vorname" data-next="${hasBel ? 'sdText' : 'sdBel'}" value="${esc(p.vorname || '')}" placeholder="z. B. Anna" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="next" maxlength="80"></div>
+        <div class="w-q" data-q="rolle"><span class="w-lbl">Rolle <i class="w-req" title="Pflicht">•</i></span><div class="w-chips" role="group" aria-label="Rolle">${roles}</div></div>
+        <div class="w-q" data-q="g"><span class="w-lbl">Anrede <i class="w-req" title="Pflicht">•</i></span><div class="w-seg" role="group" aria-label="Anrede">${anr}</div></div>
+        <div class="w-q half" data-q="nn"><label class="w-lbl" for="sdNn">Nachname <i class="w-req" title="Pflicht">•</i></label><input class="input" id="sdNn" data-sk="${base}.nachname" data-next="sdVn" value="${esc(p.nachname || '')}" placeholder="z. B. Müller" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="next" maxlength="80"></div>
+        <div class="w-q half" data-q="vn"><label class="w-lbl" for="sdVn">Vorname</label><input class="input" id="sdVn" data-sk="${base}.vorname" data-next="${hasBel ? 'sdText' : 'sdBel'}" value="${esc(p.vorname || '')}" placeholder="z. B. Anna" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="next" maxlength="80"></div>
         <p class="sd-im">Im Text: <b data-live="head">${esc(heading(data, i))}</b></p>
         ${spracheHtml(p, base)}
-        <div class="w-q"><span class="w-lbl">Belehrt durch <i class="w-req" title="Pflicht">•</i></span>${r ? `<p class="w-hint">${esc(r.bel)}</p>` : ''}${hasBel ? `<div class="sd-toks">${tok(p.bel, `${base}.bel`, 'unbel')}</div>` : ta(api, data, 'bel', 'sdBel', 'Namen tippen, z. B. Schulz')}</div>
-        <div class="w-q"><span class="w-lbl">Gegenüber <i class="w-req" title="Pflicht">•</i></span>${gegenChips}${others.length ? `<div class="sd-toks">${others.map(([x, j]) => tok(x, `${base}.gegen.${j}`, 'ungegen', j)).join('')}</div>` : ''}${ta(api, data, 'gegen', 'sdGegen', 'Weitere Person tippen …')}<p class="sd-im">Im Text: <b data-live="gegen">${esc(gegenText(data, p))}</b></p></div>
-        ${r && r.zeug ? `<div class="w-q"><span class="w-lbl">Belehrung</span><div class="w-chips"><button type="button" class="chip" data-sd="zvr" aria-pressed="${String(!!p.zvr)}">Besonderer Hinweis auf das Zeugnisverweigerungsrecht</button>${p.zvr ? `<button type="button" class="chip" data-sd="bereit" aria-pressed="${String(p.bereit !== false)}">Zur Aussage bereit erklärt</button>` : ''}</div><p class="w-hint sd-hint">Steht mit „gemäß § 52 StPO“ im Text. Gilt für Verlobte, Ehegatten, eingetragene Lebenspartner, Verwandte und Verschwägerte der beschuldigten Person.</p></div>` : ''}
-        <div class="w-q"><label class="w-lbl" for="sdText">Schilderung <i class="w-req" title="Pflicht">•</i></label><div class="sd-sent" data-sd="focus"><span class="sd-intro" data-live="intro">${esc(einleitung(data, i))}</span><textarea class="sd-text" id="sdText" data-sk="${base}.text" placeholder="Was hat die Person sinngemäß geschildert? Ich-Form oder indirekte Rede." autocomplete="off" autocapitalize="sentences" spellcheck="true" maxlength="12000">${esc(p.text || '')}</textarea></div></div>
+        <div class="w-q" data-q="bel"><span class="w-lbl">Belehrt durch <i class="w-req" title="Pflicht">•</i></span>${r ? `<p class="w-hint">${esc(r.bel)}</p>` : ''}${hasBel ? `<div class="sd-toks">${tok(p.bel, `${base}.bel`, 'unbel')}</div>` : ta(api, data, 'bel', 'sdBel', 'Namen tippen, z. B. Schulz')}</div>
+        <div class="w-q" data-q="gegen"><span class="w-lbl">Gegenüber <i class="w-req" title="Pflicht">•</i></span>${gegenChips}${others.length ? `<div class="sd-toks">${others.map(([x, j]) => tok(x, `${base}.gegen.${j}`, 'ungegen', j)).join('')}</div>` : ''}${ta(api, data, 'gegen', 'sdGegen', 'Weitere Person tippen …')}<p class="sd-im">Im Text: <b data-live="gegen">${esc(gegenText(data, p))}</b></p></div>
+        ${r && r.zeug ? `<div class="w-q" data-q="zvr"><span class="w-lbl">Belehrung</span><div class="w-chips"><button type="button" class="chip" data-sd="zvr" aria-pressed="${String(!!p.zvr)}">Besonderer Hinweis auf das Zeugnisverweigerungsrecht</button>${p.zvr ? `<button type="button" class="chip" data-sd="bereit" aria-pressed="${String(p.bereit !== false)}">Zur Aussage bereit erklärt</button>` : ''}</div><p class="w-hint sd-hint">Steht mit „gemäß § 52 StPO“ im Text. Gilt für Verlobte, Ehegatten, eingetragene Lebenspartner, Verwandte und Verschwägerte der beschuldigten Person.</p></div>` : ''}
+        <div class="w-q" data-q="text"><label class="w-lbl" for="sdText">Schilderung <i class="w-req" title="Pflicht">•</i></label><div class="sd-sent" data-sd="focus"><span class="sd-intro" data-live="intro">${esc(einleitung(data, i))}</span><textarea class="sd-text" id="sdText" data-sk="${base}.text" placeholder="Was hat die Person sinngemäß geschildert? Ich-Form oder indirekte Rede." autocomplete="off" autocapitalize="sentences" spellcheck="true" maxlength="12000">${esc(p.text || '')}</textarea></div></div>
         ${einflussHtml(api, data, p, base)}
         <div class="w-q"><div class="w-out"><div class="w-out-h"><span class="w-lbl">So steht es in der Anzeige</span><button type="button" class="btn btn-light btn-sm" data-sd="copy1" data-i="${i}">Kopieren</button></div><pre class="w-out-t" data-live="block">${esc(block(data, i))}</pre></div></div>
       </div>
@@ -521,14 +521,14 @@
     const pr = PR(p);
     let more = '';
     if (cur !== 'ok') {
-      more = `<div class="sd-sub">
+      more = `<div class="sd-sub" data-q="sprm">
         <span class="w-lbl">Wie lief die Verständigung?${cur === 'kein' ? ' <i class="w-req" title="Pflicht">•</i>' : ''}</span>${flips(`${base}.sprMittel`, p.sprMittel, MITTEL)}
         <div class="sd-inl"><label class="w-hint" for="sdSprA">Andere Sprache, z. B. Englisch</label>${textIn('sdSprA', `${base}.sprAndere`, p.sprAndere, 'Englisch')}</div>
-        <span class="w-lbl">Hat ${pr.er === 'sie' ? 'sie' : pr.er === 'er' ? 'er' : 'die Person'} nach eurem Eindruck alles verstanden?</span>${seg(`${base}.sprVer`, p.sprVer, [['ja', 'Ja, vollständig'], ['nein', 'Nicht vollständig']])}
+        <div class="sd-inl" data-q="sprver"><span class="w-lbl">Hat ${pr.er === 'sie' ? 'sie' : pr.er === 'er' ? 'er' : 'die Person'} nach eurem Eindruck alles verstanden?</span>${seg(`${base}.sprVer`, p.sprVer, [['ja', 'Ja, vollständig'], ['nein', 'Nicht vollständig']])}</div>
         ${ROLLE[p.rolle] && ROLLE[p.rolle].tat ? '<p class="w-hint sd-hint">Beschuldigte und Betroffene haben Anspruch auf eine unentgeltliche Dolmetscherin oder einen Dolmetscher (§ 187 GVG, Art. 6 Abs. 3 EMRK). Eine Belehrung nur per Übersetzungs-App ist angreifbar.</p>' : ''}
       </div>`;
     }
-    return `<div class="w-q"><span class="w-lbl">Deutschkenntnisse</span>${seg(`${base}.spr`, cur, SPRACHE)}<p class="w-hint sd-hint">${cur === 'ok' ? 'Bei problemlosem Deutsch steht dazu nichts im Text.' : 'Steht vor dem Einleitungssatz, weil es die Belehrung betrifft.'}</p>${more}</div>`;
+    return `<div class="w-q" data-q="spr"><span class="w-lbl">Deutschkenntnisse</span>${seg(`${base}.spr`, cur, SPRACHE)}<p class="w-hint sd-hint">${cur === 'ok' ? 'Bei problemlosem Deutsch steht dazu nichts im Text.' : 'Steht vor dem Einleitungssatz, weil es die Belehrung betrifft.'}</p>${more}</div>`;
   }
 
   function testHtml(api, data, p, base, kind) {
@@ -537,27 +537,27 @@
     let more = '';
     if (t.st === 'ok' || t.st === 'abgelehnt') {
       const von = t.von && has(t.von.name) ? `<div class="sd-toks">${tok(t.von, `${path}.von`, 'unoff', null, ` data-p="${esc(path)}.von"`)}</div>` : ta(api, data, kind, A ? 'sdAat' : 'sdDt', 'Namen tippen');
-      more += `<div class="sd-two"><div><span class="w-lbl">${t.st === 'ok' ? 'Durchgeführt durch' : 'Angeboten durch'}${t.st === 'ok' ? ' <i class="w-req" title="Pflicht">•</i>' : ''}</span>${von}</div>
+      more += `<div class="sd-two" data-q="${kind}d"><div><span class="w-lbl">${t.st === 'ok' ? 'Durchgeführt durch' : 'Angeboten durch'}${t.st === 'ok' ? ' <i class="w-req" title="Pflicht">•</i>' : ''}</span>${von}</div>
         <div><label class="w-lbl" for="${A ? 'sdAatZ' : 'sdDtZ'}">Uhrzeit${t.st === 'ok' ? ' <i class="w-req" title="Pflicht">•</i>' : ''}</label><div class="sd-time"><input class="input mono" type="time" id="${A ? 'sdAatZ' : 'sdDtZ'}" data-sk="${esc(path)}.zeit" value="${esc(t.zeit || '')}"><button type="button" class="chip sm" data-sd="now" data-p="${esc(path)}.zeit">Jetzt</button></div></div></div>`;
     }
     if (t.st === 'ok' && A) {
-      more += `<div class="sd-two"><div><span class="w-lbl">Art</span>${seg(`${path}.art`, t.art || 'vortest', [['vortest', 'Vortest (Handgerät)'], ['beweis', 'Beweissicher']], 'w-chips')}</div>
+      more += `<div class="sd-two" data-q="aatw"><div><span class="w-lbl">Art</span>${seg(`${path}.art`, t.art || 'vortest', [['vortest', 'Vortest (Handgerät)'], ['beweis', 'Beweissicher']], 'w-chips')}</div>
         <div><label class="w-lbl" for="sdAatW">Ergebnis <i class="w-req" title="Pflicht">•</i></label><div class="sd-unit"><input class="input mono" id="sdAatW" data-sk="${esc(path)}.wert" value="${esc(t.wert || '')}" placeholder="0,42" inputmode="decimal" autocomplete="off" maxlength="6"><span class="w-unit">mg/l</span></div></div></div>
         <p class="w-hint sd-hint">Für Straftaten nach §§ 315c, 316 StGB ist die Blutprobe maßgeblich – der Atemalkoholwert ersetzt sie nicht.</p>`;
     }
     if (t.st === 'ok' && !A) {
-      more += `<span class="w-lbl">Art <i class="w-req" title="Pflicht">•</i></span>${seg(`${path}.art`, t.art, [['urin', 'Urin'], ['speichel', 'Speichel (Wischtest)']], 'w-chips')}
-        <span class="w-lbl">Ergebnis <i class="w-req" title="Pflicht">•</i></span>${seg(`${path}.erg`, t.erg, [['neg', 'Negativ'], ['pos', 'Positiv']])}
-        ${t.erg === 'pos' ? `<span class="w-lbl">Positiv auf</span>${flips(`${path}.stoffe`, t.stoffe, STOFFE)}` : ''}
+      more += `<div class="sd-inl" data-q="dtart"><span class="w-lbl">Art <i class="w-req" title="Pflicht">•</i></span>${seg(`${path}.art`, t.art, [['urin', 'Urin'], ['speichel', 'Speichel (Wischtest)']], 'w-chips')}</div>
+        <div class="sd-inl" data-q="dterg"><span class="w-lbl">Ergebnis <i class="w-req" title="Pflicht">•</i></span>${seg(`${path}.erg`, t.erg, [['neg', 'Negativ'], ['pos', 'Positiv']])}</div>
+        ${t.erg === 'pos' ? `<div class="sd-inl" data-q="dtst"><span class="w-lbl">Positiv auf</span>${flips(`${path}.stoffe`, t.stoffe, STOFFE)}</div>` : ''}
         <p class="w-hint sd-hint">Ein positiver Vortest begründet den Verdacht – Blutprobe prüfen (§ 81a StPO, bei Ordnungswidrigkeiten § 46 Abs. 4 OWiG).</p>`;
     }
-    if (t.st === 'unmoeglich') more += `<div class="sd-inl"><label class="w-hint" for="${A ? 'sdAatG' : 'sdDtG'}">„… konnte nicht durchgeführt werden, da …“</label>${textIn(A ? 'sdAatG' : 'sdDtG', `${path}.grund`, t.grund, A ? 'er nicht ausreichend pusten konnte' : 'sie keinen Urin abgeben konnte')}</div>`;
-    return `<div class="sd-sub"><span class="w-lbl">${ttl}${ROLLE[p.rolle] && ROLLE[p.rolle].tat ? ' <i class="w-req" title="Pflicht">•</i>' : ''}</span>${seg(`${path}.st`, t.st, TEST_ST, 'w-chips')}${more}</div>`;
+    if (t.st === 'unmoeglich') more += `<div class="sd-inl" data-q="${kind}g"><label class="w-hint" for="${A ? 'sdAatG' : 'sdDtG'}">„… konnte nicht durchgeführt werden, da …“</label>${textIn(A ? 'sdAatG' : 'sdDtG', `${path}.grund`, t.grund, A ? 'er nicht ausreichend pusten konnte' : 'sie keinen Urin abgeben konnte')}</div>`;
+    return `<div class="sd-sub" data-q="${kind}"><span class="w-lbl">${ttl}${ROLLE[p.rolle] && ROLLE[p.rolle].tat ? ' <i class="w-req" title="Pflicht">•</i>' : ''}</span>${seg(`${path}.st`, t.st, TEST_ST, 'w-chips')}${more}</div>`;
   }
 
   function einflussHtml(api, data, p, base) {
     const e = einOf(p), pr = PR(p);
-    const head = `<div class="w-q"><span class="w-lbl">Hinweise auf Alkohol oder Drogen?</span>${flips(`${base}.ein`, e, [['alk', 'Alkohol'], ['drog', 'Drogen']])}<p class="w-hint sd-hint">${e.length ? 'Beides antippen, wenn es Hinweise auf beides gibt.' : 'Nur antippen, wenn es Hinweise gab – dann erscheinen die passenden Wahrnehmungen, die Folgefähigkeit und die Tests.'}</p></div>`;
+    const head = `<div class="w-q" data-q="ein"><span class="w-lbl">Hinweise auf Alkohol oder Drogen?</span>${flips(`${base}.ein`, e, [['alk', 'Alkohol'], ['drog', 'Drogen']])}<p class="w-hint sd-hint">${e.length ? 'Beides antippen, wenn es Hinweise auf beides gibt.' : 'Nur antippen, wenn es Hinweise gab – dann erscheinen die passenden Wahrnehmungen, die Folgefähigkeit und die Tests.'}</p></div>`;
     if (!e.length) return head;
     const both = e.length === 2, sel = arr(p.wahr);
     const groups = WAHR.map(([g, items]) => {
@@ -568,15 +568,15 @@
     }).join('');
     const nSel = wahrItems(p).length;
     const frei = arr(p.wahrFrei).map((t, j) => `<span class="sd-tok"><b>${esc(t)}</b><button type="button" data-sd="unwf" data-j="${j}" aria-label="${esc(t)} entfernen">${ICON_X}</button></span>`).join('');
-    const konsum = `<span class="w-lbl">Angaben zum Konsum</span>${seg(`${base}.konsum`, p.konsum, [['ja', 'Räumte Konsum ein'], ['nein', 'Bestritt Konsum'], ['keine', 'Keine Angaben']], 'w-chips')}${p.konsum === 'ja' ? `<div class="sd-inl"><label class="w-hint" for="sdKons">„Auf Nachfrage räumte ${pr.er} ein, …“</label>${textIn('sdKons', `${base}.konsumText`, p.konsumText, 'gegen 20:00 Uhr zwei Bier getrunken zu haben')}</div>` : ''}`;
-    const folge = `<span class="w-lbl">Konnte ${pr.er === 'sie' ? 'sie' : pr.er === 'er' ? 'er' : 'die Person'} den Ausführungen, Fragen und Anweisungen folgen? <i class="w-req" title="Pflicht">•</i></span>${seg(`${base}.folge`, p.folge, FOLGE)}<span class="w-lbl sd-gap">Formulierung</span>${seg(`${base}.folgeArt`, p.folgeArt === 'eindruck' ? 'eindruck' : 'wahr', [['wahr', 'Nach den Wahrnehmungen'], ['eindruck', 'Wirkte so (Eindruck)']], 'w-chips')}`;
+    const konsum = `<span class="w-lbl">Angaben zum Konsum</span>${seg(`${base}.konsum`, p.konsum, [['ja', 'Räumte Konsum ein'], ['nein', 'Bestritt Konsum'], ['keine', 'Keine Angaben']], 'w-chips')}${p.konsum === 'ja' ? `<div class="sd-inl" data-q="konstext"><label class="w-hint" for="sdKons">„Auf Nachfrage räumte ${pr.er} ein, …“</label>${textIn('sdKons', `${base}.konsumText`, p.konsumText, 'gegen 20:00 Uhr zwei Bier getrunken zu haben')}</div>` : ''}`;
+    const folge = `<span class="w-lbl">Konnte ${pr.er === 'sie' ? 'sie' : pr.er === 'er' ? 'er' : 'die Person'} den Ausführungen, Fragen und Anweisungen folgen? <i class="w-req" title="Pflicht">•</i></span>${seg(`${base}.folge`, p.folge, FOLGE)}<div class="sd-inl sd-gap" data-q="folgeart"><span class="w-lbl">Formulierung</span>${seg(`${base}.folgeArt`, p.folgeArt === 'eindruck' ? 'eindruck' : 'wahr', [['wahr', 'Nach den Wahrnehmungen'], ['eindruck', 'Wirkte so (Eindruck)']], 'w-chips')}</div>`;
     return `${head}<div class="w-q"><div class="w-sub sd-box">
       <div class="w-sub-h"><b>${both ? 'Alkohol und Drogen' : e[0] === 'alk' ? 'Alkohol' : 'Drogen'}</b><span class="grow"></span><span class="sd-cnt mono">${nSel}</span></div>
-      <span class="w-lbl">Wahrnehmungen und Feststellungen <i class="w-req" title="Pflicht">•</i></span><p class="w-hint">Alles antippen, was vor Ort auffiel – erscheint im Text als Aufzählung.</p>
-      ${groups}
-      <div class="sd-wg"><span class="w-mk-gt">Eigene Wahrnehmung</span>${frei ? `<div class="sd-toks">${frei}</div>` : ''}<div class="sd-add-in"><input class="input" id="sdWf" data-wf="1" value="${esc(V.q.wf || '')}" placeholder="z. B. Hose im Schritt durchnässt" autocomplete="off" spellcheck="true" enterkeyhint="done" maxlength="200"><button type="button" class="btn btn-ghost btn-sm" data-sd="wfadd">Hinzufügen</button></div></div>
-      <div class="sd-sub">${konsum}</div>
-      <div class="sd-sub">${folge}</div>
+      <div data-q="wahr"><span class="w-lbl">Wahrnehmungen und Feststellungen <i class="w-req" title="Pflicht">•</i></span><p class="w-hint">Alles antippen, was vor Ort auffiel – erscheint im Text als Aufzählung.</p>
+      ${groups}</div>
+      <div class="sd-wg" data-q="wf"><span class="w-mk-gt">Eigene Wahrnehmung</span>${frei ? `<div class="sd-toks">${frei}</div>` : ''}<div class="sd-add-in"><input class="input" id="sdWf" data-wf="1" value="${esc(V.q.wf || '')}" placeholder="z. B. Hose im Schritt durchnässt" autocomplete="off" spellcheck="true" enterkeyhint="done" maxlength="200"><button type="button" class="btn btn-ghost btn-sm" data-sd="wfadd">Hinzufügen</button></div></div>
+      <div class="sd-sub" data-q="konsum">${konsum}</div>
+      <div class="sd-sub" data-q="folge">${folge}</div>
       ${e.includes('alk') ? testHtml(api, data, p, base, 'aat') : ''}
       ${e.includes('drog') ? testHtml(api, data, p, base, 'dt') : ''}
     </div></div>`;
@@ -606,7 +606,26 @@
   function grow(ta) { if (!ta) return; ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }
   function mounted() {
     grow($('#sdText'));
-    if (V.focus) { const el = document.getElementById(V.focus); V.focus = ''; if (el) { el.focus(); try { const n = el.value.length; el.setSelectionRange(n, n); } catch (e) { /* egal */ } } }
+    if (V.focus) { const el = document.getElementById(V.focus); V.focus = ''; if (el) { el.focus({ preventScroll: true }); try { const n = el.value.length; el.setSelectionRange(n, n); } catch (e) { /* egal */ } } }
+    if (V.guide) { const k = V.guide; V.guide = ''; guide(k); }
+  }
+  /**
+   * Nach einer Auswahl sanft weiterführen: nur wenn der Anfang der direkt folgenden Auswahl nicht zu sehen ist, und nur so
+   * weit, dass er sichtbar wird (höchstens bis knapp unter den oberen Rand). Nie nach oben, nie über etwas hinweg.
+   */
+  function guide(key) {
+    const all = [...document.querySelectorAll('#wMain [data-q]')];
+    const i = all.findIndex(n => n.dataset.q === key);
+    const nx = i >= 0 ? all[i + 1] : null; if (!nx) return;
+    const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+    const nav = document.querySelector('#wMain .w-nav'); const navH = nav ? nav.getBoundingClientRect().height : 0;
+    const r = nx.getBoundingClientRect(), free = vh - navH - 12;
+    const need = r.top + Math.min(r.height, 150); // Überschrift und erste Reihe der nächsten Auswahl
+    if (r.top < 0 || need <= free) return;
+    const delta = Math.min(r.top - vh * 0.22, need - free);
+    if (delta < 32) return;
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollBy({ top: delta, behavior: reduce ? 'auto' : 'smooth' });
   }
   /** Teile der Maske aktualisieren, ohne neu zu zeichnen (Fokus bleibt im Feld). */
   function live(api) {
@@ -642,7 +661,7 @@
     if (key === 'bel') {
       p.bel = o;
       if (!arr(p.gegen).length) p.gegen = [{ ref: 'bel' }];
-      V.focus = has(p.text) ? '' : 'sdText';
+      V.focus = '';
     } else if (key === 'aat' || key === 'dt') {
       p[key] = { ...(p[key] && typeof p[key] === 'object' ? p[key] : {}), von: o };
       V.focus = '';
@@ -712,14 +731,15 @@
       case 'set': {
         const path = b.dataset.p;
         setPath(data, path, b.dataset.v);
-        if (/\.g$/.test(path) && cur() && !has(cur().nachname)) V.focus = 'sdNn';
+        if (/\.g$/.test(path) && cur() && !has(cur().nachname) && !api.mobile()) V.focus = 'sdNn';
+        const q = b.closest('[data-q]'); if (q) V.guide = q.dataset.q;
         if (path === 'nr') { api.persist(false); live(api); const inp = $('#sdNr'); if (inp) inp.value = b.dataset.v; return true; }
         save(); return true;
       }
       case 'zvr': { const p = cur(); if (!p) return true; if (p.zvr) { delete p.zvr; delete p.bereit; } else p.zvr = true; save(); return true; }
       case 'bereit': { const p = cur(); if (!p) return true; if (p.bereit === false) delete p.bereit; else p.bereit = false; save(); return true; }
-      case 'pick': pick(b, api); return true;
-      case 'unbel': { const p = cur(); if (!p) return true; delete p.bel; V.focus = 'sdBel'; save(); return true; }
+      case 'pick': { const q = b.closest('[data-q]'); if (q && b.dataset.ta !== 'gegen') V.guide = q.dataset.q; pick(b, api); return true; }
+      case 'unbel': { const p = cur(); if (!p) return true; delete p.bel; V.focus = api.mobile() ? '' : 'sdBel'; save(); return true; }
       case 'ungegen': { const p = cur(); if (!p) return true; const g = arr(p.gegen).slice(); g.splice(Number(b.dataset.j), 1); if (g.length) p.gegen = g; else delete p.gegen; save(); return true; }
       case 'gbel': { const p = cur(); if (!p) return true; const g = arr(p.gegen).filter(x => x && x.ref !== 'alle'); const on = g.some(x => x.ref === 'bel'); const n = on ? g.filter(x => x.ref !== 'bel') : [{ ref: 'bel' }, ...g]; if (n.length) p.gegen = n; else delete p.gegen; save(); return true; }
       case 'galle': { const p = cur(); if (!p) return true; if (arr(p.gegen).some(x => x && x.ref === 'alle')) delete p.gegen; else p.gegen = [{ ref: 'alle' }]; save(); return true; }
