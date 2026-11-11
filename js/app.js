@@ -208,11 +208,22 @@ function normRun(x) {
   for (const k of Object.keys(x.done || {}).sort()) { const v = num(x.done[k]); if (v) done[k] = v; }
   return { id: String(x.id || uid()), rid: String(x.rid), started, done, finished: num(x.finished), u: num(x.u) || 1 };
 }
+/* Amtsbezeichnungen (Kurzform wie im Bericht). Erkennt auch „pkin“, „PK'in“ oder „Polizeioberkommissarin“ in alten Rollen. */
+const RANKS = ['PKA', 'PKAin', 'PK', 'PKin', 'POK', 'POKin', 'PHK', 'PHKin', 'EPHK', 'EPHKin', 'KK', 'KKin', 'KOK', 'KOKin', 'KHK', 'KHKin', 'EKHK', 'EKHKin', 'PR', 'PRin', 'POR', 'PORin', 'KR', 'KRin', 'KOR', 'KORin', 'PD', 'PDin', 'LPD', 'LPDin', 'KD', 'KDin', 'LKD', 'LKDin'];
+const RANK_LONG = { 'polizeikommissaranwärter': 'PKA', 'kommissaranwärter': 'PKA', 'polizeikommissar': 'PK', 'polizeioberkommissar': 'POK', 'polizeihauptkommissar': 'PHK', 'erster polizeihauptkommissar': 'EPHK', 'erste polizeihauptkommissar': 'EPHK', 'kriminalkommissar': 'KK', 'kriminaloberkommissar': 'KOK', 'kriminalhauptkommissar': 'KHK', 'erster kriminalhauptkommissar': 'EKHK', 'erste kriminalhauptkommissar': 'EKHK', 'polizeirat': 'PR', 'polizeirät': 'PR', 'polizeioberrat': 'POR', 'polizeioberrät': 'POR', 'kriminalrat': 'KR', 'kriminalrät': 'KR', 'kriminaloberrat': 'KOR', 'kriminaloberrät': 'KOR' };
+function rankNorm(t) {
+  const c = String(t || '').replace(/[’'´`.]/g, '').replace(/\s+/g, ' ').replace(/ in$/i, 'in').trim(); if (!c) return '';
+  const hit = RANKS.find(r => r.toLowerCase() === c.toLowerCase()); if (hit) return hit;
+  const l = c.toLowerCase(), fem = /in$/.test(l), base = fem ? l.slice(0, -2) : l;
+  return RANK_LONG[base] ? RANK_LONG[base] + (fem ? 'in' : '') : (RANK_LONG[l] || '');
+}
+/** Amtsbezeichnung einer Person: eigenes Feld, sonst aus einer Rolle erkannt. */
+const rankOfPerson = p => (p ? rankNorm(p.rank) || String(p.rank || '').trim() || (p.roles || []).map(rankNorm).find(Boolean) || '' : '');
 function normPerson(x) {
   if (!x || !x.name) return null;
   const roles = [];
   for (const r of (Array.isArray(x.roles) ? x.roles : [])) { const t = str(r, 40).trim(); if (t && !roles.includes(t) && roles.length < 12) roles.push(t); }
-  return { id: String(x.id || uid()), name: str(x.name, 80).trim() || 'Person', roles, parent: x.parent ? String(x.parent) : null, contact: str(x.contact, 200), u: num(x.u) || 1 };
+  return { id: String(x.id || uid()), name: str(x.name, 80).trim() || 'Person', rank: rankNorm(x.rank) || str(x.rank, 12).trim(), roles, parent: x.parent ? String(x.parent) : null, contact: str(x.contact, 200), u: num(x.u) || 1 };
 }
 function normNote(x) {
   const at = num(x && x.at);
@@ -2379,7 +2390,7 @@ function renderTeam() {
     ? `<li class="empty area-empty"><h3>Dein Team.</h3><p>Leg Personen an, gib ihnen Rollen und ordne sie unter. Zu jeder Person sammelst du Notizen mit Datum und Uhrzeit.</p><div class="row"><button type="button" class="btn btn-accent" data-tm-new>${ico('plus')}Erste Person</button></div></li>`
     : rows.length ? rows.map(({ p, depth, kids }) => `<li class="tm-node${p.id === teamUi.pid ? ' sel' : ''}" style="--d:${depth}">
         ${kids ? `<button type="button" class="tm-caret" data-toggle="${p.id}" aria-expanded="${!teamUi.collapsed.has(p.id)}" aria-label="${teamUi.collapsed.has(p.id) ? 'Aufklappen' : 'Zuklappen'}">${ico('chev')}</button>` : '<span class="tm-caret-sp"></span>'}
-        <button type="button" class="tm-row" data-pid="${p.id}" aria-current="${p.id === teamUi.pid}">${avatar(p)}<span class="tm-main"><span class="tm-name">${esc(p.name)}</span><span class="tm-roles">${p.roles.length ? p.roles.map(esc).join(' · ') : 'ohne Rolle'}</span></span>${notesOf(p.id).length ? `<span class="tm-count mono">${notesOf(p.id).length}</span>` : ''}</button>
+        <button type="button" class="tm-row" data-pid="${p.id}" aria-current="${p.id === teamUi.pid}">${avatar(p)}<span class="tm-main"><span class="tm-name">${esc(p.name)}</span><span class="tm-roles">${[rankOfPerson(p), ...p.roles.filter(r => rankNorm(r) !== rankOfPerson(p))].filter(Boolean).map(esc).join(' · ') || 'ohne Rolle'}</span></span>${notesOf(p.id).length ? `<span class="tm-count mono">${notesOf(p.id).length}</span>` : ''}</button>
       </li>`).join('') : '<li class="ca-empty">Niemand passt zur Suche.</li>';
   renderPersonDetail();
 }
@@ -2399,7 +2410,7 @@ function renderPersonDetail() {
   box.innerHTML = `
     <button type="button" class="tm-back link" data-tm-back>← Team</button>
     <div class="tm-head">${avatar(p, 'big')}<div class="tm-head-main"><h2>${esc(p.name)}</h2>
-      <div class="tm-chips">${p.roles.map(r => `<span class="pill pill-quiet">${esc(r)}</span>`).join('') || '<span class="dim">keine Rolle</span>'}</div></div>
+      <div class="tm-chips">${rankOfPerson(p) ? `<span class="pill pill-lime">${esc(rankOfPerson(p))}</span>` : ''}${p.roles.filter(r => rankNorm(r) !== rankOfPerson(p)).map(r => `<span class="pill pill-quiet">${esc(r)}</span>`).join('') || (rankOfPerson(p) ? '' : '<span class="dim">keine Rolle</span>')}</div></div>
       <button type="button" class="icon-btn" data-tm-edit aria-label="${esc(p.name)} bearbeiten">${ico('edit')}</button></div>
     <dl class="tm-facts">
       <div><dt>Berichtet an</dt><dd>${boss ? `<button type="button" class="link" data-pid="${boss.id}">${esc(boss.name)}</button>` : '—'}</dd></div>
@@ -2480,6 +2491,8 @@ function openPersonDialog(p, opts = {}) {
   $('#pdH').textContent = p ? 'Person bearbeiten' : 'Neue Person';
   $('#pdName').value = p ? p.name : '';
   $('#pdName').classList.remove('err');
+  const rk = rankOfPerson(p);
+  $('#pdRank').innerHTML = `<option value="">— keine —</option>` + [...RANKS, ...(rk && !RANKS.includes(rk) ? [rk] : [])].map(r => `<option value="${esc(r)}"${r === rk ? ' selected' : ''}>${esc(r)}</option>`).join('');
   $('#pdContact').value = p ? p.contact : '';
   $('#pdRoleIn').value = '';
   const blocked = p ? descendants(p.id) : new Set();
@@ -2514,7 +2527,7 @@ $('#pdForm').addEventListener('submit', e => {
   if (!name) { $('#pdName').classList.add('err'); $('#pdName').focus(); setTimeout(() => $('#pdName').classList.remove('err'), 1400); return; }
   if ($('#pdRoleIn').value.trim()) addRole($('#pdRoleIn').value);
   const now = Date.now();
-  const data = { name, roles: PD.roles, parent: $('#pdParent').value || null, contact: $('#pdContact').value.trim(), u: now };
+  const data = { name, rank: $('#pdRank').value, roles: PD.roles, parent: $('#pdParent').value || null, contact: $('#pdContact').value.trim(), u: now };
   let id = PD.id;
   const old = id ? personById(id) : null;
   // Umbenennen: Anfragen/Aufgaben hängen am Namen – mitziehen, damit die Zuordnung im Team bleibt
@@ -4582,18 +4595,7 @@ window.WBridge = Object.freeze({
   restore: snap => { if (S && snap) restore(snap); },
   name: () => (S ? state.settings.name : ''),
   /** Teamliste für die Besatzung: zuletzt im Dienst zuerst, dann alphabetisch; Rollen enthalten u. a. die Amtsbezeichnung. */
-  team: () => { if (!S) return []; const me = state.settings.name.trim(); const mp = me ? state.people.find(x => norm(x.name) === norm(me)) : null; const out = me ? [{ name: me, roles: mp ? [...mp.roles] : [] }] : []; const seen = new Set(out.map(o => norm(o.name))); for (const c of crewPool()) { const p = (c.id && state.people.find(x => x.id === c.id)) || state.people.find(x => norm(x.name) === norm(c.name)); const n = p ? p.name : c.name; if (!n || seen.has(norm(n))) continue; seen.add(norm(n)); out.push({ name: n, roles: p ? [...p.roles] : [] }); } return out; },
-  /** Amtsbezeichnung einer Person im Team merken (als erste Rolle, ersetzt eine frühere); Unbekannte kommen ins Team. */
-  setRank(name, grad) {
-    if (!S) return false;
-    const n = str(name, 80).trim(), g = str(grad, 12).trim(); if (!n || !g) return false;
-    const RANK = /^(E?P[HO]?K|P[HO]?M|PKA|E?K[HO]?K|KKA|KA|P?OR|PR|PD|LPD|KR|KOR|KD|LKD)(in)?$/;
-    let p = state.people.find(x => norm(x.name) === norm(n));
-    if (!p) { p = normPerson({ id: uid(), name: n, roles: [], parent: null, contact: '', u: Date.now() }); state.people.push(p); }
-    if (p.roles[0] === g && p.roles.filter(r => RANK.test(r)).length === 1) return true;
-    p.roles = [g, ...p.roles.filter(r => !RANK.test(r))].slice(0, 12); p.u = Date.now();
-    commit(); return true;
-  },
+  team: () => { if (!S) return []; const me = state.settings.name.trim(); const mp = me ? state.people.find(x => norm(x.name) === norm(me)) : null; const out = me ? [{ name: me, roles: mp ? [...mp.roles] : [], rank: rankOfPerson(mp) }] : []; const seen = new Set(out.map(o => norm(o.name))); for (const c of crewPool()) { const p = (c.id && state.people.find(x => x.id === c.id)) || state.people.find(x => norm(x.name) === norm(c.name)); const n = p ? p.name : c.name; if (!n || seen.has(norm(n))) continue; seen.add(norm(n)); out.push({ name: n, roles: p ? [...p.roles] : [], rank: rankOfPerson(p) }); } return out; },
   /** Vorbelegung neuer Vorgänge aus der laufenden Schicht (Rufname, Besatzung). */
   preset: () => { if (!S) return null; const sh = liveShift(); return sh ? { einsatz: shiftCrewPreset(sh) } : null; },
   /** Offenen Punkt als Todo in den Planner übernehmen (z. B. „Lichtbildmappe fertigen“). */

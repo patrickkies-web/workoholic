@@ -1355,13 +1355,6 @@ body[data-area=schreiben] .pane-schreiben{display:grid}
 .w-pers button:hover{background:rgba(255,255,255,.08);color:var(--text)}
 .w-pers .i{width:14px;height:14px}
 .w-car-add{margin-top:10px}
-.w-pers .w-pers-n{display:inline-flex;align-items:center;gap:7px;width:auto;height:auto;min-width:0;max-width:100%;border-radius:0;color:inherit;font:inherit;text-align:left;flex:0 1 auto}
-.w-pers .w-pers-n:hover{background:none;color:inherit}
-.w-pers.nograd{background:rgba(240,135,106,.1);border-color:rgba(240,135,106,.45)}
-.w-pers .w-pers-q{color:var(--coral)}
-.w-rank{margin:0 0 12px;padding:10px 12px 12px;border-radius:14px;background:rgba(255,255,255,.025);border:1px dashed var(--line-2)}
-.w-rank .w-lbl{font-size:12.5px;color:var(--text-2);margin-bottom:8px}
-.w-rank-more{width:auto;height:28px;padding:0 12px;font-size:11.5px;border-radius:999px}
 .w-combo{position:relative}
 .w-pop{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:40;margin:0;padding:6px;list-style:none;background:#232326;border:1px solid var(--line-2);border-radius:16px;box-shadow:0 24px 60px -18px rgba(0,0,0,.9);max-height:min(320px,48vh);overflow:auto}
 .w-pop li{display:flex;align-items:center;gap:10px;min-width:0;padding:9px 10px;border-radius:11px;cursor:pointer}
@@ -2342,6 +2335,8 @@ dialog.brief-dlg.open .brief{opacity:1;transform:none}
     <div class="sheet-head"><h3 id="pdH">Neue Person</h3><button type="button" class="icon-btn sm" data-close aria-label="Schließen"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <label class="f-label" for="pdName">Name</label>
     <input class="input" id="pdName" maxlength="80" placeholder="Vor- und Nachname" autocomplete="off" spellcheck="false">
+    <label class="f-label" for="pdRank">Amtsbezeichnung</label>
+    <select class="input" id="pdRank"></select>
     <label class="f-label" for="pdRoleIn">Rollen</label>
     <div class="role-chips" id="pdRoles"></div>
     <div class="role-in"><input class="input" id="pdRoleIn" maxlength="40" placeholder="z. B. Schichtleitung – Enter fügt hinzu" autocomplete="off" spellcheck="false"><button type="button" class="btn btn-ghost btn-sm" id="pdRoleAdd">Hinzufügen</button></div>
