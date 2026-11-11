@@ -488,6 +488,7 @@
     const m = mod(d);
     if (!m) { host.innerHTML = `<div class="empty w-empty"><h3>Unbekanntes Modul „${esc(d.type)}“</h3><p>Dieser Vorgang stammt aus einer neueren Version.</p></div>`; return; }
     if (typeof m.upgrade === 'function') { const nd = m.upgrade(d.data); if (nd && typeof nd === 'object') { d.data = nd; persist(true); } }
+    { let tt = ''; try { tt = (m.title(d.data) || '').slice(0, 120); } catch (e) { tt = ''; } if (tt && tt !== d.title) persist(true); } // veralteten Titel (z. B. nach Umbenennung eines Moduls) beim Öffnen auffrischen
     U.lastJson = stable(d.data);
     if (U.view === 'result') { host.innerHTML = resultHtml(d, m); remember(); return; }
     const steps = visibleSteps(m, d.data);
@@ -530,7 +531,7 @@
       <span class="spaced">Schriftliche Arbeiten</span>
       <h2 class="w-intro-h">Aufnehmen, ohne zu tippen.</h2>
       <p class="w-intro-p">Fragen beantworten – Ja/Nein, antippen, Zahlen – und am Ende steht ein fertiger Text in sauberer Satzführung, bei der Verkehrsunfallflucht der vollständige Befundbericht. Es erscheinen nur Fragen, die zu deinem Fall passen; jede lässt sich überspringen. Alles bleibt verschlüsselt in deinem Tresor; jeder Schritt wird sofort gesichert, du kannst jederzeit unterbrechen.</p>
-      <div class="w-mods">${mods.map(m => `<button type="button" class="w-mod" data-w="new" data-mod="${esc(m.id)}"><span class="w-mod-tile">${esc(m.kurz)}</span><span><b>${esc(m.name)}</b><small>${new Set(m.steps.map(s => s.phase)).size} Phasen, nur passende Fragen · ${esc(m.desc || 'Befundbericht nach Anlage 6, Kurzsachverhalt, Fahndungstext, offene Punkte')}</small></span></button>`).join('')}</div>
+      <div class="w-mods">${mods.map(m => `<button type="button" class="w-mod" data-w="new" data-mod="${esc(m.id)}"><span class="w-mod-tile">${esc(m.kurz)}</span><span><b>${esc(m.name)}</b><small>${((n) => (n === 1 ? 'Ein Abschnitt' : n + ' Phasen'))(new Set(m.steps.map(s => s.phase)).size)}, nur passende Fragen · ${esc(m.desc || 'Befundbericht nach Anlage 6, Kurzsachverhalt, Fahndungstext, offene Punkte')}</small></span></button>`).join('')}</div>
       <p class="w-hint">Tastatur: <b class="kbd">N</b> neuer Vorgang · <b class="kbd">S</b> Bereich wechseln (<b class="kbd">7</b>) · <b class="kbd">⌘/Strg ⏎</b> weiter</p>
     </div>`;
   }
