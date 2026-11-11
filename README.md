@@ -1,6 +1,6 @@
 # Workoholic
 
-Arbeitsseite für Anfragen von Kollegen, eigene Todos und Aufgaben, mit Stempeluhr zum **Eindongeln / Ausdongeln**, Terminen, Routinen, Team, Ablage, WaffG-Prüfstand – und dem Bereich **Schreiben** zum Aufnehmen von Vorgängen per Antippen (derzeit: Verkehrsunfallflucht ohne Personenschaden, Vermisste Person und Häusliche Gewalt).
+Arbeitsseite für Anfragen von Kollegen, eigene Todos und Aufgaben, mit Stempeluhr zum **Eindongeln / Ausdongeln**, Terminen, Routinen, Team, Ablage, WaffG-Prüfstand – und dem Bereich **Schreiben** zum Aufnehmen von Vorgängen per Antippen (derzeit: Verkehrsunfallflucht ohne Personenschaden, Vermisste Person, Häusliche Gewalt und die Vorlage Strafanzeige).
 Alle Daten sind **Ende-zu-Ende verschlüsselt**. Synchronisiert wird über ein eigenes privates GitHub-Repo, das nur Chiffretext enthält.
 
 ---
@@ -166,6 +166,12 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 - **Häusliche Gewalt (NRW):** Personen zuerst – jede beteiligte Person wird einmal angelegt (Rolle, Geschlecht, Beziehung, vor Ort, verletzt); danach fragt der Assistent je Person nur, was passt. Phasen: Einsatz → Personen → Eintreffen → Umstände → Schilderungen → Prognose → Maßnahmen → Abschluss. Abgefragt werden u. a. Zutritt mit Tatsachen, Zustand und Alkohol je Person, Verletzungen und Rettungswagen je verletzter Person, Kinder, Belehrungen mit belehrender Person, Uhrzeit und Inhalten (Schnellwahl „Vollständig nach Vordruck“), Anhörung, Gefahrenprognose mit 35 Umständen (festgestellt / geschildert / angenommen, vormarkiert aus früheren Antworten) und Textbausteinen, Eröffnung der Wohnungsverweisung als Checkliste (Bereich, Ende, Verlängerung, Gegenstände, Anschrift, Schlüssel, Zwangsgeld, Ersatzzwangshaft, Gewahrsam, Rechtsbehelf, schriftliche Bestätigung), bei Abwesenheit Bekanntgabe mit Checkliste und Zustellung (vorsorgliche Ersatzzustellung in den Briefkasten oder Niederlegung mit Mitteilung, Förmlichkeiten, Erlaubnis des Behördenleiters zur Nachtzeit). Dazu Würgen (Beschwerden, ärztliche Untersuchung, § 224 Abs. 1 Nr. 5), Lichtbilder bei Kindern (§ 81c Abs. 3), § 230 StGB und Wortlaut einer Drohung. Grundsatz: Im Text steht nur, was angetippt oder eingetragen wurde; Fehlendes erscheint als [Platzhalter].
   - **Ergebnis:** **Sachverhalt** in sieben Abschnitten (Einsatzanlass, Eintreffsituation, Tatörtlichkeit und Umstände, Schilderungen, Gefahrenprognose, Maßnahmen, Abschluss), **Begründung § 34a**, **Kurzfassung**, **Noch zu erledigen** (fehlende Pflichten mit Norm, als Todos übernehmbar) und **Personalien**. „Kopieren“ kopiert den geöffneten Reiter. Ältere Vorgänge werden beim Öffnen übernommen. Keine Rechtsberatung; Vordrucke, Rechtsbehelfsbelehrung und Erlasslage der Behörde gehen vor. Konzept und Grenzen: [`docs/HG-MASTERPLAN.md`](docs/HG-MASTERPLAN.md).
 
+- **Strafanzeige (Vorlage für alle Anzeigen):** wird Abschnitt für Abschnitt aufgebaut. **Teil 1 „Allgemeines/Einsatzanlass“** erzeugt den Standardsatz „Am 24.10.2026 um 19:10 Uhr erhielten die Streifenwagenbesatzungen POK Name/PKin Meier - PKin Selieb/PK Kdvfo folgenden Einsatz: … Einsatzörtlichkeit: Am Fichtenbusch 32, in 33378 Rheda-Wiedenbrück (Ortsteil: Rheda).“
+  - **Streifenwagen:** je Fahrzeug eine Karte, über *+ Streifenwagen* beliebig viele. Personen per Anfangsbuchstaben: Vorschläge aus dem Team (Amtsbezeichnung aus der Rolle) und aus früheren Vorgängen, nach Häufigkeit; Enter übernimmt, neue Namen gehen auch. *Wie zuletzt* übernimmt alle Besatzungen des letzten Vorgangs, die Besatzung der laufenden Schicht ist vorbelegt. Im Text stehen Amtsbezeichnung und Nachname; ein Fahrzeug → Einzahl („erhielt die Streifenwagenbesatzung“).
+  - **Einsatz:** Freitext nach „folgenden Einsatz:“, ohne Vorgaben.
+  - **Einsatzörtlichkeit:** alle 5.304 Straßen der 13 Kommunen im Kreis Gütersloh mit PLZ und Ort in der App (`js/strassen-gt.js`, © OpenStreetMap-Mitwirkende, ODbL, über OpenPLZ API). Suche nach Wortanfängen, auch mit Ort oder Hausnummer („kirchstr verl 5“). Ortsteile je Kommune zum Antippen; die Straßendaten selbst enthalten keinen Ortsteil, deshalb wird er einmal gewählt und für dieselbe Straße aus früheren Vorgängen vorgeschlagen.
+  - **Vorlage anpassen:** fester Wortlaut mit Feldern wie `{Datum}`, `{Besatzungen}`, `{Anschrift}`, dazu die Trennzeichen zwischen Personen und Fahrzeugen. Neue Strafanzeigen übernehmen die zuletzt benutzte Vorlage.
+
 **Tastatur:** `N` neu (je nach Bereich) · `/` suchen · `1`–`7` Bereiche · `S` schreiben · `D` dongeln · `E` Einsatz · `L` sperren · `Strg/⌘ + Enter` speichern bzw. weiter
 
 **Backups:** *⋯ → Verschlüsseltes Backup* speichert eine `.vault`-Datei. Einspielen geht per Zusammenführen oder Ersetzen.
@@ -189,6 +195,8 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 | `js/vuf.js` | Modul Verkehrsunfallflucht: Fragenkatalog und Textgenerator |
 | `js/vermisst.js` | Modul Vermisste Person: Fragenkatalog, Übersicht, Kurzsachverhalt, Fahndung, offene Punkte |
 | `js/hg.js` | Modul Häusliche Gewalt: Fragenkatalog, Sachverhalt und Begründung § 34a |
+| `js/anzeige.js` | Modul Strafanzeige: Vorlage „Allgemeines/Einsatzanlass“, anpassbarer Wortlaut |
+| `js/strassen-gt.js` | Straßenverzeichnis Kreis Gütersloh (Straße, PLZ, Ort, Ortsteile je Kommune) mit Suche |
 | `js/fe.js` | Bereich FE-Prüfung: Entscheidungsbaum Freiheitsentziehung, Normtexte, Übersicht „Alle Wege“ |
 | `js/febericht.js` | Schreiben-Modul „Freiheitsentziehung – Bericht“: aus dem gewählten Prüfweg, Formvorschriften-Check, Vermerk |
 | `js/skizze.js` | Schreiben-Modul „Unfallskizze“: Luftbild, Vollbild-Editor (Zoom, Fahrzeuge verschieben/drehen, Herkunft und beabsichtigte Richtung je Fahrzeug, Kollisionsort), Foto, Gesamtbild mit Zeichenerklärung und Text zum Teilen |

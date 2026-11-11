@@ -1336,6 +1336,32 @@ body[data-area=schreiben] .pane-schreiben{display:grid}
 .w-crew-team{margin:2px 0 10px}
 .w-crew-team .chip{font-weight:500}
 .w-crew-row{display:grid;grid-template-columns:130px minmax(0,1fr) 30px;gap:8px;align-items:center}
+/* Strafanzeige: Streifenwagen mit Personen-Pillen, Vorschlagslisten (Kollegen, Straßen), Anschrift */
+.w-cars{display:grid;gap:10px}
+.w-car .w-sub-h{margin-bottom:10px}
+.w-pers-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.w-pers{display:inline-flex;align-items:center;gap:7px;height:34px;max-width:100%;padding:0 5px 0 12px;border-radius:999px;background:var(--accent-soft);border:1px solid rgba(236,217,111,.4);font-size:13.5px}
+.w-pers i{font:500 11.5px/1 var(--mono);font-style:normal;color:var(--accent)}
+.w-pers span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.w-pers button{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;color:var(--text-2);flex:none}
+.w-pers button:hover{background:rgba(255,255,255,.08);color:var(--text)}
+.w-pers .i{width:14px;height:14px}
+.w-car-add{margin-top:10px}
+.w-combo{position:relative}
+.w-pop{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:40;margin:0;padding:6px;list-style:none;background:#232326;border:1px solid var(--line-2);border-radius:16px;box-shadow:0 24px 60px -18px rgba(0,0,0,.9);max-height:min(320px,48vh);overflow:auto}
+.w-pop li{display:flex;align-items:center;gap:10px;min-width:0;padding:9px 10px;border-radius:11px;cursor:pointer}
+.w-pop li[aria-selected=true],.w-pop li:hover{background:rgba(255,255,255,.06)}
+.w-pop .w-pop-h{font:500 10.5px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);padding:8px 10px 4px;cursor:default}
+.w-pop .w-pop-h:hover{background:none}
+.w-pop-g{font:500 11.5px/1 var(--mono);font-style:normal;color:var(--accent);min-width:40px}
+.w-pop-m{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.w-pop-m mark{background:none;color:var(--accent);font-weight:600}
+.w-pop-s{font:400 12px/1.2 var(--mono);color:var(--text-3);white-space:nowrap}
+.w-pop-new .w-pop-m{white-space:normal;color:var(--text-2)}
+.w-grid.w-addr{margin-top:0;grid-template-columns:minmax(84px,120px) minmax(0,1fr) minmax(84px,120px);grid-template-areas:"str str hnr" "plz ort ort" "ot ot ot"}
+.w-grid.w-addr .w-q.a-str{grid-area:str}.w-grid.w-addr .w-q.a-hnr{grid-area:hnr}.w-grid.w-addr .w-q.a-plz{grid-area:plz}.w-grid.w-addr .w-q.a-ort{grid-area:ort}.w-grid.w-addr .w-q.a-ot{grid-area:ot}
+.w-ot-note{font-style:normal;font-size:12px;color:var(--lime)}
+.w-ot-free{max-width:280px}
 .w-grad{padding:0 10px;-webkit-appearance:none;appearance:none;background-image:none}
 .w-kz{text-transform:uppercase;letter-spacing:.06em}
 .w-karo{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
@@ -2523,6 +2549,8 @@ dialog.brief-dlg.open .brief{opacity:1;transform:none}
 <script src="js/hg.js"></script>
 <script src="js/febericht.js"></script>
 <script src="js/skizze.js"></script>
+<script src="js/strassen-gt.js"></script>
+<script src="js/anzeige.js"></script>
 <script src="js/writer.js"></script>
 </body>
 </html>
