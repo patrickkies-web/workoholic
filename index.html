@@ -1172,6 +1172,24 @@ body[data-area=schreiben] .pane-schreiben{display:grid}
 .sd-text::placeholder{color:var(--text-3);font-style:italic;opacity:1}
 .sd-nr{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .sd-nr .input{width:110px;flex:none;text-align:center;font-size:17px}
+.sd-sub{display:flex;flex-direction:column;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+.sd-sub .w-lbl,.sd-sub>.w-hint{margin:0}
+.sd-sub .sd-hint{margin:2px 0 0}
+.sd-gap{margin-top:6px!important}
+.sd-inl{display:flex;flex-direction:column;gap:6px}
+.sd-inl .w-hint{margin:0}
+.sd-two{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px}
+.sd-two>div{display:flex;flex-direction:column;gap:8px;min-width:0}
+.sd-two .sd-toks,.sd-two .sd-sugg{margin-top:0}
+.sd-time,.sd-unit,.sd-add-in{display:flex;align-items:center;gap:8px}
+.sd-time .input,.sd-add-in .input{flex:1;min-width:0}
+.sd-unit .input{flex:1;min-width:0;text-align:center;font-size:17px}
+.sd-box{padding:16px}
+.sd-box>.w-lbl{margin-bottom:4px}
+.sd-wg{margin-top:12px}
+.sd-wg .sd-toks{margin:0 0 8px}
+.sd-add-in{margin-top:0}
+@media (max-width:760px){.sd-two{grid-template-columns:1fr}}
 @media (max-width:760px),(pointer:coarse){.sd-text{font-size:16px}}
 @media (prefers-reduced-motion:reduce){#wFields>[data-q].w-next,.btn.w-go{animation:none}}
 @media (max-width:1239px){.w-karo{grid-template-columns:1fr}}
