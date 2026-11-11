@@ -4583,17 +4583,6 @@ window.WBridge = Object.freeze({
   name: () => (S ? state.settings.name : ''),
   /** Teamliste für die Besatzung: zuletzt im Dienst zuerst, dann alphabetisch; Rollen enthalten u. a. die Amtsbezeichnung. */
   team: () => { if (!S) return []; const me = state.settings.name.trim(); const mp = me ? state.people.find(x => norm(x.name) === norm(me)) : null; const out = me ? [{ name: me, roles: mp ? [...mp.roles] : [] }] : []; const seen = new Set(out.map(o => norm(o.name))); for (const c of crewPool()) { const p = (c.id && state.people.find(x => x.id === c.id)) || state.people.find(x => norm(x.name) === norm(c.name)); const n = p ? p.name : c.name; if (!n || seen.has(norm(n))) continue; seen.add(norm(n)); out.push({ name: n, roles: p ? [...p.roles] : [] }); } return out; },
-  /** Amtsbezeichnung einer Person im Team merken (als erste Rolle, ersetzt eine frühere); Unbekannte kommen ins Team. */
-  setRank(name, grad) {
-    if (!S) return false;
-    const n = str(name, 80).trim(), g = str(grad, 12).trim(); if (!n || !g) return false;
-    const RANK = /^(E?P[HO]?K|P[HO]?M|PKA|E?K[HO]?K|KKA|KA|P?OR|PR|PD|LPD|KR|KOR|KD|LKD)(in)?$/;
-    let p = state.people.find(x => norm(x.name) === norm(n));
-    if (!p) { p = normPerson({ id: uid(), name: n, roles: [], parent: null, contact: '', u: Date.now() }); state.people.push(p); }
-    if (p.roles[0] === g && p.roles.filter(r => RANK.test(r)).length === 1) return true;
-    p.roles = [g, ...p.roles.filter(r => !RANK.test(r))].slice(0, 12); p.u = Date.now();
-    commit(); return true;
-  },
   /** Vorbelegung neuer Vorgänge aus der laufenden Schicht (Rufname, Besatzung). */
   preset: () => { if (!S) return null; const sh = liveShift(); return sh ? { einsatz: shiftCrewPreset(sh) } : null; },
   /** Offenen Punkt als Todo in den Planner übernehmen (z. B. „Lichtbildmappe fertigen“). */

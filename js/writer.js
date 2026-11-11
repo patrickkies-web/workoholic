@@ -185,7 +185,7 @@
         const any = cars.some(w => w && Array.isArray(w.crew) && w.crew.some(c => c && has(c.name)));
         const cards = cars.map((w, ci) => {
           const crew = (w && Array.isArray(w.crew) ? w.crew : []).map((c, pi) => [c, pi]).filter(([c]) => c && has(c.name));
-          return `<div class="w-sub w-car"><div class="w-sub-h">SW ${ci + 1}<b>Streifenwagen ${ci + 1}</b><span class="grow"></span>${cars.length > 1 ? `<button type="button" class="link danger" data-car-del="${esc(k)}" data-i="${ci}">Entfernen</button>` : ''}</div>${crew.length ? `<div class="w-pers-row">${crew.map(([c, pi]) => `<span class="w-pers${has(c.grad) ? '' : ' nograd'}"><button type="button" class="w-pers-n" data-rank-edit="${esc(k)}" data-i="${ci}.${pi}" title="${esc(c.name)} – Amtsbezeichnung ändern">${has(c.grad) ? `<i>${esc(c.grad)}</i>` : '<i class="w-pers-q">Amtsbez.?</i>'}<span>${esc(nachname(c.name))}</span></button><button type="button" data-pers-del="${esc(k)}" data-i="${ci}.${pi}" aria-label="${esc([c.grad, c.name].filter(Boolean).join(' '))} entfernen"><svg class="i" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg></button></span>`).join('')}</div>${crew.filter(([c, pi]) => !has(c.grad) || U.rankEdit === `${k}|${ci}.${pi}`).map(([c, pi]) => rankPicker(k, ci, pi, c)).join('')}` : ''}<div class="w-combo"><input class="input" id="${fid(k)}-${ci}" data-combo="pers" data-ck="${esc(k)}" data-ci="${ci}" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-label="Person für Streifenwagen ${ci + 1}" placeholder="${crew.length ? '+ weitere Person' : 'Person, z. B. M …'}" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="done" maxlength="60"></div></div>`;
+          return `<div class="w-sub w-car"><div class="w-sub-h">SW ${ci + 1}<b>Streifenwagen ${ci + 1}</b><span class="grow"></span>${cars.length > 1 ? `<button type="button" class="link danger" data-car-del="${esc(k)}" data-i="${ci}">Entfernen</button>` : ''}</div>${crew.length ? `<div class="w-pers-row">${crew.map(([c, pi]) => `<span class="w-pers">${has(c.grad) ? `<i>${esc(c.grad)}</i>` : ''}<span>${esc(c.name)}</span><button type="button" data-pers-del="${esc(k)}" data-i="${ci}.${pi}" aria-label="${esc([c.grad, c.name].filter(Boolean).join(' '))} entfernen"><svg class="i" viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg></button></span>`).join('')}</div>` : ''}<div class="w-combo"><input class="input" id="${fid(k)}-${ci}" data-combo="pers" data-ck="${esc(k)}" data-ci="${ci}" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-label="Person für Streifenwagen ${ci + 1}" placeholder="${crew.length ? '+ weitere Person' : 'Person, z. B. M …'}" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="done" maxlength="60"></div></div>`;
         }).join('');
         return `${Q}${L()}<div class="w-cars">${cards}</div><div class="w-quick w-car-add"><button type="button" class="chip" data-car-add="${esc(k)}">+ Streifenwagen</button>${any ? '' : lastWagen(k)}</div><p class="w-hint">Anfangsbuchstaben tippen: Vorschläge aus deinem Team und früheren Vorgängen. Enter übernimmt, neue Namen gehen auch. Im Text stehen Amtsbezeichnung und Nachname.</p></div>`;
       }
@@ -285,22 +285,6 @@
     if (!prev) return '';
     const w = crewsOf(prev);
     return `<button type="button" class="chip w-recent" data-multi="${esc(JSON.stringify({ [k]: w.map(c => ({ crew: c })) }))}">↺ Wie zuletzt: ${esc(w.map(c => c.map(p => [p.grad, nachname(p.name)].filter(Boolean).join(' ')).join('/')).join(' · '))}</button>`;
-  }
-  /** Schnellauswahl der Amtsbezeichnung für eine Person im Streifenwagen; die Wahl wird im Team gemerkt. */
-  const RANKS = ['PKA', 'PKAin', 'PK', 'PKin', 'POK', 'POKin', 'PHK', 'PHKin', 'EPHK', 'EPHKin'];
-  function rankPicker(k, ci, pi, c) {
-    const g = c.grad || '', more = DGRADE.filter(x => x && !RANKS.includes(x));
-    return `<div class="w-rank"><span class="w-lbl">Amtsbezeichnung für ${esc(c.name)}</span><div class="w-chips">${RANKS.map(x => `<button type="button" class="chip sm" data-rank-set="${esc(k)}" data-i="${ci}.${pi}" data-v="${x}" aria-pressed="${String(g === x)}">${x}</button>`).join('')}<select class="input w-rank-more" data-rank-sel="${esc(k)}" data-i="${ci}.${pi}" aria-label="Weitere Amtsbezeichnungen"><option value="">weitere …</option>${more.map(x => `<option value="${x}" ${g === x ? 'selected' : ''}>${x}</option>`).join('')}</select></div></div>`;
-  }
-  function setGrad(k, i, g) {
-    const d = doc(); if (!d || !has(g)) return;
-    const [ci, pi] = String(i).split('.').map(Number);
-    const cars = JSON.parse(JSON.stringify(getP(d.data, k) || []));
-    const c = cars[ci] && Array.isArray(cars[ci].crew) ? cars[ci].crew[pi] : null; if (!c) return;
-    c.grad = g; setP(d.data, k, cars); U.rankEdit = null;
-    persist(false);
-    if (W().setRank) W().setRank(c.name, g); // im Team merken: künftig automatisch dabei
-    renderMain();
   }
   /** Ortsteil, der für dieselbe Straße zuletzt gewählt wurde (aus früheren Vorgängen). */
   function otMemory(ort, strasse) {
@@ -873,8 +857,6 @@
       if (b.dataset.partCopy) { const d = doc(); if (!d) return; const a = getP(d.data, b.dataset.partCopy); const i = Number(b.dataset.i); a[i] = { ...JSON.parse(JSON.stringify(a[i - 1])), name: a[i].name }; persist(false); renderMain(); return; }
       if (b.dataset.listAdd) { const d = doc(); if (!d) return; const a = Array.isArray(getP(d.data, b.dataset.listAdd)) ? getP(d.data, b.dataset.listAdd).slice() : []; if (!a.length && b.dataset.min1) a.push({}); a.push({}); setP(d.data, b.dataset.listAdd, a); persist(false); renderMain(); const cs = $$('#wFields .w-item-card'); if (cs.length) cs[cs.length - 1].scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
       if (b.dataset.listDel) { const d = doc(); if (!d) return; const cur = getP(d.data, b.dataset.listDel); if (!Array.isArray(cur)) return; const a = cur.slice(); a.splice(Number(b.dataset.i), 1); setP(d.data, b.dataset.listDel, a.length ? a : undefined); persist(false); renderMain(); return; }
-      if (b.dataset.rankEdit) { const key = `${b.dataset.rankEdit}|${b.dataset.i}`; U.rankEdit = U.rankEdit === key ? null : key; renderMain(); return; }
-      if (b.dataset.rankSet) { setGrad(b.dataset.rankSet, b.dataset.i, b.dataset.v); return; }
       if (b.dataset.carAdd) { const d = doc(); if (!d) return; const k = b.dataset.carAdd; const a = Array.isArray(getP(d.data, k)) && getP(d.data, k).length ? getP(d.data, k).slice() : [{}]; a.push({}); setP(d.data, k, a); persist(false); renderMain(); const el = $(`#wFields [data-combo="pers"][data-ci="${a.length - 1}"]`); if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); if (!W().mobile()) el.focus(); } return; }
       if (b.dataset.carDel) { const d = doc(); if (!d) return; const a = (getP(d.data, b.dataset.carDel) || []).slice(); a.splice(Number(b.dataset.i), 1); setP(d.data, b.dataset.carDel, a.length ? a : undefined); persist(false); renderMain(); return; }
       if (b.dataset.persDel) { const d = doc(); if (!d) return; const [ci, pi] = b.dataset.i.split('.').map(Number); const a = JSON.parse(JSON.stringify(getP(d.data, b.dataset.persDel) || [])); if (a[ci] && Array.isArray(a[ci].crew)) a[ci].crew.splice(pi, 1); setP(d.data, b.dataset.persDel, a); persist(false); renderMain(); return; }
@@ -932,9 +914,7 @@
     });
     root.addEventListener('change', e => {
       const sc = screenOf(); if (sc && sc[1].change && sc[1].change(e, screenApi(sc[0]))) return;
-      const el = e.target;
-      if (el.dataset && el.dataset.rankSel) { setGrad(el.dataset.rankSel, el.dataset.i, el.value); return; }
-      if (!el.dataset || !el.dataset.k) return;
+      const el = e.target; if (!el.dataset || !el.dataset.k) return;
       const d = doc(); if (!d) return;
       if (el.tagName === 'SELECT') { setP(d.data, el.dataset.k, el.value || undefined); persist(false); schedulePreview(); return; }
       if (el.dataset.rerender) { renderMain(); return; }
