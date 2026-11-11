@@ -134,6 +134,7 @@
     else if (r.zeug) bel = 'Nach erfolgter zeugenschaftlicher Belehrung' + (p.zvr ? ' mit besonderem Hinweis auf das Zeugnisverweigerungsrecht gemäß § 52 StPO' : '');
     else if (p.rolle === 'bs') bel = 'Nach erfolgter Beschuldigtenbelehrung';
     else bel = 'Nach erfolgter Betroffenenbelehrung gemäß § 55 OWiG';
+    if (p.keine && r) return `${bel} durch ${durch} erklärte ${wer}, ${keineWas(p)}.`;
     const gg = gegenText(data, p);
     const bereit = r && r.zeug && p.zvr && p.bereit !== false;
     const bereitSatz = pron ? `erklärte ${wer} sich zur Aussage bereit und machte ${gg}` : `erklärte sich ${wer} zur Aussage bereit und machte ${gg}`;
@@ -346,6 +347,14 @@
     return [head, ...list, t.filter(Boolean).join(' ')].filter(Boolean).join('\n');
   }
 
+  /** Keine Angaben: Beschuldigte/Betroffene zur Sache, Zeugen mit § 52 verweigern das Zeugnis, sonst keine Angaben zum Sachverhalt. */
+  function keineWas(p) {
+    const r = ROLLE[p.rolle] || {}, pr = PR(p);
+    if (r.tat) return 'keine Angaben zur Sache machen zu wollen';
+    if (r.zeug && p.zvr) return `von ${pr.sein === 'ihr' ? 'ihrem' : pr.sein === 'sein' ? 'seinem' : '[seinem/ihrem]'} Zeugnisverweigerungsrecht Gebrauch zu machen`;
+    return 'keine Angaben zum Sachverhalt machen zu wollen';
+  }
+  const keineLabel = p => { const r = ROLLE[p.rolle] || {}; return r.tat ? 'Macht keine Angaben zur Sache' : r.zeug && p.zvr ? 'Verweigert das Zeugnis (§ 52 StPO)' : 'Macht keine Angaben'; };
   /** „Herr Schneider wurde durch PHK Becker als Beschuldigter belehrt.“ – nach den Deutschkenntnissen mit „Er …“. */
   function belehrungSatz(data, i, pron = false) {
     const p = arr(data.personen)[i] || {}, r = ROLLE[p.rolle], pr = PR(p);
@@ -355,12 +364,17 @@
     const als = r.zeug ? (p.g === 'w' ? 'Zeugin' : p.g === 'm' ? 'Zeuge' : '[Zeuge/Zeugin]') : (p.g === 'm' || p.g === 'w' ? r[p.g] : r.x);
     const base = `${wer} wurde durch ${durch} als ${als}${r.owi ? ' gemäß § 55 OWiG' : ''} belehrt`;
     if (!(r.zeug && p.zvr)) return base + '.';
-    return `${base} und dabei besonders auf ${pr.sein} Zeugnisverweigerungsrecht gemäß § 52 StPO hingewiesen${p.bereit !== false ? `, woraufhin ${pr.er} sich zur Aussage bereit erklärte` : ''}.`;
+    const folge = p.keine ? `, woraufhin ${pr.er} erklärte, ${keineWas(p)}` : p.bereit !== false ? `, woraufhin ${pr.er} sich zur Aussage bereit erklärte` : '';
+    return `${base} und dabei besonders auf ${pr.sein} Zeugnisverweigerungsrecht gemäß § 52 StPO hingewiesen${folge}.`;
   }
   /** Der Satz direkt vor der Schilderung. Mit Alkohol/Drogen dazwischen: „Zum Sachverhalt machte er gegenüber … folgende Angaben:“ */
   function vorText(data, i) {
     const p = arr(data.personen)[i] || {};
-    if (einOf(p).length) return `Zum Sachverhalt machte ${PR(p).er} ${gegenText(data, p, true)} sinngemäß folgende Angaben:`;
+    if (einOf(p).length) {
+      const r = ROLLE[p.rolle] || {};
+      if (p.keine) return r.zeug && p.zvr ? '' : `${PR(p).Er} erklärte, ${keineWas(p)}.`;
+      return `Zum Sachverhalt machte ${PR(p).er} ${gegenText(data, p, true)} sinngemäß folgende Angaben:`;
+    }
     return einleitung(data, i, !!spracheText(data, i));
   }
   /**
@@ -369,7 +383,7 @@
    */
   function block(data, i, num = '') {
     const p = arr(data.personen)[i] || {}, t = schilderung(p), sp = spracheText(data, i), ein = einOf(p).length;
-    return [`${num ? num + ' ' : ''}${heading(data, i)}`, sp, ein ? belehrungSatz(data, i, !!sp) : '', ein ? einflussText(data, i) : '', vorText(data, i), t || '[Schilderung]'].filter(Boolean).join('\n');
+    return [`${num ? num + ' ' : ''}${heading(data, i)}`, sp, ein ? belehrungSatz(data, i, !!sp) : '', ein ? einflussText(data, i) : '', vorText(data, i), p.keine ? '' : t || '[Schilderung]'].filter(Boolean).join('\n');
   }
   /** Abschnittsnummer ohne Punkt dahinter: „3.“ → „3“, „3.2.“ → „3.2“. */
   const cleanNr = s => str(s).replace(/[^\d.]/g, '').replace(/\.{2,}/g, '.').replace(/^\.+|\.+$/g, '');
@@ -400,8 +414,8 @@
     if (p.g !== 'm' && p.g !== 'w') m.push('Anrede');
     if (!has(p.nachname)) m.push('Nachname');
     if (!(p.bel && has(p.bel.name))) m.push('belehrt durch');
-    if (!arr(p.gegen).length) m.push('gegenüber');
-    if (!has(p.text)) m.push('Schilderung');
+    if (!p.keine && !arr(p.gegen).length) m.push('gegenüber');
+    if (!p.keine && !has(p.text)) m.push('Schilderung');
     if (p.spr === 'kein' && !arr(p.sprMittel).length && !has(p.sprAndere)) m.push('Verständigung');
     const e = einOf(p);
     if (e.length) {
@@ -507,7 +521,8 @@
       p = p || {};
       const e = einOf(p);
       const meta = [rolleLabel(p), p.bel && has(p.bel.name) ? 'belehrt durch ' + offName(p.bel) : 'Belehrung offen', ...(p.spr === 'eingeschr' ? ['Deutsch eingeschränkt'] : p.spr === 'kein' ? ['kein Deutsch'] : []), ...(e.length ? [e.length === 2 ? 'Alkohol und Drogen' : e[0] === 'alk' ? 'Alkohol' : 'Drogen'] : [])];
-      const snip = str(p.text).replace(/\s+/g, ' ');
+      const snip = p.keine ? '' : str(p.text).replace(/\s+/g, ' ');
+      if (p.keine) meta.push(keineLabel(p).replace(/^Macht /, '').replace(/^Verweigert das Zeugnis.*/, 'verweigert das Zeugnis'));
       const opened = i === V.last;
       return `<li class="sd-item${opened ? ' open' : ''}"><div class="sd-row"><button type="button" class="sd-card" data-sd="edit" data-i="${i}"><span class="sd-n mono">${i + 1}</span><span class="sd-main"><b>${esc(heading(data, i))}</b><small>${esc(meta.join(' · '))}${snip ? ` · „${esc(snip.slice(0, 80))}${snip.length > 80 ? '…' : ''}“` : ''}</small></span><span class="pill ${p.fertig ? 'pill-lime' : 'pill-quiet'}">${p.fertig ? 'Fertig' : 'Entwurf'}</span></button>${P.length > 1 ? `<button type="button" class="sd-up" data-sd="up" data-i="${i}" aria-label="Nach oben"${i ? '' : ' disabled'}>${ICON_UP}</button>` : ''}</div>${opened ? `<div class="w-out sd-last"><div class="w-out-h"><span class="w-lbl">Abgeschlossen – so steht es in der Anzeige</span><button type="button" class="btn btn-light btn-sm" data-sd="copy1" data-i="${i}">Kopieren</button></div><pre class="w-out-t">${esc(block(data, i))}</pre></div>` : ''}</li>`;
     }).join('');
@@ -544,12 +559,13 @@
         <div class="w-q full w-head"><span class="w-head-t">Verständigung und Belehrung</span><span class="w-head-h">Kommt zuerst – Fragen zum Konsum und Tests stehen im Text erst danach.</span></div>
         ${spracheHtml(p, base)}
         <div class="w-q" data-q="bel"><span class="w-lbl">Belehrt durch <i class="w-req" title="Pflicht">•</i></span>${r ? `<p class="w-hint">${esc(r.bel)}</p>` : ''}${hasBel ? `<div class="sd-toks">${tok(p.bel, `${base}.bel`, 'unbel')}</div>` : ta(api, data, 'bel', 'sdBel', 'Namen tippen, z. B. Schulz')}</div>
-        ${r && r.zeug ? `<div class="w-q" data-q="zvr"><span class="w-lbl">Belehrung</span><div class="w-chips"><button type="button" class="chip" data-sd="zvr" aria-pressed="${String(!!p.zvr)}">Besonderer Hinweis auf das Zeugnisverweigerungsrecht</button>${p.zvr ? `<button type="button" class="chip" data-sd="bereit" aria-pressed="${String(p.bereit !== false)}">Zur Aussage bereit erklärt</button>` : ''}</div><p class="w-hint sd-hint">Steht mit „gemäß § 52 StPO“ im Text. Gilt für Verlobte, Ehegatten, eingetragene Lebenspartner, Verwandte und Verschwägerte der beschuldigten Person.</p></div>` : ''}
+        ${r && r.zeug ? `<div class="w-q" data-q="zvr"><span class="w-lbl">Belehrung</span><div class="w-chips"><button type="button" class="chip" data-sd="zvr" aria-pressed="${String(!!p.zvr)}">Besonderer Hinweis auf das Zeugnisverweigerungsrecht</button>${p.zvr && !p.keine ? `<button type="button" class="chip" data-sd="bereit" aria-pressed="${String(p.bereit !== false)}">Zur Aussage bereit erklärt</button>` : ''}</div><p class="w-hint sd-hint">Steht mit „gemäß § 52 StPO“ im Text. Gilt für Verlobte, Ehegatten, eingetragene Lebenspartner, Verwandte und Verschwägerte der beschuldigten Person.</p></div>` : ''}
         <div class="w-q full w-head"><span class="w-head-t">Alkohol und Drogen</span></div>
         ${einflussHtml(api, data, p, base)}
         <div class="w-q full w-head"><span class="w-head-t">Schilderung</span><span class="w-head-h">Wem gegenüber und was die Person geschildert hat – steht im Text ganz unten.</span></div>
-        <div class="w-q" data-q="gegen"><span class="w-lbl">Gegenüber <i class="w-req" title="Pflicht">•</i></span>${gegenChips}${others.length ? `<div class="sd-toks">${others.map(([x, j]) => tok(x, `${base}.gegen.${j}`, 'ungegen', j)).join('')}</div>` : ''}${ta(api, data, 'gegen', 'sdGegen', 'Weitere Person tippen …')}<p class="sd-im">Im Text: <b data-live="gegen">${esc(gegenText(data, p))}</b></p></div>
-        <div class="w-q" data-q="text"><label class="w-lbl" for="sdText">Schilderung <i class="w-req" title="Pflicht">•</i></label><div class="sd-sent" data-sd="focus"><span class="sd-intro" data-live="intro">${esc(vorText(data, i))}</span><textarea class="sd-text" id="sdText" data-sk="${base}.text" placeholder="Was hat die Person sinngemäß geschildert? Ich-Form oder indirekte Rede." autocomplete="off" autocapitalize="sentences" spellcheck="true" maxlength="12000">${esc(p.text || '')}</textarea></div></div>
+        ${r ? `<div class="w-q" data-q="keine"><div class="w-chips"><button type="button" class="chip" data-sd="tog" data-p="${base}.keine" aria-pressed="${String(!!p.keine)}">${esc(keineLabel(p))}</button></div>${r.tat ? '<p class="w-hint sd-hint">Beschuldigte und Betroffene müssen sich nicht zur Sache äußern. Im Text steht dann „… erklärte, keine Angaben zur Sache machen zu wollen.“</p>' : ''}</div>` : ''}
+        ${p.keine ? '' : `<div class="w-q" data-q="gegen"><span class="w-lbl">Gegenüber <i class="w-req" title="Pflicht">•</i></span>${gegenChips}${others.length ? `<div class="sd-toks">${others.map(([x, j]) => tok(x, `${base}.gegen.${j}`, 'ungegen', j)).join('')}</div>` : ''}${ta(api, data, 'gegen', 'sdGegen', 'Weitere Person tippen …')}<p class="sd-im">Im Text: <b data-live="gegen">${esc(gegenText(data, p))}</b></p></div>`}
+        ${p.keine ? '' : `<div class="w-q" data-q="text"><label class="w-lbl" for="sdText">Schilderung <i class="w-req" title="Pflicht">•</i></label><div class="sd-sent" data-sd="focus"><span class="sd-intro" data-live="intro">${esc(vorText(data, i))}</span><textarea class="sd-text" id="sdText" data-sk="${base}.text" placeholder="Was hat die Person sinngemäß geschildert? Ich-Form oder indirekte Rede." autocomplete="off" autocapitalize="sentences" spellcheck="true" maxlength="12000">${esc(p.text || '')}</textarea></div></div>`}
         <div class="w-q"><div class="w-out"><div class="w-out-h"><span class="w-lbl">So steht es in der Anzeige</span><button type="button" class="btn btn-light btn-sm" data-sd="copy1" data-i="${i}">Kopieren</button></div><pre class="w-out-t" data-live="block">${esc(block(data, i))}</pre></div></div>
       </div>
       <div class="w-nav"><button type="button" class="btn btn-ghost btn-sm btn-danger" data-sd="del">Entfernen</button><span class="grow"></span><span class="w-nav-i mono">${i + 1} / ${P.length}</span><button type="button" class="btn btn-accent" data-sd="done1">Abschließen</button></div>`;
@@ -791,6 +807,7 @@
         if (k >= 0) a2.splice(k, 1); else a2.push(v);
         setPath(data, path, a2.length ? a2 : undefined); save(); return true;
       }
+      case 'tog': setPath(data, b.dataset.p, getPath(data, b.dataset.p) ? undefined : true); save(); return true;
       case 'now': { const d0 = new Date(); setPath(data, b.dataset.p, `${String(d0.getHours()).padStart(2, '0')}:${String(d0.getMinutes()).padStart(2, '0')}`); save(); return true; }
       case 'unoff': setPath(data, b.dataset.p, undefined); save(); return true;
       case 'wfadd': addFrei(api); return true;
