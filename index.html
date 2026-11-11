@@ -1066,7 +1066,7 @@ button.fe-oref{text-decoration:underline;text-decoration-color:var(--line-2);tex
 .sk-prev-b{position:absolute;left:10px;bottom:10px;padding:6px 12px;border-radius:999px;background:rgba(10,10,11,.78);color:var(--text);font-size:12px;font-weight:500;pointer-events:none;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
 /* Vollbild-Editor der Unfallskizze */
 body.skx-open{overflow:hidden}
-body.skx-open .toasts{bottom:calc(132px + var(--sab))}
+body.skx-open .toasts{top:calc(104px + var(--sat));bottom:auto}
 .skx{position:fixed;inset:0;z-index:140;display:flex;flex-direction:column;background:#0c0c0d;color:var(--text);overscroll-behavior:contain}
 .skx-top{display:flex;align-items:center;gap:8px;padding:calc(8px + var(--sat)) calc(10px + var(--sar)) 8px calc(10px + var(--sal));background:rgba(20,20,22,.96);border-bottom:1px solid var(--line)}
 .skx-top .grow,.skx-row .grow{flex:1 1 auto;min-width:0}
@@ -1103,6 +1103,25 @@ body.skx-open .toasts{bottom:calc(132px + var(--sab))}
 .skx-size{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--text-3)}
 .skx-size button{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,.05);border:1px solid var(--line);color:var(--text);font-size:16px;transition:transform .16s var(--ease-out)}
 .skx-size button:active{transform:scale(.94)}
+.sk-sum li.off{color:var(--text-3);background:none;border:1px dashed var(--line-2)}
+.sk-sum li.off::before{background:var(--text-3)}
+.sk-pages{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.sk-pages li{display:flex;align-items:baseline;gap:12px;padding:10px 12px;border-radius:12px;background:rgba(255,255,255,.04);font-size:13px;line-height:1.45;color:var(--text-2)}
+.sk-pages li b{flex:none;min-width:52px;color:var(--text);font-weight:500}
+.sk-pages li.off{background:none;border:1px dashed var(--line-2);color:var(--text-3)}
+.sk-pages li.off b{color:var(--coral)}
+.skx-steps{display:grid;grid-template-columns:1fr 1fr;gap:3px;width:100%;max-width:760px;margin:0 auto;padding:3px;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid var(--line)}
+.skx-steps button{display:flex;align-items:center;justify-content:center;gap:8px;min-width:0;min-height:38px;padding:0 8px;border-radius:11px;font-size:13px;font-weight:500;color:var(--text-2);white-space:nowrap;transition:background-color .15s ease,color .15s ease,transform .16s var(--ease-out)}
+.skx-steps button:active{transform:scale(.97)}
+.skx-steps button span{display:grid;place-items:center;flex:none;width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,.1);font-size:11px;font-weight:600}
+.skx-steps button[aria-pressed=true]{background:var(--text);color:#111}
+.skx-steps button[aria-pressed=true] span{background:#111;color:var(--text)}
+.skx-steps button.next{color:var(--accent)}
+.skx-steps button.next span{background:var(--accent);color:var(--accent-ink)}
+.skx-steps button:disabled{opacity:.4}
+.skx-note{flex:1 1 200px;min-width:0;font-size:12.5px;line-height:1.4;color:var(--text-2)}
+.skx-size b{min-width:46px;text-align:center;font-size:12px;font-weight:500;color:var(--text)}
+.skx-vs .btn{flex:none}
 .sk-pre{margin:0;padding:14px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid var(--line);white-space:pre-wrap;font:400 12.5px/1.55 var(--mono);color:var(--text-2);overflow-wrap:anywhere}
 .fe-conf{list-style:none;margin:16px 0 0;padding:0;display:flex;flex-direction:column}
 .fe-conf li{display:flex;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
@@ -2165,7 +2184,7 @@ dialog.brief-dlg.open .brief{opacity:1;transform:none}
         <div><span class="spaced">Schriftliche Arbeiten</span><h2 class="card-title">Vorgänge<sup id="wCount">0</sup></h2></div>
         <button class="icon-btn" type="button" data-w="new" aria-label="Neuer Vorgang"><svg class="i" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
       </div>
-      <button type="button" class="w-skq" data-w="new" data-mod="skizze"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18l5-12 4 8 3-5 4 9"/><circle cx="17" cy="6" r="2"/></svg><span><b>Unfallskizze</b><small>Luftbild, Fahrzeuge, woher und wohin, Kollisionsort</small></span></button>
+      <button type="button" class="w-skq" data-w="new" data-mod="skizze"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18l5-12 4 8 3-5 4 9"/><circle cx="17" cy="6" r="2"/></svg><span><b>Unfallskizze</b><small>Fahrzeuge, woher und wohin, Kollisionsort – als PDF</small></span></button>
       <div id="wList"></div>
     </aside>
     <article class="card w-main" id="wMain"></article>
@@ -2340,6 +2359,8 @@ dialog.brief-dlg.open .brief{opacity:1;transform:none}
     <div class="sheet-head"><h3 id="pdH">Neue Person</h3><button type="button" class="icon-btn sm" data-close aria-label="Schließen"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <label class="f-label" for="pdName">Name</label>
     <input class="input" id="pdName" maxlength="80" placeholder="Vor- und Nachname" autocomplete="off" spellcheck="false">
+    <label class="f-label" for="pdRank">Amtsbezeichnung</label>
+    <select class="input" id="pdRank"></select>
     <label class="f-label" for="pdRoleIn">Rollen</label>
     <div class="role-chips" id="pdRoles"></div>
     <div class="role-in"><input class="input" id="pdRoleIn" maxlength="40" placeholder="z. B. Schichtleitung – Enter fügt hinzu" autocomplete="off" spellcheck="false"><button type="button" class="btn btn-ghost btn-sm" id="pdRoleAdd">Hinzufügen</button></div>
@@ -2643,6 +2664,7 @@ dialog.brief-dlg.open .brief{opacity:1;transform:none}
 <script src="js/skizze.js"></script>
 <script src="js/strassen-gt.js"></script>
 <script src="js/anzeige.js"></script>
+<script src="js/unfallort.js"></script>
 <script src="js/schilderung.js"></script>
 <script src="js/writer.js"></script>
 </body>

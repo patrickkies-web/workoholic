@@ -33,6 +33,8 @@
   const DGRADE = ['', 'PKA', 'PKAin', 'PK', 'PKin', 'POK', 'POKin', 'PHK', 'PHKin', 'EPHK', 'EPHKin', 'KA', 'KAin', 'KK', 'KKin', 'KOK', 'KOKin', 'KHK', 'KHKin', 'EKHK', 'EKHKin', 'PR', 'PRin', 'POR', 'PORin', 'KR', 'KRin'];
   const RANK_RE = /^(E?P[HO]?K|P[HO]?M|PKA|E?K[HO]?K|KKA|KA|P?OR|PR|PD|LPD|KR|KOR|KD|LKD)(in)?$/;
   const rankOf = roles => arr(roles).map(str).find(r => RANK_RE.test(r)) || '';
+  /** Amtsbezeichnung eines Teammitglieds: eigenes Feld (rank), sonst aus den Rollen. */
+  const rankT = t => str(t && t.rank) || rankOf(t && t.roles);
   /** „pok“ → „POK“, „pokin“ → „POKin“; keine Amtsbezeichnung → ''. */
   function canonRank(t) {
     t = str(t); if (!t || t.length > 7) return '';
@@ -530,8 +532,8 @@
 
   function loadRanks(api) {
     const m = new Map();
-    const put = (name, grad) => { const k = nameKey(name), g = str(grad); if (k && g && RANK_RE.test(g) && !m.has(k)) m.set(k, g); };
-    for (const t of api.team()) if (t) put(t.name, rankOf(t.roles));
+    const put = (name, grad, frei = false) => { const k = nameKey(name), g = str(grad); if (k && g && (frei || RANK_RE.test(g)) && !m.has(k)) m.set(k, g); };
+    for (const t of api.team()) if (t) put(t.name, rankT(t), !!str(t.rank));
     for (const x of api.docs().slice().sort((a, b) => (b.u || 0) - (a.u || 0))) {
       const dt = (x && x.data) || {};
       for (const c of crewOf(dt)) put(c.name, c.grad);
@@ -557,7 +559,7 @@
       for (const x of arr(p && p.gegen)) if (x && !x.ref) add(x.grad, x.name, 'doc');
     }
     for (const c of crewOf(data)) add(c.grad, c.name, 'crew');
-    for (const t of api.team()) if (t) add(rankOf(t.roles), t.name, 'team');
+    for (const t of api.team()) if (t) add(rankT(t), t.name, 'team');
     return out;
   }
   function matches(o, q) {

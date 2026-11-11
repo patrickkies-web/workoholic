@@ -92,8 +92,8 @@ Der Assistent folgt genau dieser Reihenfolge in neun Phasen: **Einsatz → Gesch
 | | Angaben der geschädigten Person | nur wenn erreicht: Belehrung, wie aufmerksam geworden, Aufenthaltsort, Sichtkontakt, Textbaustein oder eigene Schilderung, Zwischenkontrolle, Ergänzung, Schadensschätzung, Altschäden, Fragebogen (ausgefüllt / ausgehändigt / nicht verwendet) |
 | Unfallort | Eintreffsituation | Standorte/Personen, Veränderungen, Übersichtsfotos |
 | | Unfallörtlichkeit | Adresse, Lage, Straßenart, Zugehörigkeit, öffentlich zugänglich?, genaue Lage, Sicherheit der Ortsangabe |
-| | Straße & Verkehrsregelung | Tempo + Grundlage, Fahrstreifen, Trennung, Parkordnung, Verlauf, Höhenprofil, Besonderheiten, Verkehrsaufkommen |
-| | Fahrbahn, Licht & Wetter | Belag, Zustand, Licht, Beleuchtung, Witterung, Sicht, Sichtbehinderung |
+| | Straße & Verkehrsregelung | Tempo + Grundlage, Fahrstreifen, Trennung, Parkordnung, Verlauf, Höhenprofil, Besonderheiten |
+| | Verhältnisse vor Ort | eigener Baustein, feste Auswahl zum Ankreuzen (siehe unten): Licht, Beleuchtung, Straßenzustand, Belag, Fahrbahndecke, Witterung, Sicht, Verkehrslage |
 | Schaden | Beschädigtes Fahrzeug / Sache | Art, Marke, Modell, Farbe, Kennzeichen · oder Beschreibung der Sache |
 | | Abgestellt / Fahrvorgang | Parkposition, Einparkrichtung, Fahrbahnseite, abgestellt von (auch „unbekannt“), beladen · oder Vorgang, Richtung, Tempo |
 | | Schadensbild | Teile-Picker; je Teil: Art (10 Typen + frei), Verlauf, Höhe von–bis, Fremdlack + Farbe, Fremdmaterial, Altschaden, Ergänzung |
@@ -114,6 +114,32 @@ Der Assistent folgt genau dieser Reihenfolge in neun Phasen: **Einsatz → Gesch
 | | Asservate & weitere Veranlassungen | Asservate (Vorschlag aus den Spuren), Absicherung, Eigentumssicherung, VK, StA, Straßenbaulastträger, Straßenverkehrsbehörde, Anschlussermittlungen, Sonstiges, Einsatzende |
 | Bewertung | Deutung & Hergang | Spurenbild spricht für …, Übereinstimmung, eigener Hergang (Vorschlag als Platzhalter), Widersprüche, Manipulationsverdacht, Klarnamen an/aus |
 
+### Baustein „Verhältnisse vor Ort“
+
+Umstände, die bei **jeder** Unfallaufnahme anzugeben sind – unabhängig davon, wie die Örtlichkeit gestaltet ist (Ampel, Beschilderung, Kreuzung usw. gehören nicht hierher, sondern zu „Straße & Verkehrsregelung“). Die Auswahl ist abschließend und folgt der **Unfallmitteilung NRW, Blatt 2 „Zusätzliche Angaben“** (Formular NRW 3126, Anlage 4 zum RdErl. „Aufgaben der Polizei bei Verkehrsunfällen“ v. 25.08.2008, geändert 2011/2012); die Ziffer des Formulars steht im Chip in Klammern. Lichtverhältnisse und Straßenzustand stimmen mit der bundeseinheitlichen Verkehrsunfallanzeige überein („Inhalte der Verkehrsunfallanzeige“, Stand 1.1.2016; dort höchstens zwei Angaben zum Straßenzustand). Belag, Fahrbahndecke, Sicht und Verkehrslage ergänzen nach der Ausfüllhilfe zu Anlage 6 (2.1.4–2.1.6, Stand 25.01.23). Der Baustein liegt im Kern (`WVUF_CORE.VERH`, `verhBloecke`) und kann von späteren Modulen übernommen werden.
+
+| Feld | Auswahl (Ziffer im Formular) | Textbaustein im Bericht |
+| --- | --- | --- |
+| Bezug (nur bei bekannter Unfallzeit) | bei der Unfallaufnahme · zur Unfallzeit und bei der Aufnahme | „Zum Zeitpunkt der Unfallaufnahme …“ / „Zur Unfallzeit und bei der Unfallaufnahme …“ – nur im ersten Satz, danach „Es herrschte …“ |
+| Lichtverhältnisse | Tageslicht (0) · Dämmerung (1) · Dunkelheit (2) | „… herrschte Tageslicht.“ |
+| Beleuchtung (bei Dämmerung/Dunkelheit) | in Betrieb (3) · vorhanden, aus · nicht vorhanden | „…; die Straßenbeleuchtung war in Betrieb.“ / „…; die Parkplatzbeleuchtung war vorhanden, aber nicht in Betrieb.“ / „…; eine Straßenbeleuchtung ist nicht vorhanden.“ |
+| Straßenzustand (max. 2) | trocken (0) · nass/feucht (1) · winterglatt (2) · schlüpfrig – Öl, Dung, Laub usw. (3) | „… war die Fahrbahn nass bzw. feucht und durch Laub schlüpfrig.“ |
+| winterglatt durch | Schnee · Eis · Glatteis · Reif | „… durch Schnee und Eis winterglatt.“ |
+| schlüpfrig durch | Öl · Kraftstoff · Dung · Laub · Schmutz/Lehm | „… durch Öl schlüpfrig.“ |
+| Belag | Asphalt · Beton · Pflaster · Kopfsteinpflaster · unbefestigt | „Die Fahrbahn besteht aus Asphalt …“ (Parkplatz: „Die Verkehrsfläche …“) |
+| Fahrbahndecke | unbeschädigt · Schlaglöcher · Spurrillen · Risse/Aufbrüche · Flickstellen | „… und ist unbeschädigt.“ / „… und weist Schlaglöcher und Spurrillen auf.“ |
+| Witterungsverhältnisse | keine besonderen · Regen (1) · Schnee/-fall (2) · Hagel (3) · Nebel/Dunst (4) · Sichtweite unter 50 m (5) · Sichtweite unter 100 m (6) · Sturm/Böen (7) · Blendende Sonne (8) | „Besondere Witterungseinflüsse lagen nicht vor.“ · „Es regnete und hagelte.“ · „Es herrschte Nebel bzw. Dunst.“ · „Die Sichtweite betrug weniger als 50 m.“ · „Es herrschte Sturm bzw. böiger Wind.“ · „Die Sonne blendete aus westlicher Richtung.“ |
+| Sichtverhältnisse | gut · eingeschränkt · schlecht | „Die Sichtverhältnisse waren gut.“ / „Die Sicht war (stark) eingeschränkt durch …“ |
+| eingeschränkt durch | geparkte Fahrzeuge · Bewuchs/Hecken · Bebauung · Sonstiges (Satzbaustein) | „… durch geparkte Fahrzeuge und Bewuchs bzw. Hecken.“ |
+| Verkehrsaufkommen | gering · mäßig · dicht · zähfließend · Stau | „Es herrschte geringes Verkehrsaufkommen …“ |
+| besonderer Anlass | Berufsverkehr · Schülerverkehr · Einkaufsverkehr · Veranstaltung | „… (Schülerverkehr).“ |
+
+Ankreuz-Regeln: „trocken“ und „nass/feucht“ schließen sich aus; beim dritten Straßenzustand weicht die älteste Auswahl; „keine besonderen“ (Witterung) und „unbeschädigt“ (Fahrbahndecke) räumen die übrigen Kreuze ab; „unter 50 m“ und „unter 100 m“ schließen sich aus. Licht, Straßenzustand und Witterung sind Pflichtangaben – fehlen sie, steht im Bericht ein `[Platzhalter]`. Ältere Vorgänge mit den früheren Einzelfeldern („Zustand“, „Witterung“) werden beim Öffnen automatisch übernommen.
+
+**Auch als eigener Abschnitt:** In „Schreiben“ gibt es dafür die eigene Kachel **„Unfallörtlichkeit“** (`js/unfallort.js`, Modul `unfallort`) – wie „Allgemeines/Einsatzanlass“ ein einzelner Schritt mit Schnellwahl (Licht passend zur Uhrzeit nach Sonnenstand), dem fertigen Text zum Kopieren direkt darunter und dem Reiter **„Ziffern Bl. 2“** zum Übertragen in die Unfallmitteilung bzw. ViVA (z. B. „Witterungsverhältnisse: 1 Regen · 6 Sichtweite unter 100 m“). Den Reiter hat auch die VU-Flucht.
+
+Im Bericht ist 2.1 nach der Ausfüllhilfe in Zwischenzeilen gegliedert: **Unfallörtlichkeit** · **Straße und Verkehrsregelung** · **Fahrbahnverhältnisse** · **Witterungs- und Sichtverhältnisse** · **Verkehrslage**.
+
 **Vorbereitet auf Sonderfälle:** geschädigte Person nicht erreicht · nur telefonisch erreicht · Sache statt Fahrzeug (Eigentümer/zuständige Stelle) · Fahrzeug von anderer Person abgestellt · Unfall im fließenden Verkehr · mehrere Geschädigte · Knallzeugen und nachträgliche Feststellungen · Zeugenfotos · Kennzeichenfragment und ausländisches Kennzeichen · Halterabfrage passt nicht zur Beschreibung · Selbstmeldung (tätige Reue nach § 142 Abs. 4 StGB – mit Hinweis, wann sie ausscheidet) · Alkohol/Drogen mit Atemalkoholtest und Blutprobe · keine Fahrerlaubnis (§ 21 StVG) · Führerschein sichergestellt oder beschlagnahmt (DA 2.2) · bedeutender Schaden (§ 69 Abs. 2 Nr. 3 StGB) · Wohnsitz im Ausland (Sicherheitsleistung § 132 StPO, Dolmetscher) · Fläche nicht öffentlich zugänglich · Manipulationsverdacht.
 
 ---
@@ -125,7 +151,7 @@ Der Assistent folgt genau dieser Reihenfolge in neun Phasen: **Einsatz → Gesch
 | Abschnitt | Inhalt |
 | --- | --- |
 | 1.1 / 1.2 / 1.3 | Einsatzübernahme (bei eigener Feststellung: „… wurden während des Streifendienstes … aufmerksam“), Erkenntnislage im Telegrammstil mit Mitteiler (auch „Zeugin (Z 01)“), Eintreffsituation |
-| 2.1 | Unfallort, Verkehrsregelung, Fahrbahn/Licht/Witterung |
+| 2.1 | Zwischenzeilen Unfallörtlichkeit · Straße und Verkehrsregelung · Fahrbahnverhältnisse · Witterungs- und Sichtverhältnisse · Verkehrslage |
 | 2.2 | Spuren auf der Fahrbahn bzw. Verkehrsfläche |
 | 2.3 | **Fahrzeug UB 01** (angetroffen mit Schadensbild oder „entfernte sich … nicht in Augenschein genommen“), **Fahrzeug UB 02**, **Fahrzeug UB 03** ff. |
 | 2.4 | Spuren an Personen: niemand verletzt; bei ermittelter Person Verkehrstüchtigkeit (Anzeichen, Atemalkoholtest), Führerschein |
