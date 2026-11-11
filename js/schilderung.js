@@ -378,12 +378,36 @@
     return einleitung(data, i, !!spracheText(data, i));
   }
   /**
+   * Strafantrag (nur Geschädigte). Seit 17.07.2024 verlangt § 158 Abs. 2 StPO keine Schriftform mehr, wohl aber, dass Identität
+   * und Verfolgungswille feststehen – deshalb steht der Verfolgungswille ausdrücklich im Text; Unterschrift oder Vordruck,
+   * wenn angetippt; der Hinweis auf die Frist von drei Monaten (§ 77b StGB) ist vorgewählt und abwählbar.
+   */
+  function strafantragText(data, i) {
+    const p = arr(data.personen)[i] || {};
+    if (p.rolle !== 'gs' || !p.sa) return '';
+    const pr = PR(p), wer = `${cap(rolleArt(p))} ${nameOf(data, i)}`, frist = p.saFrist !== false;
+    const t = [];
+    if (p.sa === 'ja') {
+      t.push(`${wer} stellte vor Ort mündlich Strafantrag aus allen rechtlichen Gründen und erklärte ausdrücklich, die Strafverfolgung zu wünschen.`);
+      if (p.saForm === 'unterschrieben') t.push(`Den Strafantrag bestätigte ${pr.er} anschließend mit ${pr.sein === 'ihr' ? 'ihrer' : pr.sein === 'sein' ? 'seiner' : '[seiner/ihrer]'} Unterschrift auf dem Vordruck.`);
+      else if (p.saForm === 'vordruck') t.push(`Zusätzlich wurde ${pr.ihm} ein Vordruck für einen schriftlichen Strafantrag ausgehändigt${frist ? ', verbunden mit dem Hinweis, diesen innerhalb der Antragsfrist von drei Monaten (§ 77b StGB) einzureichen' : ''}.`);
+    } else if (p.sa === 'vorbehalt') {
+      t.push(`${wer} behielt sich die Stellung eines Strafantrags vor.`);
+      if (frist) t.push(`${pr.Er} wurde darauf hingewiesen, dass ein Strafantrag innerhalb von drei Monaten ab Kenntnis von Tat und Täter gestellt werden muss (§ 77b StGB).`);
+      if (p.saForm === 'vordruck') t.push(`Ein Vordruck für den Strafantrag wurde ${pr.ihm} ausgehändigt.`);
+    } else if (p.sa === 'nein') {
+      t.push(`${wer} erklärte, keinen Strafantrag stellen zu wollen.`);
+      if (frist) t.push(`${pr.Er} wurde darauf hingewiesen, dass ${pr.er} dies innerhalb von drei Monaten ab Kenntnis von Tat und Täter noch nachholen kann (§ 77b StGB).`);
+    }
+    return t.join(' ');
+  }
+  /**
    * Eine Schilderung in der Reihenfolge des Einsatzes: Unterüberschrift, Deutschkenntnisse, Belehrung,
    * Alkohol/Drogen (mit Fragen und Tests erst nach der Belehrung), zuletzt die Schilderung. num = „3.1“ oder ''.
    */
   function block(data, i, num = '') {
     const p = arr(data.personen)[i] || {}, t = schilderung(p), sp = spracheText(data, i), ein = einOf(p).length;
-    return [`${num ? num + ' ' : ''}${heading(data, i)}`, sp, ein ? belehrungSatz(data, i, !!sp) : '', ein ? einflussText(data, i) : '', vorText(data, i), p.keine ? '' : t || '[Schilderung]'].filter(Boolean).join('\n');
+    return [`${num ? num + ' ' : ''}${heading(data, i)}`, sp, ein ? belehrungSatz(data, i, !!sp) : '', ein ? einflussText(data, i) : '', vorText(data, i), p.keine ? '' : t || '[Schilderung]', strafantragText(data, i)].filter(Boolean).join('\n');
   }
   /** Abschnittsnummer ohne Punkt dahinter: „3.“ → „3“, „3.2.“ → „3.2“. */
   const cleanNr = s => str(s).replace(/[^\d.]/g, '').replace(/\.{2,}/g, '.').replace(/^\.+|\.+$/g, '');
@@ -522,6 +546,7 @@
       const e = einOf(p);
       const meta = [rolleLabel(p), p.bel && has(p.bel.name) ? 'belehrt durch ' + offName(p.bel) : 'Belehrung offen', ...(p.spr === 'eingeschr' ? ['Deutsch eingeschränkt'] : p.spr === 'kein' ? ['kein Deutsch'] : []), ...(e.length ? [e.length === 2 ? 'Alkohol und Drogen' : e[0] === 'alk' ? 'Alkohol' : 'Drogen'] : [])];
       const snip = p.keine ? '' : str(p.text).replace(/\s+/g, ' ');
+      if (p.rolle === 'gs' && p.sa) meta.push({ ja: 'Strafantrag gestellt', vorbehalt: 'Strafantrag vorbehalten', nein: 'kein Strafantrag' }[p.sa]);
       if (p.keine) meta.push(keineLabel(p).replace(/^Macht /, '').replace(/^Verweigert das Zeugnis.*/, 'verweigert das Zeugnis'));
       const opened = i === V.last;
       return `<li class="sd-item${opened ? ' open' : ''}"><div class="sd-row"><button type="button" class="sd-card" data-sd="edit" data-i="${i}"><span class="sd-n mono">${i + 1}</span><span class="sd-main"><b>${esc(heading(data, i))}</b><small>${esc(meta.join(' · '))}${snip ? ` · „${esc(snip.slice(0, 80))}${snip.length > 80 ? '…' : ''}“` : ''}</small></span><span class="pill ${p.fertig ? 'pill-lime' : 'pill-quiet'}">${p.fertig ? 'Fertig' : 'Entwurf'}</span></button>${P.length > 1 ? `<button type="button" class="sd-up" data-sd="up" data-i="${i}" aria-label="Nach oben"${i ? '' : ' disabled'}>${ICON_UP}</button>` : ''}</div>${opened ? `<div class="w-out sd-last"><div class="w-out-h"><span class="w-lbl">Abgeschlossen – so steht es in der Anzeige</span><button type="button" class="btn btn-light btn-sm" data-sd="copy1" data-i="${i}">Kopieren</button></div><pre class="w-out-t">${esc(block(data, i))}</pre></div>` : ''}</li>`;
@@ -566,6 +591,7 @@
         ${r ? `<div class="w-q" data-q="keine"><div class="w-chips"><button type="button" class="chip" data-sd="tog" data-p="${base}.keine" aria-pressed="${String(!!p.keine)}">${esc(keineLabel(p))}</button></div>${r.tat ? '<p class="w-hint sd-hint">Beschuldigte und Betroffene müssen sich nicht zur Sache äußern. Im Text steht dann „… erklärte, keine Angaben zur Sache machen zu wollen.“</p>' : ''}</div>` : ''}
         ${p.keine ? '' : `<div class="w-q" data-q="gegen"><span class="w-lbl">Gegenüber <i class="w-req" title="Pflicht">•</i></span>${gegenChips}${others.length ? `<div class="sd-toks">${others.map(([x, j]) => tok(x, `${base}.gegen.${j}`, 'ungegen', j)).join('')}</div>` : ''}${ta(api, data, 'gegen', 'sdGegen', 'Weitere Person tippen …')}<p class="sd-im">Im Text: <b data-live="gegen">${esc(gegenText(data, p))}</b></p></div>`}
         ${p.keine ? '' : `<div class="w-q" data-q="text"><label class="w-lbl" for="sdText">Schilderung <i class="w-req" title="Pflicht">•</i></label><div class="sd-sent" data-sd="focus"><span class="sd-intro" data-live="intro">${esc(vorText(data, i))}</span><textarea class="sd-text" id="sdText" data-sk="${base}.text" placeholder="Was hat die Person sinngemäß geschildert? Ich-Form oder indirekte Rede." autocomplete="off" autocapitalize="sentences" spellcheck="true" maxlength="12000">${esc(p.text || '')}</textarea></div></div>`}
+        ${strafantragHtml(p, base)}
         <div class="w-q"><div class="w-out"><div class="w-out-h"><span class="w-lbl">So steht es in der Anzeige</span><button type="button" class="btn btn-light btn-sm" data-sd="copy1" data-i="${i}">Kopieren</button></div><pre class="w-out-t" data-live="block">${esc(block(data, i))}</pre></div></div>
       </div>
       <div class="w-nav"><button type="button" class="btn btn-ghost btn-sm btn-danger" data-sd="del">Entfernen</button><span class="grow"></span><span class="w-nav-i mono">${i + 1} / ${P.length}</span><button type="button" class="btn btn-accent" data-sd="done1">Abschließen</button></div>`;
@@ -613,6 +639,18 @@
     }
     if (t.st === 'unmoeglich') more += `<div class="sd-inl" data-q="${kind}g"><label class="w-hint" for="${A ? 'sdAatG' : 'sdDtG'}">„… konnte nicht durchgeführt werden, da …“</label>${textIn(A ? 'sdAatG' : 'sdDtG', `${path}.grund`, t.grund, A ? 'er nicht ausreichend pusten konnte' : 'sie keinen Urin abgeben konnte')}</div>`;
     return `<div class="sd-sub" data-q="${kind}"><span class="w-lbl">${ttl}${ROLLE[p.rolle] && ROLLE[p.rolle].tat ? ' <i class="w-req" title="Pflicht">•</i>' : ''}</span><p class="w-hint">Erst nach der Belehrung anbieten und auf die Freiwilligkeit hinweisen – so steht es auch im Text.</p>${seg(`${path}.st`, t.st, TEST_ST, 'w-chips')}${more}</div>`;
+  }
+
+  function strafantragHtml(p, base) {
+    if (p.rolle !== 'gs') return '';
+    const pr = PR(p), sa = p.sa;
+    let more = '';
+    if (sa === 'ja') more += `<div class="sd-inl" data-q="saform"><span class="w-lbl">Zusätzlich schriftlich?</span>${seg(`${base}.saForm`, p.saForm || 'muendlich', [['muendlich', 'Nur mündlich'], ['unterschrieben', 'Vor Ort unterschrieben'], ['vordruck', 'Vordruck ausgehändigt']], 'w-chips')}<p class="w-hint sd-hint">Nach § 158 Abs. 2 StPO (seit Juli 2024) müssen Identität und Verfolgungswille eindeutig feststehen. Am sichersten ist die Unterschrift auf dem Vordruck.</p></div>`;
+    if (sa === 'vorbehalt') more += `<div class="sd-inl" data-q="saform"><span class="w-lbl">Vordruck</span>${seg(`${base}.saForm`, p.saForm === 'vordruck' ? 'vordruck' : 'kein', [['kein', 'Nicht ausgehändigt'], ['vordruck', 'Vordruck ausgehändigt']], 'w-chips')}</div>`;
+    const fristZeigen = sa === 'vorbehalt' || sa === 'nein' || (sa === 'ja' && p.saForm === 'vordruck');
+    if (fristZeigen) more += `<div class="sd-inl" data-q="safrist"><div class="w-chips"><button type="button" class="chip" data-sd="frist" aria-pressed="${String(p.saFrist !== false)}">Auf die Frist von drei Monaten hingewiesen</button></div><p class="w-hint sd-hint">Vorgewählt – abwählen, falls der Hinweis nicht gegeben wurde (§ 77b StGB).</p></div>`;
+    return `<div class="w-q full w-head"><span class="w-head-t">Strafantrag</span><span class="w-head-h">Nur bei Antragsdelikten nötig, z. B. Körperverletzung (§ 230 StGB), Beleidigung (§ 194 StGB), Sachbeschädigung (§ 303c StGB), Hausfriedensbruch (§ 123 Abs. 2 StGB).</span></div>
+      <div class="w-q" data-q="sa"><span class="w-lbl">Hat ${pr.er === 'sie' ? 'sie' : pr.er === 'er' ? 'er' : 'die Person'} mündlich Strafantrag gestellt?</span>${seg(`${base}.sa`, sa, [['ja', 'Ja'], ['vorbehalt', 'Behält sich vor'], ['nein', 'Nein']])}${more ? `<div class="sd-sub">${more}</div>` : ''}</div>`;
   }
 
   function einflussHtml(api, data, p, base) {
@@ -807,6 +845,7 @@
         if (k >= 0) a2.splice(k, 1); else a2.push(v);
         setPath(data, path, a2.length ? a2 : undefined); save(); return true;
       }
+      case 'frist': { const p = cur(); if (!p) return true; if (p.saFrist === false) delete p.saFrist; else p.saFrist = false; save(); return true; }
       case 'tog': setPath(data, b.dataset.p, getPath(data, b.dataset.p) ? undefined : true); save(); return true;
       case 'now': { const d0 = new Date(); setPath(data, b.dataset.p, `${String(d0.getHours()).padStart(2, '0')}:${String(d0.getMinutes()).padStart(2, '0')}`); save(); return true; }
       case 'unoff': setPath(data, b.dataset.p, undefined); save(); return true;
@@ -879,6 +918,6 @@
     text: data => [['', 'Schilderungen', paket(data), '']],
     preview: () => '', kurzText: () => '', fahndung: () => '', offen: () => [], personalien: () => '',
     screen: { open, render, mounted, click, input, change, keydown, submit },
-    core: { nameOf, kuerzel, heading, einleitung, gegenText, block, paket, spracheText, einflussText, belehrungSatz, vorText, WAHR, fehlt, cleanNr, canonRank, parseFree: (data, q, team = []) => parseFree({ team: () => team, docs: () => [] }, data, q), setRanks: m => { RANKS = new Map(Object.entries(m || {}).map(([k, v]) => [nameKey(k), v])); } }
+    core: { nameOf, kuerzel, heading, einleitung, gegenText, block, paket, spracheText, einflussText, belehrungSatz, vorText, strafantragText, WAHR, fehlt, cleanNr, canonRank, parseFree: (data, q, team = []) => parseFree({ team: () => team, docs: () => [] }, data, q), setRanks: m => { RANKS = new Map(Object.entries(m || {}).map(([k, v]) => [nameKey(k), v])); } }
   });
 })(typeof window !== 'undefined' ? window : globalThis);
