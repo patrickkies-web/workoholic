@@ -12,6 +12,7 @@
   const MODULES = {};
   if (window.WVUF) MODULES[window.WVUF.id] = window.WVUF;
   if (window.WVermisst) MODULES[window.WVermisst.id] = window.WVermisst;
+  if (window.WHGV) MODULES[window.WHGV.id] = window.WHGV;
   if (window.WHG) MODULES[window.WHG.id] = window.WHG;
   if (window.WAnzeige) MODULES[window.WAnzeige.id] = window.WAnzeige;
   if (window.WUnfallort) MODULES[window.WUnfallort.id] = window.WUnfallort;
@@ -20,6 +21,7 @@
   if (window.WSchild) MODULES[window.WSchild.id] = window.WSchild;
   if (window.WGEW) MODULES[window.WGEW.id] = window.WGEW;
   if (window.WPsychKG) MODULES[window.WPsychKG.id] = window.WPsychKG;
+  if (window.WBP) MODULES[window.WBP.id] = window.WBP;
   /** Module, die man direkt neu anlegen kann (der FE-Bericht entsteht nur aus der FE-Prüfung). */
   const creatable = () => Object.values(MODULES).filter(m => !m.noNew);
   /** Beschriftungen je Modul (m.labels), sonst die der Verkehrsunfallflucht. */

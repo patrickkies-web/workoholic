@@ -2958,7 +2958,7 @@ function syncOp() {
   $('#opTodoImp').setAttribute('aria-pressed', String(OPD.imp));
   $('#opDocs').hidden = !window.WWriter || o.none;
   const docs = [...new Set(todos.filter(i => i.doc).map(i => i.doc))].map(id => state.docs.find(d => d.id === id)).filter(Boolean);
-  $('#opDocList').innerHTML = docs.map(d => `<button type="button" class="op-docrow" data-open-doc="${esc(d.id)}"><span class="op-doc-k">${esc(d.type === 'vermisst' ? 'VM' : d.type.toUpperCase())}</span><span class="op-docrow-m"><b>${esc(d.title)}</b><small>Öffnen</small></span><span class="pill ${d.status === 'fertig' ? 'pill-lime' : 'pill-quiet'}">${d.status === 'fertig' ? 'fertig' : 'Entwurf'}</span></button>`).join('');
+  $('#opDocList').innerHTML = docs.map(d => `<button type="button" class="op-docrow" data-open-doc="${esc(d.id)}"><span class="op-doc-k">${esc(({ vermisst: 'VM', hgv: 'HG' }[d.type] || d.type.toUpperCase()))}</span><span class="op-docrow-m"><b>${esc(d.title)}</b><small>Öffnen</small></span><span class="pill ${d.status === 'fertig' ? 'pill-lime' : 'pill-quiet'}">${d.status === 'fertig' ? 'fertig' : 'Entwurf'}</span></button>`).join('');
   $('#opDocList').hidden = !docs.length;
   const ended = o.end != null;
   $('#opDone').textContent = ended ? 'Fertig' : 'Einsatz beenden';

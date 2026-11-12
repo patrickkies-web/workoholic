@@ -1762,7 +1762,7 @@
   const WARN_ALT_ = C.WARN_ALT;
 
   root.WHG = Object.freeze({
-    id: 'hg', name: 'Häusliche Gewalt', short: 'Häusliche Gewalt', kurz: 'HG',
+    id: 'hg', name: 'Häusliche Gewalt (bisherige Fassung)', short: 'Häusliche Gewalt (bisher)', kurz: 'HG', noNew: true,
     desc: 'Personen zuerst, dann je Person nur das Passende · Sachverhalt in sieben Abschnitten, Begründung § 34a, Kurzfassung, „Noch zu erledigen“',
     labels: {
       bericht: 'Sachverhalt', kurz: 'Kurzfassung', offen: 'Noch zu erledigen', newBtn: 'Häusliche Gewalt',
