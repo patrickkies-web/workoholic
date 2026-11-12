@@ -530,7 +530,7 @@
         ${st.lead ? `<p class="w-lead">${esc(R(st.lead, d.data))}</p>` : ''}
         <div class="w-grid" id="wFields">${st.fields.filter(f => !f.when || f.when(d.data)).map(f => fieldHtml(f, d.data)).join('')}</div>
       </div>
-      <details class="w-preview" id="wPreview" ${prev ? 'open' : ''}><summary>So steht es im Bericht</summary><pre class="w-pre" id="wPre">${esc(m.preview(st.id, d.data) || '– noch nichts erfasst –')}</pre></details>
+      ${m.noPreview ? '' : `<details class="w-preview" id="wPreview" ${prev ? 'open' : ''}><summary>So steht es im Bericht</summary><pre class="w-pre" id="wPre">${esc(m.preview(st.id, d.data) || '– noch nichts erfasst –')}</pre></details>`}
       <div class="w-nav">
         <button type="button" class="btn btn-ghost" data-w="prev" ${U.step === 0 ? 'disabled' : ''}>Zurück</button>
         <span class="w-nav-i mono">${U.step + 1} / ${steps.length}</span>
@@ -703,7 +703,7 @@
     }
     /* Feststellungen: Wertungswörter brauchen die Beschreibung, woran sie erkennbar waren */
     if (el.dataset.lint === 'tats') { const w = raw.match(/(^|[^a-zäöüß])(betrunken|besoffen|alkoholisiert|aggressiv|verwirrt|hilflos|uneinsichtig|renitent|auffällig|unkooperativ)(?![a-zäöüß])/i); if (w) return `„${w[2]}“ ist eine Wertung – kurz dazuschreiben, woran das erkennbar war (Verhalten, Äußerungen, Messwerte).`; }
-    if (el.dataset.single && /[.!?]\s+[A-ZÄÖÜ]/.test(raw)) return 'Hier nur diesen einen Satz fortsetzen – Weiteres passt in ein eigenes Feld.';
+    if (el.dataset.single && /[.!?]\s+[A-ZÄÖÜ]/.test(raw.replace(/\b(Dr|Prof|Nr|Abs|Str|St|Hr|Fr|ca|bzw|vgl|Az|Ziff|[A-ZÄÖÜ])\./g, '$1'))) return 'Hier nur diesen einen Satz fortsetzen – Weiteres passt in ein eigenes Feld.';
     return '';
   }
   function lintField(el) {

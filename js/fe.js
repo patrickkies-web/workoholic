@@ -637,7 +637,7 @@
       <p class="fe-lead">Von oben nach unten noch einmal prüfen, ob alles so vorliegt. Danach legt die App den Bericht an – mit diesen Antworten vorausgefüllt.</p>
       <ol class="fe-conf">${st.map((x, i) => `<li><span class="fe-conf-n mono">${pad(i + 1)}</span><span class="fe-conf-b"><span class="fe-conf-q">${esc(x.q)}</span><span class="fe-conf-a">${esc(x.a)}</span>${x.c ? `<span class="fe-conf-c">${termLine(x.c)}</span>` : ''}</span></li>`).join('')}<li class="fe-conf-end"><span class="fe-conf-n mono">✓</span><span class="fe-conf-b"><span class="fe-conf-q">Ergebnis</span><span class="fe-conf-a">Freiheitsentziehung rechtmäßig – ${esc(L.norm)}</span></span></li></ol>
       <span class="wf-gk">Danach fragt der Bericht ab</span>
-      ${GW_ART[id] ? `<ul class="wf-hints"><li>Person und Einsatzanlass – die Anrede steuert die Satzführung</li><li>Gerüst für ${esc(L.norm)}: Feststellungen frei beschreiben, Folgerungen als fertige Sätze ankreuzen</li><li>Pflichtbausteine: Grund, Zwang, Durchsuchung, Gewahrsamsfähigkeit, Benachrichtigung, Richter, Entlassung</li><li>Fertiger Text zum Bearbeiten, Antrag ans Amtsgericht, Zeitleiste mit Frist</li></ul>` : `<ul class="wf-hints"><li>Person: männlich oder weiblich, Name – für die richtige Satzführung</li><li>Lage: Zeitpunkt des Ergreifens, Ort, Anlass, Sachverhalt</li>${nC ? `<li>Begründung zu ${nC === 1 ? 'der Voraussetzung' : `allen ${nC} Voraussetzungen`} – Satzanfang steht fest, das Graue zeigt, wie es weitergeht</li>` : ''}<li>Formvorschriften: ${esc(verf.length ? verf.map(v => v.split(/[;(–]/)[0].trim()).slice(0, 4).join(' · ') : 'Grund, Belehrung, Benachrichtigung, Richter')} – erledigt, nicht erfolgt oder entfällt</li></ul>`}
+      ${GW_ART[id] ? `<ul class="wf-hints"><li>Person und eingesetzte Kräfte – die Anrede steuert die Satzführung</li><li>Fragen zu ${esc(L.norm)}: Feststellungen frei beschreiben, Folgerungen antippen – wie in den anderen schriftlichen Arbeiten</li><li>Wer was wann angeordnet hat; Grund, Zwang, Durchsuchung, Gewahrsamsfähigkeit, Benachrichtigung, Richter (auch nachts nicht erreichbar)</li><li>Fertiger Text zum Bearbeiten, Antrag ans Amtsgericht, Zeitleiste mit Frist</li></ul>` : `<ul class="wf-hints"><li>Person: männlich oder weiblich, Name – für die richtige Satzführung</li><li>Lage: Zeitpunkt des Ergreifens, Ort, Anlass, Sachverhalt</li>${nC ? `<li>Begründung zu ${nC === 1 ? 'der Voraussetzung' : `allen ${nC} Voraussetzungen`} – Satzanfang steht fest, das Graue zeigt, wie es weitergeht</li>` : ''}<li>Formvorschriften: ${esc(verf.length ? verf.map(v => v.split(/[;(–]/)[0].trim()).slice(0, 4).join(' · ') : 'Grund, Belehrung, Benachrichtigung, Richter')} – erledigt, nicht erfolgt oder entfällt</li></ul>`}
       <div class="wf-actions"><button type="button" class="btn btn-accent" data-fe-confirm>Weg bestätigen – Bericht anlegen</button><button type="button" class="btn btn-ghost" data-fe-unpick>Zurück zum Ergebnis</button></div>
       <p class="fe-mini">Der Bericht wird verschlüsselt unter „Schreiben“ gespeichert und lässt sich jederzeit unterbrechen.</p>`;
   }
@@ -652,8 +652,8 @@
     if (GW_ART[fe.cur] && window.WGEW) {
       // Im Prüfweg bestätigte Voraussetzungen als Folgerung vormerken (erscheinen erst mit den Feststellungen im Text)
       const c = new Set(preset.fe.steps.map(x => x.c).filter(Boolean)), pre = {};
-      if (c.has('Zustand, der die freie Willensbestimmung ausschließt')) pre.c_will = true;
-      if (c.has('Hilflose Lage')) pre.c_hilf = true;
+      const zust = [...(c.has('Zustand, der die freie Willensbestimmung ausschließt') ? ['will'] : []), ...(c.has('Hilflose Lage') ? ['hilf'] : [])];
+      if (zust.length) pre.c_zust = zust;
       if (c.has('Straftat droht')) pre.c_typ = 'st';
       if (c.has('Ordnungswidrigkeit von erheblicher Bedeutung für die Allgemeinheit')) pre.c_typ = 'owi';
       window.WWriter.newDoc('gewahrsam', { ...preset, gw: { art: GW_ART[fe.cur], ...pre } });
