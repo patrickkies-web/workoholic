@@ -18,6 +18,7 @@
   if (window.WFEB) MODULES[window.WFEB.id] = window.WFEB;
   if (window.WSKZ) MODULES[window.WSKZ.id] = window.WSKZ;
   if (window.WSchild) MODULES[window.WSchild.id] = window.WSchild;
+  if (window.WGEW) MODULES[window.WGEW.id] = window.WGEW;
   /** Module, die man direkt neu anlegen kann (der FE-Bericht entsteht nur aus der FE-Prüfung). */
   const creatable = () => Object.values(MODULES).filter(m => !m.noNew);
   /** Beschriftungen je Modul (m.labels), sonst die der Verkehrsunfallflucht. */
@@ -670,7 +671,7 @@
   function mountCustom(d, m) {
     if (typeof m.mount !== 'function') return;
     $$('#wFields [data-custom]').forEach(el => {
-      try { m.mount(el, el.dataset.custom, d.data, { set: (path, v) => { setP(d.data, path, v); persist(); }, get: path => getP(d.data, path), title: () => d.title || m.name }); }
+      try { m.mount(el, el.dataset.custom, d.data, { set: (path, v) => { setP(d.data, path, v); persist(); }, get: path => getP(d.data, path), title: () => d.title || m.name, refresh: schedulePreview, layout: layoutSentences }); }
       catch (e) { el.textContent = 'Dieses Element konnte nicht geladen werden.'; }
     });
   }
@@ -700,6 +701,8 @@
       if (/[\s,.](ich|mich|mir|mein|meine|meinen|meinem|meiner|wir|uns|unser|unsere)[\s,.;:!?]/.test(t)) return `In der 3. Person schreiben: „${pr} habe …“ statt „Ich habe …“.`;
       if (raw.length > 14 && /\s(ist|hat|war|waren|bin|sind|hatte|hatten|kam|fuhr|sah)[\s,.;:]/.test(t) && !/\s(habe|sei|seien|hätte|hätten|wäre|wären|käme|führe)[\s,.;:]/.test(t)) return 'Indirekte Rede: „sei“ statt „ist/war“, „habe“ statt „hat“, „sei gefahren“ statt „fuhr“.';
     }
+    /* Feststellungen: Wertungswörter brauchen die Beschreibung, woran sie erkennbar waren */
+    if (el.dataset.lint === 'tats') { const w = raw.match(/(^|[^a-zäöüß])(betrunken|besoffen|alkoholisiert|aggressiv|verwirrt|hilflos|uneinsichtig|renitent|auffällig|unkooperativ)(?![a-zäöüß])/i); if (w) return `„${w[2]}“ ist eine Wertung – kurz dazuschreiben, woran das erkennbar war (Verhalten, Äußerungen, Messwerte).`; }
     if (el.dataset.single && /[.!?]\s+[A-ZÄÖÜ]/.test(raw)) return 'Hier nur diesen einen Satz fortsetzen – Weiteres passt in ein eigenes Feld.';
     return '';
   }
