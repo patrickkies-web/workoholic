@@ -218,116 +218,262 @@
 
   /* ======================= Baustein „Verhältnisse vor Ort“ ======================= */
   /*
-   * Umstände, die bei jeder Unfallaufnahme unabhängig von der Örtlichkeit anzugeben sind.
-   * Feste Auswahl nach der Unfallmitteilung NRW (Anlage 4 RdErl. „Aufgaben der Polizei bei Verkehrsunfällen“
-   * v. 25.08.2008, Formular NRW 3126 „Zusätzliche Angaben“) – die Ziffern stehen in Klammern.
-   * Ergänzt um Fahrbahnbeschaffenheit, Sicht und Verkehrslage nach Anlage 6 (Gliederung Befundbericht, 2.1.4–2.1.6).
-   * Jede Option: [Schlüssel, Beschriftung (wie im Formular), Ziffer im Formular | '', Textbaustein]
+   * Umstände, die bei jeder Unfallaufnahme anzugeben sind – unabhängig davon, wie die Örtlichkeit gestaltet ist
+   * (Ampel, Beschilderung, Kreuzung gehören nicht hierher). Ausgabe: EIN zusammenhängender Text.
+   * Gliederung nach der Ausfüllhilfe zu Anlage 6 (2.1.4 Fahrbahn, 2.1.5 Witterung/Sicht, 2.1.6 Verkehrslage);
+   * Abstufungen nach den Begriffen des Deutschen Wetterdienstes (Bewölkung in Achteln, Beaufort-Bezeichnungen,
+   * leicht/mäßig/stark, Regen/Schauer). Alle Felder liegen unter „ort.*“ – dieselben in VU-Flucht und Einzelabschnitt.
    */
+  const RICHTUNG = [['n', 'Nord', 'nördlicher'], ['no', 'Nordost', 'nordöstlicher'], ['o', 'Ost', 'östlicher'], ['so', 'Südost', 'südöstlicher'], ['s', 'Süd', 'südlicher'], ['sw', 'Südwest', 'südwestlicher'], ['w', 'West', 'westlicher'], ['nw', 'Nordwest', 'nordwestlicher']];
+  /** [Schlüssel, Beschriftung im Chip, …Textdaten] */
   const VERH = {
-    licht: [['tag', 'Tageslicht', '0', 'Tageslicht'], ['daemmerung', 'Dämmerung', '1', 'Dämmerung'], ['dunkel', 'Dunkelheit', '2', 'Dunkelheit']],
-    beleuchtung: [['betrieb', 'in Betrieb', '3', 'war in Betrieb'], ['aus', 'vorhanden, aus', '', 'war vorhanden, aber nicht in Betrieb'], ['keine', 'nicht vorhanden', '', 'ist nicht vorhanden']],
-    zustand: [['trocken', 'trocken', '0', 'trocken'], ['nass', 'nass/feucht', '1', 'nass bzw. feucht'], ['winterglatt', 'winterglatt', '2', 'winterglatt'], ['schluepfrig', 'schlüpfrig (Öl, Dung, Laub usw.)', '3', 'schlüpfrig']],
-    winterDurch: [['schnee', 'Schnee', '', 'Schnee'], ['eis', 'Eis', '', 'Eis'], ['glatteis', 'Glatteis', '', 'Glatteis'], ['reif', 'Reif', '', 'Reif']],
-    schluepfrigDurch: [['oel', 'Öl', '', 'Öl'], ['kraftstoff', 'Kraftstoff', '', 'Kraftstoff'], ['dung', 'Dung', '', 'Dung'], ['laub', 'Laub', '', 'Laub'], ['schmutz', 'Schmutz / Lehm', '', 'Schmutz bzw. Lehm']],
-    belag: [['asphalt', 'Asphalt', '', 'Asphalt'], ['beton', 'Beton', '', 'Beton'], ['pflaster', 'Pflaster', '', 'Pflaster'], ['kopfstein', 'Kopfsteinpflaster', '', 'Kopfsteinpflaster'], ['schotter', 'unbefestigt', '', 'unbefestigtem Material']],
-    decke: [['intakt', 'unbeschädigt', '', ''], ['schlagloch', 'Schlaglöcher', '', 'Schlaglöcher'], ['spurrillen', 'Spurrillen', '', 'Spurrillen'], ['risse', 'Risse / Aufbrüche', '', 'Risse bzw. Aufbrüche'], ['flick', 'Flickstellen', '', 'Flickstellen']],
-    witterung: [['keine', 'keine besonderen', '', ''], ['regen', 'Regen', '1', 'regnete'], ['schnee', 'Schnee/-fall', '2', 'schneite'], ['hagel', 'Hagel', '3', 'hagelte'], ['nebel', 'Nebel/Dunst', '4', 'Es herrschte Nebel bzw. Dunst.'], ['sicht50', 'Sichtweite unter 50 m', '5', 'Die Sichtweite betrug weniger als 50 m.'], ['sicht100', 'Sichtweite unter 100 m', '6', 'Die Sichtweite betrug weniger als 100 m.'], ['sturm', 'Sturm/Böen', '7', 'Es herrschte Sturm bzw. böiger Wind.'], ['sonne', 'Blendende Sonne', '8', 'Die Sonne blendete']],
-    sicht: [['gut', 'gut', '', 'Die Sichtverhältnisse waren gut.'], ['eingeschraenkt', 'eingeschränkt', '', 'eingeschränkt'], ['schlecht', 'schlecht', '', 'stark eingeschränkt']],
-    sichtHindernis: [['fahrzeuge', 'geparkte Fahrzeuge', '', 'geparkte Fahrzeuge'], ['bewuchs', 'Bewuchs / Hecken', '', 'Bewuchs bzw. Hecken'], ['bebauung', 'Bebauung', '', 'Bebauung'], ['sonst', 'Sonstiges', '', '']],
-    verkehr: [['gering', 'gering', '', 'geringes Verkehrsaufkommen'], ['maessig', 'mäßig', '', 'mäßiges Verkehrsaufkommen'], ['stark', 'dicht', '', 'dichtes Verkehrsaufkommen'], ['zaeh', 'zähfließend', '', 'zähfließender Verkehr'], ['stau', 'Stau', '', 'Stau']],
-    verkehrAnlass: [['beruf', 'Berufsverkehr', '', 'Berufsverkehr'], ['schule', 'Schülerverkehr', '', 'Schülerverkehr'], ['einkauf', 'Einkaufsverkehr', '', 'Einkaufsverkehr'], ['veranstaltung', 'Veranstaltung', '', 'Veranstaltungsverkehr']]
+    licht: [['tag', 'Tageslicht', 'Tageslicht'], ['morgen', 'Morgendämmerung', 'Morgendämmerung'], ['abend', 'Abenddämmerung', 'Abenddämmerung'], ['dunkel', 'Dunkelheit', 'Dunkelheit']],
+    beleuchtung: [['betrieb', 'eingeschaltet', 'war eingeschaltet'], ['teilweise', 'teilweise ausgefallen', 'war teilweise ausgefallen'], ['aus', 'aus / ausgefallen', 'war ausgeschaltet bzw. ausgefallen'], ['keine', 'nicht vorhanden', '']],
+    // [Schlüssel, Chip, „bei …“ (Dativ), Satz ohne Licht, bei Dunkelheit „bei …“]
+    himmel: [['sonnig', 'sonnig / wolkenlos', 'Sonnenschein und wolkenlosem Himmel', 'Es war sonnig bei wolkenlosem Himmel', 'klarem Himmel'], ['heiter', 'heiter', 'heiterem Himmel', 'Der Himmel war heiter', 'überwiegend klarem Himmel'], ['wolkig', 'wolkig', 'wolkigem Himmel', 'Der Himmel war wolkig', 'wolkigem Himmel'], ['stark', 'stark bewölkt', 'stark bewölktem Himmel', 'Der Himmel war stark bewölkt', 'stark bewölktem Himmel'], ['bedeckt', 'bedeckt', 'bedecktem Himmel', 'Der Himmel war bedeckt', 'bedecktem Himmel'], ['wechselnd', 'wechselnd bewölkt', 'wechselnder Bewölkung', 'Es war wechselnd bewölkt', 'wechselnder Bewölkung']],
+    // [Schlüssel, Chip, Nomen (mask.), Verb Präsens-Satz, Partizip „hatte es … “, Plural?]
+    ns: [['kein', 'kein Niederschlag'], ['niesel', 'Nieselregen', 'Nieselregen', 'fiel', 'genieselt'], ['regen', 'Regen', 'Regen', 'fiel', 'geregnet'], ['schauer', 'Regenschauer', 'Regenschauer', 'gingen', 'geregnet', 1], ['schneeregen', 'Schneeregen', 'Schneeregen', 'fiel', 'geschneit und geregnet'], ['schnee', 'Schneefall', 'Schneefall', 'herrschte', 'geschneit'], ['schneeschauer', 'Schneeschauer', 'Schneeschauer', 'gingen', 'geschneit', 1], ['graupel', 'Graupel', 'Graupel', 'fiel', 'gegraupelt'], ['hagel', 'Hagel', 'Hagel', 'fiel', 'gehagelt'], ['eisregen', 'gefrierender Regen', 'gefrierender Regen', 'fiel', 'gefrierend geregnet']],
+    nsStaerke: [['leicht', 'leicht', 'leichter', 'leichte', 'leicht'], ['maessig', 'mäßig', 'mäßiger', 'mäßige', 'mäßig'], ['stark', 'stark', 'starker', 'kräftige', 'stark']],
+    nsZeit: [['aktuell', 'fällt noch'], ['anhaltend', 'länger anhaltend'], ['zuvor', 'kurz zuvor aufgehört']],
+    nebel: [['kein', 'kein Nebel / Dunst', ''], ['dunst', 'Dunst', 'leichter Dunst'], ['nebel', 'Nebel', 'Nebel'], ['dicht', 'dichter Nebel', 'dichter Nebel'], ['stellen', 'Nebelbänke', 'stellenweise Nebel']],
+    // Beaufort-Bezeichnungen (DWD): schwach 1–3, mäßig 4, frisch 5, stark 6–7, Sturm 8–9, schwerer Sturm 10, orkanartig 11–12
+    wind: [['still', 'windstill', ''], ['schwach', 'schwach', 'schwacher'], ['maessig', 'mäßig', 'mäßiger'], ['frisch', 'frisch', 'frischer'], ['stark', 'stark', 'starker'], ['sturm', 'Sturm', 'Sturm'], ['schwer', 'schwerer Sturm', 'schwerer Sturm'], ['orkan', 'orkanartig', 'orkanartiger Sturm']],
+    richtung: RICHTUNG.map(([k, l]) => [k, l]),
+    belag: [['asphalt', 'Asphalt', 'asphaltierte', 'asphaltiert'], ['beton', 'Beton', 'betonierte', 'betoniert'], ['pflaster', 'Pflaster', 'gepflasterte', 'gepflastert'], ['verbund', 'Verbundpflaster', 'mit Verbundpflaster befestigte', 'mit Verbundpflaster befestigt'], ['kopfstein', 'Kopfsteinpflaster', 'mit Kopfsteinpflaster befestigte', 'mit Kopfsteinpflaster befestigt'], ['schotter', 'Schotter', 'geschotterte', 'geschottert'], ['unbefestigt', 'unbefestigt', 'unbefestigte', 'unbefestigt']],
+    naesse: [['trocken', 'trocken', 'trocken'], ['abtrocknend', 'abtrocknend', 'abtrocknend'], ['feucht', 'feucht', 'feucht'], ['nass', 'nass', 'nass'], ['pfuetzen', 'nass mit Pfützen', 'nass'], ['ueberflutet', 'überflutet', 'überflutet']],
+    // [Schlüssel, Chip, Text, Gruppe] – Gruppe „glatt“: „durch … glatt“, „bedeckt“: „mit … bedeckt“
+    winter: [['reif', 'Reifglätte', 'Reif', 'glatt'], ['ueberfrierend', 'überfrierende Nässe', 'überfrierende Nässe', 'glatt'], ['glatteis', 'Glatteis', 'mit Glatteis überzogen', ''], ['schneeglatt', 'Schneeglätte', 'schneeglatt', ''], ['festgefahren', 'festgefahrene Schneedecke', 'einer festgefahrenen Schneedecke', 'bedeckt'], ['matsch', 'Schneematsch', 'Schneematsch', 'bedeckt'], ['neuschnee', 'Neuschnee', 'Neuschnee', 'bedeckt']],
+    winterdienst: [['beides', 'geräumt und gestreut', 'Sie war geräumt und gestreut.'], ['gestreut', 'nur gestreut', 'Sie war gestreut, aber nicht geräumt.'], ['geraeumt', 'nur geräumt', 'Sie war geräumt, aber nicht gestreut.'], ['nichts', 'weder noch', 'Sie war weder geräumt noch gestreut.']],
+    schmutz: [['laub', 'Laub', 'Laub'], ['oel', 'Öl', 'Öl'], ['kraftstoff', 'Kraftstoff', 'Kraftstoff'], ['erde', 'Erde / Lehm', 'Erde bzw. Lehm'], ['dung', 'Dung', 'Dung'], ['splitt', 'Splitt / Sand', 'Splitt bzw. Sand']],
+    decke: [['intakt', 'unbeschädigt', ''], ['schlagloch', 'Schlaglöcher', 'Schlaglöcher'], ['spurrillen', 'Spurrillen', 'Spurrillen'], ['risse', 'Risse / Aufbrüche', 'Risse bzw. Aufbrüche'], ['flick', 'Flickstellen', 'Flickstellen'], ['absackung', 'Absackungen', 'Absackungen'], ['wellen', 'Bodenwellen', 'Bodenwellen']],
+    markierung: [['gut', 'gut erkennbar', 'waren gut erkennbar'], ['verblasst', 'verblasst', 'waren verblasst'], ['verdeckt', 'verdeckt / schlecht erkennbar', 'waren schlecht erkennbar'], ['keine', 'nicht vorhanden', '']],
+    sicht: [['gut', 'gut'], ['eingeschraenkt', 'eingeschränkt'], ['stark', 'stark eingeschränkt']],
+    sichtGrund: [['niederschlag', 'Niederschlag', 'den Niederschlag'], ['nebel', 'Nebel / Dunst', 'Nebel bzw. Dunst'], ['dunkelheit', 'Dunkelheit', 'die Dunkelheit'], ['sonne', 'tiefstehende Sonne', 'die blendende, tiefstehende Sonne'], ['gegenverkehr', 'Blendung Gegenverkehr', 'blendende Scheinwerfer des Gegenverkehrs'], ['gischt', 'Spritzwasser / Gischt', 'Spritzwasser bzw. Gischt'], ['bewuchs', 'Bewuchs / Hecken', 'Bewuchs bzw. Hecken'], ['bebauung', 'Bebauung', 'Bebauung'], ['parker', 'geparkte Fahrzeuge', 'am Fahrbahnrand geparkte Fahrzeuge'], ['verlauf', 'Kurve / Kuppe', 'den Straßenverlauf (Kurve bzw. Kuppe)'], ['rauch', 'Rauch / Staub', 'Rauch bzw. Staub'], ['sonst', 'Sonstiges', '']],
+    verkehr: [['sehrgering', 'sehr gering', 'sehr geringes Verkehrsaufkommen'], ['gering', 'gering', 'geringes Verkehrsaufkommen'], ['maessig', 'mäßig', 'mäßiges Verkehrsaufkommen'], ['rege', 'rege', 'reger Verkehr'], ['dicht', 'dicht', 'dichter Verkehr'], ['zaeh', 'zähfließend', 'zähfließender Verkehr'], ['stockend', 'stockend', 'stockender Verkehr'], ['stau', 'Stau', 'Stau']],
+    verkehrAnlass: [['beruf', 'Berufsverkehr', 'Berufsverkehr'], ['feierabend', 'Feierabendverkehr', 'Feierabendverkehr'], ['schule', 'Schülerverkehr', 'Schülerverkehr'], ['einkauf', 'Einkaufsverkehr', 'Einkaufsverkehr'], ['reise', 'Reise-/Ferienverkehr', 'Reise- bzw. Ferienverkehr'], ['veranstaltung', 'Veranstaltung', 'Veranstaltungsverkehr'], ['baustelle', 'Baustellenverkehr', 'Baustellenverkehr'], ['landwirtschaft', 'Landwirtschaft', 'landwirtschaftlicher Verkehr']],
+    fussRad: [['kaum', 'kaum', 'Fußgänger und Radfahrer waren kaum unterwegs.'], ['vereinzelt', 'vereinzelt', 'Fußgänger und Radfahrer waren vereinzelt unterwegs.'], ['rege', 'rege', 'Es herrschte reger Fußgänger- und Radverkehr.']],
+    parken: [['wenig', 'wenig belegt', 'waren nur wenig belegt'], ['haelfte', 'etwa zur Hälfte', 'waren etwa zur Hälfte belegt'], ['fast', 'nahezu voll', 'waren nahezu vollständig belegt'], ['voll', 'voll belegt', 'waren vollständig belegt']]
   };
-  /** Chips: „Regen (1)“ – Ziffer wie im Formular, damit die Übertragung in ViVA/Unfallmitteilung leichtfällt. */
-  const verhOpt = name => VERH[name].map(([k, l, z]) => [k, z ? `${l} (${z})` : l]);
-  const verhTxt = (name, k) => { const o = VERH[name].find(x => x[0] === k); return o ? o[3] : ''; };
-  /** Ältere Vorgänge (einzelne Auswahl „ort.fahrbahn“/„ort.wetter“, Freitext Sicht) auf die neue Struktur abbilden. */
-  function verhNorm(o) {
-    o = Object.assign({}, o || {});
-    if (!o.zustand && has(o.fahrbahn)) {
-      const F = { trocken: [['trocken']], feucht: [['nass']], nass: [['nass']], laub: [['schluepfrig'], 'schluepfrigDurch', ['laub']], schnee: [['winterglatt'], 'winterDurch', ['schnee']], eis: [['winterglatt'], 'winterDurch', ['eis']] }[o.fahrbahn];
-      if (F) { o.zustand = F[0]; if (F[1]) o[F[1]] = F[2]; }
+  const verhOpt = name => VERH[name].map(([k, l]) => [k, l]);
+  const V = (name, k, i = 2) => { const o = VERH[name].find(x => x[0] === k); return o ? o[i] : ''; };
+  const deGrad = n => String(n).replace('.', ',').replace(/^-/, '−');
+
+  /** Frühere Fassungen (Einzelauswahl „fahrbahn“/„wetter“, Formularlisten „zustand“/„witterung“) auf die aktuelle Struktur abbilden. */
+  function verhNorm(raw) {
+    const o = Object.assign({}, raw || {});
+    const add = (k, v) => { o[k] = [...new Set([...arr(o[k]), v])]; };
+    if (o.licht === 'daemmerung') o.licht = 'abend';
+    if (o.sicht === 'schlecht') o.sicht = 'stark';
+    if (o.verkehr === 'stark') o.verkehr = 'dicht';
+    // Einzelauswahl der ersten Fassung
+    if (has(o.fahrbahn)) {
+      ({ trocken: () => { o.naesse = o.naesse || 'trocken'; }, feucht: () => { o.naesse = o.naesse || 'feucht'; }, nass: () => { o.naesse = o.naesse || 'nass'; }, laub: () => add('schmutz', 'laub'), schnee: () => add('winter', 'schneeglatt'), eis: () => add('winter', 'glatteis') }[o.fahrbahn] || (() => {}))();
+      delete o.fahrbahn;
     }
-    if (!o.witterung && has(o.wetter)) {
-      const W = { trocken: 'keine', regen: 'regen', nieselregen: 'regen', schnee: 'schnee', nebel: 'nebel', sonne: 'sonne' }[o.wetter];
-      if (W) o.witterung = [W];
+    if (has(o.wetter)) {
+      const W = { trocken: ['nsArt', 'kein'], regen: ['nsArt', 'regen'], nieselregen: ['nsArt', 'niesel'], schnee: ['nsArt', 'schnee'], nebel: ['nebel', 'nebel'] }[o.wetter];
+      if (W && !has(o[W[0]])) o[W[0]] = W[1];
+      if (o.wetter === 'sonne') add('sichtGrund', 'sonne');
+      delete o.wetter;
     }
-    if (!o.sichtHindernis && typeof o.sichtbehinderung === 'string' && has(o.sichtbehinderung)) { o.sichtHindernis = ['sonst']; o.sichtText = o.sichtText || o.sichtbehinderung; }
+    if (typeof o.sichtbehinderung === 'string' && has(o.sichtbehinderung)) { add('sichtGrund', 'sonst'); o.sichtText = o.sichtText || o.sichtbehinderung; }
+    delete o.sichtbehinderung;
+    // Formularlisten der zweiten Fassung
+    if (Array.isArray(o.zustand)) {
+      o.zustand.forEach(z => {
+        if (z === 'trocken' || z === 'nass') o.naesse = o.naesse || z;
+        if (z === 'winterglatt') { const m = { schnee: 'schneeglatt', eis: 'glatteis', glatteis: 'glatteis', reif: 'reif' }; const w = arr(o.winterDurch).map(x => m[x]).filter(Boolean); (w.length ? w : ['schneeglatt']).forEach(x => add('winter', x)); }
+        if (z === 'schluepfrig') { const m = { oel: 'oel', kraftstoff: 'kraftstoff', dung: 'dung', laub: 'laub', schmutz: 'erde' }; arr(o.schluepfrigDurch).map(x => m[x]).filter(Boolean).forEach(x => add('schmutz', x)); o.schmutzGlatt = 'ja'; }
+      });
+      delete o.zustand; delete o.winterDurch; delete o.schluepfrigDurch;
+    }
+    if (Array.isArray(o.witterung)) {
+      const w = o.witterung;
+      if (w.includes('keine') && !has(o.nsArt)) o.nsArt = 'kein';
+      ['regen', 'schnee', 'hagel'].forEach(k => { if (w.includes(k) && !has(o.nsArt)) o.nsArt = k; });
+      if (w.includes('nebel') && !has(o.nebel)) o.nebel = 'nebel';
+      if (w.includes('sicht50') && o.sichtweite == null) o.sichtweite = 50; else if (w.includes('sicht100') && o.sichtweite == null) o.sichtweite = 100;
+      if (w.includes('sturm') && !has(o.wind)) o.wind = 'sturm';
+      if (w.includes('sonne')) add('sichtGrund', 'sonne');
+      delete o.witterung;
+    }
+    if (Array.isArray(o.sichtHindernis)) { const m = { fahrzeuge: 'parker', bewuchs: 'bewuchs', bebauung: 'bebauung', sonst: 'sonst' }; o.sichtHindernis.map(x => m[x]).filter(Boolean).forEach(x => add('sichtGrund', x)); delete o.sichtHindernis; }
+    if (has(o.sonneRichtung) && !RICHTUNG.some(r => r[0] === o.sonneRichtung)) { o.sonneText = o.sonneRichtung; delete o.sonneRichtung; }
     return o;
   }
+
   /**
-   * Textbausteine → [[Zwischenzeile, Text], …] für 2.1 (Anlage 6: 2.1.4 Fahrbahn, 2.1.5 Witterung/Sicht, 2.1.6 Verkehrslage).
-   * art = ort.art (Straße / Parkplatz / Parkhaus / sonstige Fläche). Fehlende Pflichtangaben → [Platzhalter].
+   * Ein zusammenhängender Absatz in der Reihenfolge Licht und Himmel → Niederschlag und Temperatur → Nebel → Wind
+   * → Fahrbahn → Sicht → Verkehr. Die Zeitangabe („Zum Zeitpunkt der Unfallaufnahme“) steht nur im ersten Satz.
+   * art = ort.art (Straße / Parkplatz / Parkhaus / sonstige Fläche). Pflichtangaben ohne Auswahl → [Platzhalter] im Satz.
    */
-  function verhBloecke(raw, art) {
+  function verhText(raw, art) {
     const o = verhNorm(raw);
     const strasse = !art || art === 'strasse';
-    let bezug = o.verhBezug === 'beide' ? 'zur Unfallzeit und bei der Unfallaufnahme' : 'zum Zeitpunkt der Unfallaufnahme';
-    // Die Zeitangabe steht nur im ersten Satz, der sie braucht – danach „Es herrschte …“
-    const zeitVorn = () => { const z = bezug; bezug = ''; return z; };
-    const out = [];
-    // Fahrbahnverhältnisse
     const fl = strasse ? 'Fahrbahn' : 'Verkehrsfläche';
-    const f = [];
-    const belag = verhTxt('belag', o.belag);
-    const decke = arr(o.decke).filter(k => k !== 'intakt').map(k => verhTxt('decke', k)).filter(Boolean);
-    const intakt = arr(o.decke).includes('intakt');
-    const deckeS = decke.length ? ` und weist ${joinList(decke)} auf` : intakt ? ' und ist unbeschädigt' : '';
-    if (belag) f.push(`Die ${fl} besteht aus ${belag}${deckeS}.`);
-    else if (deckeS) f.push(`Die ${fl}${deckeS.replace(/^ und/, '')}.`);
-    const zs = arr(o.zustand).map(k => {
-      if (k === 'winterglatt') { const w = arr(o.winterDurch).map(x => verhTxt('winterDurch', x)).filter(Boolean); return w.length ? `durch ${joinList(w)} winterglatt` : 'winterglatt'; }
-      if (k === 'schluepfrig') { const s = arr(o.schluepfrigDurch).map(x => verhTxt('schluepfrigDurch', x)).filter(Boolean); return s.length ? `durch ${joinList(s)} schlüpfrig` : 'schlüpfrig'; }
-      return verhTxt('zustand', k);
-    }).filter(Boolean);
-    if (zs.length) { const z = zeitVorn(); f.push(`${cap(z)} war ${f.length ? 'sie' : 'die ' + fl} ${joinList(zs)}.`); }
-    else f.push(`Straßenzustand: ${PH('trocken / nass / winterglatt / schlüpfrig')}.`);
-    out.push(['Fahrbahnverhältnisse', f.join(' ')]);
-    // Witterungs- und Sichtverhältnisse
-    const w = [];
-    const lt = verhTxt('licht', o.licht);
-    if (lt) {
-      const z = zeitVorn();
-      const noun = { strasse: 'die Straßenbeleuchtung', parkplatz: 'die Parkplatzbeleuchtung', parkhaus: 'die Beleuchtung des Parkhauses' }[art || 'strasse'] || 'die Beleuchtung der Fläche';
-      const bl = o.licht !== 'tag' && has(o.beleuchtung) ? (o.beleuchtung === 'keine' ? `; eine ${noun.replace(/^die /, '')} ist nicht vorhanden` : `; ${noun} ${verhTxt('beleuchtung', o.beleuchtung)}`) : '';
-      w.push(`${z ? cap(z) + ' herrschte' : 'Es herrschte'} ${lt}${bl}.`);
-    } else w.push(`Lichtverhältnisse: ${PH('Tageslicht / Dämmerung / Dunkelheit')}.`);
-    const wt = arr(o.witterung);
-    if (wt.includes('keine')) w.push('Besondere Witterungseinflüsse lagen nicht vor.');
-    else if (wt.length) {
-      const nied = wt.filter(k => ['regen', 'schnee', 'hagel'].includes(k)).map(k => verhTxt('witterung', k));
-      if (nied.length) w.push(`Es ${joinList(nied)}.`);
-      wt.filter(k => ['nebel', 'sturm'].includes(k)).forEach(k => w.push(verhTxt('witterung', k)));
-      if (wt.includes('sicht50')) w.push(verhTxt('witterung', 'sicht50')); else if (wt.includes('sicht100')) w.push(verhTxt('witterung', 'sicht100'));
-      if (wt.includes('sonne')) w.push(`Die Sonne blendete${has(o.sonneRichtung) ? ' ' + slot(o.sonneRichtung) : ''}.`);
-    } else w.push(`Witterung: ${PH('keine besonderen / Regen / Schnee / Nebel …')}.`);
-    if (o.sicht === 'gut' && !wt.some(k => ['nebel', 'sicht50', 'sicht100'].includes(k))) w.push(verhTxt('sicht', 'gut'));
-    else if (o.sicht === 'eingeschraenkt' || o.sicht === 'schlecht') {
-      const h = arr(o.sichtHindernis).map(k => (k === 'sonst' ? slot(o.sichtText) : verhTxt('sichtHindernis', k))).filter(Boolean);
-      w.push(`Die Sicht war ${verhTxt('sicht', o.sicht)}${h.length ? ' durch ' + joinList(h) : ''}.`);
+    let bez = o.verhBezug === 'beide' ? 'Zur Unfallzeit und bei der Unfallaufnahme' : 'Zum Zeitpunkt der Unfallaufnahme';
+    const vorn = () => { const b = bez; bez = ''; return b; };
+    const S = [];
+    const richtung = k => { const r = RICHTUNG.find(x => x[0] === k); return r ? `aus ${r[2]} Richtung` : ''; };
+    const nacht = ['dunkel', 'morgen', 'abend'].includes(o.licht);
+
+    // Licht und Himmel
+    const licht = V('licht', o.licht);
+    const himmel = has(o.himmel) ? V('himmel', o.himmel, nacht ? 4 : 2) : '';
+    let s1 = `${vorn()} herrschte ${licht || PH('Tageslicht / Dämmerung / Dunkelheit')}${himmel ? ' bei ' + himmel : ''}`;
+    if (nacht && has(o.beleuchtung)) {
+      const noun = { parkplatz: 'Parkplatzbeleuchtung', parkhaus: 'Beleuchtung des Parkhauses', sonst: 'Beleuchtung der Fläche' }[art] || 'Straßenbeleuchtung';
+      s1 += o.beleuchtung === 'keine' ? `; eine ${noun} ist nicht vorhanden` : `; die ${noun} ${V('beleuchtung', o.beleuchtung)}`;
     }
-    out.push(['Witterungs- und Sichtverhältnisse', w.join(' ')]);
-    // Verkehrslage
-    const vk = verhTxt('verkehr', o.verkehr);
-    if (vk) {
-      const an = arr(o.verkehrAnlass).map(k => verhTxt('verkehrAnlass', k)).filter(Boolean);
-      const z = zeitVorn();
-      out.push(['Verkehrslage', `${z ? cap(z) + ' herrschte' : 'Es herrschte'} ${vk}${an.length ? ' (' + joinList(an) + ')' : ''}.`]);
+    S.push(s1 + '.');
+
+    // Niederschlag und Temperatur
+    const t = num(o.temp);
+    const bei = t != null ? ` bei einer Lufttemperatur von ca. ${deGrad(t)} °C` : '';
+    const ns = VERH.ns.find(x => x[0] === o.nsArt);
+    const st = VERH.nsStaerke.find(x => x[0] === o.nsStaerke);
+    if (o.nsArt === 'kein') S.push(`Es fiel kein Niederschlag${bei}.`);
+    else if (ns) {
+      const [, , nomen, verb, part, plural] = ns;
+      if (o.nsZeit === 'zuvor') {
+        S.push(`Kurz zuvor hatte es ${st ? st[4] + ' ' : ''}${part}; bei der Aufnahme fiel kein Niederschlag mehr.`);
+        if (t != null) S.push(`Die Lufttemperatur betrug ca. ${deGrad(t)} °C.`);
+      } else {
+        const lang = o.nsZeit === 'anhaltend' ? (plural ? 'seit längerer Zeit wiederholt ' : 'seit längerer Zeit ') : '';
+        if (plural) { S.push(`Es gingen ${lang}${st ? st[3] + ' ' : ''}${nomen} nieder.`); if (t != null) S.push(`Die Lufttemperatur betrug ca. ${deGrad(t)} °C.`); }
+        else S.push(`Es ${verb} ${lang}${st ? st[2] + ' ' : ''}${nomen}${bei}.`);
+      }
+    } else S.push(`Niederschlag: ${PH('kein / Regen / Schnee …')}${t != null ? '; Lufttemperatur ca. ' + deGrad(t) + ' °C' : ''}.`);
+
+    // Nebel und Sichtweite
+    const nebel = V('nebel', o.nebel), sw = num(o.sichtweite);
+    if (nebel) S.push(`Es herrschte ${nebel}${sw != null ? `; die Sichtweite betrug ca. ${sw} m` : ''}.`);
+    else if (sw != null) S.push(`Die Sichtweite betrug ca. ${sw} m.`);
+
+    // Wind
+    if (o.wind === 'still') S.push('Es war windstill.');
+    else if (has(o.wind)) {
+      const w = V('wind', o.wind), rr = richtung(o.windRichtung), boeig = o.boeig === 'ja';
+      if (['sturm', 'schwer', 'orkan'].includes(o.wind)) S.push(`Es herrschte ${w}${boeig ? ' mit schweren Böen' : ''}${rr ? ' ' + rr : ''}.`);
+      else S.push(`Es wehte ein ${w}${boeig ? ', böiger' : ''} Wind${rr ? ' ' + rr : ''}.`);
     }
-    return out;
+
+    // Fahrbahn
+    const belagAdj = V('belag', o.belag);
+    const zust = [];
+    if (has(o.naesse)) zust.push(V('naesse', o.naesse));
+    const hoehe = num(o.schneehoehe), wi = arr(o.winter);
+    const grp = gr => wi.filter(k => V('winter', k, 3) === gr);
+    const glatt = grp('glatt').map(k => V('winter', k));
+    if (glatt.length) zust.push(`durch ${joinList(glatt, 'bzw.')} glatt`);
+    wi.filter(k => !V('winter', k, 3)).forEach(k => zust.push(V('winter', k)));
+    const hK = wi.includes('neuschnee') ? 'neuschnee' : 'festgefahren';  // Schneehöhe gehört zum Neuschnee, sonst zur Schneedecke
+    const bed = grp('bedeckt').map(k => (hoehe != null && k === hK ? (k === 'neuschnee' ? `ca. ${hoehe} cm Neuschnee` : `einer ca. ${hoehe} cm hohen, festgefahrenen Schneedecke`) : V('winter', k)));
+    if (bed.length) zust.push(`mit ${joinList(bed, 'sowie')} bedeckt`);
+    const subj = `die ${belagAdj ? belagAdj + ' ' : ''}${fl}`;
+    const b = vorn();
+    if (zust.length) S.push(`${b ? b + ' war ' + subj : cap(subj) + ' war'} ${joinList(zust)}${o.naesse === 'pfuetzen' ? '; stellenweise stand Wasser in Pfützen' : ''}.`);
+    else S.push(`${b ? b + ' war ' + subj : cap(subj) + ' war'} ${PH('trocken / feucht / nass …')}.`);
+    if (arr(o.winter).length && has(o.winterdienst)) S.push(V('winterdienst', o.winterdienst));
+    const sm = arr(o.schmutz).map(k => V('schmutz', k)).filter(Boolean);
+    if (sm.length) S.push(`Im Bereich der Unfallstelle war sie durch ${joinList(sm)} verschmutzt${o.schmutzGlatt === 'ja' ? ' und dadurch schlüpfrig' : ''}.`);
+    const decke = arr(o.decke);
+    const dm = decke.filter(k => k !== 'intakt').map(k => V('decke', k)).filter(Boolean);
+    const deckeN = strasse ? 'Die Fahrbahndecke' : 'Der Belag';
+    if (dm.length) S.push(`${deckeN} wies ${joinList(dm)} auf.`);
+    else if (decke.includes('intakt')) S.push(`${deckeN} war unbeschädigt.`);
+    const markN = strasse ? 'Fahrbahnmarkierungen' : 'Markierungen';
+    if (o.markierung === 'keine') S.push(`${markN} sind nicht vorhanden.`);
+    else if (has(o.markierung)) S.push(`Die ${markN} ${V('markierung', o.markierung)}.`);
+
+    // Sicht
+    if (o.sicht === 'gut') S.push('Die Sichtverhältnisse waren gut.');
+    else if (o.sicht === 'eingeschraenkt' || o.sicht === 'stark') {
+      const g = arr(o.sichtGrund).map(k => {
+        if (k === 'sonst') return slot(o.sichtText);
+        if (k === 'sonne') { const r = richtung(o.sonneRichtung); return r ? `die ${r} blendende, tiefstehende Sonne` : has(o.sonneText) ? `die ${slot(o.sonneText)} blendende Sonne` : V('sichtGrund', k); }
+        return V('sichtGrund', k);
+      }).filter(Boolean);
+      S.push(`Die Sicht war ${o.sicht === 'stark' ? 'stark ' : ''}eingeschränkt${g.length ? ' durch ' + joinList(g) : ''}.`);
+    }
+
+    // Verkehr
+    if (has(o.verkehr)) {
+      const an = arr(o.verkehrAnlass).map(k => V('verkehrAnlass', k)).filter(Boolean);
+      S.push(`Es herrschte ${V('verkehr', o.verkehr)}${an.length ? ' (' + joinList(an) + ')' : ''}.`);
+    }
+    if (has(o.fussRad)) S.push(V('fussRad', o.fussRad));
+    if (has(o.parken)) S.push(`Die ${strasse ? 'Parkplätze am Fahrbahnrand' : 'Stellplätze'} ${V('parken', o.parken)}.`);
+    // Kein „Es herrschte … Es herrschte …“ hintereinander
+    return S.map((x, i) => (i && x.startsWith('Es herrschte') && S[i - 1].startsWith('Es herrschte') ? x.replace(/^Es herrschte/, 'Zudem herrschte') : x)).join(' ');
   }
 
-  /** Übertrag für die Unfallmitteilung (Bl. 2): gewählte Werte mit Ziffer, z. B. „Witterungsverhältnisse: 1 Regen · 5 Sichtweite unter 50 m“. */
-  function verhZiffern(raw) {
-    const o = verhNorm(raw);
-    const z = (name, keys) => keys.map(k => VERH[name].find(x => x[0] === k)).filter(x => x && x[2]).map(x => `${x[2]} ${x[1]}`);
-    const licht = z('licht', has(o.licht) ? [o.licht] : []).concat(o.licht !== 'tag' && o.beleuchtung === 'betrieb' ? ['3 Straßenbeleuchtung in Betrieb'] : []);
-    const rows = [
-      ['Lichtverhältnisse', licht],
-      ['Straßenzustand', z('zustand', arr(o.zustand))],
-      ['Witterungsverhältnisse', arr(o.witterung).includes('keine') ? ['– (keine besonderen)'] : z('witterung', arr(o.witterung))]
+  /**
+   * Fragen des Bausteins, aufgeteilt in drei Teile (für Schritte): 'wetter', 'fahrbahn', 'sicht'.
+   * Alle Felder unter „ort.*“; ort.art (Straße/Parkplatz …) steuert „Fahrbahn“ bzw. „Verkehrsfläche“.
+   */
+  function verhFelder(teil) {
+    const ga = (d, k) => arr(get(d, 'ort.' + k));
+    const g = (d, k) => get(d, 'ort.' + k);
+    const istStr = d => !has(g(d, 'art')) || g(d, 'art') === 'strasse';
+    const nacht = d => ['dunkel', 'morgen', 'abend', 'daemmerung'].includes(g(d, 'licht'));
+    const nsAn = d => has(g(d, 'nsArt')) && g(d, 'nsArt') !== 'kein';
+    if (teil === 'wetter') return [
+      { t: 'head', text: 'Licht & Himmel' },
+      { k: 'ort.licht', t: 'choice', l: 'Licht', req: true, o: verhOpt('licht') },
+      { k: 'ort.beleuchtung', t: 'choice', l: d => ({ parkplatz: 'Parkplatzbeleuchtung', parkhaus: 'Beleuchtung im Parkhaus', sonst: 'Beleuchtung der Fläche' }[g(d, 'art')] || 'Straßenbeleuchtung'), o: verhOpt('beleuchtung'), when: nacht },
+      { k: 'ort.himmel', t: 'choice', l: 'Bewölkung', o: d => (nacht(d) ? verhOpt('himmel').map(([k, l]) => [k, k === 'sonnig' ? 'klar' : l]) : verhOpt('himmel')) },
+      { t: 'head', text: 'Niederschlag & Temperatur' },
+      { k: 'ort.nsArt', t: 'choice', l: 'Niederschlag', req: true, o: verhOpt('ns') },
+      { k: 'ort.nsStaerke', t: 'choice', l: 'Stärke', w: 'half', o: verhOpt('nsStaerke'), when: nsAn },
+      { k: 'ort.nsZeit', t: 'choice', l: 'Verlauf', w: 'half', o: verhOpt('nsZeit'), when: nsAn },
+      { k: 'ort.temp', t: 'number', l: 'Lufttemperatur ca.', unit: '°C', q: [-5, 0, 5, 10, 15, 20, 25], w: 'half', min: -30, max: 45, step: 1 },
+      { t: 'head', text: 'Nebel & Wind' },
+      { k: 'ort.nebel', t: 'choice', l: 'Nebel / Dunst', o: verhOpt('nebel') },
+      { k: 'ort.sichtweite', t: 'number', l: 'Sichtweite ca.', unit: 'm', q: [30, 50, 100, 150, 200], w: 'half', min: 5, max: 2000, step: 10, when: d => (has(g(d, 'nebel')) && g(d, 'nebel') !== 'kein') || g(d, 'nsStaerke') === 'stark' },
+      { k: 'ort.wind', t: 'choice', l: 'Wind', o: verhOpt('wind') },
+      { k: 'ort.boeig', t: 'yn', l: 'Böig?', w: 'half', when: d => has(g(d, 'wind')) && g(d, 'wind') !== 'still' },
+      { k: 'ort.windRichtung', t: 'choice', l: 'Wind aus', o: verhOpt('richtung'), when: d => has(g(d, 'wind')) && g(d, 'wind') !== 'still' }
     ];
-    return rows.map(([l, v]) => `${l}: ${v.length ? v.join(' · ') : PH('noch nicht gewählt')}`).join('\n');
+    if (teil === 'fahrbahn') return [
+      { k: 'ort.belag', t: 'choice', l: d => (istStr(d) ? 'Belag der Fahrbahn' : 'Belag der Fläche'), o: verhOpt('belag') },
+      { k: 'ort.naesse', t: 'choice', l: d => (istStr(d) ? 'Die Fahrbahn war …' : 'Die Fläche war …'), req: true, o: verhOpt('naesse') },
+      { k: 'ort.winter', t: 'multi', l: 'Winterglätte', o: verhOpt('winter') },
+      { k: 'ort.schneehoehe', t: 'number', l: 'Schneehöhe ca.', unit: 'cm', q: [1, 3, 5, 10, 20], w: 'half', min: 0, max: 200, step: 1, when: d => ga(d, 'winter').some(k => ['neuschnee', 'festgefahren'].includes(k)) },
+      { k: 'ort.winterdienst', t: 'choice', l: 'Winterdienst', o: verhOpt('winterdienst'), when: d => ga(d, 'winter').length > 0 },
+      { k: 'ort.schmutz', t: 'multi', l: 'Verschmutzung', o: verhOpt('schmutz') },
+      { k: 'ort.schmutzGlatt', t: 'yn', l: 'Dadurch schlüpfrig?', w: 'half', when: d => ga(d, 'schmutz').length > 0 },
+      { k: 'ort.decke', t: 'multi', l: d => (istStr(d) ? 'Fahrbahndecke' : 'Zustand des Belags'), excl: [['intakt', '*']], o: verhOpt('decke') },
+      { k: 'ort.markierung', t: 'choice', l: d => (istStr(d) ? 'Fahrbahnmarkierungen' : 'Markierungen'), o: verhOpt('markierung') }
+    ];
+    if (teil === 'sicht') return [
+      { t: 'head', text: 'Sicht' },
+      { k: 'ort.sicht', t: 'choice', l: 'Sichtverhältnisse', o: verhOpt('sicht') },
+      { k: 'ort.sichtGrund', t: 'multi', l: 'Eingeschränkt durch', o: verhOpt('sichtGrund'), when: d => ['eingeschraenkt', 'stark'].includes(g(d, 'sicht')) },
+      { k: 'ort.sonneRichtung', t: 'choice', l: 'Sonne aus', o: verhOpt('richtung'), when: d => ga(d, 'sichtGrund').includes('sonne') },
+      { k: 'ort.sichtText', t: 'text', l: 'Wodurch sonst?', pre: 'Die Sicht war eingeschränkt durch', ph: 'einen am Fahrbahnrand abgestellten Lkw', when: d => ga(d, 'sichtGrund').includes('sonst') },
+      { t: 'head', text: 'Verkehr' },
+      { k: 'ort.verkehr', t: 'choice', l: 'Verkehrsaufkommen', o: verhOpt('verkehr') },
+      { k: 'ort.verkehrAnlass', t: 'multi', l: 'Anlass', o: verhOpt('verkehrAnlass'), when: d => has(g(d, 'verkehr')) },
+      { k: 'ort.fussRad', t: 'choice', l: 'Fußgänger und Radfahrer', o: verhOpt('fussRad') },
+      { k: 'ort.parken', t: 'choice', l: d => (istStr(d) ? 'Parkplätze am Fahrbahnrand' : 'Stellplätze'), o: verhOpt('parken') }
+    ];
+    return [];
+  }
+  /** Schnellwahl (ein Tipp setzt mehrere Angaben) – Licht passend zur Uhrzeit. */
+  function verhSchnellwahl(l) {
+    const L = { tag: 'Tag', morgen: 'Dämmerung', abend: 'Dämmerung', dunkel: 'Dunkel' }[l];
+    const nacht = l !== 'tag';
+    const x = o => Object.assign({ 'ort.licht': l }, o);
+    return [
+      [`${L} · trocken`, x({ 'ort.nsArt': 'kein', 'ort.naesse': 'trocken', 'ort.sicht': 'gut' }), 'kein Niederschlag · gute Sicht'],
+      [`${L} · Nieselregen`, x({ 'ort.nsArt': 'niesel', 'ort.nsStaerke': 'leicht', 'ort.nsZeit': 'aktuell', 'ort.naesse': 'feucht', 'ort.sicht': 'gut' }), 'leicht · Fahrbahn feucht'],
+      [`${L} · Regen`, x({ 'ort.nsArt': 'regen', 'ort.nsStaerke': 'maessig', 'ort.nsZeit': 'aktuell', 'ort.naesse': 'nass', 'ort.sicht': 'eingeschraenkt', 'ort.sichtGrund': nacht ? ['niederschlag', 'dunkelheit'] : ['niederschlag'] }), 'mäßig · Fahrbahn nass'],
+      [`${L} · Nebel`, x({ 'ort.nsArt': 'kein', 'ort.nebel': 'nebel', 'ort.naesse': 'feucht', 'ort.sicht': 'eingeschraenkt', 'ort.sichtGrund': ['nebel'] }), 'Fahrbahn feucht'],
+      [`${L} · Schneefall`, x({ 'ort.nsArt': 'schnee', 'ort.nsStaerke': 'maessig', 'ort.nsZeit': 'aktuell', 'ort.naesse': 'nass', 'ort.winter': ['matsch'], 'ort.sicht': 'eingeschraenkt', 'ort.sichtGrund': ['niederschlag'] }), 'Schneematsch'],
+      [`${L} · Glätte`, x({ 'ort.nsArt': 'kein', 'ort.naesse': 'feucht', 'ort.winter': ['ueberfrierend'] }), 'überfrierende Nässe'],
+      ...(l === 'tag' ? [['Tag · tiefe Sonne', x({ 'ort.nsArt': 'kein', 'ort.himmel': 'sonnig', 'ort.naesse': 'trocken', 'ort.sicht': 'eingeschraenkt', 'ort.sichtGrund': ['sonne'] }), 'Blendung']] : [])
+    ];
   }
   /**
    * Licht zur angegebenen Zeit – Sonnenauf- und -untergang für Westfalen (52° N, 7,5° O) mit Zeitgleichung
@@ -345,11 +491,12 @@
     const noon = 720 - 7.5 * 4 - eot - day.getTimezoneOffset();
     const now = +t[1] * 60 + +t[2];
     if (now >= noon - half && now <= noon + half) return 'tag';
-    if (now >= noon - half - 40 && now <= noon + half + 40) return 'daemmerung';
+    if (now >= noon - half - 40 && now < noon - half) return 'morgen';
+    if (now > noon + half && now <= noon + half + 40) return 'abend';
     return 'dunkel';
   }
 
-  root.WVUF_CORE = { get, str, has, num, cap, low, arr, endDot, quote, numWord, euro, joinList, fmtDate, fmtTime, when, period, PH, person, crewText, vehicle, vehicleG, FZ_ART, KAROSSERIE, SCHADEN, VERLAUF, MATERIAL, partAt, partText, slot, sent, VERH, verhOpt, verhNorm, verhBloecke, verhZiffern, lichtVorschlag };
+  root.WVUF_CORE = { get, str, has, num, cap, low, arr, endDot, quote, numWord, euro, joinList, fmtDate, fmtTime, when, period, PH, person, crewText, vehicle, vehicleG, FZ_ART, KAROSSERIE, SCHADEN, VERLAUF, MATERIAL, partAt, partText, slot, sent, VERH, verhOpt, verhNorm, verhText, verhFelder, verhSchnellwahl, lichtVorschlag };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* ======================= Fragenkatalog ======================= */
@@ -559,37 +706,20 @@
       ]
     },
     {
-      id: 'verhaeltnisse', phase: 'Unfallort', title: 'Verhältnisse vor Ort', lead: 'Ankreuzen, was du feststellst. Auswahl wie in der Unfallmitteilung NRW (Bl. 2), die Ziffer steht in Klammern.', gen: ['2.1'],
+      id: 'verhaeltnisse', phase: 'Unfallort', title: 'Licht & Wetter', lead: 'Was du bei der Aufnahme feststellst – ankreuzen. Daraus entsteht ein zusammenhängender Absatz in 2.1.', gen: ['2.1'],
       fields: [
         { k: 'ort.verhBezug', t: 'choice', l: 'Die Angaben gelten …', o: [['aufnahme', 'bei der Unfallaufnahme'], ['beide', 'zur Unfallzeit und bei der Aufnahme']], h: 'Bei bekannter Unfallzeit: Waren die Verhältnisse damals dieselben?', when: d => get(d, 'zeit.art') === 'zeitpunkt' },
-        { t: 'preset', l: d => (lichtNach(d) ? `Schnellwahl – Licht passend zu ${aufnahmeZeit(d)} Uhr` : 'Schnellwahl'), o: d => {
-          const l = lichtNach(d) || 'tag', L = { tag: 'Tag', daemmerung: 'Dämmerung', dunkel: 'Dunkel' }[l];
-          return [
-            [`${L} · trocken`, { 'ort.licht': l, 'ort.zustand': ['trocken'], 'ort.witterung': ['keine'], 'ort.sicht': 'gut' }, 'keine Witterungseinflüsse · gute Sicht'],
-            [`${L} · Regen`, { 'ort.licht': l, 'ort.zustand': ['nass'], 'ort.witterung': ['regen'], 'ort.sicht': 'eingeschraenkt' }, 'nasse Fahrbahn'],
-            [`${L} · Nebel`, { 'ort.licht': l, 'ort.zustand': ['nass'], 'ort.witterung': ['nebel'], 'ort.sicht': 'eingeschraenkt' }, 'feuchte Fahrbahn'],
-            ...(l === 'tag' ? [['Tag · blendende Sonne', { 'ort.licht': 'tag', 'ort.zustand': ['trocken'], 'ort.witterung': ['sonne'], 'ort.sicht': 'eingeschraenkt' }, 'Blendung']] : [])
-          ];
-        } },
-        { t: 'head', text: 'Licht' },
-        { k: 'ort.licht', t: 'choice', l: 'Lichtverhältnisse', req: true, o: C.verhOpt('licht') },
-        { k: 'ort.beleuchtung', t: 'choice', l: d => ({ parkplatz: 'Parkplatzbeleuchtung', parkhaus: 'Beleuchtung im Parkhaus' }[get(d, 'ort.art')] || 'Straßenbeleuchtung'), o: C.verhOpt('beleuchtung'), when: d => ['daemmerung', 'dunkel'].includes(get(d, 'ort.licht')) },
-        { t: 'head', text: d => (istStrasse(d) ? 'Fahrbahn' : 'Verkehrsfläche') },
-        { k: 'ort.zustand', t: 'multi', l: 'Straßenzustand', h: 'Höchstens zwei Angaben, z. B. „nass/feucht“ und „schlüpfrig“.', req: true, max: 2, excl: [['trocken', 'nass']], o: C.verhOpt('zustand') },
-        { k: 'ort.winterDurch', t: 'multi', l: 'Winterglatt durch', o: C.verhOpt('winterDurch'), when: d => arr(get(d, 'ort.zustand')).includes('winterglatt') },
-        { k: 'ort.schluepfrigDurch', t: 'multi', l: 'Schlüpfrig durch', o: C.verhOpt('schluepfrigDurch'), when: d => arr(get(d, 'ort.zustand')).includes('schluepfrig') },
-        { k: 'ort.belag', t: 'choice', l: 'Belag', o: C.verhOpt('belag') },
-        { k: 'ort.decke', t: 'multi', l: 'Zustand der Fahrbahndecke', excl: [['intakt', '*']], o: C.verhOpt('decke') },
-        { t: 'head', text: 'Witterung & Sicht' },
-        { k: 'ort.witterung', t: 'multi', l: 'Witterungsverhältnisse', h: '„keine besonderen“ heißt: kein Niederschlag, kein Nebel, kein Sturm, keine blendende Sonne.', req: true, excl: [['keine', '*'], ['sicht50', 'sicht100']], o: C.verhOpt('witterung') },
-        { k: 'ort.sonneRichtung', t: 'text', l: 'Aus welcher Richtung?', pre: 'Die Sonne blendete', ph: 'aus westlicher Richtung', sugg: [['aus Richtung …', 'aus Richtung '], ['entgegen der Fahrtrichtung', 'entgegen der Fahrtrichtung ']], when: d => arr(get(d, 'ort.witterung')).includes('sonne') },
-        { k: 'ort.sicht', t: 'choice', l: 'Sichtverhältnisse', o: C.verhOpt('sicht') },
-        { k: 'ort.sichtHindernis', t: 'multi', l: 'Eingeschränkt durch', o: C.verhOpt('sichtHindernis'), when: d => ['eingeschraenkt', 'schlecht'].includes(get(d, 'ort.sicht')) },
-        { k: 'ort.sichtText', t: 'text', l: 'Wodurch sonst?', pre: 'Die Sicht war zudem eingeschränkt durch', ph: 'einen am Fahrbahnrand abgestellten Lkw', when: d => arr(get(d, 'ort.sichtHindernis')).includes('sonst') },
-        { t: 'head', text: 'Verkehrslage' },
-        { k: 'ort.verkehr', t: 'choice', l: 'Verkehrsaufkommen', o: C.verhOpt('verkehr') },
-        { k: 'ort.verkehrAnlass', t: 'multi', l: 'Besonderer Anlass', o: C.verhOpt('verkehrAnlass'), when: d => has(get(d, 'ort.verkehr')) }
+        { t: 'preset', l: d => `Schnellwahl – Licht passend zu ${aufnahmeZeit(d) ? aufnahmeZeit(d) + ' Uhr' : 'jetzt'}`, o: d => C.verhSchnellwahl(C.lichtVorschlag(get(d, 'einsatz.datum'), aufnahmeZeit(d))) },
+        ...C.verhFelder('wetter')
       ]
+    },
+    {
+      id: 'fahrbahnzustand', phase: 'Unfallort', title: d => (istStrasse(d) ? 'Zustand der Fahrbahn' : 'Zustand der Verkehrsfläche'), lead: 'Belag, Nässe, Glätte, Verschmutzung, Schäden und Markierungen', gen: ['2.1'],
+      fields: C.verhFelder('fahrbahn')
+    },
+    {
+      id: 'sichtverkehr', phase: 'Unfallort', title: 'Sicht & Verkehr', lead: 'Sichtverhältnisse und Verkehrslage bei der Aufnahme', gen: ['2.1'],
+      fields: C.verhFelder('sicht')
     },
 
     /* ---------- Phase 4: Schaden ---------- */
@@ -1055,11 +1185,8 @@
       const bes = arr(o.besonderheiten).map(k => BES[k]).filter(Boolean);
       if (bes.length) v.push(`Als Besonderheit ${bes.length > 1 ? 'sind' : 'ist'} ${joinList(bes)} vorhanden.`);
     }
-    // Gliederung nach der Ausfüllhilfe zu Anlage 6 (2.1.1 Örtlichkeit … 2.1.6 Verkehrslage), jeweils mit Zwischenzeile
-    const bl = [['Unfallörtlichkeit', p1]];
-    if (v.length) bl.push(['Straße und Verkehrsregelung', v.join(' ')]);
-    C.verhBloecke(o, o.art).forEach(b => bl.push(b));
-    return bl.map(([l, t]) => l + '\n' + t).join('\n\n');
+    // Örtlichkeit · Straße und Verkehrsregelung · Verhältnisse vor Ort (ein zusammenhängender Absatz)
+    return B(p1, v.join(' '), C.verhText(o, o.art));
   }
 
   /* ---------- 2.2 Spuren auf der Fahrbahn ---------- */
@@ -1757,11 +1884,9 @@
   function migrate(d) {
     let ch = false;
     const o = get(d, 'ort');
-    if (o && (has(o.fahrbahn) || has(o.wetter) || (typeof o.sichtbehinderung === 'string' && has(o.sichtbehinderung)))) {
+    if (o) {
       const n = C.verhNorm(o);
-      ['zustand', 'winterDurch', 'schluepfrigDurch', 'witterung', 'sichtHindernis', 'sichtText'].forEach(k => { if (n[k] !== undefined) o[k] = n[k]; });
-      delete o.fahrbahn; delete o.wetter; if (typeof o.sichtbehinderung === 'string') delete o.sichtbehinderung;
-      ch = true;
+      if (JSON.stringify(n) !== JSON.stringify(o)) { Object.keys(o).forEach(k => delete o[k]); Object.assign(o, n); ch = true; }
     }
     const g = get(d, 'gesch');
     if (g) {
@@ -1776,8 +1901,6 @@
   root.WVUF = Object.freeze({
     id: 'vuf', name: 'Verkehrsunfallflucht ohne Personenschaden', short: 'VUF Sachschaden', kurz: 'VUF',
     steps: root.WVUF_STEPS, text, plain, preview, kurzText: kurz, fahndung, offen, personalien, title, subtitle, ctx, migrate,
-    zwischenzeilen: ['Unfallörtlichkeit', 'Straße und Verkehrsregelung', 'Fahrbahnverhältnisse', 'Witterungs- und Sichtverhältnisse', 'Verkehrslage'],
-    extraTabs: [{ k: 'ziffern', l: 'Ziffern Bl. 2', hint: 'Zum Übertragen in die Unfallmitteilung NRW, Blatt 2 „Zusätzliche Angaben“ (bzw. die Erfassung in ViVA).', text: d => C.verhZiffern(get(d, 'ort')) }],
     hergangVorschlag: d => autoHergang(ctx(d), get(d, 'bewertung') || {})
   });
 })(typeof window !== 'undefined' ? window : globalThis);
