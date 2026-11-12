@@ -12,6 +12,7 @@
   const MODULES = {};
   if (window.WVUF) MODULES[window.WVUF.id] = window.WVUF;
   if (window.WVermisst) MODULES[window.WVermisst.id] = window.WVermisst;
+  if (window.WHGV) MODULES[window.WHGV.id] = window.WHGV;
   if (window.WHG) MODULES[window.WHG.id] = window.WHG;
   if (window.WAnzeige) MODULES[window.WAnzeige.id] = window.WAnzeige;
   if (window.WUnfallort) MODULES[window.WUnfallort.id] = window.WUnfallort;
