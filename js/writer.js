@@ -19,6 +19,7 @@
   if (window.WSKZ) MODULES[window.WSKZ.id] = window.WSKZ;
   if (window.WSchild) MODULES[window.WSchild.id] = window.WSchild;
   if (window.WGEW) MODULES[window.WGEW.id] = window.WGEW;
+  if (window.WBP) MODULES[window.WBP.id] = window.WBP;
   /** Module, die man direkt neu anlegen kann (der FE-Bericht entsteht nur aus der FE-Prüfung). */
   const creatable = () => Object.values(MODULES).filter(m => !m.noNew);
   /** Beschriftungen je Modul (m.labels), sonst die der Verkehrsunfallflucht. */
