@@ -168,10 +168,10 @@
   const SPRACHE = [['ok', 'Deutsch problemlos'], ['eingeschr', 'Eingeschränkt'], ['kein', 'Kein Deutsch']];
   const MITTEL = [['app', 'Übersetzungs-App', 'einer Übersetzungs-App'], ['dolm', 'Dolmetscher/in', 'einer Dolmetscherin bzw. eines Dolmetschers'], ['dritte', 'Person vor Ort übersetzte', 'einer anwesenden Person, die übersetzte']];
   /** Deutschkenntnisse – steht vor dem Einleitungssatz, weil es die Belehrung betrifft. Bei „problemlos“ kein Text. */
-  function spracheText(data, i) {
+  function spracheText(data, i, pron = false) {
     const p = arr(data.personen)[i] || {};
     if (p.spr !== 'eingeschr' && p.spr !== 'kein') return '';
-    const pr = PR(p), wer = `${cap(rolleArt(p))} ${nameOf(data, i)}`;
+    const pr = PR(p), wer = pron ? pr.Er : `${cap(rolleArt(p))} ${nameOf(data, i)}`;
     const kenntnis = p.spr === 'kein' ? `${wer} verfügte über keine Deutschkenntnisse` : `${wer} verfügte nur über eingeschränkte Deutschkenntnisse`;
     const mit = MITTEL.filter(([k]) => arr(p.sprMittel).includes(k)).map(m => m[2]);
     const parts = [];
@@ -435,7 +435,7 @@
       if (p.keine) return r.zeug && p.zvr ? '' : `${PR(p).Er} erklärte, ${keineWas(p)}.`;
       return `Zum Sachverhalt machte ${PR(p).er} ${gegenText(data, p, true)} sinngemäß folgende Angaben:`;
     }
-    return einleitung(data, i, !!spracheText(data, i));
+    return einleitung(data, i, !!(verletzungText(data, i) || spracheText(data, i)));
   }
   /**
    * Strafantrag (nur Geschädigte). Seit 17.07.2024 verlangt § 158 Abs. 2 StPO keine Schriftform mehr, wohl aber, dass Identität
@@ -494,12 +494,13 @@
     return t.join(' ');
   }
   /**
-   * Eine Schilderung in der Reihenfolge des Einsatzes: Unterüberschrift, Deutschkenntnisse, Belehrung,
-   * Alkohol/Drogen (mit Fragen und Tests erst nach der Belehrung), zuletzt die Schilderung. num = „3.1“ oder ''.
+   * Eine Schilderung: Unterüberschrift, Verletzungen, Deutschkenntnisse, Belehrung, Alkohol/Drogen (Fragen und Tests erst
+   * nach der Belehrung), die Schilderung, zuletzt der Strafantrag. num = „3.1“ oder ''.
    */
   function block(data, i, num = '') {
-    const p = arr(data.personen)[i] || {}, t = schilderung(p), sp = spracheText(data, i), ein = einOf(p).length;
-    return [`${num ? num + ' ' : ''}${heading(data, i)}`, sp, ein ? belehrungSatz(data, i, !!sp) : '', ein ? einflussText(data, i) : '', vorText(data, i), p.keine ? '' : t || '[Schilderung]', verletzungText(data, i), strafantragText(data, i, !!verletzungText(data, i))].filter(Boolean).join('\n');
+    const p = arr(data.personen)[i] || {}, t = schilderung(p), ein = einOf(p).length;
+    const verl = verletzungText(data, i), sp = spracheText(data, i, !!verl), genannt = !!(verl || sp);
+    return [`${num ? num + ' ' : ''}${heading(data, i)}`, verl, sp, ein ? belehrungSatz(data, i, genannt) : '', ein ? einflussText(data, i) : '', vorText(data, i), p.keine ? '' : t || '[Schilderung]', strafantragText(data, i)].filter(Boolean).join('\n');
   }
   /** Abschnittsnummer ohne Punkt dahinter: „3.“ → „3“, „3.2.“ → „3.2“. */
   const cleanNr = s => str(s).replace(/[^\d.]/g, '').replace(/\.{2,}/g, '.').replace(/^\.+|\.+$/g, '');
@@ -684,6 +685,7 @@
         <div class="w-q half" data-q="nn"><label class="w-lbl" for="sdNn">Nachname <i class="w-req" title="Pflicht">•</i></label><input class="input" id="sdNn" data-sk="${base}.nachname" data-next="sdVn" value="${esc(p.nachname || '')}" placeholder="z. B. Müller" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="next" maxlength="80"></div>
         <div class="w-q half" data-q="vn"><label class="w-lbl" for="sdVn">Vorname</label><input class="input" id="sdVn" data-sk="${base}.vorname" data-next="${hasBel ? '' : 'sdBel'}" value="${esc(p.vorname || '')}" placeholder="z. B. Anna" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="next" maxlength="80"></div>
         <p class="sd-im">Im Text: <b data-live="head">${esc(heading(data, i))}</b></p>
+        ${verletzungHtml(api, p, base)}
         <div class="w-q full w-head"><span class="w-head-t">Verständigung und Belehrung</span><span class="w-head-h">Kommt zuerst – Fragen zum Konsum und Tests stehen im Text erst danach.</span></div>
         ${spracheHtml(p, base)}
         <div class="w-q" data-q="bel"><span class="w-lbl">Belehrt durch <i class="w-req" title="Pflicht">•</i></span>${r ? `<p class="w-hint">${esc(r.bel)}</p>` : ''}${hasBel ? `<div class="sd-toks">${tok(p.bel, `${base}.bel`, 'unbel')}</div>` : ta(api, data, 'bel', 'sdBel', 'Namen tippen, z. B. Schulz')}</div>
@@ -695,7 +697,6 @@
         ${r ? `<div class="w-q" data-q="keine"><div class="w-chips"><button type="button" class="chip" data-sd="tog" data-p="${base}.keine" aria-pressed="${String(!!p.keine)}">${esc(keineLabel(p))}</button></div>${r.tat ? '<p class="w-hint sd-hint">Beschuldigte und Betroffene müssen sich nicht zur Sache äußern. Im Text steht dann „… erklärte, keine Angaben zur Sache machen zu wollen.“</p>' : ''}</div>` : ''}
         ${p.keine ? '' : `<div class="w-q" data-q="gegen"><span class="w-lbl">Gegenüber <i class="w-req" title="Pflicht">•</i></span>${gegenChips}${others.length ? `<div class="sd-toks">${others.map(([x, j]) => tok(x, `${base}.gegen.${j}`, 'ungegen', j)).join('')}</div>` : ''}${ta(api, data, 'gegen', 'sdGegen', 'Weitere Person tippen …')}<p class="sd-im">Im Text: <b data-live="gegen">${esc(gegenText(data, p))}</b></p></div>`}
         ${p.keine ? '' : `<div class="w-q" data-q="text"><label class="w-lbl" for="sdText">Schilderung <i class="w-req" title="Pflicht">•</i></label><div class="sd-sent" data-sd="focus"><span class="sd-intro" data-live="intro">${esc(vorText(data, i))}</span><textarea class="sd-text" id="sdText" data-sk="${base}.text" placeholder="Was hat die Person sinngemäß geschildert? Ich-Form oder indirekte Rede." autocomplete="off" autocapitalize="sentences" spellcheck="true" maxlength="12000">${esc(p.text || '')}</textarea></div></div>`}
-        ${verletzungHtml(api, p, base)}
         ${strafantragHtml(p, base)}
         <div class="w-q"><div class="w-out"><div class="w-out-h"><span class="w-lbl">So steht es in der Anzeige</span><button type="button" class="btn btn-light btn-sm" data-sd="copy1" data-i="${i}">Kopieren</button></div><pre class="w-out-t" data-live="block">${esc(block(data, i))}</pre></div></div>
       </div>
@@ -782,7 +783,7 @@
       }
       more += `<div class="sd-inl" data-q="rtw"><span class="w-lbl">Rettungswagen <i class="w-req" title="Pflicht">•</i></span>${seg(`${base}.rtw`, p.rtw, [['kein', 'Braucht keinen (auf Nachfrage)'], ['ja', 'Rettungswagen hinzugezogen']], 'w-chips')}</div>${rtw}`;
     }
-    return `<div class="w-q full w-head"><span class="w-head-t">Verletzungen</span><span class="w-head-h">Ort und Art selbst eintragen – steht im Text nach der Schilderung.</span></div>
+    return `<div class="w-q full w-head"><span class="w-head-t">Verletzungen</span><span class="w-head-h">Ort und Art selbst eintragen – steht im Text ganz vorn, vor der Belehrung.</span></div>
       <div class="w-q" data-q="verl"><span class="w-lbl">War ${wer} verletzt?</span>${seg(`${base}.verl`, v, [['nein', 'Nicht verletzt'], ['schmerz', 'Gibt Schmerzen an'], ['ja', 'Verletzungen festgestellt']])}${more ? `<div class="sd-sub">${more}</div>` : ''}</div>`;
   }
 
