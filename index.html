@@ -1504,6 +1504,10 @@ body[data-area=schreiben] .pane-schreiben{display:grid}
 .w-sent-in::placeholder{color:var(--text-3);font-style:italic;opacity:1}
 .w-sent-post{display:block;margin-top:2px;text-align:right;color:var(--text-2);pointer-events:none}
 .w-lint{margin:8px 2px 0;padding:8px 12px;border-radius:12px;background:var(--accent-soft);color:var(--accent);font-size:12.5px;line-height:1.45}
+/* Gewahrsam (PolG NRW): letzter Schritt – fertiger Text, von Hand anpassbar */
+.gw{display:grid;gap:14px;min-width:0}
+.gw-tools{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
+.w-out .gw-tools{justify-content:flex-start}
 .w-quick .w-recent{border-style:dashed;color:var(--text)}
 .chip.w-recent{border-style:dashed}
 .w-after-chips{margin-top:8px}
@@ -2671,6 +2675,8 @@ dialog.brief-dlg.open .brief{opacity:1;transform:none}
 <script src="js/anzeige.js"></script>
 <script src="js/unfallort.js"></script>
 <script src="js/schilderung.js"></script>
+<script src="js/gewahrsam.js"></script>
+<script src="js/blutprobe.js"></script>
 <script src="js/writer.js"></script>
 </body>
 </html>

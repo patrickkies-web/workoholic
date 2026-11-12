@@ -127,6 +127,8 @@
     sonder: ['Zuständige Behörde einbinden (Ordnungsbehörde, Jugendamt, Ausländerbehörde, Gesundheitsamt) – Polizei in Vollzugs- bzw. Amtshilfe', 'Unverzüglich richterliche Entscheidung nach Buch 7 FamFG bzw. Fachgesetz; ohne sie spätestens mit Ablauf des Folgetages beenden', 'Grund mitteilen, Benachrichtigung ermöglichen']
   };
   const PRIVAT = 'nur Polizei oder Staatsanwaltschaft';
+  /** FE-Ergebnisse, die ins Gewahrsam-Gerüst führen (Art im Modul „Gewahrsam (PolG NRW)“). */
+  const GW_ART = { ok_35_1: 'n1', ok_ps_gew: 'n1', ok_35_2: 'n2', ok_35_3: 'n3', ok_35_4: 'n4', ok_35_abs2: 'a2', ok_35_abs3: 'a3' };
   const N = {
     start: { k: 'Lage', q: 'Was liegt vor?', lead: 'Wähle den Ausgangspunkt. Danach siehst du nur die Wege, die dazu passen – und an jeder Abzweigung, was dafür vorliegen muss.', info: 'fe', opts: [
       { l: 'Straftat', d: 'begangen, versucht oder Verdacht', go: 'st' },
@@ -635,7 +637,7 @@
       <p class="fe-lead">Von oben nach unten noch einmal prüfen, ob alles so vorliegt. Danach legt die App den Bericht an – mit diesen Antworten vorausgefüllt.</p>
       <ol class="fe-conf">${st.map((x, i) => `<li><span class="fe-conf-n mono">${pad(i + 1)}</span><span class="fe-conf-b"><span class="fe-conf-q">${esc(x.q)}</span><span class="fe-conf-a">${esc(x.a)}</span>${x.c ? `<span class="fe-conf-c">${termLine(x.c)}</span>` : ''}</span></li>`).join('')}<li class="fe-conf-end"><span class="fe-conf-n mono">✓</span><span class="fe-conf-b"><span class="fe-conf-q">Ergebnis</span><span class="fe-conf-a">Freiheitsentziehung rechtmäßig – ${esc(L.norm)}</span></span></li></ol>
       <span class="wf-gk">Danach fragt der Bericht ab</span>
-      <ul class="wf-hints"><li>Person: männlich oder weiblich, Name – für die richtige Satzführung</li><li>Lage: Zeitpunkt des Ergreifens, Ort, Anlass, Sachverhalt</li>${nC ? `<li>Begründung zu ${nC === 1 ? 'der Voraussetzung' : `allen ${nC} Voraussetzungen`} – Satzanfang steht fest, das Graue zeigt, wie es weitergeht</li>` : ''}<li>Formvorschriften: ${esc(verf.length ? verf.map(v => v.split(/[;(–]/)[0].trim()).slice(0, 4).join(' · ') : 'Grund, Belehrung, Benachrichtigung, Richter')} – erledigt, nicht erfolgt oder entfällt</li></ul>
+      ${GW_ART[id] ? `<ul class="wf-hints"><li>Person und eingesetzte Kräfte – die Anrede steuert die Satzführung</li><li>Fragen zu ${esc(L.norm)}: Feststellungen frei beschreiben, Folgerungen antippen – wie in den anderen schriftlichen Arbeiten</li><li>Wer was wann angeordnet hat; Grund, Zwang, Durchsuchung, Gewahrsamsfähigkeit, Benachrichtigung, Richter (auch nachts nicht erreichbar)</li><li>Fertiger Text zum Bearbeiten, Antrag ans Amtsgericht, Zeitleiste mit Frist</li></ul>` : `<ul class="wf-hints"><li>Person: männlich oder weiblich, Name – für die richtige Satzführung</li><li>Lage: Zeitpunkt des Ergreifens, Ort, Anlass, Sachverhalt</li>${nC ? `<li>Begründung zu ${nC === 1 ? 'der Voraussetzung' : `allen ${nC} Voraussetzungen`} – Satzanfang steht fest, das Graue zeigt, wie es weitergeht</li>` : ''}<li>Formvorschriften: ${esc(verf.length ? verf.map(v => v.split(/[;(–]/)[0].trim()).slice(0, 4).join(' · ') : 'Grund, Belehrung, Benachrichtigung, Richter')} – erledigt, nicht erfolgt oder entfällt</li></ul>`}
       <div class="wf-actions"><button type="button" class="btn btn-accent" data-fe-confirm>Weg bestätigen – Bericht anlegen</button><button type="button" class="btn btn-ghost" data-fe-unpick>Zurück zum Ergebnis</button></div>
       <p class="fe-mini">Der Bericht wird verschlüsselt unter „Schreiben“ gespeichert und lässt sich jederzeit unterbrechen.</p>`;
   }
@@ -646,6 +648,17 @@
     const preset = { ...base, fe: { leaf: fe.cur, norm: L.norm, folge: val(L.folge), verf: val(L.verf) || [], hin: L.hin || [], kind: kindOf(fe.cur), pol: fe.pol, zeuge: fe.cur === 'ok_163b2', steps: pickSteps() } };
     fe.pick = false; render();
     const nav = document.querySelector('#areas [data-area="schreiben"]'); if (nav) nav.click();
+    // Gewahrsam nach § 35 PolG NRW: eigenes Gerüst unter „Schreiben“ (Lückentext, Pflichtbausteine, Antrag ans Amtsgericht)
+    if (GW_ART[fe.cur] && window.WGEW) {
+      // Im Prüfweg bestätigte Voraussetzungen als Folgerung vormerken (erscheinen erst mit den Feststellungen im Text)
+      const c = new Set(preset.fe.steps.map(x => x.c).filter(Boolean)), pre = {};
+      const zust = [...(c.has('Zustand, der die freie Willensbestimmung ausschließt') ? ['will'] : []), ...(c.has('Hilflose Lage') ? ['hilf'] : [])];
+      if (zust.length) pre.c_zust = zust;
+      if (c.has('Straftat droht')) pre.c_typ = 'st';
+      if (c.has('Ordnungswidrigkeit von erheblicher Bedeutung für die Allgemeinheit')) pre.c_typ = 'owi';
+      window.WWriter.newDoc('gewahrsam', { ...preset, gw: { art: GW_ART[fe.cur], ...pre } });
+      return;
+    }
     window.WWriter.newDoc('fe', preset);
   }
   function sheetHtml() {
