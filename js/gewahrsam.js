@@ -5,7 +5,9 @@
  *   • Feststellungen frei (Satzfelder der App, mit Hinweis auf Wertungswörter),
  *   • Folgerungen als fertige Sätze zum Ankreuzen, die sich auf die Feststellungen beziehen,
  *   • Lücken direkt im Satz, Weichen nur dort, wo sich Möglichkeiten rechtlich ausschließen,
- *   • Pflichtbausteine für jeden Gewahrsam (§§ 36–38, 37a, 39, 43, 61, 62 PolG NRW, Gewahrsamsvollzugsverordnung),
+ *   • wer etwas angeordnet, ausgesprochen oder ausgeführt hat: Auswahl aus Team, Schicht und diesem Vorgang –
+ *     im Text Amtsbezeichnung und Nachname, jeweils mit Uhrzeit,
+ *   • Pflichtbausteine für jeden Gewahrsam (§§ 36, 37, 39, 43, 61, 62 PolG NRW, Gewahrsamsvollzugsverordnung),
  *   • am Ende ein fertiger Text, der sich von Hand anpassen lässt.
  * Ausgaben: Bericht, Antrag auf richterliche Entscheidung (§ 417 Abs. 2 FamFG), Zeitleiste mit Frist, offene Punkte.
  * Die Lückentext-Gerüste hängt writer.js über m.mount ein; gespeichert wird ausschließlich über writer.js / WBridge.
@@ -36,6 +38,43 @@
   const rankOf = roles => arr(roles).map(str).find(r => RANK_RE.test(r)) || '';
   const nachname = n => { n = str(n); if (n.includes(',')) return n.split(',')[0].trim(); const t = n.split(/\s+/); if (t.length < 2) return n; let i = t.length - 1; while (i > 1 && /^(von|van|de|der|den|zu|zur|vom|ten|ter|di|da|del|le|la)$/i.test(t[i - 1])) i--; return t.slice(i).join(' '); };
   const teamRank = n => { const B = root.WBridge; const t = (B && B.team && B.team()) || []; const p = t.find(x => x && str(x.name).toLowerCase() === str(n).toLowerCase()); return p ? (str(p.rank) || rankOf(p.roles)) : ''; };
+  const DGRADE = ['', 'PKA', 'PKAin', 'PK', 'PKin', 'POK', 'POKin', 'PHK', 'PHKin', 'EPHK', 'EPHKin', 'KA', 'KAin', 'KK', 'KKin', 'KOK', 'KOKin', 'KHK', 'KHKin', 'EKHK', 'EKHKin', 'PR', 'PRin', 'POR', 'PORin', 'KR', 'KRin'];
+  /** „pok“ → „POK“, „pokin“ → „POKin“; keine Amtsbezeichnung → ''. */
+  function canonRank(t) {
+    t = str(t); if (!t || t.length > 7) return '';
+    const up = t.toUpperCase(); if (RANK_RE.test(up)) return up;
+    if (/in$/i.test(t)) { const f = t.slice(0, -2).toUpperCase() + 'in'; if (RANK_RE.test(f)) return f; }
+    return '';
+  }
+  /** Getippter Name: „POK Müller“ → { grad: 'POK', name: 'Müller' }. */
+  const nameCase = n => (n === n.toLowerCase() ? n.replace(/(^|[\s-])(\p{Ll})/gu, (m, a, b) => a + b.toUpperCase()) : n);
+  const parseFree = q => { const t = str(q).split(/\s+/); const g = canonRank(t[0]); return g && t.length > 1 ? { grad: g, name: nameCase(t.slice(1).join(' ')) } : { grad: teamRank(q), name: nameCase(str(q)) }; };
+  const isKraft = v => v && typeof v === 'object' && !Array.isArray(v) && has(v.name);
+  /** Gewählte Person; ältere Entwürfe mit getipptem Namen werden mitgenommen. */
+  const kv = v => (isKraft(v) ? v : typeof v === 'string' && has(v) ? parseFree(v) : null);
+  /** Im Text: Amtsbezeichnung und Nachname, z. B. „POKin Schulz“. */
+  const kraftText = (o, ctx) => `${str(o.grad) || teamRank(o.name) || miss(ctx, 'Amtsbezeichnung ' + nachname(o.name))} ${nachname(o.name)}`;
+  /** Wer kommt in Frage: zuerst in diesem Vorgang schon genannt, dann Schicht/Besatzung, dann Team. */
+  function pool(data) {
+    const out = [], idx = new Map();
+    const add = (grad, name, src) => {
+      name = str(name); if (!name) return;
+      const k = name.toLowerCase(), g = str(grad) || teamRank(name);
+      if (idx.has(k)) { const o = idx.get(k); if (!o.grad && g) o.grad = g; return; }
+      const o = { grad: g, name, src }; idx.set(k, o); out.push(o);
+    };
+    Object.values(F(data)).forEach(v => { if (isKraft(v)) add(v.grad, v.name, 'doc'); });
+    arr(get(data, 'einsatz.kraefte')).forEach(c => c && add(c.grad, c.name, 'crew'));
+    arr(get(data, 'einsatz.wagen')).flatMap(w => arr(w && w.crew)).forEach(c => c && add(c.grad, c.name, 'crew'));
+    const B = root.WBridge; ((B && B.team && B.team()) || []).forEach(t => t && add(str(t.rank) || rankOf(t.roles), t.name, 'team'));
+    return out;
+  }
+  function matches(o, q) {
+    const qq = str(q).toLowerCase().replace(/\s+/g, ' '); if (!qq) return true;
+    const n = str(o.name).toLowerCase(), g = str(o.grad).toLowerCase();
+    const hay = [n, ...n.split(/[\s-]+/), `${g} ${nachname(o.name).toLowerCase()}`, `${g} ${n}`];
+    return hay.some(h => h.startsWith(qq)) || (qq.length >= 3 && n.includes(qq));
+  }
 
   /* ======================= Satzführung ======================= */
   const GEN = {
@@ -58,7 +97,7 @@
     c_stat: { l: 'Status', o: [['ent', 'entwichen', 'ist {er} aus dem Vollzug entwichen'], ['auss', 'ohne Erlaubnis draußen', 'hält {er} sich ohne Erlaubnis außerhalb der Anstalt auf']] },
     e1_bek: { l: 'Bekanntgabe des Grundes', o: [['sof', 'sofort', 'dabei'], ['spaet', 'später', 'um [[e1_bek_t|Uhrzeit|t|Grund bekannt gegeben]] Uhr, sobald {er} aufnahmefähig war,']] },
     e1_spr: { l: 'Verständigung', o: [['de', 'auf Deutsch', 'in deutscher Sprache'], ['dol', 'Dolmetscher', 'über eine Dolmetscherin oder einen Dolmetscher ([[e1_dol|Sprache, Name]])']] },
-    e2_zw: { l: 'Zwang', o: [['ohne', 'ohne Zwang', 'ohne Anwendung von Zwang'], ['mit', 'mit Zwang', 'unter Anwendung unmittelbaren Zwangs: [[e2_zw_x|Androhung, Art, Anlass, Verletzungen, Versorgung|l]]']] },
+    e2_zw: { l: 'Zwang', o: [['ohne', 'ohne Zwang', 'ohne Anwendung von Zwang'], ['mit', 'mit Zwang', 'unter Anwendung unmittelbaren Zwangs durch [[e2_zw_wer|Wer wendete Zwang an?|k]]: [[e2_zw_x|Art, Anlass, Verletzungen, Versorgung|l]]']] },
     e2_fes_g: { l: 'Fesselungsgrund', o: [['ang', 'angreifen', 'Polizeivollzugsbeamte oder Dritte angreifen oder Widerstand leisten'], ['fl', 'fliehen', 'fliehen'], ['selbst', 'sich verletzen', 'sich töten oder verletzen']] },
     e3_art: { l: 'Verwahrung oder Sicherstellung', o: [['verw', 'in Verwahrung', 'in Verwahrung genommen'], ['sich', 'sichergestellt', 'nach § 43 Nr. 3 PolG NRW sichergestellt']] },
     e4: { l: 'Gewahrsamsfähigkeit', o: [
@@ -66,19 +105,13 @@
       ['nein', 'ärztlich verneint', 'Die Gewahrsamsfähigkeit wurde um [[e4_t|Uhrzeit|t|Gewahrsamsfähigkeit verneint]] Uhr durch [[e4_arzt|Ärztin oder Arzt|l]] verneint. {Der} wurde in [[e4_kh|Krankenhaus|l]] gebracht.'],
       ['kz', 'keine Zweifel', 'Zweifel an der Gewahrsamsfähigkeit bestanden nicht, weil [[e4_kz|Grund|l]].']] },
     e5: { l: 'Benachrichtigung', o: [
-      ['selbst', 'selbst benachrichtigt', '{Ihm} wurde um [[e5_t|Uhrzeit|t|Benachrichtigung]] Uhr Gelegenheit gegeben, einen Angehörigen oder eine Person {seines} Vertrauens zu benachrichtigen. {Er} benachrichtigte [[e5_wen|wen|l]].'],
-      ['pol', 'durch die Polizei', '{Er} war nicht in der Lage, selbst zu benachrichtigen. [[e5_wer|Amtsbezeichnung, Name]] benachrichtigte um [[e5_t|Uhrzeit|t|Benachrichtigung]] Uhr [[e5_wen|wen|l]], da dies {seinem} mutmaßlichen Willen nicht widersprach.'],
-      ['verz', 'verzichtet', '{Er} verzichtete nach Hinweis auf {sein} Recht ausdrücklich auf eine Benachrichtigung.'],
+      ['selbst', 'selbst benachrichtigt', 'Um [[e5_t|Uhrzeit|t|Benachrichtigung]] Uhr gab [[e5_gel|Wer gab Gelegenheit?|k]] {dem} Gelegenheit, einen Angehörigen oder eine Person {seines} Vertrauens zu benachrichtigen. {Er} benachrichtigte [[e5_wen|wen|l]].'],
+      ['pol', 'durch die Polizei', '{Er} war nicht in der Lage, selbst zu benachrichtigen. [[e5_wer|Wer benachrichtigte?|k]] benachrichtigte um [[e5_t|Uhrzeit|t|Benachrichtigung]] Uhr [[e5_wen|wen|l]], da dies {seinem} mutmaßlichen Willen nicht widersprach.'],
+      ['verz', 'verzichtet', 'Nach Hinweis durch [[e5_hin|Wer wies hin?|k]] um [[e5_hin_t|Uhrzeit|t|Hinweis auf Benachrichtigung]] Uhr verzichtete {er} ausdrücklich auf eine Benachrichtigung.'],
       ['unt', 'unterblieben', 'Eine Benachrichtigung unterblieb, weil [[e5_unt|Grund|l]].']] },
     e6: { l: 'Richterliche Entscheidung', o: [
-      ['herb', 'herbeigeführt', 'Um [[e6_t|Uhrzeit|t|Richter angerufen]] Uhr beantragte [[e6_wer|Amtsbezeichnung, Name]] beim Amtsgericht [[e6_ag|Ort]] die Entscheidung über Zulässigkeit und Fortdauer der Freiheitsentziehung. Die Entscheidung erging um [[e6_et|Uhrzeit|t|Richterliche Entscheidung]] Uhr: [[e6_erg|Ergebnis, z. B. Fortdauer bis 08:00 Uhr angeordnet|l]].'],
-      ['entb', 'nicht herbeigeführt', 'Eine richterliche Entscheidung wurde nach § 36 Abs. 1 Satz 2 PolG NRW nicht herbeigeführt, weil anzunehmen war, dass sie erst nach Wegfall des Grundes der Maßnahme ergehen würde.']] },
-    e7: { l: 'Unterbringung', o: [
-      ['zelle', 'Gewahrsamszelle', '{Der} wurde um [[e7_t|Uhrzeit|t|Einlieferung Gewahrsam]] Uhr in den Polizeigewahrsam [[e7_dst|Dienststelle|l]] eingeliefert und getrennt von Straf- und Untersuchungsgefangenen sowie von Personen anderen Geschlechts untergebracht. Sichtkontrollen erfolgten [[e7_int|Intervall, z. B. alle 15 Minuten nach ärztlicher Vorgabe|l]] und sind im Gewahrsamsnachweis dokumentiert.'],
-      ['raum', 'anderer Raum', '{Der} wurde ab [[e7_t|Uhrzeit|t|Unterbringung]] Uhr [[e7_raum|Raum, z. B. im Aufenthaltsraum der Wache|l]] untergebracht und dort ständig durch [[e7_beob|Amtsbezeichnung, Name]] betreut.']] },
-    e8: { l: 'Fixierung', o: [['nein', 'nein', ''], ['ja', 'ja', '{Der} wurde um [[e8_t|Uhrzeit|t|Fixierung Beginn]] Uhr fixiert ([[e8_art|Art, z. B. 5-Punkt]]), weil [[e8_grund|konkrete Tatsachen, mildere Mittel|l]]. Eine ärztliche Stellungnahme gab [[e8_arzt|Ärztin oder Arzt]] um [[e8_arzt_t|Uhrzeit|t|Ärztliche Stellungnahme Fixierung]] Uhr ab. Die richterliche Anordnung ((e8_ri)). Eine durchgängige persönliche Beobachtung stellte [[e8_beob|Amtsbezeichnung, Name]] sicher. Die Fixierung endete um [[e8_ende|Uhrzeit|t|Fixierung Ende]] Uhr.']] },
-    e8_ri: { l: 'Richterliche Anordnung der Fixierung', o: [['vor', 'lag vorher vor', 'lag vorher vor ([[e8_ri_ag|Amtsgericht, Uhrzeit]])'], ['gv', 'Gefahr im Verzug', 'traf bei Gefahr im Verzug vorläufig die aufsichtführende Person ([[e8_ri_wer|Amtsbezeichnung, Name]]); die richterliche Entscheidung wurde um [[e8_ri_t|Uhrzeit|t|Richter zur Fixierung]] Uhr nachgeholt']] },
-    e9: { l: 'Art der Entlassung', o: [['grund', 'Grund weggefallen', 'entlassen, weil der Grund der Maßnahme weggefallen war'], ['ueb', 'Übergabe', 'an [[e9_an|wen|l]] übergeben und damit entlassen'], ['richter', 'auf richterliche Entscheidung', 'aufgrund richterlicher Entscheidung entlassen']] }
+      ['herb', 'herbeigeführt', 'Um [[e6_t|Uhrzeit|t|Richter angerufen]] Uhr beantragte [[e6_wer|Wer beantragte?|k]] beim Amtsgericht [[e6_ag|Ort]] die Entscheidung über Zulässigkeit und Fortdauer der Freiheitsentziehung. [[e6_ri|Richterin oder Richter, Name|l]] entschied um [[e6_et|Uhrzeit|t|Richterliche Entscheidung]] Uhr: [[e6_erg|Ergebnis, z. B. Fortdauer bis 08:00 Uhr angeordnet|l]].'],
+      ['entb', 'nicht herbeigeführt', 'Eine richterliche Entscheidung wurde nach § 36 Abs. 1 Satz 2 PolG NRW nicht herbeigeführt, weil anzunehmen war, dass sie erst nach Wegfall des Grundes der Maßnahme ergehen würde. Dies entschied [[e6_ent_wer|Wer entschied?|k]] um [[e6_ent_t|Uhrzeit|t|Entscheidung ohne Richter]] Uhr.']] },
   };
 
   /* ======================= Gerüste je Gewahrsamsart =======================
@@ -110,7 +143,7 @@
           { t: 'ph', x: 'Eine freiverantwortliche Selbstgefährdung eines einsichtsfähigen Erwachsenen trägt keinen Schutzgewahrsam.' },
           { t: 'ff', id: 'c_suiz', when: f => f.g_selbst, np: true, lead: 'Zu einer möglichen Selbsttötung stellten die Einsatzkräfte fest:', l: 'Äußerungen und Anzeichen zur Selbsttötung', ph: 'z. B. Er sagte: „Ich spring gleich da runter.“', q: 'Wörtliche Äußerungen, Plan, Mittel, Zeitpunkt, frühere Versuche.' },
           { t: 'ak', id: 'c_suiz1', when: f => f.g_selbst, x: 'Es war davon auszugehen, dass die geäußerte Absicht nicht auf einer freien, unbeeinflussten Willensbildung beruhte, sondern auf einer akuten Ausnahmesituation.' },
-          { t: 'ak', id: 'c_suiz2', when: f => f.g_selbst, x: 'Wegen Anzeichen einer psychischen Erkrankung wurde um [[c_ob_t|Uhrzeit|t|Ordnungsbehörde verständigt]] Uhr die örtliche Ordnungsbehörde ([[c_ob|Behörde, Ansprechperson|l]]) zur Prüfung einer sofortigen Unterbringung nach § 14 PsychKG NRW verständigt. Der Gewahrsam sollte bis zu deren Entscheidung andauern.' },
+          { t: 'ak', id: 'c_suiz2', when: f => f.g_selbst, x: 'Wegen Anzeichen einer psychischen Erkrankung verständigte [[c_ob_wer|Wer verständigte?|k]] um [[c_ob_t|Uhrzeit|t|Ordnungsbehörde verständigt]] Uhr die örtliche Ordnungsbehörde ([[c_ob|Behörde, Ansprechperson|l]]) zur Prüfung einer sofortigen Unterbringung nach § 14 PsychKG NRW. Der Gewahrsam sollte bis zu deren Entscheidung andauern.' },
           { t: 'ak', id: 'c_nr2', np: true, x: 'Darüber hinaus war der Gewahrsam auf § 35 Abs. 1 Nr. 2 PolG NRW zu stützen, weil [[c_nr2_x|drohende Straftat und Tatsachen|l]].' }
         ] },
         { k: 'D', t: 'Erforderlichkeit, Zweck, Dauer', sec: 'r', dep: true, lead: 'Welche milderen Mittel schieden aus, und bis wann soll der Gewahrsam dauern?', b: [
@@ -150,10 +183,11 @@
           { t: 'ph', x: 'Bei einer Ordnungswidrigkeit reicht nicht jede: Die erhebliche Bedeutung für die Allgemeinheit ist im Einzelfall zu begründen.' }
         ] },
         { k: 'D', t: 'Unerlässlichkeit, Zweck, Dauer', sec: 'r', dep: true, lead: 'Warum reichten mildere Mittel nicht, und bis wann soll der Gewahrsam dauern?', b: [
-          { t: 'p', np: true, ow: f => f.d_ga || f.d_pv || f.d_si || f.d_beg, x: 'Der Gewahrsam war unerlässlich. Mildere Mittel reichten nicht aus:' },
-          { t: 'ak', id: 'd_ga', x: 'Eine Gefährderansprache um [[d_ga_t|Uhrzeit|t|Gefährderansprache]] Uhr blieb ohne Wirkung: [[d_ga_x|Reaktion|l]].' },
-          { t: 'ak', id: 'd_pv', x: 'Ein Platzverweis kam nicht in Betracht bzw. blieb erfolglos, weil [[d_pv_x|Grund|l]].' },
-          { t: 'ak', id: 'd_si', x: 'Die Sicherstellung [[d_si_g|Gegenstand im Genitiv, z. B. des Messers]] allein beseitigte die Gefahr nicht, weil [[d_si_x|Grund|l]].' },
+          { t: 'p', np: true, ow: f => f.d_ga || f.d_pv || f.d_pv0 || f.d_si || f.d_beg, x: 'Der Gewahrsam war unerlässlich. Mildere Mittel reichten nicht aus:' },
+          { t: 'ak', id: 'd_ga', x: 'Eine Gefährderansprache durch [[d_ga_wer|Wer sprach an?|k]] um [[d_ga_t|Uhrzeit|t|Gefährderansprache]] Uhr blieb ohne Wirkung: [[d_ga_x|Reaktion|l]].' },
+          { t: 'ak', id: 'd_pv', x: 'Ein Platzverweis, den [[d_pv_wer|Wer sprach ihn aus?|k]] um [[d_pv_t|Uhrzeit|t|Platzverweis ausgesprochen]] Uhr aussprach, blieb erfolglos, weil [[d_pv_x|Grund|l]].' },
+          { t: 'ak', id: 'd_pv0', x: 'Ein Platzverweis kam nicht in Betracht, weil [[d_pv0_x|Grund|l]].' },
+          { t: 'ak', id: 'd_si', x: 'Die Sicherstellung [[d_si_g|Gegenstand im Genitiv, z. B. des Messers]] durch [[d_si_wer|Wer stellte sicher?|k]] allein beseitigte die Gefahr nicht, weil [[d_si_x|Grund|l]].' },
           { t: 'ak', id: 'd_beg', x: 'Eine Übergabe an Begleitpersonen schied aus, weil [[d_beg_x|Grund|l]].' },
           { t: 'p', x: 'Der Gewahrsam nach § 35 Abs. 1 Nr. 2 PolG NRW sollte andauern, bis [[d_zweck|Zweck, z. B. Ende der Veranstaltung|l]], längstens bis [[d_bis|Datum, Uhrzeit]].' },
           { t: 'ph', x: 'Wurde bereits eine Straftat begangen, laufen Festnahme nach StPO und Gewahrsam nebeneinander: beides getrennt begründen, Strafanzeige fertigen. Über das Ende des Folgetages hinaus nur mit richterlicher Anordnung (§ 38 PolG NRW).' }
@@ -161,7 +195,7 @@
       ],
       rules: f => {
         const r = [];
-        if (!f.d_ga && !f.d_pv && !f.d_si && !f.d_beg) r.push('Unerlässlichkeit: kein milderes Mittel geprüft.');
+        if (!f.d_ga && !f.d_pv && !f.d_pv0 && !f.d_si && !f.d_beg) r.push('Unerlässlichkeit: kein milderes Mittel geprüft.');
         if (f.c_typ === 'owi') r.push('Ordnungswidrigkeit: die erhebliche Bedeutung für die Allgemeinheit im Einzelfall begründen.');
         return r;
       } },
@@ -170,14 +204,14 @@
       lead: 'Maßstab: unerlässlich. Zuerst den Platzverweis selbst dokumentieren, dann die Missachtung.',
       secs: [
         { k: 'B1', t: 'Der Platzverweis', sec: 's', lead: 'Wer hat wann was angeordnet, und welche Gefahr sollte abgewehrt werden?', b: [
-          { t: 'p', x: 'Um [[b_pv_t|Uhrzeit|t|Platzverweis erteilt]] Uhr erteilte [[b_pv_wer|Amtsbezeichnung, Name]] {dem} einen Platzverweis nach § 34 Abs. 1 PolG NRW. {Ihm} wurde aufgegeben, [[b_pv_ber|Bereich, genau bezeichnet|l]] zu verlassen und bis [[b_pv_bis|Datum, Uhrzeit]] nicht wieder zu betreten. Der Platzverweis diente der Abwehr folgender Gefahr:' },
+          { t: 'p', x: 'Um [[b_pv_t|Uhrzeit|t|Platzverweis erteilt]] Uhr erteilte [[b_pv_wer|Wer erteilte ihn?|k]] {dem} einen Platzverweis nach § 34 Abs. 1 PolG NRW. {Ihm} wurde aufgegeben, [[b_pv_ber|Bereich, genau bezeichnet|l]] zu verlassen und bis [[b_pv_bis|Datum, Uhrzeit]] nicht wieder zu betreten. Der Platzverweis diente der Abwehr folgender Gefahr:' },
           { t: 'ff', id: 'b_pv_gef', l: 'Gefahr, die der Platzverweis abwehren sollte', ph: 'z. B. Sie hatte am Bierstand eine andere Besucherin zweimal gegen die Schulter gestoßen …', q: 'Was war passiert? Welche Gefahr drohte am Ort? Wer war betroffen?' },
           { t: 'ak', id: 'b_pv_bek', np: true, x: 'Die Anordnung wurde {ihm} mündlich, klar und in verständlicher Sprache bekannt gegeben. {Er} ließ erkennen, dass {er} sie verstanden hatte: [[b_pv_reak|Reaktion|l]].' },
-          { t: 'ak', id: 'b_pv_ank', x: 'Für den Fall der Nichtbefolgung wurde {ihm} die Ingewahrsamnahme angekündigt.' },
+          { t: 'ak', id: 'b_pv_ank', x: 'Für den Fall der Nichtbefolgung kündigte [[b_pv_ank_wer|Wer kündigte an?|k]] {ihm} die Ingewahrsamnahme an.' },
           { t: 'ph', x: 'Die Ankündigung ist nicht ausdrücklich vorgeschrieben, belegt aber, dass der Gewahrsam das letzte Mittel war. Der Platzverweis muss selbst rechtmäßig sein: Bereich und Dauer konkret, nur vorübergehend.' }
         ] },
         { k: 'B2', t: 'Die Missachtung', sec: 's', lead: 'Was genau tat die Person entgegen der Anordnung?', b: [
-          { t: 'p', x: 'Um [[b_mis_t|Uhrzeit|t|Missachtung festgestellt]] Uhr stellten die Einsatzkräfte fest, dass {der} dem Platzverweis nicht nachkam:' },
+          { t: 'p', x: 'Um [[b_mis_t|Uhrzeit|t|Missachtung festgestellt]] Uhr stellte [[b_mis_wer|Wer stellte es fest?|k]] fest, dass {der} dem Platzverweis nicht nachkam:' },
           { t: 'ff', id: 'b_fest', l: 'Was genau, wo, wie oft', ph: 'z. B. Sie stand erneut am Bierstand und rief der Besucherin zu: „Wir sind noch nicht fertig!“ …', q: 'Wo wurde die Person angetroffen? Was tat sie? Wurde sie bereits aus dem Bereich gebracht? Was sagte sie wörtlich?' }
         ] },
         { k: 'D', t: 'Unerlässlichkeit, Dauer', sec: 'r', dep: true, lead: 'Warum reichte es nicht, die Person aus dem Bereich zu bringen?', b: [
@@ -198,10 +232,10 @@
       lead: 'Maßstab: unerlässlich. Erst die Verfügung nach § 34a, dann die Missachtung.',
       secs: [
         { k: 'B1', t: 'Die Verfügung', sec: 's', lead: 'Daten der Wohnungsverweisung und des Rückkehrverbots.', b: [
-          { t: 'p', x: 'Mit Verfügung vom [[b_wv_d|Datum|d]] wurde {der} nach § 34a PolG NRW aus der Wohnung [[b_wv_adr|Anschrift|l]] und [[b_wv_umg|unmittelbare Umgebung, genau bezeichnet|l]] verwiesen. Ein Rückkehrverbot besteht bis [[b_wv_bis|Datum, Uhrzeit]]. Die Verfügung wurde {ihm} am [[b_wv_bekd|Datum|d]] ((b_wv_bek)).' }
+          { t: 'p', x: 'Mit Verfügung vom [[b_wv_d|Datum|d]], [[b_wv_t|Uhrzeit|t|Wohnungsverweisung verfügt]] Uhr, verwies [[b_wv_wer|Wer verfügte?|k]] {den} nach § 34a PolG NRW aus der Wohnung [[b_wv_adr|Anschrift|l]] und [[b_wv_umg|unmittelbare Umgebung, genau bezeichnet|l]]. Ein Rückkehrverbot besteht bis [[b_wv_bis|Datum, Uhrzeit]]. Die Verfügung wurde {ihm} am [[b_wv_bekd|Datum|d]] ((b_wv_bek)).' }
         ] },
         { k: 'B2', t: 'Die Missachtung', sec: 's', lead: 'Was genau stellten die Einsatzkräfte fest?', b: [
-          { t: 'p', x: 'Am [[b_mis_d|Datum|d]] um [[b_mis_t|Uhrzeit|t|Missachtung festgestellt]] Uhr stellten die Einsatzkräfte fest:' },
+          { t: 'p', x: 'Am [[b_mis_d|Datum|d]] um [[b_mis_t|Uhrzeit|t|Missachtung festgestellt]] Uhr stellte [[b_mis_wer|Wer stellte es fest?|k]] Folgendes fest:' },
           { t: 'ff', id: 'b_fest', l: 'Rückkehr oder Verbleib, Verhalten, Angaben der gefährdeten Person', ph: 'z. B. Er stand im Treppenhaus vor der Wohnungstür und klingelte wiederholt …', q: 'Wo wurde die Person angetroffen? Wie ist sie in den Bereich gelangt? Was sagte sie wörtlich? Was berichtet die gefährdete Person? Frühere Rückkehr?' }
         ] },
         { k: 'D', t: 'Unerlässlichkeit, Dauer', sec: 'r', dep: true, lead: 'Warum reichte es nicht, die Person aus dem Bereich zu bringen?', b: [
@@ -214,7 +248,7 @@
       ],
       rules: f => (!f.d_verbr && !f.d_rueck4 ? ['Unerlässlichkeit: Warum reichte das Verbringen aus dem Bereich nicht?'] : []) },
 
-    a2: { short: 'Abs. 2', sub: 'Minderjährige', name: 'Minderjährige, die sich der Obhut entzogen haben', norm: '§ 35 Abs. 2 PolG NRW', main: 'b_fest', skip: ['E9'],
+    a2: { short: 'Abs. 2', sub: 'Minderjährige', name: 'Minderjährige, die sich der Obhut entzogen haben', norm: '§ 35 Abs. 2 PolG NRW', main: 'b_fest',
       lead: 'Zweck ist allein die Zuführung. Der Gewahrsam endet mit der Übergabe.',
       secs: [
         { k: 'B', t: 'Feststellungen', sec: 's', lead: 'Alter, Obhut, Vermisstenmeldung.', b: [
@@ -224,8 +258,8 @@
         { k: 'C', t: 'Zweck und Verhältnismäßigkeit', sec: 'r', dep: true, lead: 'An wen wird übergeben, und warum ging es nicht ohne Gewahrsam?', b: [
           { t: 'p', x: 'Der Gewahrsam nach § 35 Abs. 2 PolG NRW diente der Zuführung an ((c_zu)) ([[c_zu_n|Name, Stelle|l]]).' },
           { t: 'ak', id: 'd_ohne', x: 'Eine Rückkehr oder Begleitung ohne Gewahrsam war nicht möglich, weil [[d_ohne_x|Grund|l]].' },
-          { t: 'ak', id: 'd_kwg', x: 'Es lagen Anhaltspunkte für eine Gefährdung des Kindeswohls vor: [[d_kwg_x|Tatsachen|l]]. Das Jugendamt wurde um [[d_kwg_t|Uhrzeit|t|Jugendamt verständigt]] Uhr zur Prüfung einer Inobhutnahme nach § 42 SGB VIII verständigt.' },
-          { t: 'p', x: '{Der} wurde um [[d_ueb_t|Uhrzeit|t|Übergabe]] Uhr an [[d_ueb|wen|l]] übergeben.' },
+          { t: 'ak', id: 'd_kwg', x: 'Es lagen Anhaltspunkte für eine Gefährdung des Kindeswohls vor: [[d_kwg_x|Tatsachen|l]]. [[d_kwg_wer|Wer verständigte?|k]] verständigte um [[d_kwg_t|Uhrzeit|t|Jugendamt verständigt]] Uhr das Jugendamt zur Prüfung einer Inobhutnahme nach § 42 SGB VIII.' },
+          { t: 'p', x: '{Der} wurde um [[d_ueb_t|Uhrzeit|t|Übergabe]] Uhr durch [[d_ueb_wer|Wer übergab?|k]] an [[d_ueb|wen|l]] übergeben.' },
           { t: 'ph', x: 'Nur bis zur Übergabe. Sorgeberechtigte sind in jedem Fall zu benachrichtigen (E5). Unterbringung möglichst nicht in der Gewahrsamszelle und getrennt von Erwachsenen.' }
         ] }
       ],
@@ -236,7 +270,7 @@
         return r;
       } },
 
-    a3: { short: 'Abs. 3', sub: 'Entwichene', name: 'Aus dem Vollzug Entwichene', norm: '§ 35 Abs. 3 PolG NRW', main: 'b_fest', skip: ['E7', 'E9'],
+    a3: { short: 'Abs. 3', sub: 'Entwichene', name: 'Aus dem Vollzug Entwichene', norm: '§ 35 Abs. 3 PolG NRW', main: 'b_fest',
       lead: 'Zweck ist das Zurückbringen in die Anstalt. Entscheidend sind die sichere Identität und die Bestätigung durch die Anstalt.',
       secs: [
         { k: 'B', t: 'Antreffen und Identität', sec: 's', lead: 'Woran war die Identität zweifelsfrei zu erkennen?', b: [
@@ -244,8 +278,8 @@
           { t: 'ff', id: 'b_fest', l: 'Identität', ph: 'z. B. Er wies sich mit seinem Personalausweis aus; das Lichtbild stimmte überein …', q: 'Ausweis, Lichtbildabgleich, Fingerabdruck, besondere Merkmale, Ergebnis der Fahndungsabfrage.' }
         ] },
         { k: 'C', t: 'Entweichen und Rückführung', sec: 'r', dep: true, lead: 'Quelle, Status und Bestätigung durch die Anstalt.', b: [
-          { t: 'p', x: 'Nach [[c_quelle|Fahndungsnotierung oder Mitteilung der Anstalt|l]] ((c_stat)) ([[c_haft|Haftart, Anstalt, Umstände|l]]). Dies bestätigte [[c_best|Name, Anstalt|l]] um [[c_best_t|Uhrzeit|t|Bestätigung der Anstalt]] Uhr.' },
-          { t: 'p', x: '{Der} wurde daher nach § 35 Abs. 3 PolG NRW in Gewahrsam genommen und um [[c_rueck_t|Uhrzeit|t|Rückführung]] Uhr in die [[c_anst|Anstalt]] zurückgebracht.' },
+          { t: 'p', x: 'Nach [[c_quelle|Fahndungsnotierung oder Mitteilung der Anstalt|l]] ((c_stat)) ([[c_haft|Haftart, Anstalt, Umstände|l]]). Dies bestätigte [[c_best|Name, Anstalt|l]] um [[c_best_t|Uhrzeit|t|Bestätigung der Anstalt]] Uhr gegenüber [[c_best_ggu|Wem gegenüber?|k]].' },
+          { t: 'p', x: '{Der} wurde daher nach § 35 Abs. 3 PolG NRW in Gewahrsam genommen und um [[c_rueck_t|Uhrzeit|t|Rückführung]] Uhr durch [[c_rueck_wer|Wer brachte zurück?|k]] in die [[c_anst|Anstalt]] zurückgebracht.' },
           { t: 'ph', x: 'Liegt ein Vollstreckungs- oder Sicherungshaftbefehl vor, wird er vollzogen (eigene Formvorschriften in der FE-Prüfung). Bei Unterbringung nach PsychKG oder Betreuungsrecht: Vollzugshilfe für die zuständige Behörde.' }
         ] }
       ],
@@ -256,17 +290,19 @@
   /* ======================= Pflichtbausteine für jeden Gewahrsam ======================= */
   const E = {
     E1: { k: 'E1', t: 'Ingewahrsamnahme und Grund', n: '§ 37 PolG NRW', b: [
-      { t: 'p', x: 'Am [[e1_d|Datum|d]] um [[e1_t|Uhrzeit|t|Ingewahrsamnahme]] Uhr erklärte [[e1_wer|Amtsbezeichnung, Name]] {dem} die Ingewahrsamnahme. Der Grund wurde {ihm} ((e1_bek)) bekannt gegeben.' },
-      { t: 'ak', id: 'e1_wdh', x: 'Wegen {seines} Zustandes war zweifelhaft, ob {er} die Erklärung verstand. Sie wurde um [[e1_wdh_t|Uhrzeit|t|Bekanntgabe wiederholt]] Uhr wiederholt.' },
+      { t: 'p', x: 'Am [[e1_d|Datum|d]] um [[e1_t|Uhrzeit|t|Ingewahrsamnahme]] Uhr wurde {der} auf Anordnung von [[e1_ano|Wer ordnete an?|k]] in Gewahrsam genommen. [[e1_wer|Wer sprach sie aus?|k]] erklärte {dem} die Ingewahrsamnahme; der Grund wurde {ihm} ((e1_bek)) bekannt gegeben.' },
+      { t: 'ak', id: 'e1_wdh', x: 'Wegen {seines} Zustandes war zweifelhaft, ob {er} die Erklärung verstand. [[e1_wdh_wer|Wer wiederholte?|k]] wiederholte sie um [[e1_wdh_t|Uhrzeit|t|Bekanntgabe wiederholt]] Uhr.' },
       { t: 'p', x: 'Die Verständigung erfolgte ((e1_spr)).' }
     ] },
     E2: { k: 'E2', t: 'Zwang und Fesselung', n: '§§ 61, 62 PolG NRW', b: [
       { t: 'p', x: 'Die Ingewahrsamnahme erfolgte ((e2_zw)).' },
-      { t: 'ak', id: 'e2_fes', x: '{Er} wurde gefesselt, weil Tatsachen die Annahme rechtfertigten, dass {er} ((e2_fes_g)) würde: [[e2_fes_x|Tatsachen|l]].' },
+      { t: 'ak', id: 'e2_andr', when: f => f.e2_zw === 'mit', x: 'Der unmittelbare Zwang wurde zuvor um [[e2_andr_t|Uhrzeit|t|Zwang angedroht]] Uhr durch [[e2_andr_wer|Wer drohte an?|k]] angedroht.' },
+      { t: 'ak', id: 'e2_andr_no', when: f => f.e2_zw === 'mit', x: 'Eine Androhung unterblieb, weil [[e2_andr_x|Grund, z. B. sofortiger Angriff|l]].' },
+      { t: 'ak', id: 'e2_fes', x: 'Um [[e2_fes_t|Uhrzeit|t|Fesselung]] Uhr fesselte [[e2_fes_wer|Wer fesselte?|k]] {den}, weil Tatsachen die Annahme rechtfertigten, dass {er} ((e2_fes_g)) würde: [[e2_fes_x|Tatsachen|l]].' },
       { t: 'ph', x: 'Unmittelbarer Zwang ist vorher anzudrohen, soweit die Umstände es zulassen. Verletzten ist Beistand zu leisten und ärztliche Hilfe zu verschaffen.' }
     ] },
     E3: { k: 'E3', t: 'Durchsuchung und Verwahrung', n: '§§ 39, 43 PolG NRW', b: [
-      { t: 'p', x: '{Der} wurde um [[e3_t|Uhrzeit|t|Durchsuchung]] Uhr nach § 39 Abs. 1 Nr. 1 PolG NRW durchsucht, da {er} festgehalten werden konnte. Die Durchsuchung führte [[e3_wer|Amtsbezeichnung, Name]] durch.' },
+      { t: 'p', x: '{Der} wurde um [[e3_t|Uhrzeit|t|Durchsuchung]] Uhr durch [[e3_wer|Wer durchsuchte?|k]] nach § 39 Abs. 1 Nr. 1 PolG NRW durchsucht, da {er} festgehalten werden konnte.' },
       { t: 'ak', id: 'e3_ggs', x: 'Dabei wurden ((e3_art)): [[e3_ggs_x|Gegenstände|l]].' },
       { t: 'ak', id: 'e3_ag', x: 'Die Durchsuchung erfolgte durch eine Person anderen Geschlechts, weil dies zum Schutz vor einer Gefahr für Leib oder Leben sofort erforderlich war: [[e3_ag_x|Grund|l]].' }
     ] },
@@ -276,33 +312,19 @@
     ] },
     E5: { k: 'E5', t: 'Benachrichtigung', n: '§ 37 PolG NRW', b: [
       { t: 'p', x: '((e5))' },
-      { t: 'ak', id: 'e5_sorge', x: 'Die Sorgeberechtigten bzw. die Betreuerin oder der Betreuer ([[e5_sorge_n|Name, Stelle|l]]) wurden um [[e5_sorge_t|Uhrzeit|t|Sorgeberechtigte benachrichtigt]] Uhr benachrichtigt.' },
+      { t: 'ak', id: 'e5_sorge', x: '[[e5_sorge_wer|Wer benachrichtigte?|k]] benachrichtigte um [[e5_sorge_t|Uhrzeit|t|Sorgeberechtigte benachrichtigt]] Uhr die Sorgeberechtigten bzw. die Betreuerin oder den Betreuer ([[e5_sorge_n|Name, Stelle|l]]).' },
       { t: 'ph', x: 'Bei Minderjährigen und Betreuten sind Sorgeberechtigte bzw. Betreuer in jedem Fall unverzüglich zu benachrichtigen. Minderjährige erkennt das Gerüst am Geburtsdatum.' }
     ] },
     E6: { k: 'E6', t: 'Richterliche Entscheidung', n: '§ 36 PolG NRW, Art. 104 Abs. 2 GG', b: [
       { t: 'p', x: '((e6))' },
       { t: 'ff', id: 'e6_prog', when: f => f.e6 === 'entb', lead: 'Dem lag folgende Prognose zugrunde:', l: 'Prognose', ph: 'z. B. Nach Einschätzung der Ärztin war mit einer Ausnüchterung bis etwa 07:00 Uhr zu rechnen …', q: 'Wann sollte der Grund entfallen? Wann wäre eine Entscheidung einschließlich Anhörung zu erwarten gewesen (Erreichbarkeit des Bereitschaftsdienstes)?' },
-      { t: 'ak', id: 'e6_nach', when: f => f.e6 === 'entb', x: 'Als absehbar wurde, dass der Gewahrsam länger andauert als angenommen, wurde die Entscheidung um [[e6_nach_t|Uhrzeit|t|Richter nachträglich angerufen]] Uhr nachgeholt.' },
+      { t: 'ak', id: 'e6_nach', when: f => f.e6 === 'entb', x: 'Als absehbar wurde, dass der Gewahrsam länger andauert als angenommen, beantragte [[e6_nach_wer|Wer beantragte?|k]] die richterliche Entscheidung um [[e6_nach_t|Uhrzeit|t|Richter nachträglich angerufen]] Uhr nachträglich.' },
       { t: 'p', when: f => f.e6 === 'herb', out: false, l: 'Für den Antrag an das Amtsgericht', x: 'Beantragt wird die Fortdauer bis [[f_bis|Datum, Uhrzeit]].' },
       { t: 'ph', x: 'Die Ausnahme ist eng. „Unverzüglich“ heißt ohne vermeidbare Verzögerung, auch nachts, soweit ein Bereitschaftsdienst erreichbar ist. Ohne schriftliche Prognose ist die Freiheitsentziehung angreifbar.' }
-    ] },
-    E7: { k: 'E7', t: 'Unterbringung und Kontrollen', n: '§ 37 PolG NRW, GewVollzVO', b: [
-      { t: 'p', x: '((e7))' },
-      { t: 'ph', x: 'Mindestens stündliche Sichtkontrolle; kürzere Abstände nach ärztlicher Vorgabe, etwa bei Alkohol, Drogen oder Suizidgefahr.' }
-    ] },
-    E8: { k: 'E8', t: 'Fixierung', n: '§ 37a PolG NRW', b: [
-      { t: 'p', l: 'Wurde die Person fixiert?', x: '((e8))' },
-      { t: 'ak', id: 'e8_hinw', when: f => f.e8 === 'ja', x: 'Nach dem Ende der Fixierung wurde {der} darauf hingewiesen, dass {er} die Zulässigkeit gerichtlich überprüfen lassen kann.' },
-      { t: 'ph', when: f => f.e8 === 'ja', x: 'Eine absehbar nicht nur kurzfristige Fixierung (Richtwert des BVerfG: über etwa eine halbe Stunde) braucht eine richterliche Anordnung (BVerfG, Urteil vom 24.07.2018, 2 BvR 309/15).' }
-    ] },
-    E9: { k: 'E9', t: 'Entlassung', n: '§ 38 PolG NRW', b: [
-      { t: 'p', x: '{Der} wurde um [[e9_t|Uhrzeit|t|Entlassung]] Uhr ((e9)). Bei der Entlassung war {er} [[e9_zust|Zustand, z. B. sicher steh- und gehfähig und orientiert|l]].' },
-      { t: 'ak', id: 'e9_ggs', when: f => f.e3_ggs && f.e3_art === 'verw', x: 'Die in Verwahrung genommenen Gegenstände wurden {ihm} ausgehändigt.' },
-      { t: 'ph', x: 'Entlassen wird, sobald der Grund entfällt, nicht nach festem Schema. Ohne richterliche Anordnung spätestens am Ende des Tages nach dem Ergreifen; die Frist steht im Reiter „Zeitleiste“.' }
     ] }
   };
-  const EGROUPS = { dfa: ['E1', 'E2', 'E3'], dfb: ['E4', 'E5', 'E6'], dfc: ['E7', 'E8', 'E9'] };
-  const eSecs = (d, keys) => { const v = V[F(d).art]; const skip = (v && v.skip) || []; return keys.filter(k => !skip.includes(k)).map(k => E[k]); };
+  const EGROUPS = { dfa: ['E1', 'E2', 'E3'], dfb: ['E4', 'E5', 'E6'] };
+  const eSecs = (d, keys) => keys.map(k => E[k]).filter(Boolean);
 
   /* ======================= Text erzeugen ======================= */
   const miss = (ctx, l) => { ctx.miss.push(l); return `[${l}]`; };
@@ -311,6 +333,7 @@
       if (gk) { const w = g[gk.toLowerCase()]; return w == null ? all : (gk[0] === gk[0].toUpperCase() ? cap(w) : w); }
       if (bl) {
         const [id, ph, ty, tl] = bl.split('|'); const v = f[id];
+        if (ty === 'k') return kv(v) ? kraftText(kv(v), ctx) : miss(ctx, ph.replace(/\?$/, ''));
         if (!has(v)) return miss(ctx, ph);
         if (ty === 't' && tl) ctx.times.push([str(v), tl]);
         return ty === 'd' ? fmtD(v) : clean(v);
@@ -345,25 +368,6 @@
     if (c.length) paras.push(c.join(' '));
     return paras.map(tidy);
   }
-  /** Einsatzanlass aus den Feldern der App (Datum, Uhrzeit, Besatzung, Ort, Anlass). */
-  function crewList(d, ctx) {
-    return arr(get(d, 'einsatz.kraefte')).filter(c => c && has(c.name)).map(c => {
-      const r = str(c.grad) || teamRank(c.name);
-      return `${r || miss(ctx, 'Amtsbez.')} ${nachname(c.name)}`;
-    });
-  }
-  function aText(d, ctx) {
-    const e = get(d, 'einsatz') || {}, f = F(d);
-    const dat = has(e.datum) ? fmtD(e.datum) : miss(ctx, 'Datum');
-    const zeit = has(e.zeit) ? str(e.zeit) : miss(ctx, 'Uhrzeit');
-    if (has(e.zeit)) ctx.times.push([str(e.zeit), 'Einsatzbeginn']);
-    const crew = crewList(d, ctx), pl = crew.length !== 1;
-    const wer = crew.length ? joinUnd(crew) : miss(ctx, 'eingesetzte Kräfte');
-    const ort = has(f.a_ort) ? clean(f.a_ort) : miss(ctx, 'Einsatzort');
-    const anl = has(f.a_anl) ? clean(f.a_anl).replace(/\s*\n+\s*/g, ' ') : miss(ctx, 'Anlass');
-    if (f.a_weg === 'streife') return tidy(`Am ${dat} gegen ${zeit} Uhr wurde${pl ? 'n' : ''} ${wer} während der Streife ${ort} auf folgenden Sachverhalt aufmerksam: ${anl}.`);
-    return tidy(`Am ${dat} gegen ${zeit} Uhr wurde${pl ? 'n' : ''} ${wer} ${ort} entsandt. Anlass war ${anl}.`);
-  }
   function personLine(d) {
     const p = get(d, 'gw.p') || {};
     const name = [str(p.nachname), str(p.vorname)].filter(Boolean).join(', ');
@@ -374,10 +378,9 @@
     const f = F(d), v = V[f.art];
     const ctx = { times: [], ff: [], miss: [] }, missing = [], s = [], r = [], e = [];
     const take = (label, fn) => { ctx.miss = []; const out = fn(); if (ctx.miss.length) missing.push(`${label}: ${[...new Set(ctx.miss)].join(', ')}`); return out; };
-    s.push(take('Einsatzanlass', () => aText(d, ctx)));
     if (v) {
       v.secs.forEach(sec => { const p = take(`${sec.k} ${sec.t}`, () => secOut(sec, d, ctx)); (sec.sec === 'r' ? r : s).push(...p); });
-      Object.values(EGROUPS).flat().forEach(k => { if ((v.skip || []).includes(k)) return; e.push(...take(`${k} ${E[k].t}`, () => secOut(E[k], d, ctx))); });
+      Object.values(EGROUPS).flat().forEach(k => { e.push(...take(`${k} ${E[k].t}`, () => secOut(E[k], d, ctx))); });
     }
     return { s, r, e, ctx, missing };
   }
@@ -407,9 +410,8 @@
     const age = ageAt(get(d, 'gw.p.geb'), f.e1_d || get(d, 'einsatz.datum'));
     if (age != null && age < 18 && !f.e5_sorge) out.push(`Nach dem Geburtsdatum ${age} Jahre alt: Sorgeberechtigte unverzüglich benachrichtigen (E5).`);
     if (f.art === 'a2' && age != null && age >= 18) out.push('§ 35 Abs. 2 gilt nur für Minderjährige; das Geburtsdatum ergibt Volljährigkeit.');
-    if (f.e2_zw === 'mit' && has(f.e2_zw_x) && !/androh/i.test(f.e2_zw_x)) out.push('Zwang: Androhung nicht erwähnt. Erfolgt oder warum entbehrlich? (E2)');
+    if (f.e2_zw === 'mit' && !f.e2_andr && !f.e2_andr_no) out.push('Zwang: Androhung mit Uhrzeit und Person eintragen oder begründen, warum sie unterblieb (E2, § 61 PolG NRW).');
     if (f.e3_ggs && f.e3_art === 'sich') out.push('Sichergestellte Gegenstände: Herausgabe oder weiteren Verbleib gesondert regeln (E3).');
-    if (f.e8 === 'ja' && !f.e8_hinw) out.push('Nach der Fixierung auf die Möglichkeit gerichtlicher Überprüfung hinweisen (E8).');
     if (f.e6 === 'herb' && !has(f.f_bis)) out.push('Antrag an das Amtsgericht: beantragte Dauer eintragen (E6).');
     return out;
   }
@@ -417,12 +419,12 @@
   /* ======================= Zeitleiste und Antrag ======================= */
   function timeline(d) {
     const f = F(d), C = compose(d);
-    const ref = mins(get(d, 'einsatz.zeit'));
+    const first = C.ctx.times.find(([t]) => mins(t) != null), ref = first ? mins(first[0]) : null;
     const seen = new Set();
     const rows = C.ctx.times.filter(([t, l]) => { const k = t + l; if (seen.has(k) || mins(t) == null) return false; seen.add(k); return true; })
       .map(([t, l]) => { let m = mins(t); if (ref != null && m < ref) m += 1440; return [m, t, l]; }).sort((a, b) => a[0] - b[0]);
     const lines = rows.map(([, t, l]) => `${t} Uhr  ${l}`);
-    const end = f.e9_t || f.d_ueb_t || f.c_rueck_t;
+    const end = f.d_ueb_t || f.c_rueck_t;
     if (has(f.e1_t) && has(end)) { let x = mins(end) - mins(f.e1_t); if (x < 0) x += 1440; lines.push('', `Dauer ab Ingewahrsamnahme: ${Math.floor(x / 60)} Std. ${x % 60} Min.`); }
     if (/^\d{4}-\d{2}-\d{2}$/.test(f.e1_d || '') && has(f.e1_t)) {
       const dt = new Date(f.e1_d + 'T12:00:00'); dt.setDate(dt.getDate() + 1);
@@ -441,13 +443,13 @@
 
   /* ======================= Schnittstelle für writer.js ======================= */
   const hasArt = d => !!V[F(d).art];
-  const firstR = d => { const v = V[F(d).art]; const s = v && v.secs.find(x => x.sec === 'r'); return s ? `${F(d).art}_${s.k}` : 'art'; };
+  const firstOf = (d, sec) => { const v = V[F(d).art]; const s = v && v.secs.find(x => x.sec === sec); return s ? `${F(d).art}_${s.k}` : 'art'; };
   function text(d) {
     const f = F(d), v = V[f.art];
     if (!v) return [['', 'Gewahrsam nach PolG NRW', null], ['1', 'Gewahrsamsart', '[Gewahrsamsart wählen]', 'art']];
     if (has(f.eigen)) return [['', `Ingewahrsamnahme nach ${v.norm}`, null], ['', 'Bericht (von Hand angepasst)', str(f.eigen), 'text']];
     const C = compose(d);
-    return [['', `Ingewahrsamnahme nach ${v.norm}`, null], ['1', 'Sachverhalt', C.s.join('\n\n'), 'anlass'], ['2', 'Rechtliche Bewertung', C.r.join('\n\n'), firstR(d)], ['3', 'Durchführung der Maßnahme', C.e.join('\n\n'), 'dfa']];
+    return [['', `Ingewahrsamnahme nach ${v.norm}`, null], ['1', 'Sachverhalt', C.s.join('\n\n'), firstOf(d, 's')], ['2', 'Rechtliche Bewertung', C.r.join('\n\n'), firstOf(d, 'r')], ['3', 'Durchführung der Maßnahme', C.e.join('\n\n'), 'dfa']];
   }
   const plain = d => { const f = F(d), v = V[f.art]; return v && has(f.eigen) ? `Ingewahrsamnahme nach ${v.norm}\n\n${str(f.eigen)}` : genPlain(d); };
   function preview(id, d) {
@@ -455,7 +457,6 @@
     if (id === 'art') return v ? `${v.norm} · ${v.name}\n${LABEL[gOf(d)]}: ${personLine(d)}` : '';
     if (id === 'text') return plain(d);
     const ctx = { times: [], ff: [], miss: [] };
-    if (id === 'anlass') return aText(d, ctx);
     if (EGROUPS[id]) return eSecs(d, EGROUPS[id]).flatMap(s => secOut(s, d, ctx)).join('\n\n');
     if (v && id.startsWith(f.art + '_')) { const sec = v.secs.find(s => `${f.art}_${s.k}` === id); return sec ? secOut(sec, d, ctx).join('\n\n') : ''; }
     return '';
@@ -474,7 +475,7 @@
     const f = F(d), v = V[f.art]; if (!v) return '– noch keine Gewahrsamsart gewählt –';
     const p = get(d, 'gw.p') || {};
     const von = has(f.e1_t) ? `${has(f.e1_d) ? fmtD(f.e1_d) + ', ' : ''}${f.e1_t} Uhr` : '';
-    const bis = f.e9_t || f.d_ueb_t || f.c_rueck_t;
+    const bis = f.d_ueb_t || f.c_rueck_t;
     const ri = f.e6 === 'herb' ? 'richterliche Entscheidung herbeigeführt' : f.e6 === 'entb' ? 'richterliche Entscheidung nicht herbeigeführt (Grund entfiel vorher)' : '';
     return [`Gewahrsam nach ${v.norm} (${v.name})`, [str(p.nachname), str(p.vorname)].filter(Boolean).join(', '), von ? `ab ${von}${bis ? ` bis ${bis} Uhr` : ''}` : '', ri].filter(Boolean).join(' · ');
   }
@@ -495,23 +496,14 @@
 
   /* ======================= Schritte des Assistenten ======================= */
   const STEPS = [
-    { id: 'art', phase: 'Grundlage', title: 'Gewahrsamsart und Person', lead: 'Rechtsgrundlage wählen. Die Anrede steuert die Satzführung: der Betroffene, die Betroffene oder die betroffene Person.', fields: [
+    { id: 'art', phase: 'Grundlage', title: 'Gewahrsamsart und Person', lead: 'Rechtsgrundlage wählen. Die Anrede steuert die Satzführung: der Betroffene, die Betroffene oder die betroffene Person. Wer etwas angeordnet, ausgesprochen oder getan hat, wählst du später direkt im Satz aus – aus deinem Team und der laufenden Schicht; im Text stehen Amtsbezeichnung und Nachname.', fields: [
       { k: 'gw.art', t: 'choice', l: 'Rechtsgrundlage', req: true, o: ORDER.map(k => [k, `${V[k].short} · ${V[k].sub}`]) },
       { t: 'info', when: hasArt, text: d => `${V[F(d).art].norm} · ${V[F(d).art].name}. ${V[F(d).art].lead}` },
       { k: 'gw.p', t: 'person', l: 'Betroffene Person', fields: ['geschlecht', 'nachname', 'vorname', 'geb', 'anschrift'] }
     ] },
-    { id: 'anlass', phase: 'Grundlage', title: 'Einsatzanlass', lead: 'Wann, wer, wohin, warum. Die Besatzung kommt aus der laufenden Schicht oder aus deinem Team.', when: hasArt, fields: [
-      { k: 'einsatz.datum', t: 'date', l: 'Datum', w: 'half', q: 'heute' },
-      { k: 'einsatz.zeit', t: 'time', l: 'Uhrzeit', w: 'half', q: 'jetzt' },
-      { k: 'einsatz.kraefte', t: 'crew', l: 'Eingesetzte Kräfte', max: 6 },
-      { k: 'gw.a_weg', t: 'choice', l: 'Wie kam es zum Einsatz?', o: [['leit', 'Über die Leitstelle'], ['streife', 'Auf Streife festgestellt']] },
-      { k: 'gw.a_ort', t: 'text', l: 'Wohin bzw. wo?', pre: d => (F(d).a_weg === 'streife' ? 'Aufmerksam wurden die Einsatzkräfte' : 'Entsandt wurden die Einsatzkräfte'), ph: d => (F(d).a_weg === 'streife' ? 'an der Hafenstraße 4, Musterstadt,' : 'zur Gaststätte „Zum Anker“, Hafenstraße 4, Musterstadt,'), max: 200 },
-      { k: 'gw.a_anl', t: 'area', l: 'Anlass', pre: d => (F(d).a_weg === 'streife' ? 'Festgestellt wurde:' : 'Anlass war'), ph: d => (F(d).a_weg === 'streife' ? 'ein Mann lag auf dem Gehweg und reagierte nicht auf Ansprache' : 'die Meldung des Türstehers, ein Gast könne kaum noch stehen und wolle zu Fuß nach Hause gehen'), rows: 2, max: 800 }
-    ] },
     ...ORDER.flatMap(v => V[v].secs.map(s => ({ id: `${v}_${s.k}`, phase: 'Gerüst', title: s.t, lead: `${V[v].norm} · ${s.lead || ''}`, when: d => F(d).art === v, fields: [{ k: `gw:${v}:${s.k}`, t: 'custom' }] }))),
-    { id: 'dfa', phase: 'Durchführung', title: 'Ingewahrsamnahme', lead: 'Grund bekannt geben, Zwang und Fesselung, Durchsuchung. Gilt für jeden Gewahrsam.', when: hasArt, fields: [{ k: 'gw:E:dfa', t: 'custom' }] },
+    { id: 'dfa', phase: 'Durchführung', title: 'Ingewahrsamnahme', lead: 'Wer hat angeordnet, wer hat es ausgesprochen, wann? Zwang, Fesselung, Durchsuchung. Gilt für jeden Gewahrsam.', when: hasArt, fields: [{ k: 'gw:E:dfa', t: 'custom' }] },
     { id: 'dfb', phase: 'Durchführung', title: 'Gewahrsamsfähigkeit, Benachrichtigung, Richter', lead: 'Hier setzen Verteidigung und Gericht am häufigsten an.', when: hasArt, fields: [{ k: 'gw:E:dfb', t: 'custom' }] },
-    { id: 'dfc', phase: 'Durchführung', title: d => (F(d).art === 'a3' ? 'Fixierung' : 'Unterbringung, Fixierung, Entlassung'), lead: 'Wo und wie untergebracht, ob fixiert, wann und wie entlassen.', when: hasArt, fields: [{ k: 'gw:E:dfc', t: 'custom' }] },
     { id: 'text', phase: 'Text', title: 'Fertiger Text', lead: 'Der Text entsteht aus dem Gerüst. Fehlt noch etwas, am besten im Gerüst nachtragen. Für den letzten Schliff lässt er sich hier von Hand anpassen.', when: hasArt, fields: [{ k: 'gw:text', t: 'custom' }] }
   ];
 
@@ -524,7 +516,11 @@
       if (m[1]) { const w = g[m[1].toLowerCase()] || m[1]; h += `<span class="gw-au">${esc(m[1][0] === m[1][0].toUpperCase() ? cap(w) : w)}</span>`; }
       else if (m[2]) {
         const [id, ph, ty] = m[2].split('|'), v = f[id] ?? '';
-        if (ty === 't' || ty === 'd') h += `<input type="${ty === 't' ? 'time' : 'date'}" class="gw-in" id="gwb-${id}" data-gw-bl="${id}" value="${esc(v)}" aria-label="${esc(ph)}">`;
+        if (ty === 'k') {
+          const o = kv(v), r = o ? (str(o.grad) || teamRank(o.name)) : '';
+          h += o ? `<button type="button" class="gw-tok${r ? '' : ' warn'}" id="gwb-${id}" data-gw-pick="${id}" data-ph="${esc(ph)}" aria-label="${esc(`${ph} ${r} ${nachname(o.name)} – ändern`)}"><b>${esc(r || 'Amtsbez.?')}</b> ${esc(nachname(o.name))}</button>`
+            : `<button type="button" class="gw-tok empty" id="gwb-${id}" data-gw-pick="${id}" data-ph="${esc(ph)}">${esc(ph)}</button>`;
+        } else if (ty === 't' || ty === 'd') h += `<input type="${ty === 't' ? 'time' : 'date'}" class="gw-in" id="gwb-${id}" data-gw-bl="${id}" value="${esc(v)}" aria-label="${esc(ph)}">`;
         else h += `<span class="gw-bl${ty === 'l' ? ' long' : ''}" id="gwb-${id}" contenteditable="true" role="textbox" spellcheck="true" aria-label="${esc(ph)}" data-gw-bl="${id}" data-ph="${esc(ph)}">${esc(v)}</span>`;
       } else {
         const id = m[3], def = SW[id], v = f[id];
@@ -536,19 +532,21 @@
     return h + esc(s.slice(last));
   }
   const akRow = (id, x, pre, f, g) => `<div class="gw-ak${f[id] ? ' on' : ''}" data-gw-ak="${id}"><input type="checkbox" id="gwc-${id}" data-gw-cb="${id}"${f[id] ? ' checked' : ''} aria-labelledby="gwt-${id}"><p class="gw-p" id="gwt-${id}">${pre}${ed(x, f, g)}</p></div>`;
-  function blockHtml(b, f, g) {
+  /** Auswahl der Person direkt unter dem Satz, in dem sie gerade gewählt wird. */
+  const withPanel = (html, ui) => (ui && ui.pick && html.includes(`data-gw-pick="${ui.pick.id}"`) ? html + ui.panel() : html);
+  function blockHtml(b, f, g, ui) {
     if (b.when && !b.when(f)) return '';
-    if (b.t === 'p') return `${b.l ? `<span class="w-lbl gw-l">${esc(b.l)}</span>` : ''}<p class="gw-p">${ed(b.x, f, g)}</p>`;
-    if (b.t === 'ak') return akRow(b.id, b.x, '', f, g);
-    if (b.t === 'grp') return `<p class="gw-p">${ed(b.lead, f, g)} …</p><div class="gw-grp">${b.items.map(([id, x]) => akRow(id, x, '… ', f, g)).join('')}</div>`;
+    if (b.t === 'p') return withPanel(`${b.l ? `<span class="w-lbl gw-l">${esc(b.l)}</span>` : ''}<p class="gw-p">${ed(b.x, f, g)}</p>`, ui);
+    if (b.t === 'ak') return withPanel(akRow(b.id, b.x, '', f, g), ui);
+    if (b.t === 'grp') return `<p class="gw-p">${ed(b.lead, f, g)} …</p><div class="gw-grp">${b.items.map(([id, x]) => withPanel(akRow(id, x, '… ', f, g), ui)).join('')}</div>`;
     if (b.t === 'ff') return `${b.lead ? `<p class="gw-p">${ed(b.lead, f, g)}</p>` : ''}<div class="w-q gw-ff"><label class="w-lbl" for="wf-gw_${b.id}"><span class="gw-tag">Freifeld</span>${esc(b.l)}</label><div class="w-sent nopre"><textarea class="w-sent-in multi" id="wf-gw_${b.id}" data-k="gw.${b.id}" data-lint="tats" rows="1" style="--rows:4" placeholder="${esc(b.ph || 'Nur Tatsachen: was gesehen, gehört, gerochen, gemessen wurde. Äußerungen wörtlich.')}" spellcheck="true" autocapitalize="sentences" maxlength="6000">${esc(f[b.id] || '')}</textarea></div><p class="w-lint" hidden></p>${b.q ? `<p class="w-hint gw-q"><b>Leitfragen:</b> ${esc(b.q)}</p>` : ''}</div>`;
     if (b.t === 'ph') return `<div class="w-info gw-ph"><b>Prüfhinweis:</b> ${esc(b.x)}</div>`;
     return '';
   }
-  function secHtml(sec, d, withHead) {
+  function secHtml(sec, d, withHead, ui) {
     const f = F(d), g = GEN[gOf(d)], v = V[f.art];
     const locked = sec.dep && v && !has(f[v.main]);
-    return `<section class="gw-sec${locked ? ' gw-lock' : ''}">${withHead ? `<div class="gw-sec-h"><span class="gw-sec-k">${esc(sec.k)}</span><span class="gw-sec-t">${esc(sec.t)}</span>${sec.n ? `<span class="gw-sec-n">${esc(sec.n)}</span>` : ''}</div>` : ''}${locked ? '<div class="gw-note">Erst die Feststellungen eintragen (Schritt davor). Ohne Tatsachen lassen sich keine Folgerungen ankreuzen.</div>' : ''}${sec.b.map(b => blockHtml(b, f, g)).join('')}</section>`;
+    return `<section class="gw-sec${locked ? ' gw-lock' : ''}">${withHead ? `<div class="gw-sec-h"><span class="gw-sec-k">${esc(sec.k)}</span><span class="gw-sec-t">${esc(sec.t)}</span>${sec.n ? `<span class="gw-sec-n">${esc(sec.n)}</span>` : ''}</div>` : ''}${locked ? '<div class="gw-note">Erst die Feststellungen eintragen (Schritt davor). Ohne Tatsachen lassen sich keine Folgerungen ankreuzen.</div>' : ''}${sec.b.map(b => blockHtml(b, f, g, ui)).join('')}</section>`;
   }
 
   /** Eingehängtes Gerüst eines Schritts: Lücken, Weichen und Folgerungen speichern über api.set. */
@@ -557,10 +555,29 @@
     const [, v, part] = k.split(':');
     const secs = () => (v === 'E' ? eSecs(data, EGROUPS[part] || []) : [(V[v] && V[v].secs.find(s => s.k === part))].filter(Boolean));
     const save = (id, val) => { api.set('gw.' + id, val === false || val === '' ? undefined : val); if (api.refresh) api.refresh(); };
-    let pending = false;
+    let pending = false, pick = null;
+    /* Personenauswahl: zuerst in diesem Vorgang schon genannt, dann Schicht, dann Team; Tippen filtert, neue Namen gehen auch */
+    const chips = () => {
+      const q = str(pick.q), all = pool(data);
+      const list = q ? all.filter(o => matches(o, q)).slice(0, 10) : [...all.filter(o => o.src !== 'team'), ...all.filter(o => o.src === 'team')].slice(0, 12);
+      const exact = q && list.some(o => o.name.toLowerCase() === q.toLowerCase() || `${o.grad} ${nachname(o.name)}`.toLowerCase() === q.toLowerCase());
+      const out = list.map(o => `<button type="button" class="chip" data-gw-take="${esc(JSON.stringify({ grad: o.grad || '', name: o.name }))}">${o.grad ? `<b>${esc(o.grad)}</b> ` : ''}${esc(o.name)}</button>`);
+      if (q && !exact) out.push(`<button type="button" class="chip gw-free" data-gw-free="1">+ „${esc(q)}“ übernehmen</button>`);
+      return out.length ? out.join('') : '<p class="w-hint">Noch niemand im Team – Namen mit Amtsbezeichnung tippen, z. B. „POK Müller“.</p>';
+    };
+    const panel = () => {
+      const id = pick.id, o = kv(F(data)[id]), r = o ? (str(o.grad) || teamRank(o.name)) : '';
+      return `<div class="gw-pick" data-gw-panel="${id}"><div class="gw-pick-h"><span class="w-lbl">${esc(pick.ph)}</span><button type="button" class="link" data-gw-close="1">Fertig</button></div>${o && !r ? `<label class="gw-pick-g">Amtsbezeichnung für ${esc(o.name)}<select class="input" data-gw-grad="${id}">${DGRADE.map(x => `<option value="${esc(x)}">${esc(x || 'bitte wählen')}</option>`).join('')}</select></label>` : ''}<input class="input" id="gwq-${id}" data-gw-q="${id}" value="${esc(pick.q)}" placeholder="Namen tippen, z. B. POK Müller" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="done" maxlength="60" aria-label="${esc(pick.ph)} – Namen tippen"><div class="w-chips gw-pick-c" id="gwpc-${id}">${chips()}</div>${o ? `<button type="button" class="link danger gw-pick-x" data-gw-clear="${id}">Auswahl entfernen</button>` : ''}</div>`;
+    };
+    const take = o => {
+      const id = pick.id, ak = pick.ak;
+      save(id, { grad: str(o.grad), name: str(o.name) });
+      if (ak && !F(data)[ak]) save(ak, true);
+      pick = null; draw('gwb-' + id);
+    };
     const draw = (focusId, caretEnd) => {
       const list = secs();
-      el.innerHTML = `<div class="gw">${list.map(s => secHtml(s, data, v === 'E')).join('')}</div>`;
+      el.innerHTML = `<div class="gw">${list.map(s => secHtml(s, data, v === 'E', { pick, panel })).join('')}</div>`;
       if (api.layout) api.layout();
       if (focusId) {
         const x = document.getElementById(focusId); if (!x) return;
@@ -574,7 +591,9 @@
       save(id, true); row.classList.add('on'); const cb = row.querySelector('[data-gw-cb]'); if (cb) cb.checked = true; pending = true;
     };
     el.addEventListener('input', e => {
-      const t = e.target; if (!t.dataset || !t.dataset.gwBl) return;
+      const t = e.target;
+      if (t.dataset && t.dataset.gwQ && pick) { pick.q = t.value; const c = document.getElementById('gwpc-' + pick.id); if (c) c.innerHTML = chips(); return; }
+      if (!t.dataset || !t.dataset.gwBl) return;
       let val = t.isContentEditable ? t.textContent : t.value;
       if (t.isContentEditable && !val.trim()) { if (val === '') t.innerHTML = ''; }
       save(t.dataset.gwBl, val); autoCheck(t);
@@ -582,17 +601,44 @@
     el.addEventListener('change', e => {
       const t = e.target;
       if (t.dataset && t.dataset.gwCb) { save(t.dataset.gwCb, t.checked); draw('gwc-' + t.dataset.gwCb); }
+      else if (t.dataset && t.dataset.gwGrad && t.value) { const id = t.dataset.gwGrad, o = kv(F(data)[id]); if (o) save(id, { ...o, grad: t.value }); pick = null; draw('gwb-' + id); }
     });
     el.addEventListener('click', e => {
+      const tok = e.target.closest('[data-gw-pick]');
+      if (tok) {
+        const id = tok.dataset.gwPick;
+        if (pick && pick.id === id) { pick = null; draw(tok.id); return; }
+        const row = tok.closest('[data-gw-ak]');
+        pick = { id, ph: tok.dataset.ph || 'Wer?', ak: row ? row.dataset.gwAk : '', q: '' };
+        draw('gwq-' + id); return;
+      }
+      const tk = e.target.closest('[data-gw-take]');
+      if (tk && pick) { let o = null; try { o = JSON.parse(tk.dataset.gwTake); } catch (er) { o = null; } if (o) take(o); return; }
+      if (e.target.closest('[data-gw-free]') && pick && has(pick.q)) { take(parseFree(pick.q)); return; }
+      if (e.target.closest('[data-gw-close]') && pick) { const id = pick.id; pick = null; draw('gwb-' + id); return; }
+      const cl = e.target.closest('[data-gw-clear]');
+      if (cl) { save(cl.dataset.gwClear, undefined); pick = null; draw('gwb-' + cl.dataset.gwClear); return; }
       const pill = e.target.closest('[data-gw-sw]');
       if (pill) { save(pill.dataset.gwSw, pill.dataset.gwOpt); draw(pill.id); return; }
       const p = e.target.closest('.gw-ak .gw-p');
-      if (p && !e.target.closest('[data-gw-bl], .gw-sw, input')) {
+      if (p && !e.target.closest('[data-gw-bl], [data-gw-pick], .gw-sw, input')) {
         const row = p.closest('[data-gw-ak]'), id = row.dataset.gwAk;
         save(id, !F(data)[id]); draw('gwc-' + id);
       }
     });
-    el.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.isContentEditable) { e.preventDefault(); e.target.blur(); } });
+    el.addEventListener('keydown', e => {
+      const t = e.target;
+      if (t.dataset && t.dataset.gwQ && pick) {
+        if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); const id = pick.id; pick = null; draw('gwb-' + id); return; }
+        if (e.key === 'Enter' && !e.isComposing) {
+          e.preventDefault(); e.stopPropagation();
+          const first = el.querySelector('#gwpc-' + pick.id + ' [data-gw-take]');
+          if (has(pick.q) && !first) take(parseFree(pick.q)); else if (first) take(JSON.parse(first.dataset.gwTake));
+          return;
+        }
+      }
+      if (e.key === 'Enter' && t.isContentEditable) { e.preventDefault(); t.blur(); }
+    });
     el.addEventListener('paste', e => {
       if (!e.target.isContentEditable) return;
       e.preventDefault();
@@ -634,8 +680,8 @@
 
   root.WGEW = Object.freeze({
     id: 'gewahrsam', name: 'Gewahrsam (PolG NRW)', short: 'Gewahrsam', kurz: 'GW',
-    desc: 'Lückentext für jede Gewahrsamsart nach § 35 PolG NRW: Feststellungen frei, Folgerungen ankreuzen, Pflichtbausteine §§ 36–38, Antrag ans Amtsgericht, Frist',
-    intro: 'Gewahrsamsart wählen, Feststellungen frei beschreiben, Folgerungen ankreuzen · Pflichtbausteine (§§ 36–38, 37a PolG NRW) · fertiger Text zum Bearbeiten, Antrag ans Amtsgericht, Frist',
+    desc: 'Lückentext für jede Gewahrsamsart nach § 35 PolG NRW: Feststellungen frei, Folgerungen ankreuzen, wer was wann angeordnet hat, Antrag ans Amtsgericht, Frist',
+    intro: 'Gewahrsamsart wählen, Feststellungen frei beschreiben, Folgerungen ankreuzen · wer was wann angeordnet und ausgesprochen hat (Amtsbezeichnung, Nachname) · Pflichtbausteine §§ 36, 37 PolG NRW · fertiger Text zum Bearbeiten, Antrag ans Amtsgericht, Frist',
     labels: {
       bericht: 'Bericht', kurz: 'Kurzfassung', kurzHint: 'Eine Zeile für Vorgang, Liste und Übergabe.',
       offen: 'Offene Punkte', offenHint: 'Angehakte Punkte landen als Todos im Planner. Rot markierte Lücken stehen im Text in eckigen Klammern.',
