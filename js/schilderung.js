@@ -159,7 +159,7 @@
   /* ---------- Personenbezogene Angaben: Deutschkenntnisse, Alkohol/Drogen, Folgefähigkeit, Tests ---------- */
   const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
   /** Pronomen nach Anrede; ohne Anrede als Platzhalter. */
-  const PR = p => (p.g === 'w' ? { er: 'sie', Er: 'Sie', ihm: 'ihr', sein: 'ihr' } : p.g === 'm' ? { er: 'er', Er: 'Er', ihm: 'ihm', sein: 'sein' } : { er: '[er/sie]', Er: '[Er/Sie]', ihm: '[ihm/ihr]', sein: '[sein/ihr]' });
+  const PR = p => (p.g === 'w' ? { er: 'sie', Er: 'Sie', ihm: 'ihr', ihn: 'sie', sein: 'ihr' } : p.g === 'm' ? { er: 'er', Er: 'Er', ihm: 'ihm', ihn: 'ihn', sein: 'sein' } : { er: '[er/sie]', Er: '[Er/Sie]', ihm: '[ihm/ihr]', ihn: '[ihn/sie]', sein: '[sein/ihr]' });
   const herrFrau = p => (p.g === 'w' ? 'Frau' : p.g === 'm' ? 'Herr' : '[Herr/Frau]');
   /** „dem Beschuldigten“ / „der Zeugin“ … */
   const rolleDat = p => { const r = ROLLE[p.rolle]; if (!r) return '[der Person]'; return p.g === 'm' || p.g === 'w' ? r.dat[p.g] : `[${r.dat.m}/${r.dat.w}]`; };
@@ -168,10 +168,10 @@
   const SPRACHE = [['ok', 'Deutsch problemlos'], ['eingeschr', 'Eingeschränkt'], ['kein', 'Kein Deutsch']];
   const MITTEL = [['app', 'Übersetzungs-App', 'einer Übersetzungs-App'], ['dolm', 'Dolmetscher/in', 'einer Dolmetscherin bzw. eines Dolmetschers'], ['dritte', 'Person vor Ort übersetzte', 'einer anwesenden Person, die übersetzte']];
   /** Deutschkenntnisse – steht vor dem Einleitungssatz, weil es die Belehrung betrifft. Bei „problemlos“ kein Text. */
-  function spracheText(data, i) {
+  function spracheText(data, i, pron = false) {
     const p = arr(data.personen)[i] || {};
     if (p.spr !== 'eingeschr' && p.spr !== 'kein') return '';
-    const pr = PR(p), wer = `${cap(rolleArt(p))} ${nameOf(data, i)}`;
+    const pr = PR(p), wer = pron ? pr.Er : `${cap(rolleArt(p))} ${nameOf(data, i)}`;
     const kenntnis = p.spr === 'kein' ? `${wer} verfügte über keine Deutschkenntnisse` : `${wer} verfügte nur über eingeschränkte Deutschkenntnisse`;
     const mit = MITTEL.filter(([k]) => arr(p.sprMittel).includes(k)).map(m => m[2]);
     const parts = [];
@@ -435,17 +435,49 @@
       if (p.keine) return r.zeug && p.zvr ? '' : `${PR(p).Er} erklärte, ${keineWas(p)}.`;
       return `Zum Sachverhalt machte ${PR(p).er} ${gegenText(data, p, true)} sinngemäß folgende Angaben:`;
     }
-    return einleitung(data, i, !!spracheText(data, i));
+    return einleitung(data, i, !!(verletzungText(data, i) || spracheText(data, i)));
   }
   /**
    * Strafantrag (nur Geschädigte). Seit 17.07.2024 verlangt § 158 Abs. 2 StPO keine Schriftform mehr, wohl aber, dass Identität
    * und Verfolgungswille feststehen – deshalb steht der Verfolgungswille ausdrücklich im Text; Unterschrift oder Vordruck,
    * wenn angetippt; der Hinweis auf die Frist von drei Monaten (§ 77b StGB) ist vorgewählt und abwählbar.
    */
-  function strafantragText(data, i) {
+  /**
+   * Verletzungen (alle Rollen): nicht verletzt / gibt Schmerzen an / Verletzungen festgestellt – Ort und Art schreibt man
+   * selbst. Danach Lichtbilder (nur bei festgestellten Verletzungen), Rettungswagen (abgelehnt mit Hinweis auf ein Attest
+   * oder hinzugezogen mit Transport ins Krankenhaus bzw. ambulanter Behandlung vor Ort).
+   */
+  function verletzungText(data, i) {
+    const p = arr(data.personen)[i] || {};
+    if (!['nein', 'schmerz', 'ja'].includes(p.verl)) return '';
+    const pr = PR(p), wer = `${cap(rolleArt(p))} ${nameOf(data, i)}`, vt = str(p.verlText).replace(/[.]+$/, '');
+    const t = [];
+    if (p.verl === 'nein') return `${wer} gab an, nicht verletzt zu sein; Verletzungen waren nicht erkennbar.`;
+    if (p.verl === 'schmerz') t.push(`${wer} gab an, Schmerzen ${str(p.schmerzText).replace(/[.]+$/, '') || '[wo?]'} zu haben.`);
+    else {
+      t.push(`Bei ${rolleDat(p)} ${nameOf(data, i)} wurden folgende Verletzungen festgestellt: ${vt || '[welche und wo?]'}.`);
+      if (p.foto === 'ja') t.push('Die Verletzungen wurden fotografisch gesichert; die Lichtbilder werden dem Vorgang beigefügt.');
+      else if (p.foto === 'nein') t.push('Eine fotografische Sicherung der Verletzungen erfolgte nicht.');
+    }
+    if (p.rtw === 'kein') {
+      t.push(`Auf Nachfrage erklärte ${pr.er}, keinen Rettungswagen zu benötigen.`);
+      if (p.attest) {
+        t.push(`${pr.Er} wurde auf die Möglichkeit hingewiesen, ein ärztliches Attest einzuholen und dieses nachzureichen, damit es zur Akte genommen werden kann.`);
+        if (p.attestReak === 'nach') t.push(`${pr.Er} versicherte den eingesetzten ${beamte(data)}, ein Attest nachzureichen.`);
+        else if (p.attestReak === 'kein') t.push(`${pr.Er} erklärte, kein Attest einholen zu wollen.`);
+        else if (p.attestReak === 'offen') t.push(`${pr.Er} ließ offen, ob ${pr.er} ein Attest einholen wird.`);
+      }
+    } else if (p.rtw === 'ja') {
+      if (p.rtwWie === 'kh') t.push(`Ein Rettungswagen wurde hinzugezogen, dessen Besatzung ${pr.ihn} nach der Erstversorgung in ${str(p.kh) || '[Krankenhaus]'} transportierte.`);
+      else if (p.rtwWie === 'amb') t.push(`Ein Rettungswagen wurde hinzugezogen; nach Inaugenscheinnahme und ambulanter Behandlung durch dessen Besatzung wurde ${pr.er} vor Ort aus der Behandlung entlassen.`);
+      else t.push('Ein Rettungswagen wurde hinzugezogen. [Transport ins Krankenhaus oder vor Ort entlassen?]');
+    } else t.push('[Rettungswagen benötigt?]');
+    return t.join(' ');
+  }
+  function strafantragText(data, i, pron = false) {
     const p = arr(data.personen)[i] || {};
     if (p.rolle !== 'gs' || !p.sa) return '';
-    const pr = PR(p), wer = `${cap(rolleArt(p))} ${nameOf(data, i)}`, frist = p.saFrist !== false;
+    const pr = PR(p), wer = pron ? pr.Er : `${cap(rolleArt(p))} ${nameOf(data, i)}`, frist = p.saFrist !== false;
     const t = [];
     if (p.sa === 'ja') {
       t.push(`${wer} stellte vor Ort mündlich Strafantrag aus allen rechtlichen Gründen und erklärte ausdrücklich, die Strafverfolgung zu wünschen.`);
@@ -462,12 +494,13 @@
     return t.join(' ');
   }
   /**
-   * Eine Schilderung in der Reihenfolge des Einsatzes: Unterüberschrift, Deutschkenntnisse, Belehrung,
-   * Alkohol/Drogen (mit Fragen und Tests erst nach der Belehrung), zuletzt die Schilderung. num = „3.1“ oder ''.
+   * Eine Schilderung: Unterüberschrift, Verletzungen, Deutschkenntnisse, Belehrung, Alkohol/Drogen (Fragen und Tests erst
+   * nach der Belehrung), die Schilderung, zuletzt der Strafantrag. num = „3.1“ oder ''.
    */
   function block(data, i, num = '') {
-    const p = arr(data.personen)[i] || {}, t = schilderung(p), sp = spracheText(data, i), ein = einOf(p).length;
-    return [`${num ? num + ' ' : ''}${heading(data, i)}`, sp, ein ? belehrungSatz(data, i, !!sp) : '', ein ? einflussText(data, i) : '', vorText(data, i), p.keine ? '' : t || '[Schilderung]', strafantragText(data, i)].filter(Boolean).join('\n');
+    const p = arr(data.personen)[i] || {}, t = schilderung(p), ein = einOf(p).length;
+    const verl = verletzungText(data, i), sp = spracheText(data, i, !!verl), genannt = !!(verl || sp);
+    return [`${num ? num + ' ' : ''}${heading(data, i)}`, verl, sp, ein ? belehrungSatz(data, i, genannt) : '', ein ? einflussText(data, i) : '', vorText(data, i), p.keine ? '' : t || '[Schilderung]', strafantragText(data, i)].filter(Boolean).join('\n');
   }
   /** Abschnittsnummer ohne Punkt dahinter: „3.“ → „3“, „3.2.“ → „3.2“. */
   const cleanNr = s => str(s).replace(/[^\d.]/g, '').replace(/\.{2,}/g, '.').replace(/^\.+|\.+$/g, '');
@@ -500,6 +533,12 @@
     if (!(p.bel && has(p.bel.name))) m.push('belehrt durch');
     if (!p.keine && !arr(p.gegen).length) m.push('gegenüber');
     if (!p.keine && !has(p.text)) m.push('Schilderung');
+    if (p.verl === 'ja' && !has(p.verlText)) m.push('Verletzungen: welche und wo');
+    if (p.verl === 'schmerz' && !has(p.schmerzText)) m.push('Schmerzen: wo');
+    if (p.verl === 'ja' && !p.foto) m.push('Lichtbilder der Verletzungen');
+    if ((p.verl === 'schmerz' || p.verl === 'ja') && !p.rtw) m.push('Rettungswagen');
+    if (p.rtw === 'ja' && (p.verl === 'schmerz' || p.verl === 'ja') && !p.rtwWie) m.push('Rettungswagen: Transport oder vor Ort entlassen');
+    if (p.rtw === 'ja' && p.rtwWie === 'kh' && !has(p.kh)) m.push('Krankenhaus');
     if (p.spr === 'kein' && !arr(p.sprMittel).length && !has(p.sprAndere)) m.push('Verständigung');
     const e = einOf(p);
     if (e.length) {
@@ -610,6 +649,7 @@
       const e = einOf(p);
       const meta = [rolleLabel(p), p.bel && has(p.bel.name) ? 'belehrt durch ' + offName(p.bel) : 'Belehrung offen', ...(p.spr === 'eingeschr' ? ['Deutsch eingeschränkt'] : p.spr === 'kein' ? ['kein Deutsch'] : []), ...(e.length ? [e.length === 2 ? 'Alkohol und Drogen' : e[0] === 'alk' ? 'Alkohol' : 'Drogen'] : [])];
       const snip = p.keine ? '' : str(p.text).replace(/\s+/g, ' ');
+      if (p.verl === 'ja' || p.verl === 'schmerz') meta.push(p.verl === 'ja' ? 'verletzt' : 'Schmerzen');
       if (p.rolle === 'gs' && p.sa) meta.push({ ja: 'Strafantrag gestellt', vorbehalt: 'Strafantrag vorbehalten', nein: 'kein Strafantrag' }[p.sa]);
       if (p.keine) meta.push(keineLabel(p).replace(/^Macht /, '').replace(/^Verweigert das Zeugnis.*/, 'verweigert das Zeugnis'));
       const opened = i === V.last;
@@ -645,6 +685,7 @@
         <div class="w-q half" data-q="nn"><label class="w-lbl" for="sdNn">Nachname <i class="w-req" title="Pflicht">•</i></label><input class="input" id="sdNn" data-sk="${base}.nachname" data-next="sdVn" value="${esc(p.nachname || '')}" placeholder="z. B. Müller" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="next" maxlength="80"></div>
         <div class="w-q half" data-q="vn"><label class="w-lbl" for="sdVn">Vorname</label><input class="input" id="sdVn" data-sk="${base}.vorname" data-next="${hasBel ? '' : 'sdBel'}" value="${esc(p.vorname || '')}" placeholder="z. B. Anna" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="next" maxlength="80"></div>
         <p class="sd-im">Im Text: <b data-live="head">${esc(heading(data, i))}</b></p>
+        ${verletzungHtml(api, p, base)}
         <div class="w-q full w-head"><span class="w-head-t">Verständigung und Belehrung</span><span class="w-head-h">Kommt zuerst – Fragen zum Konsum und Tests stehen im Text erst danach.</span></div>
         ${spracheHtml(p, base)}
         <div class="w-q" data-q="bel"><span class="w-lbl">Belehrt durch <i class="w-req" title="Pflicht">•</i></span>${r ? `<p class="w-hint">${esc(r.bel)}</p>` : ''}${hasBel ? `<div class="sd-toks">${tok(p.bel, `${base}.bel`, 'unbel')}</div>` : ta(api, data, 'bel', 'sdBel', 'Namen tippen, z. B. Schulz')}</div>
@@ -677,7 +718,7 @@
   }
   const seg = (path, cur, opts, cls = 'w-seg') => `<div class="${cls}" role="group">${opts.map(([v, l]) => `<button type="button" class="${cls === 'w-seg' ? 'w-opt' : 'chip'}" data-sd="set" data-p="${esc(path)}" data-v="${esc(v)}" aria-pressed="${String(cur === v)}">${esc(l)}</button>`).join('')}</div>`;
   const flips = (path, cur, opts, extra = () => '') => `<div class="w-chips">${opts.map(([v, l]) => `<button type="button" class="chip" data-sd="flip" data-p="${esc(path)}" data-v="${esc(v)}" aria-pressed="${String(arr(cur).includes(v))}">${esc(l)}${extra(v)}</button>`).join('')}</div>`;
-  const textIn = (id, path, val, ph, extra = '') => `<input class="input" id="${id}" data-sk="${esc(path)}" value="${esc(val || '')}" placeholder="${esc(ph)}" autocomplete="off" spellcheck="false" maxlength="240"${extra}>`;
+  const textIn = (id, path, val, ph, extra = '', max = 240) => `<input class="input" id="${id}" data-sk="${esc(path)}" value="${esc(val || '')}" placeholder="${esc(ph)}" autocomplete="off" spellcheck="${max > 240 ? 'true' : 'false'}" maxlength="${max}"${extra}>`;
 
   function spracheHtml(p, base) {
     const cur = p.spr === 'eingeschr' || p.spr === 'kein' ? p.spr : 'ok';
@@ -719,6 +760,31 @@
     }
     if (t.st === 'unmoeglich') more += `<div class="sd-inl" data-q="${kind}g"><label class="w-hint" for="${A ? 'sdAatG' : 'sdDtG'}">„… konnte nicht durchgeführt werden, da …“</label>${textIn(A ? 'sdAatG' : 'sdDtG', `${path}.grund`, t.grund, A ? 'er nicht ausreichend pusten konnte' : 'sie keinen Urin abgeben konnte')}</div>`;
     return `<div class="sd-sub" data-q="${kind}"><span class="w-lbl">${ttl}${ROLLE[p.rolle] && ROLLE[p.rolle].tat ? ' <i class="w-req" title="Pflicht">•</i>' : ''}</span><p class="w-hint">Erst nach der Belehrung anbieten und auf die Freiwilligkeit hinweisen – so steht es auch im Text.</p>${seg(`${path}.st`, t.st, TEST_ST, 'w-chips')}${more}</div>`;
+  }
+
+  function verletzungHtml(api, p, base) {
+    const pr = PR(p), v = p.verl, wer = pr.er === 'sie' ? 'sie' : pr.er === 'er' ? 'er' : 'die Person';
+    let more = '';
+    if (v === 'schmerz') more += `<div class="sd-inl" data-q="verlt"><label class="w-hint" for="sdSchm">„…gab an, Schmerzen <b>…</b> zu haben.“</label>${textIn('sdSchm', `${base}.schmerzText`, p.schmerzText, 'im linken Oberarm und an der linken Wange', '', 400)}</div>`;
+    if (v === 'ja') more += `<div class="sd-inl" data-q="verlt"><label class="w-hint" for="sdVerl">„…wurden folgende Verletzungen festgestellt: <b>…</b>“</label>${textIn('sdVerl', `${base}.verlText`, p.verlText, 'eine etwa 3 cm große Rötung an der linken Wange', '', 400)}</div>
+      <div class="sd-inl" data-q="foto"><span class="w-lbl">Lichtbilder</span>${seg(`${base}.foto`, p.foto, [['ja', 'Fotografisch gesichert'], ['nein', 'Nicht fotografiert']], 'w-chips')}</div>`;
+    if (v === 'schmerz' || v === 'ja') {
+      let rtw = '';
+      if (p.rtw === 'kein') {
+        rtw += `<div class="sd-inl" data-q="attest"><div class="w-chips"><button type="button" class="chip" data-sd="tog" data-p="${base}.attest" aria-pressed="${String(!!p.attest)}">Auf die Möglichkeit eines Attests hingewiesen</button></div></div>`;
+        if (p.attest) rtw += `<div class="sd-inl" data-q="attestr"><span class="w-lbl">Wie hat ${wer} darauf reagiert?</span>${seg(`${base}.attestReak`, p.attestReak, [['nach', 'Reicht ein Attest nach'], ['kein', 'Will kein Attest'], ['offen', 'Lässt es offen']], 'w-chips')}</div>`;
+      }
+      if (p.rtw === 'ja') {
+        rtw += `<div class="sd-inl" data-q="rtwwie"><span class="w-lbl">Und dann?</span>${seg(`${base}.rtwWie`, p.rtwWie, [['kh', 'Transport ins Krankenhaus'], ['amb', 'Ambulant behandelt, vor Ort entlassen']], 'w-chips')}</div>`;
+        if (p.rtwWie === 'kh') {
+          const kh = [...new Set(api.docs().filter(x => x && x.type === 'sch').flatMap(x => arr(x.data && x.data.personen)).map(q => q && str(q.kh)).filter(Boolean))].slice(0, 5);
+          rtw += `<div class="sd-inl" data-q="kh"><label class="w-hint" for="sdKh">„…transportierte ${pr.ihn === 'sie' ? 'sie' : pr.ihn === 'ihn' ? 'ihn' : '[ihn/sie]'} nach der Erstversorgung in <b>…</b>“</label>${textIn('sdKh', `${base}.kh`, p.kh, 'das Klinikum Gütersloh')}${kh.length ? `<div class="w-chips sd-sugg">${kh.map(k => `<button type="button" class="chip sm" data-sd="set" data-p="${base}.kh" data-v="${esc(k)}" aria-pressed="${String(str(p.kh) === k)}">${esc(k)}</button>`).join('')}</div>` : ''}</div>`;
+        }
+      }
+      more += `<div class="sd-inl" data-q="rtw"><span class="w-lbl">Rettungswagen <i class="w-req" title="Pflicht">•</i></span>${seg(`${base}.rtw`, p.rtw, [['kein', 'Braucht keinen (auf Nachfrage)'], ['ja', 'Rettungswagen hinzugezogen']], 'w-chips')}</div>${rtw}`;
+    }
+    return `<div class="w-q full w-head"><span class="w-head-t">Verletzungen</span><span class="w-head-h">Ort und Art selbst eintragen – steht im Text ganz vorn, vor der Belehrung.</span></div>
+      <div class="w-q" data-q="verl"><span class="w-lbl">War ${wer} verletzt?</span>${seg(`${base}.verl`, v, [['nein', 'Nicht verletzt'], ['schmerz', 'Gibt Schmerzen an'], ['ja', 'Verletzungen festgestellt']])}${more ? `<div class="sd-sub">${more}</div>` : ''}</div>`;
   }
 
   function strafantragHtml(p, base) {
@@ -1024,6 +1090,6 @@
     text: data => [['', 'Schilderungen', paket(data), '']],
     preview: () => '', kurzText: () => '', fahndung: () => '', offen: () => [], personalien: () => '',
     screen: { open, render, mounted, click, input, change, keydown, submit },
-    core: { nameOf, kuerzel, heading, einleitung, gegenText, block, paket, spracheText, einflussText, belehrungSatz, vorText, strafantragText, WAHR, TV, FAKT, fehlt, cleanNr, canonRank, parseFree: (data, q, team = []) => parseFree({ team: () => team, docs: () => [] }, data, q), setRanks: m => { RANKS = new Map(Object.entries(m || {}).map(([k, v]) => [nameKey(k), v])); } }
+    core: { nameOf, kuerzel, heading, einleitung, gegenText, block, paket, spracheText, einflussText, belehrungSatz, vorText, strafantragText, verletzungText, WAHR, TV, FAKT, fehlt, cleanNr, canonRank, parseFree: (data, q, team = []) => parseFree({ team: () => team, docs: () => [] }, data, q), setRanks: m => { RANKS = new Map(Object.entries(m || {}).map(([k, v]) => [nameKey(k), v])); } }
   });
 })(typeof window !== 'undefined' ? window : globalThis);
