@@ -10,6 +10,11 @@
  *                die nicht anders abgewendet werden kann; fehlende Behandlungsbereitschaft allein genügt nicht,
  *   § 11 Abs. 2  gegenwärtig = unmittelbar bevorstehend oder wegen besonderer Umstände jederzeit zu erwarten,
  *   § 14         sofortige Unterbringung durch die örtliche Ordnungsbehörde mit aktuellem ärztlichen Zeugnis.
+ * Ablauf und Verben (§§ 12, 14): Ärztin/Arzt untersucht persönlich und stellt ein ärztliches Zeugnis aus (nicht älter als
+ * vom Vortag) → die Ordnungsbehörde „nimmt die sofortige Unterbringung vor“ (ohne vorherige gerichtliche Entscheidung,
+ * nur bei Gefahr im Verzug) → Verbringung in die Klinik, bei Widerstand Vollzugshilfe der Polizei auf Ersuchen →
+ * die Ordnungsbehörde beantragt unverzüglich beim Amtsgericht die Unterbringung → das Gericht „ordnet die Unterbringung
+ * an“ bis zum Ablauf des folgenden Tages, sonst Entlassung. „Anordnen“ ist dem Gericht vorbehalten.
  * Polizei: Gewahrsam bis zur Entscheidung (§ 35 PolG NRW), Vollzugshilfe (§ 47 PolG NRW), Fesselung (§ 62 PolG NRW).
  * Fehlendes steht als [Platzhalter] im Text. Reine Daten + Textlogik; writer.js zeichnet die Felder.
  * Orientierungshilfe, keine Rechtsberatung – Normen vor Verwendung am amtlichen Wortlaut prüfen.
@@ -221,16 +226,17 @@
     else if (wer === 'vorort') s.push(`${cap(A.nom)} war bereits vor Ort.`);
     else if (wer === 'ang') s.push(`Angehörige hatten bereits ${A.acc} verständigt.`);
     if (has(f.arztT) && wer !== 'vorort') s.push(`${cap(A.kurz)} traf${um(f.arztT)} ein.`);
-    // Begutachtung und Zeugnis
+    // Begutachtung und Zeugnis: persönliche Untersuchung, dann Zeugnis – erst danach entscheidet die Ordnungsbehörde
     const plus = arr(f.begutPlus).map(x => ({ angeh: 'Dabei wurden auch Angehörige befragt.', pol: 'Die eingesetzten Beamten schilderten ihre Feststellungen.' }[x])).filter(Boolean);
-    const zeug = f.erg === 'sofort';
+    const zeug = f.erg === 'sofort' || (f.erg === 'keine' && f.keineGrund === 'ob');
+    const zText = f.erg === 'sofort' ? 'ein ärztliches Zeugnis aus, wonach eine sofortige Unterbringung notwendig war' : 'ein ärztliches Zeugnis aus';
+    // Rückverweis per Pronomen nur, wenn er nicht mit der betroffenen Person verwechselt werden kann
+    const aPron = A.g && A.g !== g.g && !plus.length ? (A.g === 'm' ? 'er' : 'sie') : A.kurz;
     if (f.begut === 'beide') {
-      if (zeug && !plus.length) s.push(`Beide machten sich ein umfassendes Bild von ${g.dem}, woraufhin ${A.kurz}${um(f.zeugT)} ein entsprechendes ärztliches Zeugnis erstellte.`);
-      else { s.push(`Beide machten sich ein umfassendes Bild von ${g.dem}.`, ...plus); if (zeug) s.push(`Daraufhin erstellte ${A.kurz}${um(f.zeugT)} ein entsprechendes ärztliches Zeugnis.`); }
-    } else {
-      if (zeug && !plus.length) s.push(`${cap(A.kurz)} untersuchte ${g.den} persönlich und erstellte${um(f.zeugT)} ein entsprechendes ärztliches Zeugnis.`);
-      else { s.push(`${cap(A.kurz)} untersuchte ${g.den} persönlich.`, ...plus); if (zeug) s.push(`Daraufhin erstellte ${A.kurz}${um(f.zeugT)} ein entsprechendes ärztliches Zeugnis.`); }
-    }
+      s.push(`Beide machten sich ein umfassendes Bild von ${g.dem}; ${A.kurz} untersuchte ${g.ihn} dabei persönlich.`, ...plus);
+      if (zeug) s.push(`Daraufhin stellte ${aPron}${um(f.zeugT)} ${zText}.`);
+    } else if (zeug && !plus.length) s.push(`${cap(A.kurz)} untersuchte ${g.den} persönlich und stellte${um(f.zeugT)} ${zText}.`);
+    else { s.push(`${cap(A.kurz)} untersuchte ${g.den} persönlich.`, ...plus); if (zeug) s.push(`Daraufhin stellte ${A.kurz}${um(f.zeugT)} ${zText}.`); }
     return tidy(s.join(' '));
   }
 
@@ -240,14 +246,15 @@
     if (!f.erg) return `${miss(ctx, 'Ergebnis: sofortige Unterbringung, freiwillige Aufnahme oder keine Unterbringung')}`;
     const O = obOf(d, { miss: [] }), A = arztOf(d, { miss: [] });
     if (f.erg === 'sofort') {
-      if (f.anord === 'antrag') {
-        s.push(`${cap(A.kurz)} beantragte die zwangsweise Unterbringung ${g.des} in einem psychiatrischen Fachkrankenhaus.`);
-        s.push(`Auf dieser Grundlage ordnete ${O.ref}${um(f.anordT)} die sofortige Unterbringung nach § 14 PsychKG NRW an.`);
-      } else s.push(`Auf Grundlage des ärztlichen Zeugnisses ordnete ${O.ref}${um(f.anordT)} die sofortige Unterbringung ${g.des} in einem psychiatrischen Fachkrankenhaus nach § 14 PsychKG NRW an.`);
+      // § 14 Abs. 1: Die Ordnungsbehörde nimmt die sofortige Unterbringung vor; angeordnet wird die Unterbringung vom Gericht
+      s.push(`Da wegen Gefahr im Verzug eine gerichtliche Entscheidung nicht rechtzeitig herbeigeführt werden konnte, nahm ${O.ref}${um(f.anordT)} auf Grundlage des ärztlichen Zeugnisses die sofortige Unterbringung ${g.des} nach § 14 PsychKG NRW vor.`);
+      if (f.antragAG === 'angek') s.push(`${cap(O.ref)} kündigte an, unverzüglich beim Amtsgericht die Unterbringung zu beantragen.`);
+      else if (f.antragAG === 'pflicht') s.push('Der Antrag auf Unterbringung beim Amtsgericht obliegt nach § 14 Abs. 2 PsychKG NRW der Ordnungsbehörde.');
     } else if (f.erg === 'freiw') {
       s.push(`${cap(g.der)} erklärte sich daraufhin bereit, sich freiwillig in stationäre psychiatrische Behandlung zu begeben. Eine Unterbringung gegen ${g.poss}en Willen war daher nicht erforderlich.`);
     } else {
-      s.push(`${cap(A.kurz)} kam nach der Untersuchung zu dem Ergebnis, dass die Voraussetzungen einer Unterbringung nach dem PsychKG NRW nicht vorlagen.`);
+      if (f.keineGrund === 'ob') s.push(`${cap(O.ref)} sah die Voraussetzungen einer sofortigen Unterbringung nach § 14 PsychKG NRW jedoch nicht als gegeben an.`);
+      else s.push(`${cap(A.kurz)} kam nach der Untersuchung zu dem Ergebnis, dass die Voraussetzungen einer Unterbringung nach dem PsychKG NRW nicht vorlagen. Ein ärztliches Zeugnis wurde nicht ausgestellt.`);
       const v = arr(f.verbleib);
       if (v.includes('kh')) s.push(`${cap(g.der)} wurde zur körperlichen Abklärung mit dem Rettungsdienst in ein Krankenhaus gebracht.`);
       if (v.includes('wohn')) s.push(`${cap(g.der)} verblieb in ${g.poss}er Wohnung.`);
@@ -280,7 +287,7 @@
       else if (f.zwang === 'zwang') {
         const za = ZWANG.filter(x => arr(f.zwangArt).includes(x[0])).map(x => x[2]);
         const wer = has(f.zwangWer) ? `setzte ${kraft(f.zwangWer)}` : 'setzten die eingesetzten Beamten';
-        s.push(`Da ${g.er} sich der Maßnahme widersetzte, ${wer} sie im Wege der Vollzugshilfe für die Ordnungsbehörde (§ 47 PolG NRW) mit unmittelbarem Zwang durch${za.length ? ` (${joinList(za, 'sowie')})` : ''}.`);
+        s.push(`Da ${g.er} sich der Maßnahme widersetzte, ${wer} die sofortige Unterbringung auf Ersuchen der Ordnungsbehörde im Wege der Vollzugshilfe (§ 47 PolG NRW) mit unmittelbarem Zwang durch${za.length ? ` (${joinList(za, 'sowie')})` : ''}.`);
         if (arr(f.zwangArt).includes('fessel')) {
           const fg = FESSEL.filter(x => arr(f.fesselGrund).includes(x[0])).map(x => x[2]);
           s.push(`Die Fesselung erfolgte nach § 62 PolG NRW, weil Tatsachen die Annahme rechtfertigten, dass ${g.er} ${fg.length ? joinList(fg, 'oder') : miss(ctx, 'Grund der Fesselung')} werde.`);
@@ -360,6 +367,7 @@
     if (!m.length) o.push('§ 11 Abs. 1 PsychKG NRW: Darlegen, warum die Gefahr nicht anders abwendbar war (Schritt Gefahr).');
     else if (m.length === 1 && m[0] === 'freiw') o.push('Nur „Behandlung abgelehnt“ angegeben: Die fehlende Bereitschaft, sich behandeln zu lassen, rechtfertigt allein keine Unterbringung (§ 11 Abs. 1 Satz 2) – weitere Gründe ergänzen.');
     if (f.erg === 'sofort' && ['haus', 'bd', 'na'].includes(f.arztDienst)) o.push('Das ärztliche Zeugnis soll grundsätzlich von einer in Psychiatrie und Psychotherapie weitergebildeten oder in der Psychiatrie erfahrenen Ärztin oder einem Arzt stammen (§ 14 Abs. 1 PsychKG NRW). Ggf. festhalten, warum niemand mit dieser Erfahrung erreichbar war.');
+    if (f.erg === 'keine' && f.keineGrund === 'ob') o.push('Weicht die Ordnungsbehörde vom ärztlichen Zeugnis ab, muss sie den Sozialpsychiatrischen Dienst beteiligen (§ 14 Abs. 1 PsychKG NRW) – ggf. im Text festhalten.');
     if (f.sicher === 'gew') { o.push('Gewahrsam: gesonderten Bericht fertigen (Schreiben → Gewahrsam).'); if (!has(f.gewEnde)) o.push('Ende des polizeilichen Gewahrsams mit Uhrzeit eintragen (letzter Schritt).'); }
     if (f.erg === 'sofort' && f.zwang === 'zwang' && !arr(f.zwangArt).length) o.push('Art des unmittelbaren Zwangs antippen (letzter Schritt).');
     if (arr(f.droh).some(x => ['angriff', 'sach', 'brand'].includes(x))) o.push('Bei Bedrohung, Angriff, Brandstiftung oder Sachbeschädigung: Strafanzeige gesondert prüfen.');
@@ -406,7 +414,7 @@
         { k: 'pk.p', t: 'person', l: 'Betroffene Person', fields: ['geschlecht', 'nachname', 'vorname', 'geb', 'anschrift'] },
         { k: K('bez'), t: 'choice', l: 'Im Text heißt die Person …', o: bezOpts, h: 'Steuert die Satzführung („Aufgrund der beschriebenen Verhaltensweise des Betroffenen …“).' },
         { k: 'einsatz.datum', t: 'date', l: 'Datum', w: 'half', q: 'heute' },
-        { k: 'einsatz.kraefte', t: 'crew', l: 'Eingesetzte Kräfte', h: 'Aus der laufenden Schicht oder per Antippen aus dem Team. Später wählst du daraus, wer was getan hat.', max: 8 }
+        { k: 'einsatz.kraefte', t: 'crew', l: 'Eingesetzte Kräfte', h: 'Aus der laufenden Schicht oder Nachnamen tippen – Vorschläge aus deinem Team. Später wählst du daraus, wer was getan hat.', max: 8 }
       ]
     },
     {
@@ -438,7 +446,7 @@
       ]
     },
     {
-      id: 'behoerde', phase: 'Maßnahmen', title: 'Ordnungsamt & Arzt', lead: 'Wer wurde hinzugezogen, wer hat begutachtet? Uhrzeiten sind optional, „Jetzt“ trägt sie sofort ein.',
+      id: 'behoerde', phase: 'Maßnahmen', title: 'Ordnungsamt & Arzt', lead: 'Wer wurde hinzugezogen, wer hat untersucht? Die Ärztin oder der Arzt untersucht persönlich und stellt das Zeugnis aus – erst danach entscheidet die Ordnungsbehörde. Uhrzeiten sind optional.',
       fields: [
         { t: 'preset', l: 'Schnellwahl', o: () => [
           ['Wie im Muster', { 'pk.ob': 'oa', 'pk.arztWer': 'ob', 'pk.arztDienst': 'spdi', 'pk.begut': 'beide' }, 'Ordnungsamt bestellt Arzt des SpDi, beide begutachten'],
@@ -471,13 +479,14 @@
       ]
     },
     {
-      id: 'entscheidung', phase: 'Maßnahmen', title: 'Entscheidung', lead: 'Wie ging es aus? Bei der sofortigen Unterbringung ordnet die Ordnungsbehörde an (§ 14 PsychKG NRW).',
+      id: 'entscheidung', phase: 'Maßnahmen', title: 'Entscheidung', lead: 'Wie ging es aus? Die sofortige Unterbringung nimmt die Ordnungsbehörde vor; anordnen kann die Unterbringung nur das Gericht.',
       fields: [
         { k: K('erg'), t: 'choice', l: 'Ergebnis', o: Object.entries(ERG), req: true },
-        { t: 'info', text: '§ 14 PsychKG NRW: Die örtliche Ordnungsbehörde nimmt die sofortige Unterbringung vor, wenn ein ärztliches Zeugnis über einen aktuellen Befund vorliegt (nicht älter als vom Vortag). Den Antrag beim Amtsgericht stellt die Ordnungsbehörde.', when: isF('erg', 'sofort') },
-        { k: K('zeugT'), t: 'time', l: 'Ärztliches Zeugnis um', w: 'half', q: 'jetzt', when: isF('erg', 'sofort') },
-        { k: K('anordT'), t: 'time', l: 'Unterbringung angeordnet um', w: 'half', q: 'jetzt', when: isF('erg', 'sofort') },
-        { k: K('anord'), t: 'choice', l: 'So steht es im Text', o: [['ob', 'Ordnungsamt ordnete an'], ['antrag', 'Arzt beantragte, Ordnungsamt ordnete an']], h: 'Ohne Auswahl: „… ordnete die sofortige Unterbringung an“.', when: isF('erg', 'sofort') },
+        { t: 'info', text: 'Reihenfolge nach § 14 PsychKG NRW: 1. Ärztin oder Arzt untersucht persönlich und stellt ein ärztliches Zeugnis aus (nicht älter als vom Vortag). 2. Die Ordnungsbehörde prüft selbst und nimmt die sofortige Unterbringung vor – ohne vorherige gerichtliche Entscheidung, nur bei Gefahr im Verzug. 3. Verbringung in die Klinik; bei Widerstand Vollzugshilfe der Polizei auf Ersuchen. 4. Die Ordnungsbehörde beantragt unverzüglich beim Amtsgericht die Unterbringung. 5. Ordnet das Gericht sie nicht bis zum Ablauf des folgenden Tages an, wird die Person entlassen.', when: isF('erg', 'sofort') },
+        { k: K('zeugT'), t: 'time', l: 'Zeugnis ausgestellt um', w: 'half', q: 'jetzt', when: d => P(d).erg === 'sofort' || (P(d).erg === 'keine' && P(d).keineGrund === 'ob') },
+        { k: K('anordT'), t: 'time', l: 'Unterbringung vorgenommen um', w: 'half', q: 'jetzt', when: isF('erg', 'sofort') },
+        { k: K('antragAG'), t: 'choice', l: 'Antrag beim Amtsgericht erwähnen? (optional)', o: [['angek', 'Ordnungsamt kündigte ihn an'], ['pflicht', 'Hinweis: obliegt dem Ordnungsamt']], h: 'Den Antrag stellt die Ordnungsbehörde, nicht die Ärztin oder der Arzt und nicht die Polizei (§ 14 Abs. 2).', when: isF('erg', 'sofort') },
+        { k: K('keineGrund'), t: 'choice', l: 'Wer sah die Voraussetzungen nicht?', o: [['arzt', 'Ärztin/Arzt (kein Zeugnis)'], ['ob', 'Ordnungsamt trotz Zeugnis']], h: 'Ohne Auswahl: die Ärztin bzw. der Arzt.', when: isF('erg', 'keine') },
         { k: K('verbleib'), t: 'multi', l: 'Was geschah stattdessen?', o: VERBLEIB, when: isF('erg', 'keine') },
         { k: K('verbleibAn'), t: 'text', l: 'An wen übergeben?', pre: 'übergeben an', ph: d => (gOf(d) === 'w' ? 'ihre Schwester, Frau K.' : 'seine Schwester, Frau K.'), max: 200, when: d => isF('erg', 'keine')(d) && inF('verbleib', 'ueb')(d) },
         out('o_entscheidung')

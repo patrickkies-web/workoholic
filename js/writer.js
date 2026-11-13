@@ -180,12 +180,9 @@
       case 'crew': {
         const rows = Array.isArray(v) && v.length ? v : [{}];
         const max = f.max || 6;
-        // Wer schon in einer Besatzung dieses Vorgangs steht, wird nicht noch einmal angeboten
-        const used = new Set([...rows, ...(getP(d, 'einsatz.kraefte') || []), ...(getP(d, 'einsatz.wagen') || []).flatMap(w => (w && Array.isArray(w.crew) ? w.crew : []))].filter(r => r && has(r.name)).map(r => nameKey(r.name)));
-        const team = rows.filter(r => r && has(r.name)).length < max ? ((W() && W().team && W().team()) || []).filter(p => p && has(p.name) && !used.has(nameKey(p.name))) : [];
         const sel = (r, i) => { const g = (r && r.grad) || ''; const list = DGRADE.includes(g) ? DGRADE : [...DGRADE, g]; return `<select class="input w-grad" data-k="${esc(k)}.${i}.grad" aria-label="Amtsbezeichnung">${list.map(x => `<option value="${esc(x)}" ${g === x ? 'selected' : ''}>${esc(x || 'Amtsbez.')}</option>`).join('')}</select>`; };
-        const chips = team.length ? `<div class="w-crew-team"><div class="w-chips">${team.slice(0, 40).map(p => { const g = rankOfT(p); return `<button type="button" class="chip sm" data-crew-pick="${esc(k)}" data-v="${esc(JSON.stringify({ grad: g, name: p.name }))}">+ ${esc([g, p.name].filter(Boolean).join(' '))}</button>`; }).join('')}</div></div>` : '';
-        return `<div class="w-q full">${L()}${chips}<div class="w-crew">${rows.map((r, i) => `<div class="w-crew-row">${sel(r, i)}<input class="input" data-k="${esc(k)}.${i}.name" value="${esc(r && r.name || '')}" placeholder="Name" autocomplete="off" spellcheck="false" maxlength="60"><button type="button" class="icon-btn sm" data-crew-del="${i}" data-crew-k="${esc(k)}" aria-label="Entfernen" ${rows.length === 1 && !has(r && r.name) ? 'disabled' : ''}><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>`).join('')}</div>${rows.length < max ? `<button type="button" class="chip" data-crew-add="${esc(k)}">+ Weitere Person</button>` : ''}${lastCrew(rows, k)}</div>`;
+        // Kein Chip-Raster mehr: Nachname tippen, Vorschläge aus dem Team (mit Amtsbezeichnung) erscheinen direkt am Feld
+        return `<div class="w-q full">${L()}<div class="w-crew">${rows.map((r, i) => `<div class="w-crew-row">${sel(r, i)}<div class="w-combo"><input class="input" data-k="${esc(k)}.${i}.name" data-combo="crew" data-ck="${esc(k)}" data-ci="${i}" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-label="Name, Person ${i + 1}" value="${esc(r && r.name || '')}" placeholder="Nachname tippen …" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="done" maxlength="60"></div><button type="button" class="icon-btn sm" data-crew-del="${i}" data-crew-k="${esc(k)}" aria-label="Entfernen" ${rows.length === 1 && !has(r && r.name) ? 'disabled' : ''}><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>`).join('')}</div>${rows.length < max ? `<button type="button" class="chip" data-crew-add="${esc(k)}">+ Weitere Person</button>` : ''}${lastCrew(rows, k)}${f.h ? '' : '<p class="w-hint">Anfangsbuchstaben des Nachnamens tippen: Vorschläge aus deinem Team und früheren Vorgängen, mit Amtsbezeichnung. Antippen oder Enter übernimmt.</p>'}</div>`;
       }
       /* Streifenwagen: je Fahrzeug eine Karte, Personen per Anfangsbuchstaben aus Team und früheren Vorgängen */
       case 'streifen': {
@@ -324,6 +321,31 @@
     if (has(typed.name) && !hits.some(p => nameKey(p.name) === nameKey(typed.name))) out.push({ val: typed, cls: 'w-pop-new', html: `<span class="w-pop-m">„${esc([typed.grad, typed.name].filter(Boolean).join(' '))}“ übernehmen</span>` });
     return hits.length ? [{ head: 'Aus deinem Team' }, ...out] : out;
   }
+  /** Besatzungszeile: Treffer am Anfang des Nachnamens zuerst; Amtsbezeichnung nur als erstes von mehreren Wörtern („POK Mü“). */
+  function crewItems(q, k, ci) {
+    const toks = fold(q).split(' ').filter(Boolean); if (!toks.length) return [];
+    const gT = toks.length > 1 && gradOf(toks[0]) ? fold(gradOf(toks[0])).replace(/in$/, '') : '';
+    const nT = gT ? toks.slice(1) : toks;
+    const rows = getP((doc() || {}).data, k);
+    const usedK = new Set((Array.isArray(rows) ? rows : []).filter((r, i) => i !== ci && r && has(r.name)).map(r => nameKey(r.name)));
+    const words = n => fold(n).split(/[\s-]+/).filter(Boolean);
+    const last = n => { const w = words(n); return w[w.length - 1] || ''; };
+    const hits = crewPool().filter(p => !usedK.has(nameKey(p.name)) && (!gT || fold(p.grad).startsWith(gT)) && nT.every(t => words(p.name).some(w => w.startsWith(t))))
+      .map(p => ({ p, s: nT.length && last(p.name).startsWith(nT[nT.length - 1]) ? 0 : 1 }))
+      .sort((a, b) => a.s - b.s || b.p.n - a.p.n || a.p.name.localeCompare(b.p.name, 'de')).slice(0, 8).map(x => x.p);
+    const typed = parsePerson(q);
+    const out = hits.map(p => ({ val: p, html: `<i class="w-pop-g">${esc(p.grad || teamRank(p.name))}</i><span class="w-pop-m">${markHit(p.name, nT.join(' '))}</span>` }));
+    if (has(typed.name) && !hits.some(p => nameKey(p.name) === nameKey(typed.name))) out.push({ val: typed, cls: 'w-pop-new', html: `<span class="w-pop-m">„${esc([typed.grad, typed.name].filter(Boolean).join(' '))}“ übernehmen</span>` });
+    return hits.length ? [{ head: 'Aus deinem Team' }, ...out] : out;
+  }
+  /** Gewählte Person in die Zeile der Besatzung schreiben (Amtsbezeichnung aus Vorschlag, Eingabe oder Team). */
+  function setCrewRow(k, ci, p) {
+    const d = doc(); if (!d || !p || !has(p.name)) return;
+    const rows = Array.isArray(getP(d.data, k)) && getP(d.data, k).length ? JSON.parse(JSON.stringify(getP(d.data, k))) : [{}];
+    const cur = rows[ci] || {};
+    rows[ci] = { ...cur, grad: p.grad || cur.grad || teamRank(p.name) || '', name: p.name };
+    setP(d.data, k, rows); persist(false); renderMain();
+  }
   function strItems(q) {
     if (!window.WGT) return [];
     const d = doc(); const docs = ((W() && W().docs()) || []).filter(x => x.id !== (d && d.id)).sort((a, b) => (b.u || 0) - (a.u || 0));
@@ -333,7 +355,7 @@
   const CB = { el: null, list: [], act: -1, picked: 0 };
   function cbClose() { const p = $('#wPop'); if (p) p.remove(); if (CB.el) { CB.el.setAttribute('aria-expanded', 'false'); CB.el.removeAttribute('aria-activedescendant'); } CB.el = null; CB.list = []; CB.act = -1; }
   function cbDraw(el) {
-    CB.el = el; CB.list = el.dataset.combo === 'pers' ? persItems(el.value, el.dataset.ck) : strItems(el.value);
+    CB.el = el; CB.list = el.dataset.combo === 'pers' ? persItems(el.value, el.dataset.ck) : el.dataset.combo === 'crew' ? crewItems(el.value, el.dataset.ck, Number(el.dataset.ci)) : strItems(el.value);
     let p = $('#wPop');
     if (!CB.list.length) { if (p) p.remove(); el.setAttribute('aria-expanded', 'false'); CB.act = -1; return; }
     if (!p || p.parentNode !== el.parentNode) { if (p) p.remove(); p = document.createElement('ul'); p.id = 'wPop'; p.className = 'w-pop'; p.setAttribute('role', 'listbox'); el.parentNode.append(p); el.setAttribute('aria-controls', 'wPop'); }
@@ -363,6 +385,7 @@
   function cbPick(el, it) {
     const kind = el.dataset.combo, k = el.dataset.ck; CB.picked = Date.now();
     if (kind === 'pers') { const p = it ? it.val : parsePerson(el.value); cbClose(); addPers(k, Number(el.dataset.ci), p, true); }
+    else if (kind === 'crew') { const p = it ? it.val : parsePerson(el.value); cbClose(); setCrewRow(k, Number(el.dataset.ci), p); }
     else if (kind === 'str' && it) { cbClose(); pickStreet(k, it.val); }
   }
 
@@ -871,7 +894,7 @@
       if (b.dataset.carAdd) { const d = doc(); if (!d) return; const k = b.dataset.carAdd; const a = Array.isArray(getP(d.data, k)) && getP(d.data, k).length ? getP(d.data, k).slice() : [{}]; a.push({}); setP(d.data, k, a); persist(false); renderMain(); const el = $(`#wFields [data-combo="pers"][data-ci="${a.length - 1}"]`); if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); if (!W().mobile()) el.focus(); } return; }
       if (b.dataset.carDel) { const d = doc(); if (!d) return; const a = (getP(d.data, b.dataset.carDel) || []).slice(); a.splice(Number(b.dataset.i), 1); setP(d.data, b.dataset.carDel, a.length ? a : undefined); persist(false); renderMain(); return; }
       if (b.dataset.persDel) { const d = doc(); if (!d) return; const [ci, pi] = b.dataset.i.split('.').map(Number); const a = JSON.parse(JSON.stringify(getP(d.data, b.dataset.persDel) || [])); if (a[ci] && Array.isArray(a[ci].crew)) a[ci].crew.splice(pi, 1); setP(d.data, b.dataset.persDel, a); persist(false); renderMain(); return; }
-      if (b.dataset.crewAdd) { const d = doc(); if (!d) return; const a = Array.isArray(getP(d.data, b.dataset.crewAdd)) ? getP(d.data, b.dataset.crewAdd).slice() : [{}]; a.push({}); setP(d.data, b.dataset.crewAdd, a); persist(false); renderMain(); return; }
+      if (b.dataset.crewAdd) { const d = doc(); if (!d) return; const ck = b.dataset.crewAdd; const a = Array.isArray(getP(d.data, ck)) && getP(d.data, ck).length ? getP(d.data, ck).slice() : [{}]; if (has(a[a.length - 1] && a[a.length - 1].name)) { a.push({}); setP(d.data, ck, a); persist(false); renderMain(); } const el = $(`#wFields [data-combo="crew"][data-ck="${CSS.escape(ck)}"][data-ci="${a.length - 1}"]`); if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); el.focus(); } return; }
       if (b.dataset.crewDel != null) { const d = doc(); if (!d) return; const ck = b.dataset.crewK || 'einsatz.kraefte'; const a = (getP(d.data, ck) || []).slice(); a.splice(Number(b.dataset.crewDel), 1); setP(d.data, ck, a.length ? a : undefined); persist(false); renderMain(); return; }
       if (b.dataset.crewPick) { const d = doc(); if (!d) return; let c = {}; try { c = JSON.parse(b.dataset.v); } catch (er) { return; } const ck = b.dataset.crewPick; const a = (Array.isArray(getP(d.data, ck)) ? getP(d.data, ck) : []).filter(r => r && (has(r.name) || has(r.grad))); a.push({ grad: c.grad || '', name: c.name }); setP(d.data, ck, a); persist(false); renderMain(); return; }
     });
@@ -897,7 +920,7 @@
       if (e.key === 'Escape' && open) { e.stopPropagation(); cbClose(); return; }
       if (e.key !== 'Enter' || e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) return;
       if (open && CB.act >= 0) { e.preventDefault(); e.stopImmediatePropagation(); cbPick(el, CB.list[CB.act]); return; }
-      if (el.dataset.combo === 'pers' && has(el.value)) { e.preventDefault(); e.stopImmediatePropagation(); cbPick(el, null); return; }
+      if ((el.dataset.combo === 'pers' || el.dataset.combo === 'crew') && has(el.value)) { e.preventDefault(); e.stopImmediatePropagation(); cbPick(el, null); return; }
       cbClose();
     });
     root.addEventListener('pointerdown', e => { const li = e.target.closest && e.target.closest('#wPop li[data-i]'); if (!li || !CB.el) return; e.preventDefault(); cbPick(CB.el, CB.list[Number(li.dataset.i)]); });
@@ -909,6 +932,8 @@
         if (document.activeElement === el) return;
         if (CB.el === el) cbClose();
         if (el.dataset.combo === 'pers' && live && has(val) && Date.now() - CB.picked > 400) addPers(ck, ci, parsePerson(val), false);
+        // Besatzung: getippte Amtsbezeichnung („pok müller“) in das Auswahlfeld übernehmen
+        if (el.dataset.combo === 'crew' && live && has(val) && Date.now() - CB.picked > 400) { const p = parsePerson(val); const cur = ((getP((doc() || {}).data, ck) || [])[ci]) || {}; if (has(p.name) && ((p.grad && p.grad !== cur.grad) || (!has(cur.grad) && has(teamRank(p.name))) || p.name !== val)) setCrewRow(ck, ci, p); }
       }, 150);
     });
     root.addEventListener('keydown', e => {

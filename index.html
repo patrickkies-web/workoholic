@@ -1363,6 +1363,9 @@ body[data-area=schreiben] .pane-schreiben{display:grid}
 .w-crew-team{margin:2px 0 10px}
 .w-crew-team .chip{font-weight:500}
 .w-crew-row{display:grid;grid-template-columns:130px minmax(0,1fr) 30px;gap:8px;align-items:center}
+/* Vorschläge für Kollegen über die ganze Zeile (Amtsbezeichnung + Name) */
+.w-crew-row{position:relative}
+.w-crew-row .w-combo{position:static;min-width:0}
 /* Strafanzeige: Streifenwagen mit Personen-Pillen, Vorschlagslisten (Kollegen, Straßen), Anschrift */
 .w-cars{display:grid;gap:10px}
 .w-car .w-sub-h{margin-bottom:10px}

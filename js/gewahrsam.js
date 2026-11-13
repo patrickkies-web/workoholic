@@ -702,7 +702,7 @@
       fC('art', 'Rechtsgrundlage', ORDER.map(k => [k, `${V[k].short} · ${V[k].sub}`]), { req: true }),
       { t: 'info', when: hasArt, text: d => `${V[F(d).art].norm} · ${V[F(d).art].name}. ${V[F(d).art].lead}` },
       { k: 'gw.p', t: 'person', l: 'Betroffene Person', fields: ['geschlecht', 'nachname', 'vorname', 'geb', 'anschrift'] },
-      { k: 'einsatz.kraefte', t: 'crew', l: 'Eingesetzte Kräfte', h: 'Aus der laufenden Schicht oder per Antippen aus dem Team. Im Text stehen Amtsbezeichnung und Nachname.', max: 8 }
+      { k: 'einsatz.kraefte', t: 'crew', l: 'Eingesetzte Kräfte', h: 'Aus der laufenden Schicht oder Nachnamen tippen – Vorschläge aus deinem Team. Im Text stehen Amtsbezeichnung und Nachname.', max: 8 }
     ] },
     ...ORDER.flatMap(v => V[v].secs.map(s => ({ id: `${v}_${s.k}`, phase: 'Gerüst', title: s.t, lead: `${V[v].norm} · ${s.lead || ''}`, when: d => F(d).art === v, fields: [...s.fields, out(`${v}_${s.k}`)] }))),
     { id: 'dfa', phase: 'Durchführung', title: 'Ingewahrsamnahme', lead: 'Wer hat angeordnet, wer hat es ausgesprochen, wann? Zwang, Fesselung, Durchsuchung. Gilt für jeden Gewahrsam.', when: hasArt, fields: [...EGROUPS.dfa.flatMap(k => E[k].fields), out('dfa')] },
