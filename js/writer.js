@@ -52,7 +52,7 @@
   const screenApi = d => ({
     d, persist, render: renderMain, copy, list: toList, team: () => ((W() && W().team && W().team()) || []), docs: () => ((W() && W().docs()) || []), toast: (t, o) => W().toast(t, o), ask: o => W().ask(o), mobile: () => !!(W() && W().mobile && W().mobile()),
     /* Vorgang aus Abschnitten: Kontext aus den anderen Abschnitten (null = steht für sich), Abschnitte anlegen, öffnen, löschen */
-    ctx: () => { const vg = vgOf(d); return vg ? VG.kontext(vg.data, d) : null; },
+    ctx: () => { const vg = vgOf(d); return vg ? VG.kontext(vg.data, d) : null; }, weiter: () => vgWeiter(d),
     open: id => open(id), create: (type, preset) => createDoc(type, preset), touch: x => { if (x) W().touch(x, false); },
     removeDocs: ids => { const snap = W().snapshot(); for (const id of ids) W().remove(id); return snap; }
   });
@@ -62,6 +62,17 @@
     if (vg) { open(vg.id); return; }
     U.view = 'list'; U.id = null; renderMain(); renderList();
   }
+  /** Aus einem einzelnen Abschnitt einen Vorgang machen: der Abschnitt wird sein erster Teil, weitere kommen in der Übersicht dazu. */
+  function combine() {
+    const d = doc(); if (!d || !VG || !VG.MATRIX[d.type] || vgOf(d)) return;
+    const vg = createDoc('vorgang', { einsatz: JSON.parse(JSON.stringify((d.data && d.data.einsatz) || {})) });
+    if (!vg) { W().toast('Vorgang konnte nicht angelegt werden.'); return; }
+    vg.data.teile = [{ id: d.id }];
+    vg.title = (window.WVorgang.title(vg.data) || '').slice(0, 120);
+    W().touch(vg, true);
+    open(vg.id);
+    W().toast('Vorgang angelegt – jetzt weitere Abschnitte antippen.');
+  }
   /** Vorgang abgleichen (Nummern, Kontext aus anderen Abschnitten) und alles Geänderte speichern. */
   function syncVorgang(vg) {
     if (!VG || !vg) return;
@@ -69,12 +80,24 @@
     for (const x of r.teile) W().touch(x, false);
     if (r.selbst) { vg.title = (window.WVorgang.title(vg.data) || '').slice(0, 120); W().touch(vg, false); }
   }
-  /** Leiste über einem Abschnitt, der zu einem Vorgang gehört: Stelle im Vorgang, davor und danach. */
+  /**
+   * Leiste über der Hauptansicht eines Abschnitts (nicht in Untermasken wie einer einzelnen Person):
+   * im Vorgang die Stelle mit Sprung zum Abschnitt davor und danach; bei einem einzelnen Abschnitt das Angebot,
+   * ihn mit weiteren zu einem Vorgang zu kombinieren.
+   */
   function vgStrip(host, d) {
-    const vg = vgOf(d); if (!vg) return;
+    if (!VG || !d || d.type === 'vorgang' || !VG.MATRIX[d.type] || !host.querySelector('.w-top [data-w="list"]')) return;
+    const vg = vgOf(d);
+    if (!vg) { host.insertAdjacentHTML('afterbegin', '<div class="vg-strip"><span class="vg-strip-t">Einzelner Abschnitt</span><span class="grow"></span><button type="button" class="chip sm vg-kombi" data-w="combine">+ Weitere Abschnitte</button></div>'); return; }
     const T = VG.teile(vg.data), i = T.findIndex(t => t.id === d.id); if (i < 0) return;
     const nb = (t, dir) => (t ? `<button type="button" class="chip sm" data-open="${esc(t.id)}">${dir < 0 ? '‹ ' : ''}${esc(t.m.short || t.m.name)}${dir > 0 ? ' ›' : ''}</button>` : '');
     host.insertAdjacentHTML('afterbegin', `<div class="vg-strip"><button type="button" class="vg-strip-t" data-open="${esc(vg.id)}"><span class="spaced">Vorgang</span> Abschnitt ${i + 1} von ${T.length}</button><span class="grow"></span>${nb(T[i - 1], -1)}${nb(T[i + 1], 1)}</div>`);
+  }
+  /** Am Ende eines fertigen Abschnitts im Vorgang: zurück zur Übersicht oder gleich weiter zum nächsten Abschnitt. */
+  function vgWeiter(d) {
+    const vg = vgOf(d); if (!vg) return '';
+    const T = VG.teile(vg.data), i = T.findIndex(t => t.id === d.id), nx = i >= 0 ? T[i + 1] : null;
+    return `<div class="vg-weiter"><button type="button" class="btn btn-ghost btn-sm" data-open="${esc(vg.id)}">Zum Vorgang</button>${nx ? `<button type="button" class="btn btn-light btn-sm" data-open="${esc(nx.id)}">Weiter: ${esc(nx.m.short || nx.m.name)} ›</button>` : ''}</div>`;
   }
   /** [Vorgang, Maske], wenn gerade ein Vorgang mit eigener Maske offen ist. */
   const screenOf = () => { const d = U.view !== 'list' ? doc() : null; const m = mod(d); return d && m && m.screen ? [d, m.screen] : null; };
@@ -640,6 +663,7 @@
       ${phCount ? `<div class="w-warn">${phCount} ${phCount === 1 ? 'Angabe fehlt' : 'Angaben fehlen'} (in eckigen Klammern markiert) – über „Bearbeiten“ am Abschnitt direkt nachtragen.</div>` : ''}
       <div class="w-tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" class="fchip" data-tab="${k}" aria-selected="${String(U.tab === k)}">${esc(l)}</button>`).join('')}</div>
       ${body}
+      ${vgWeiter(d)}
       <div class="w-nav">
         <button type="button" class="btn btn-ghost btn-sm btn-danger" data-w="delete">Löschen</button>
         <span class="grow"></span>
@@ -684,7 +708,13 @@
   /** Neuer Vorgang. Ohne Typ und mit mehreren Modulen: erst die Auswahl zeigen. `preset` füllt Daten vor (z. B. Besatzung aus der laufenden Schicht). */
   function newDoc(type, preset) {
     if (!W() || !W().unlocked()) return;
-    if (!type && creatable().length > 1) { U.view = 'list'; U.id = null; renderMain(); renderList(); window.scrollTo({ top: 0 }); return; }
+    if (!type && creatable().length > 1) {
+      U.view = 'list'; U.id = null; renderMain(); renderList();
+      // Am Handy stehen die Kacheln unter der Vorgangsliste: dorthin blättern, sonst wirkt „+“ wie ohne Wirkung
+      const k = W().mobile() ? $('#wMain .w-mods') : null;
+      if (k) k.scrollIntoView({ block: 'start' }); else window.scrollTo({ top: 0 });
+      return;
+    }
     const m = MODULES[type] || creatable()[0]; if (!m) return;
     const d = createDoc(m.id, preset);
     if (!d) { W().toast('Vorgang konnte nicht angelegt werden.'); return; }
@@ -879,6 +909,7 @@
         const a = b.dataset.w;
         if (a === 'new') newDoc(b.dataset.mod);
         else if (a === 'list') toList();
+        else if (a === 'combine') combine();
         else if (a === 'prev') go(-1);
         else if (a === 'next') { hintMissing(); go(1); }
         else if (a === 'finish') finish();

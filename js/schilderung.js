@@ -877,7 +877,7 @@
       more += `<div class="sd-inl" data-q="rtw"><span class="w-lbl">Rettungswagen <i class="w-req" title="Pflicht">•</i></span>${seg(`${base}.rtw`, p.rtw, [['kein', 'Braucht keinen (auf Nachfrage)'], ['ja', 'Rettungswagen hinzugezogen']], 'w-chips')}</div>${rtw}`;
     }
     return `<div class="w-q full w-head"><span class="w-head-t">Verletzungen</span><span class="w-head-h">${esc(hint || 'Ort und Art selbst eintragen – steht im Text ganz vorn, vor der Belehrung.')}</span></div>
-      <div class="w-q" data-q="verl"><span class="w-lbl">War ${wer} verletzt?</span>${seg(`${base}.verl`, v, [['nein', 'Nicht verletzt'], ['schmerz', 'Gibt Schmerzen an'], ['ja', 'Verletzungen festgestellt']])}${more ? `<div class="sd-sub">${more}</div>` : ''}</div>`;
+      <div class="w-q" data-q="verl"><span class="w-lbl">War ${wer} verletzt?</span>${seg(`${base}.verl`, v, [['nein', 'Nicht verletzt'], ['schmerz', 'Nur Schmerzen'], ['ja', 'Verletzt']])}${more ? `<div class="sd-sub">${more}</div>` : ''}</div>`;
   }
 
   function strafantragHtml(p, base) {
@@ -947,6 +947,7 @@
         ${vg && vg.nrAuto ? `<div class="w-q"><div class="w-info">Abschnitt ${esc(nr || '–')} – die Nummer ergibt sich aus der Reihenfolge im Vorgang.</div></div>` : `<div class="w-q"><label class="w-lbl" for="sdNr">Welche Nummer haben die Schilderungen in deiner Anzeige?</label><div class="sd-nr"><input class="input mono" id="sdNr" data-sk="nr" value="${esc(data.nr || '')}" placeholder="z. B. 3" inputmode="decimal" autocomplete="off" maxlength="8"><div class="w-chips">${['2', '3', '4', '5', '6'].map(n => `<button type="button" class="chip" data-sd="set" data-p="nr" data-v="${n}" aria-pressed="${String(nr === n)}">${n}</button>`).join('')}</div></div><p class="w-hint sd-hint" data-live="nrhint">${esc(nrHint(nr))}</p></div>`}
         ${ph ? `<div class="w-q"><div class="w-warn">${ph} ${ph === 1 ? 'Angabe fehlt' : 'Angaben fehlen'} (in eckigen Klammern) – über „Weitere Person“ in der Übersicht die Person antippen und nachtragen.</div></div>` : ''}
         <div class="w-q"><div class="w-out"><div class="w-out-h"><span class="w-lbl">Gesamtpaket</span><button type="button" class="btn btn-light btn-sm" data-sd="copyall">Kopieren</button></div><pre class="w-out-t" data-live="paket">${esc(txt)}</pre></div></div>
+        ${api && typeof api.weiter === 'function' && api.weiter() ? `<div class="w-q">${api.weiter()}</div>` : ''}
       </div>
       <div class="w-nav"><button type="button" class="btn btn-ghost btn-sm" data-sd="menu">+ Weitere Person</button><span class="grow"></span><button type="button" class="btn btn-accent" data-sd="copyall">Gesamtpaket kopieren</button></div>`;
   }

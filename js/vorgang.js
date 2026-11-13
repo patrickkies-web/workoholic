@@ -184,7 +184,8 @@
     if (t.doc.status === 'fertig') return 'Fertig';
     if (typeof t.m.pill === 'function') { try { return t.m.pill(t.doc.data); } catch (e) { return 'Entwurf'; } }
     const n = arr(t.m.steps).filter(s => !s.when || s.when(t.doc.data)).length || 1;
-    return Math.round(Math.min(t.doc.step || 0, n) / n * 100) + ' %';
+    const pct = Math.round(Math.min(t.doc.step || 0, n) / n * 100);
+    return pct ? pct + ' %' : 'Entwurf';
   }
 
   /* ======================= Maske ======================= */
@@ -225,7 +226,7 @@
   function textHtml(d) {
     const data = d.data, T = teile(data), txt = gesamt(data);
     const ph = (txt.match(/\[[^\]]+\]/g) || []).length;
-    const blocks = T.map((t, i) => `<div class="w-q"><div class="w-out"><div class="w-out-h vg-oh"><span class="w-lbl">${esc(t.m.name)}</span><span class="vg-tools"><button type="button" class="btn btn-ghost btn-sm" data-open="${esc(t.id)}">Bearbeiten</button><button type="button" class="btn btn-light btn-sm" data-sd="copy1" data-i="${i}">Kopieren</button></span></div><pre class="w-out-t">${esc(teilText(data, t, i) || '– noch nichts erfasst –')}</pre></div></div>`).join('');
+    const blocks = T.map((t, i) => `<div class="w-q"><div class="w-out"><div class="w-out-h vg-oh"><span class="w-lbl">${esc(t.m.short || t.m.name)}</span><span class="vg-tools"><button type="button" class="btn btn-ghost btn-sm" data-open="${esc(t.id)}">Bearbeiten</button><button type="button" class="btn btn-light btn-sm" data-sd="copy1" data-i="${i}">Kopieren</button></span></div><pre class="w-out-t">${esc(teilText(data, t, i) || '– noch nichts erfasst –')}</pre></div></div>`).join('');
     return `${topBar('ov', 'Vorgang · Gesamtsachverhalt', title(data))}
       <div class="w-grid sd-grid">
         ${ph ? `<div class="w-q"><div class="w-warn">${ph} ${ph === 1 ? 'Angabe fehlt' : 'Angaben fehlen'} (in eckigen Klammern) – über „Bearbeiten“ am Abschnitt nachtragen.</div></div>` : ''}
