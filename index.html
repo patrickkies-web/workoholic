@@ -1600,6 +1600,36 @@ body[data-area=schreiben] .pane-schreiben{display:grid}
 .hg-nr{display:flex;flex-direction:column;gap:4px}
 .hg-nr .w-hint{margin:0}
 .hg-nr .input{max-width:96px;text-align:center}
+/* Eintreffsituation (Orte, Schnellwahl Wohngebäude) und Vorgang aus Abschnitten */
+.sd-add-b span{display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:7px 0;line-height:1.25;text-align:left}
+.sd-add-b small{font-size:11.5px;font-weight:400;color:var(--text-3)}
+.es-ort .w-sub-h{margin-bottom:10px}
+.es-ort .w-lbl{margin:0}
+.es-gap{margin-top:14px}
+.es-wahl{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.es-wahl .w-mk-gt{margin:0 0 0 2px}
+.es-wahl.on{padding:12px;border-radius:14px;border:1px dashed rgba(236,217,111,.3);background:rgba(236,217,111,.04)}
+.es-weg{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.es-weg i{font-style:normal;font-size:13px;color:var(--text-3)}
+.es-frage{margin-top:4px}
+.es-frage .w-lbl{margin:0 0 8px;font-weight:500}
+.es-fertig{margin:2px 0 0}
+.es-zeit{max-width:260px}
+textarea.input.es-ta{display:block;min-height:42px;height:42px;padding:9px 14px;line-height:1.45;resize:none;overflow:hidden}
+.vg-list .sd-main b,.vg-list .sd-main small{white-space:normal}
+.es-frei{margin:0 0 8px;color:var(--accent)}
+.vg-strip{display:flex;align-items:center;gap:6px;margin:-4px 0 14px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.vg-strip-t{display:inline-flex;align-items:baseline;gap:8px;min-height:28px;font-size:12px;color:var(--text-2);text-align:left}
+.vg-strip-t .spaced{color:var(--accent)}
+.vg-strip .chip{max-width:38vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vg-ctx{margin:6px 0 0 14px}
+.vg-list .sd-up.vg-x{color:var(--coral)}
+.vg-list .sd-up.vg-x svg.i{width:14px;height:14px}
+.vg-std{margin-bottom:8px}
+.vg-std .sd-add-b{border-color:rgba(236,217,111,.4);background:var(--accent-soft)}
+.vg-tools{display:flex;gap:6px;flex:none}
+.vg-oh{flex-wrap:wrap}
+@media (max-width:760px){.vg-strip .chip{max-width:30vw}.vg-strip-t .spaced{display:none}}
 @media (max-width:760px){.sd-two{grid-template-columns:1fr}}
 @media (max-width:760px),(pointer:coarse){.sd-text{font-size:16px}}
 @media (prefers-reduced-motion:reduce){#wFields>[data-q].w-next,.btn.w-go{animation:none}}
@@ -1624,7 +1654,7 @@ body[data-area=schreiben] .pane-schreiben{display:grid}
   body.w-open[data-area=schreiben] .toasts{bottom:calc(96px + var(--sab))}
   #wFields .chip{min-height:42px}
   #wFields .chip.sm{min-height:36px;padding-left:12px;padding-right:12px}
-  .w-nav [data-w="next"],.w-nav [data-w="finish"],.w-nav [data-sd="done1"],.w-nav [data-sd="alle"],.w-nav [data-sd="copyall"].btn-accent{flex:1 1 auto;min-height:52px}
+  .w-nav [data-w="next"],.w-nav [data-w="finish"],.w-nav [data-sd="done1"],.w-nav [data-sd="alle"],.w-nav [data-sd="copyall"].btn-accent,.w-nav [data-sd="text"].btn-accent,.w-nav [data-sd="copy"].btn-accent{flex:1 1 auto;min-height:52px}
   .sd-grid .chip{min-height:42px}
   .w-nav{margin:18px -16px -18px;padding:12px 16px calc(14px + var(--sab));bottom:0;background:linear-gradient(180deg,rgba(21,21,22,0) 0,#151516 14px)}
   .w-tabs{margin:0 -16px 14px;padding:0 16px 2px}
@@ -2528,6 +2558,7 @@ dialog.brief-dlg.open .brief{opacity:1;transform:none}
           <span class="f-label">Schriftliche Arbeit</span>
           <div class="op-docrows" id="opDocList" hidden></div>
           <div class="op-docrows" id="opDocNew">
+            <button type="button" class="op-docrow" data-doc="vorgang" data-name="Vorgang"><span class="op-doc-k">VG</span><span class="op-docrow-m"><b>Vorgang aus Abschnitten</b><small>Allgemeines, Eintreffsituation, Schilderungen … kombinieren</small></span><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
             <button type="button" class="op-docrow" data-doc="vuf" data-name="Verkehrsunfallflucht"><span class="op-doc-k">VUF</span><span class="op-docrow-m"><b>Verkehrsunfallflucht</b><small>Befundbericht nach Anlage 6</small></span><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
             <button type="button" class="op-docrow" data-doc="vermisst" data-name="Vermisste Person"><span class="op-doc-k">VM</span><span class="op-docrow-m"><b>Vermisste Person</b><small>Übersicht, Fahndung, offene Punkte</small></span><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
             <button type="button" class="op-docrow" data-doc="hgv" data-name="Häusliche Gewalt"><span class="op-doc-k">HG</span><span class="op-docrow-m"><b>Häusliche Gewalt</b><small>Eintreffsituation, § 34a, Gefahrenprognose, Sonstiges</small></span><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
@@ -2678,9 +2709,11 @@ dialog.brief-dlg.open .brief{opacity:1;transform:none}
 <script src="js/anzeige.js"></script>
 <script src="js/unfallort.js"></script>
 <script src="js/schilderung.js"></script>
+<script src="js/eintreffen.js"></script>
 <script src="js/gewahrsam.js"></script>
 <script src="js/psychkg.js"></script>
 <script src="js/blutprobe.js"></script>
+<script src="js/vorgang.js"></script>
 <script src="js/writer.js"></script>
 </body>
 </html>

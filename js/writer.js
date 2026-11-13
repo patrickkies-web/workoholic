@@ -10,18 +10,13 @@
   'use strict';
   const W = () => window.WBridge;
   const MODULES = {};
-  if (window.WVUF) MODULES[window.WVUF.id] = window.WVUF;
-  if (window.WVermisst) MODULES[window.WVermisst.id] = window.WVermisst;
-  if (window.WHGV) MODULES[window.WHGV.id] = window.WHGV;
-  if (window.WHG) MODULES[window.WHG.id] = window.WHG;
-  if (window.WAnzeige) MODULES[window.WAnzeige.id] = window.WAnzeige;
-  if (window.WUnfallort) MODULES[window.WUnfallort.id] = window.WUnfallort;
-  if (window.WFEB) MODULES[window.WFEB.id] = window.WFEB;
-  if (window.WSKZ) MODULES[window.WSKZ.id] = window.WSKZ;
-  if (window.WSchild) MODULES[window.WSchild.id] = window.WSchild;
-  if (window.WGEW) MODULES[window.WGEW.id] = window.WGEW;
-  if (window.WPsychKG) MODULES[window.WPsychKG.id] = window.WPsychKG;
-  if (window.WBP) MODULES[window.WBP.id] = window.WBP;
+  // Reihenfolge = Reihenfolge der Kacheln: zuerst der Vorgang aus Abschnitten, die Eintreffsituation direkt nach „Allgemeines“
+  for (const m of [window.WVorgang, window.WVUF, window.WVermisst, window.WHGV, window.WHG, window.WAnzeige, window.WEin, window.WUnfallort, window.WFEB, window.WSKZ, window.WSchild, window.WGEW, window.WPsychKG, window.WBP]) if (m) MODULES[m.id] = m;
+  /** Vorgang aus mehreren Abschnitten (js/vorgang.js): Reihenfolge, Kontext-Matrix, Gesamttext. */
+  const VG = window.WVorgang ? window.WVorgang.core : null;
+  if (window.WVorgang) window.WVorgang.bind({ find: id => (W() && W().unlocked() ? W().find(id) : null), modules: MODULES });
+  /** Der Vorgang, in dem dieser Vorgangsteil als Abschnitt steckt (oder null). */
+  const vgOf = d => (VG && d && d.type !== 'vorgang' && W() && W().unlocked() ? VG.containerOf(W().docs(), d.id) : null);
   /** Module, die man direkt neu anlegen kann (der FE-Bericht entsteht nur aus der FE-Prüfung). */
   const creatable = () => Object.values(MODULES).filter(m => !m.noNew);
   /** Beschriftungen je Modul (m.labels), sonst die der Verkehrsunfallflucht. */
@@ -54,7 +49,33 @@
   const mod = d => (d && MODULES[d.type]) || null;
   const visibleSteps = (m, d) => m.steps.filter(s => !s.when || s.when(d));
   /** Module mit eigener Maske (m.screen, z. B. Schilderungen) bekommen eine schmale Schnittstelle: speichern, zeichnen, kopieren. */
-  const screenApi = d => ({ d, persist, render: renderMain, copy, list: () => { U.view = 'list'; U.id = null; renderMain(); renderList(); }, team: () => ((W() && W().team && W().team()) || []), docs: () => ((W() && W().docs()) || []), toast: (t, o) => W().toast(t, o), ask: o => W().ask(o), mobile: () => !!(W() && W().mobile && W().mobile()) });
+  const screenApi = d => ({
+    d, persist, render: renderMain, copy, list: toList, team: () => ((W() && W().team && W().team()) || []), docs: () => ((W() && W().docs()) || []), toast: (t, o) => W().toast(t, o), ask: o => W().ask(o), mobile: () => !!(W() && W().mobile && W().mobile()),
+    /* Vorgang aus Abschnitten: Kontext aus den anderen Abschnitten (null = steht für sich), Abschnitte anlegen, öffnen, löschen */
+    ctx: () => { const vg = vgOf(d); return vg ? VG.kontext(vg.data, d) : null; },
+    open: id => open(id), create: (type, preset) => createDoc(type, preset), touch: x => { if (x) W().touch(x, false); },
+    removeDocs: ids => { const snap = W().snapshot(); for (const id of ids) W().remove(id); return snap; }
+  });
+  /** Zurück: aus einem Abschnitt in seinen Vorgang, sonst in die Vorgangsliste. */
+  function toList() {
+    const vg = vgOf(doc());
+    if (vg) { open(vg.id); return; }
+    U.view = 'list'; U.id = null; renderMain(); renderList();
+  }
+  /** Vorgang abgleichen (Nummern, Kontext aus anderen Abschnitten) und alles Geänderte speichern. */
+  function syncVorgang(vg) {
+    if (!VG || !vg) return;
+    const r = VG.sync(vg);
+    for (const x of r.teile) W().touch(x, false);
+    if (r.selbst) { vg.title = (window.WVorgang.title(vg.data) || '').slice(0, 120); W().touch(vg, false); }
+  }
+  /** Leiste über einem Abschnitt, der zu einem Vorgang gehört: Stelle im Vorgang, davor und danach. */
+  function vgStrip(host, d) {
+    const vg = vgOf(d); if (!vg) return;
+    const T = VG.teile(vg.data), i = T.findIndex(t => t.id === d.id); if (i < 0) return;
+    const nb = (t, dir) => (t ? `<button type="button" class="chip sm" data-open="${esc(t.id)}">${dir < 0 ? '‹ ' : ''}${esc(t.m.short || t.m.name)}${dir > 0 ? ' ›' : ''}</button>` : '');
+    host.insertAdjacentHTML('afterbegin', `<div class="vg-strip"><button type="button" class="vg-strip-t" data-open="${esc(vg.id)}"><span class="spaced">Vorgang</span> Abschnitt ${i + 1} von ${T.length}</button><span class="grow"></span>${nb(T[i - 1], -1)}${nb(T[i + 1], 1)}</div>`);
+  }
   /** [Vorgang, Maske], wenn gerade ein Vorgang mit eigener Maske offen ist. */
   const screenOf = () => { const d = U.view !== 'list' ? doc() : null; const m = mod(d); return d && m && m.screen ? [d, m.screen] : null; };
 
@@ -461,7 +482,10 @@
   /* ======================= Vorgangsliste ======================= */
   function renderList() {
     const host = $('#wList'); if (!host) return;
-    const docs = (W() && W().docs()) || [];
+    const alle = (W() && W().docs()) || [];
+    const teil = VG ? VG.partIds(alle) : new Set();
+    const docs = alle.filter(d => !teil.has(d.id)); // Abschnitte stehen in ihrem Vorgang, nicht einzeln in der Liste
+    const cur = doc(), curVg = vgOf(cur), onId = curVg ? curVg.id : U.id;
     const q = (($('#search') || {}).value || '').trim().toLocaleLowerCase('de');
     const rows = docs.slice().sort((a, b) => (b.u || b.updatedAt || 0) - (a.u || a.updatedAt || 0)).filter(d => !q || (d.title + ' ' + (mod(d) ? mod(d).subtitle(d.data) : '')).toLocaleLowerCase('de').includes(q));
     $('#wCount').textContent = docs.length;
@@ -470,7 +494,7 @@
       const m = mod(d); const total = m ? visibleSteps(m, d.data).length : 1;
       const pct = d.status === 'fertig' ? 100 : Math.round(Math.min(d.step, total) / (total || 1) * 100);
       const pill = d.status === 'fertig' ? 'Fertig' : m && typeof m.pill === 'function' ? m.pill(d.data) : pct + ' %';
-      return `<li data-sw="${d.id}"><button type="button" class="w-sw-del" data-sw-del="${d.id}" tabindex="-1" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>Löschen</button><button type="button" class="w-doc${d.id === U.id ? ' on' : ''}" data-open="${d.id}"><span class="w-doc-tile${d.status === 'fertig' ? ' done' : ''}">${m ? esc(m.kurz) : '?'}</span><span class="w-doc-main"><span class="w-doc-t">${esc(d.title || (m ? m.name : 'Vorgang'))}</span><span class="w-doc-s">${esc(m ? m.subtitle(d.data) || m.name : d.type)}</span></span><span class="w-doc-side"><span class="pill ${d.status === 'fertig' ? 'pill-lime' : 'pill-quiet'}">${esc(pill)}</span><span class="w-doc-when">${fmtWhen(d.u || d.updatedAt)}</span></span></button></li>`;
+      return `<li data-sw="${d.id}"><button type="button" class="w-sw-del" data-sw-del="${d.id}" tabindex="-1" aria-hidden="true"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>Löschen</button><button type="button" class="w-doc${d.id === onId ? ' on' : ''}" data-open="${d.id}"><span class="w-doc-tile${d.status === 'fertig' ? ' done' : ''}">${m ? esc(m.kurz) : '?'}</span><span class="w-doc-main"><span class="w-doc-t">${esc(d.title || (m ? m.name : 'Vorgang'))}</span><span class="w-doc-s">${esc(m ? m.subtitle(d.data) || m.name : d.type)}</span></span><span class="w-doc-side"><span class="pill ${d.status === 'fertig' ? 'pill-lime' : 'pill-quiet'}">${esc(pill)}</span><span class="w-doc-when">${fmtWhen(d.u || d.updatedAt)}</span></span></button></li>`;
     }).join('')}</ul>`;
   }
 
@@ -483,10 +507,18 @@
   function swDelete(id, li) {
     const d = W().find(id); if (!d) return;
     const title = String(d.title || 'Vorgang');
-    const go = () => { const snap = W().remove(id); if (!snap) return; if (U.id === id) { U.id = null; U.view = 'list'; renderMain(); } renderList(); W().toast(`Gelöscht: ${title.length > 40 ? title.slice(0, 39) + '…' : title}`, { undo: snap }); };
+    const go = () => { const offen = U.id === id || (vgOf(doc()) || {}).id === id; const snap = removeDoc(d); if (!snap) return; if (offen) { U.id = null; U.view = 'list'; renderMain(); } renderList(); W().toast(`Gelöscht: ${title.length > 40 ? title.slice(0, 39) + '…' : title}`, { undo: snap }); };
     if (!li || matchMedia('(prefers-reduced-motion: reduce)').matches) return go();
     li.classList.add('gone'); const c = $('.w-doc', li); c.style.transition = 'transform .2s var(--ease-out)'; c.style.transform = 'translateX(-110%)';
     setTimeout(go, 200);
+  }
+  /** Vorgang löschen – ein Vorgang aus Abschnitten nimmt seine Abschnitte mit. Liefert den Stand davor (für „Rückgängig“). */
+  function removeDoc(d) {
+    if (!d) return null;
+    if (d.type !== 'vorgang' || !VG) return W().remove(d.id);
+    const snap = W().snapshot();
+    for (const t of (Array.isArray(d.data && d.data.teile) ? d.data.teile : [])) if (t && t.id) W().remove(t.id);
+    return W().remove(d.id) ? snap : null;
   }
   const wl = $('#wList');
   if (wl) {
@@ -531,10 +563,11 @@
     if (!m) { host.innerHTML = `<div class="empty w-empty"><h3>Unbekanntes Modul „${esc(d.type)}“</h3><p>Dieser Vorgang stammt aus einer neueren Version.</p></div>`; return; }
     if (m.migrate && m.migrate(d.data)) persist(false);
     if (typeof m.upgrade === 'function') { const nd = m.upgrade(d.data); if (nd && typeof nd === 'object') { d.data = nd; persist(true); } }
+    syncVorgang(d.type === 'vorgang' ? d : vgOf(d)); // Nummern und Kontext aus den anderen Abschnitten, bevor gezeichnet wird
     { let tt = ''; try { tt = (m.title(d.data) || '').slice(0, 120); } catch (e) { tt = ''; } if (tt && tt !== d.title) persist(true); } // veralteten Titel (z. B. nach Umbenennung eines Moduls) beim Öffnen auffrischen
     U.lastJson = stable(d.data);
-    if (m.screen) { const api = screenApi(d); host.innerHTML = m.screen.render(d, api); remember(); if (m.screen.mounted) m.screen.mounted(host, api); return; }
-    if (U.view === 'result') { host.innerHTML = resultHtml(d, m); remember(); return; }
+    if (m.screen) { const api = screenApi(d); host.innerHTML = m.screen.render(d, api); vgStrip(host, d); remember(); if (m.screen.mounted) m.screen.mounted(host, api); return; }
+    if (U.view === 'result') { host.innerHTML = resultHtml(d, m); vgStrip(host, d); remember(); return; }
     const steps = visibleSteps(m, d.data);
     U.step = Math.max(0, Math.min(U.step, steps.length - 1));
     const st = steps[U.step];
@@ -563,6 +596,7 @@
         <span class="grow"></span>
         ${U.step < steps.length - 1 ? `<button type="button" class="btn btn-accent" data-w="next">Weiter</button>` : `<button type="button" class="btn btn-accent" data-w="finish">Bericht erstellen</button>`}
       </div>`;
+    vgStrip(host, d);
     remember();
     layoutSentences();
     mountCustom(d, m);
@@ -652,17 +686,22 @@
     if (!W() || !W().unlocked()) return;
     if (!type && creatable().length > 1) { U.view = 'list'; U.id = null; renderMain(); renderList(); window.scrollTo({ top: 0 }); return; }
     const m = MODULES[type] || creatable()[0]; if (!m) return;
+    const d = createDoc(m.id, preset);
+    if (!d) { W().toast('Vorgang konnte nicht angelegt werden.'); return; }
+    open(d.id, 'wizard');
+    setTimeout(() => { const f = $('#wFields input, #wFields button'); if (f && !W().mobile()) f.focus(); }, 60);
+    return d;
+  }
+  /** Vorgangsteil anlegen, ohne ihn zu öffnen (auch für die Abschnitte eines Vorgangs). */
+  function createDoc(type, preset) {
+    const m = MODULES[type]; if (!m || !W() || !W().unlocked()) return null;
     const pre = preset && typeof preset === 'object' ? preset : ((W().preset && W().preset()) || {});
     const data = { ...pre, einsatz: { datum: todayKey(0), zeit: nowHM(), ...(pre.einsatz || {}) } };
     for (const k of Object.keys(data.einsatz)) if (data.einsatz[k] == null || data.einsatz[k] === '' || (Array.isArray(data.einsatz[k]) && !data.einsatz[k].length)) delete data.einsatz[k];
     // inherit: Einstellungen wie die eigene Vorlage aus dem letzten Vorgang desselben Moduls übernehmen
     for (const ik of (m.inherit || [])) { const prev = (W().docs() || []).filter(x => x.type === m.id && x.data && x.data[ik] != null).sort((a, b) => (b.u || 0) - (a.u || 0))[0]; if (prev) data[ik] = JSON.parse(JSON.stringify(prev.data[ik])); }
     let t0 = ''; try { t0 = (m.title && m.title(data)) || ''; } catch (e) { t0 = ''; }
-    const d = W().add({ type: m.id, title: (t0 || m.name).slice(0, 120), status: 'entwurf', step: 0, data });
-    if (!d) { W().toast('Vorgang konnte nicht angelegt werden.'); return; }
-    open(d.id, 'wizard');
-    setTimeout(() => { const f = $('#wFields input, #wFields button'); if (f && !W().mobile()) f.focus(); }, 60);
-    return d;
+    return W().add({ type: m.id, title: (t0 || m.name).slice(0, 120), status: 'entwurf', step: 0, data });
   }
   function go(delta) {
     const d = doc(); if (!d) return;
@@ -783,11 +822,12 @@
   }
   async function del() {
     const d = doc(); if (!d) return;
-    const r = await W().ask({ title: 'Vorgang löschen?', text: `„${d.title}“ wird aus dem Tresor entfernt – auch auf synchronisierten Geräten. Du kannst es direkt danach rückgängig machen.`, buttons: [{ label: 'Abbrechen', value: null }, { label: 'Löschen', value: 'ok', cls: 'btn-ghost btn-danger', submit: true }] });
+    const vg = vgOf(d), n = d.type === 'vorgang' && VG ? VG.teile(d.data).length : 0;
+    const r = await W().ask({ title: vg ? 'Abschnitt löschen?' : 'Vorgang löschen?', text: `„${d.title}“ wird ${n ? `mit ${n === 1 ? 'seinem Abschnitt' : `seinen ${n} Abschnitten`} ` : ''}aus dem Tresor entfernt – auch auf synchronisierten Geräten. Du kannst es direkt danach rückgängig machen.`, buttons: [{ label: 'Abbrechen', value: null }, { label: 'Löschen', value: 'ok', cls: 'btn-ghost btn-danger', submit: true }] });
     if (!r) return;
-    const snap = W().remove(d.id);
-    U.id = null; U.view = 'list'; renderMain(); renderList();
-    W().toast('Vorgang gelöscht', { undo: snap });
+    const snap = removeDoc(d);
+    if (vg) open(vg.id); else { U.id = null; U.view = 'list'; renderMain(); renderList(); }
+    W().toast(vg ? 'Abschnitt gelöscht' : 'Vorgang gelöscht', { undo: snap });
   }
   async function copy(text) {
     const d = doc(); if (!d) return;
@@ -838,7 +878,7 @@
       if (b.dataset.w) {
         const a = b.dataset.w;
         if (a === 'new') newDoc(b.dataset.mod);
-        else if (a === 'list') { U.view = 'list'; U.id = null; renderMain(); renderList(); }
+        else if (a === 'list') toList();
         else if (a === 'prev') go(-1);
         else if (a === 'next') { hintMissing(); go(1); }
         else if (a === 'finish') finish();

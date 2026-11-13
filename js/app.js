@@ -2032,7 +2032,9 @@ function renderArea() {
   set('#nTeam', state.people.length);
   set('#nAblage', state.files.length);
   set('#nWaffg', state.checks.length);
-  set('#nSchreiben', state.docs.filter(d => d.status !== 'fertig').length);
+  // Abschnitte eines Vorgangs zählen nicht einzeln – der Vorgang steht für sie in der Liste
+  const teil = new Set(state.docs.filter(d => d.type === 'vorgang').flatMap(d => (Array.isArray(d.data.teile) ? d.data.teile : []).map(t => t && t.id)));
+  set('#nSchreiben', state.docs.filter(d => d.status !== 'fertig' && !teil.has(d.id)).length);
 }
 function contextNew() {
   const a = document.body.dataset.area;
