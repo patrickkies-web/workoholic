@@ -1597,6 +1597,10 @@ body[data-area=schreiben] .pane-schreiben{display:grid}
 .hg-nr{display:flex;flex-direction:column;gap:4px}
 .hg-nr .w-hint{margin:0}
 .hg-nr .input{max-width:96px;text-align:center}
+.hg-nav{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 6px}
+.hg-grid .w-q>.sd-inl:not(:first-child),.hg-grid .w-q>.sd-two:not(:first-child),.hg-grid .w-q>.sd-wg{margin-top:12px}
+#wMain .w-head{scroll-margin-top:calc(14px + var(--sat))}
+.hg-ord{display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 4px;border-radius:999px;background:var(--accent);color:#151516;font-size:11px;font-weight:600;font-style:normal}
 @media (max-width:760px){.sd-two{grid-template-columns:1fr}}
 @media (max-width:760px),(pointer:coarse){.sd-text{font-size:16px}}
 @media (prefers-reduced-motion:reduce){#wFields>[data-q].w-next,.btn.w-go{animation:none}}
