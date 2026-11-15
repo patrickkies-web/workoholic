@@ -50,22 +50,23 @@
   }
 
   /* ======================= Fragenkatalog ======================= */
+  /* Vier Folien, je ein Thema – in der Reihenfolge des Satzes: wann, wer, welcher Einsatz, wo. */
   const STEPS = [
-    {
-      id: 'allgemein', phase: 'Allgemeines', title: 'Allgemeines/Einsatzanlass', lead: 'Wann, welche Besatzungen, welcher Einsatz, wohin. Der Text steht unten fertig zum Kopieren.', gen: ['allgemein'],
+    { id: 'wann', phase: 'Allgemeines', title: 'Wann kam der Einsatz?', lead: 'Datum und Uhrzeit der Einsatzvergabe.',
       fields: [
-        { k: 'einsatz.datum', t: 'date', l: 'Datum', w: 'half', q: 'heute', req: true },
-        { k: 'einsatz.zeit', t: 'time', l: 'Uhrzeit', w: 'half', q: 'jetzt', req: true },
-        { k: 'einsatz.wagen', t: 'streifen', l: 'Streifenwagenbesatzungen', req: true },
-        { k: 'einsatz.anlass', t: 'area', l: 'Einsatz', pre: '… folgenden Einsatz:', ph: 'Streitigkeiten vermutlich zwischen einer Frau und einem Mann', rows: 2, max: 600, req: true },
-        { k: 'ort', t: 'adresse', l: 'Einsatzörtlichkeit', req: true },
-        { t: 'out', fn: 'allgemein', l: 'Allgemeines/Einsatzanlass' }
-      ]
-    }
+        { k: 'einsatz.datum', t: 'date', l: 'Datum', q: 'heute', req: true },
+        { k: 'einsatz.zeit', t: 'time', l: 'Uhrzeit', q: 'jetzt', req: true }
+      ] },
+    { id: 'wer', phase: 'Allgemeines', title: 'Wer war eingesetzt?', lead: 'Je Streifenwagen die Besatzung – im Text stehen Amtsbezeichnung und Nachname.',
+      fields: [{ k: 'einsatz.wagen', t: 'streifen', l: 'Streifenwagenbesatzungen', req: true }] },
+    { id: 'was', phase: 'Allgemeines', title: 'Welcher Einsatz?', lead: 'So, wie er von der Leitstelle kam – der Satzanfang steht schon da.',
+      fields: [{ k: 'einsatz.anlass', t: 'area', l: 'Einsatz', pre: '… folgenden Einsatz:', ph: 'Streitigkeiten vermutlich zwischen einer Frau und einem Mann', rows: 3, max: 600, req: true }] },
+    { id: 'wo', phase: 'Allgemeines', title: 'Wo war der Einsatz?', lead: 'Straße antippen – Postleitzahl, Ort und Ortsteil kommen dann von selbst.',
+      fields: [{ k: 'ort', t: 'adresse', l: 'Einsatzörtlichkeit', req: true }] }
   ];
 
   /* ======================= Ausgaben ======================= */
-  const text = d => [['', 'Allgemeines/Einsatzanlass', allgemein(d), 'allgemein']];
+  const text = d => [['', 'Allgemeines/Einsatzanlass', allgemein(d), 'wann']];
   const plain = d => 'Allgemeines/Einsatzanlass\n' + allgemein(d);
   const preview = (id, d) => allgemein(d);
   function kurz(d) {
@@ -126,6 +127,7 @@
       persHint: 'Dieser Abschnitt enthält keine Personalien.',
       newBtn: 'Einsatzanlass'
     },
+    schlicht: true, // Abschluss ohne Reiter: es gibt nur den einen Text
     steps: STEPS, text, plain, preview, kurzText: kurz, fahndung: () => '', offen, personalien, title, subtitle, upgrade, allgemein
   });
 })(typeof window !== 'undefined' ? window : globalThis);

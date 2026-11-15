@@ -58,6 +58,17 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 - **GitHub Pages:** Im Code-Repo *Settings → Pages* → Branch wählen, Ordner `/ (root)`. Bei einem **privaten** Repo braucht das GitHub Pro. Alternativ stellst du dieses Code-Repo öffentlich; die Daten liegen ohnehin getrennt im privaten Tresor-Repo. Danach läuft die Seite unter `https://<user>.github.io/workoholic/` und lässt sich am Handy über *„Zum Home-Bildschirm“* wie eine App nutzen.
 - **Lokal:** `index.html` per Doppelklick öffnen. Funktioniert inklusive Sync.
 
+### Aktualisierung: neuer Stand kommt von selbst
+
+Als Home-Bildschirm-App hält das iPhone Seite und Skripte im Speicher – ohne Vorkehrung bleibt nach einer Veröffentlichung die alte Fassung sichtbar. Deshalb trägt jede Veröffentlichung einen **Stand** (Stempel `JJJJMMTT-HHMM`):
+
+- **Sichtbar:** unten auf dem Sperrbildschirm („Stand 13.11.2026, 14:24 Uhr“) und unter *Sicherheit → Version*. Dort gibt es auch „Nach neuer Version suchen“.
+- **Erkennen:** `js/update.js` fragt beim Start und bei jeder Rückkehr in die App (höchstens alle 5 Minuten) `js/version.js` am Zwischenspeicher vorbei ab und vergleicht mit dem geladenen Stand.
+- **Holen:** Ist der Tresor gesperrt und noch nichts getippt, lädt die App den neuen Stand sofort. Ist er entsperrt, erscheint „Neue Version verfügbar – Aktualisieren“; spätestens beim nächsten Sperren wird der neue Stand geladen. Die Daten bleiben unberührt, es ist nur das Passwort neu einzugeben.
+- **Frisch:** Alle Skripte hängen am Stand (`?v=…`), die Seite selbst wird über eine eigene Adresse je Stand geholt – ein alter Zwischenspeicher kann nichts Altes mehr liefern.
+
+**Vor jeder Veröffentlichung:** `tools/stand.sh` ausführen (setzt den Stempel in `index.html` und `js/version.js`), `tools/stand.sh pruefen` kontrolliert, dass alles übereinstimmt. Ohne neuen Stempel bemerkt die App die Veröffentlichung nicht.
+
 ## Funktionen
 
 **Erfassen**
@@ -148,6 +159,13 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 - Bundesrecht im amtlichen Wortlaut (Stand 07.11.2026); **PolG NRW, PsychKG NRW und Art. 5 EMRK sinngemäß** – Nummerierung und Höchstdauern vor Verwendung am aktuellen Wortlaut prüfen. Keine Rechtsberatung.
 
 **Schreiben (Schriftliche Arbeiten)**
+- **Eingabe in Folien** – in allen schriftlichen Arbeiten gleich:
+  - **Oben steht, wo du bist:** ein beschrifteter Knopf für den Rückweg („Vorgang“, „Personen“, „Alle Vorgänge“), der Abschnitt mit seiner Stelle im Vorgang („Eintreffsituation · Abschnitt 2 von 3“), darunter „Folie 2 von 3“ und rechts „Gespeichert“ – jede Eingabe ist sofort verschlüsselt gesichert, Zurückgehen nimmt nichts weg.
+  - **Unten ist immer dieselbe Leiste:** links „Zurück“ (die Folie davor), rechts der eine nächste Schritt („Weiter“, auf der letzten Folie „Fertig“).
+  - **Die Seite wechselt nur über diese Knöpfe.** Beim Antippen und Tippen bleibt sie stehen: keine automatischen Sprünge zur nächsten Frage, die angetippte Frage bleibt an ihrer Stelle, auch wenn darüber oder darunter etwas dazukommt. „Heute“ und „Jetzt“ setzen nur – ein zweiter Tipp löscht nichts.
+  - **Je Folie ein Thema**, das möglichst auf einen Bildschirm passt. Am Handy gehört beim Schreiben der ganze Bildschirm der Folie (App-Kopf und Bereichsleiste sind solange ausgeblendet).
+  - **Am Ende jedes Abschnitts** steht eine Abschluss-Folie: der fertige Text, groß „Text kopieren“, unten „Bearbeiten“ und der Weg weiter – im Vorgang „Weiter: nächster Abschnitt“, beim letzten „Gesamtsachverhalt“. Seltenes (Abschnitt löschen, als Datei, weitere Abschnitte anfügen) steht klein darunter.
+  - Einsatzanlass (wann · wer · welcher Einsatz · wo), Eintreffsituation (worum geht es · wer war vor Ort · sonst noch; je Person: wer · wo angetroffen · verletzt), Schilderungen (je Person: Belehrung · Tatvorwurf · Alkohol und Drogen · wem gegenüber · Schilderung · Strafantrag · Kontrolle) und Häusliche Gewalt sind so in kurze Folien geteilt; die übrigen Module nutzen denselben Rahmen mit ihren bisherigen Schritten.
 - **Unfallskizze:** Luftbild (Screenshot aus der Karten-App, von oben) einfügen und „Oben im Bild ist …“ nach dem Kompass der Karten-App wählen. „Skizze bearbeiten“ öffnet einen **Vollbild-Editor** in zwei Schritten; zoomen mit zwei Fingern, Mausrad oder − / Ganz / +, verschieben durch Ziehen im Bild. **Schritt 1 – Fahrzeuge und Linien:** „+ Fahrzeug“ fragt zuerst die Art (Pkw, Transporter, Lkw, Bus, Krad, Fahrrad, Fußgänger) und setzt das Fahrzeug in die Mitte des Ausschnitts. Bearbeitet wird ein Fahrzeug nur, wenn man es antippt: ziehen = verschieben, weißer Griff = frei drehen, ⟲/⟳ = 15°-Schritte, **− / + = Größe nur dieses Fahrzeugs** (mit Prozentanzeige). Je Fahrzeug zwei Linien: **„Woher kam es?“** (gefahrener Weg bis zur Kollision, durchgezogen mit Richtungspfeilen) und **„Wohin wollte es?“** (beabsichtigte Richtung, gestrichelt mit Pfeilspitze); die Linien werden automatisch am Fahrzeug angesetzt, die Fahrzeugfront richtet sich nach der Herkunft. Fahrzeuge haben einen weißen Rand und Schatten, die Linien eine hellere Variante der Fahrzeugfarbe. **Schritt 2 – Kollisionsort:** per Knopf, Fahrzeuge und Linien werden blass, ein Tipp setzt einen **Zielkreis** (innen frei, verdeckt nichts), ziehen verschiebt ihn. Rückgängig für jeden Schritt. Optional ein Foto mit Markierung und Angaben zur Örtlichkeit (Lage, zulässige Höchstgeschwindigkeit, Verkehrsregelung, Witterung, Fahrbahn, Licht). Die App beschreibt je Fahrzeug in Himmelsrichtungen, woher es kam und was es vorhatte („01 Pkw kam aus Richtung Osten (Fahrtrichtung Westen) und beabsichtigte, nach links in Richtung Süden abzubiegen“). **Teilen als PDF** (auf dem Gerät erzeugt, ohne fremden Dienst): Seite 1 **Rohfassung** – Luftbild ohne Einzeichnungen mit Hinweis für die Auswertung (auch durch eine KI) und den Angaben; Seite 2 **Unfallhergang** – Fahrzeuge, Linien, Zeichenerklärung und Beschreibung je Fahrzeug; Seite 3 **Kollisionsort**; Seite 4 **Foto**. Dazu Text kopieren und ein Einzelbild (JPEG) für Messenger. Ältere Skizzen werden übernommen. Bilder liegen verschlüsselt in der Ablage (Ordner „Unfallskizzen“).
 - **Vorgang löschen:** in der Vorgangsliste nach links wischen. Ganz durchwischen löscht sofort, ein kurzer Wisch zeigt „Löschen“ zum Antippen; danach gibt es „Rückgängig“.
 - **Vorgang anlegen** → Modul wählen: **Verkehrsunfallflucht ohne Personenschaden**, **Vermisste Person** oder **Häusliche Gewalt** (beide siehe unten). Für die Verkehrsunfallflucht gilt: Der Assistent beginnt mit „Worum geht es?“ (Weichen-Fragen) und führt dann in neun Phasen durch die Aufnahme: Einsatz → Geschädigte → Unfallort → Schaden → Spuren → Zeugen → Verursacher → Maßnahmen → Bewertung. Es erscheinen nur Fragen, die zum Fall passen – auch für Sonderfälle wie „geschädigte Person nicht erreicht“, weitere Geschädigte, Selbstmeldung, Alkohol, Führerscheinmaßnahmen oder Wohnsitz im Ausland.
@@ -228,7 +246,7 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 | `index.html` | Oberfläche, Styles, Content-Security-Policy |
 | `js/vault.js` | Verschlüsselung, Schlüsselverwaltung, GitHub-Speicher |
 | `js/app.js` | App-Logik (Planner, Dienste, Schicht & Einsätze, Termine, Routinen, Team, Ablage, WaffG-Prüfstand, Bereichsnavigation), Sync und Zusammenführen, Sperre |
-| `js/writer.js` | Bereich „Schreiben“: Vorgangsliste, Aufnahme-Assistent, Berichtsansicht |
+| `js/writer.js` | Bereich „Schreiben“: Vorgangsliste, Folien-Rahmen (Kopf, Fuß, kein Springen), Aufnahme-Assistent, Abschluss-Folie |
 | `js/vuf.js` | Modul Verkehrsunfallflucht: Fragenkatalog und Textgenerator |
 | `js/unfallort.js` | Abschnitt „Unfallörtlichkeit“: Verhältnisse vor Ort zum Ankreuzen, Ausgabe als zusammenhängender Absatz |
 | `js/vermisst.js` | Modul Vermisste Person: Fragenkatalog, Übersicht, Kurzsachverhalt, Fahndung, offene Punkte |
@@ -245,6 +263,8 @@ Die Seite ist rein statisch (HTML/JS), ein eigener Server ist nicht nötig. Ihr 
 | `js/schilderung.js` | Modul Schilderungen: Personenliste, Maske je Person, Satzbau nach Rolle und Geschlecht (auch Unfallbeteiligte 01, 02 …), Namenskürzel, Gesamtpaket, Übernahme der Personen aus einem Vorgang |
 | `js/eintreffen.js` | Abschnitt „Eintreffsituation“: Personen mit Rolle, Ort (allein oder zusammen mit anderen) und Verletzungen, Satzbau, Schnellwahl „Wohngebäude“ als Entscheidungsbaum |
 | `js/vorgang.js` | Vorgang aus Abschnitten: Reihenfolge, Kontext-Matrix (wer gibt, wer übernimmt Kräfte, Personen, Art), Abgleich, Nummern nach Reihenfolge, Gesamtsachverhalt |
+| `js/update.js`, `js/version.js` | Aktualisierung: geladenen Stand mit dem Server vergleichen, neuen Stand holen, Stand anzeigen |
+| `tools/stand.sh` | Setzt bzw. prüft den Stand vor einer Veröffentlichung |
 | `docs/VUF-MASTERPLAN.md` | Masterplan: Grundlagen, Ablauf, Fragen, Satzführung, Sicherheit, Ausbau |
 | `docs/HG-MASTERPLAN.md` | Masterplan Häusliche Gewalt: Grundlagen, Ablauf, Bedienung, Ausgaben, Grenzen |
 | `vendor/hash-wasm/` | Argon2id (hash-wasm 4.12.0, MIT), unverändert aus npm |

@@ -306,21 +306,22 @@
   function pill(data) { const n = offen(data).length; return !arr(data && data.personen).length ? 'neu' : n ? `${n} offen` : 'bereit'; }
 
   /* ======================= Maske ======================= */
-  const ICON_BACK = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6l-6 6 6 6"/></svg>';
-  /**
-   * Ansicht je Vorgang: 'menu' (Personen), 'person' (Maske einer Person mit ihrem Ort), 'done' (fertiger Abschnitt).
+  /*
+   * Folien – je Seite ein Thema, gewechselt wird nur über „Zurück / Weiter“:
+   *   Abschnitt:  'art' Worum geht es?  →  'pers' Wer war vor Ort?  →  'mehr' Sonst noch etwas?  →  'done' fertiger Text
+   *   je Person:  'wer' Rolle und Name  →  'wo' Wo angetroffen?      →  'verl' Verletzungen (entfällt bei „nicht mehr vor Ort“)
    * alt = Angaben zum eigenen Ort einer Person, gemerkt für den Fall, dass sie von „zusammen mit …“ zurück zu „allein“ wechselt.
    */
-  const V = { id: null, s: 'menu', i: -1, focus: '', alt: {} };
+  const V = { id: null, s: 'art', i: -1, f: 'wer', focus: '', alt: {} };
   const $ = s => document.querySelector(s);
-  const top0 = () => { try { window.scrollTo({ top: 0 }); } catch (e) { /* egal */ } };
   const seg = (path, cur, opts, cls = 'w-seg') => `<div class="${cls}" role="group">${opts.map(([v, l]) => `<button type="button" class="${cls === 'w-seg' ? 'w-opt' : 'chip'}" data-sd="set" data-p="${esc(path)}" data-v="${esc(v)}" aria-pressed="${String(cur === v)}">${esc(l)}</button>`).join('')}</div>`;
   /** Einzeiliges Feld, das mit dem Text mitwächst – der ganze Satzbaustein bleibt auch am Handy lesbar. */
   const textIn = (id, path, val, ph, max = 400) => `<textarea class="input es-ta" id="${id}" data-sk="${esc(path)}" data-single="1" rows="1" placeholder="${esc(ph)}" autocomplete="off" autocapitalize="off" spellcheck="true" enterkeyhint="done" maxlength="${max}">${esc(val || '')}</textarea>`;
   const grow = ta => { if (!ta) return; ta.style.height = 'auto'; ta.style.height = (ta.scrollHeight + 2) + 'px'; };
-  const topBar = (back, kicker, ttl) => `<div class="w-top"><button type="button" class="icon-btn sm${back === 'list' ? ' w-back' : ''}" ${back === 'list' ? 'data-w="list" aria-label="Zurück"' : `data-sd="${back}" aria-label="Zurück zur Übersicht"`}>${ICON_BACK}</button><div class="w-top-t"><span class="spaced">${esc(kicker)}</span><div class="w-title" data-live="kopf">${esc(ttl)}</div></div></div>`;
-  const ARTL = Object.fromEntries(C.ARTEN);
   const vollName = p => [C.herrFrau(p), str(p.vorname), str(p.nachname) || '[Nachname]'].filter(Boolean).join(' ');
+  /** Wie die Person in einer Überschrift heißt: „Herr Hollj“, solange der Name fehlt „die Person“. */
+  const anrede = p => (has(p.nachname) && (p.g === 'm' || p.g === 'w') ? `${p.g === 'm' ? 'Herr' : 'Frau'} ${str(p.nachname)}` : has(p.nachname) ? str(p.nachname) : 'die Person');
+  const subOf = (P, i) => `Person ${i + 1} von ${P.length}${has(P[i] && P[i].nachname) ? ' · ' + anrede(P[i]) : ''}`;
   const verlKurz = p => (p.verl === 'nein' ? 'nicht verletzt' : p.verl === 'schmerz' ? 'gibt Schmerzen an' : p.verl === 'ja' ? 'verletzt' : 'Verletzungen offen');
   /** Kurzbeschreibung eines Ortes für Chips und die Personenliste. */
   function ortKurz(g) {
@@ -329,8 +330,24 @@
   }
   /** Angaben zu einem Ort ohne die Personen. */
   const ortInhalt = g => { const o = {}; for (const k of ['wie', 'text', 'w', 'zusatz']) if (g && g[k] != null && g[k] !== '') o[k] = g[k]; return o; };
+  /** Folien einer Person; wer nicht mehr vor Ort war, wurde nicht in Augenschein genommen. */
+  const pFolien = (data, p) => ['wer', 'wo', ...(istWeg(data, p) ? [] : ['verl'])];
+  /** Erste Folie einer Person, auf der noch etwas fehlt (sonst die erste). */
+  function ersteOffene(data, p) {
+    if (!p.rolle || (p.g !== 'm' && p.g !== 'w') || !has(p.nachname) || (p.rolle === 'ub' && !C.ubNr(p))) return 'wer';
+    const g = arr(data.orte)[ortVon(data, p)], weg = istWeg(data, p);
+    if (!weg && !has(g && g.text)) return 'wo';
+    if (!weg && personFehlt(p, false).length) return 'verl';
+    return 'wer';
+  }
 
-  function open(d) { V.id = d.id; V.s = d.status === 'fertig' && arr(d.data && d.data.personen).length ? 'done' : 'menu'; V.i = -1; V.focus = ''; V.alt = {}; }
+  function open(d) {
+    const dt = (d && d.data) || {};
+    V.id = d.id; V.i = -1; V.f = 'wer'; V.focus = ''; V.alt = {};
+    V.s = d.status === 'fertig' && arr(dt.personen).length ? 'done' : dt.art ? 'pers' : 'art';
+  }
+  /** Kennung der Folie – wechselt sie, beginnt die neue Seite oben; sonst bleibt alles stehen. */
+  const key = () => `${V.s}:${V.i}:${V.s === 'person' ? V.f : ''}`;
 
   /** Schnellwahl „Wohngebäude“ an einem Ort: Wegleiste der bisherigen Antworten und die eine nächste Frage. */
   function wohnHtml(g, gi) {
@@ -350,8 +367,8 @@
     return wieOf(g)[0] === 'weg' ? ortSatz(data, g, istErster(data, gi)) : ortSatz(data, g, istErster(data, gi), '…');
   }
   /**
-   * „Wo angetroffen?“ in der Maske einer Person: allein oder zusammen mit jemandem, wie, und der Ort selbst –
-   * über die Schnellwahl oder als eigener Text. Ein gemeinsamer Ort wird für alle dort zugleich bearbeitet.
+   * Folie „Wo angetroffen?“ einer Person: allein oder zusammen mit jemandem, wie, und der Ort selbst – über die
+   * Schnellwahl oder als eigener Text. Ein gemeinsamer Ort wird für alle dort zugleich bearbeitet.
    */
   function woHtml(data, i) {
     const P = arr(data.personen), p = P[i] || {}, O = arr(data.orte), gi = ortVon(data, p), g = O[gi] || {};
@@ -366,12 +383,21 @@
       ? `<div class="w-q" data-q="wo"><p class="w-hint sd-hint">Im Text: „<span data-live="rahmen">${esc(rahmen(data, i))}</span>“</p></div>`
       : `<div class="w-q" data-q="wo"><span class="w-lbl">Wo? <i class="w-req" title="Pflicht">•</i></span>${wohnHtml(g, gi)}<div class="sd-inl"><label class="w-hint" for="esOrt">„<span data-live="rahmen">${esc(rahmen(data, i))}</span>“</label>${textIn('esOrt', `orte.${gi}.text`, g.text, w[4])}</div></div>`;
     const zus = `<div class="w-q" data-q="zus"><label class="w-lbl" for="esZus">Ergänzung <i class="w-hint-i">(ganzer Satz, optional)</i></label>${textIn('esZus', `orte.${gi}.zusatz`, g.zusatz, weg ? 'Nach Angaben der Zeugin habe er sich zu Fuß in Richtung Bahnhof entfernt' : 'Er wirkte aufgebracht und redete laut', 600)}</div>`;
-    return `<div class="w-q full w-head"><span class="w-head-t">Wo angetroffen?</span><span class="w-head-h">Schnellwahl antippen oder den Ort selbst schreiben – er steht als Satzbaustein im Sachverhalt.</span></div>${wahl}${wie}${wo}${zus}`;
+    return `${wahl}${wie}${wo}${zus}`;
   }
 
-  function menuHtml(d, api) {
+  /* ---------- Folien des Abschnitts ---------- */
+  function artHtml(d, api) {
+    const art = d.data.art;
+    const hint = art === 'verkehr' ? 'Namen nur mit Anfangsbuchstaben („M.“), Unfallbeteiligte mit Nummer: 01 ist die Verursacherin oder der Verursacher.' : art === 'straf' ? 'Nachname ausgeschrieben – bei gleichem Nachnamen mit Vorname.' : '';
+    return `${api.kopf({ pos: [1, 3], titel: 'Worum geht es?', lead: 'Davon hängt ab, wie die Namen im Text stehen – wie bei den Schilderungen.' })}
+      <div class="w-grid sd-grid">
+        <div class="w-q" data-q="art"><div class="w-seg fo-gross" role="group" aria-label="Art">${C.ARTEN.map(([v, l]) => `<button type="button" class="w-opt" data-sd="art" data-v="${v}" aria-pressed="${String(art === v)}">${l}</button>`).join('')}</div>${hint ? `<p class="w-hint sd-hint">${hint}</p>` : ''}</div>
+      </div>
+      ${api.fuss({ next: { attr: 'data-sd="go" data-v="pers"' } })}`;
+  }
+  function persHtml(d, api) {
     const data = d.data, P = arr(data.personen), O = arr(data.orte), art = data.art;
-    const artQ = `<div class="w-q" data-q="art"><span class="w-lbl">Worum geht es?${art ? '' : ' <i class="w-req" title="Pflicht">•</i>'}</span><div class="w-seg" role="group" aria-label="Art">${C.ARTEN.map(([v, l]) => `<button type="button" class="w-opt" data-sd="art" data-v="${v}" aria-pressed="${String(art === v)}">${l}</button>`).join('')}</div><p class="w-hint sd-hint">${art === 'verkehr' ? 'Namen nur mit Anfangsbuchstaben („M.“), Unfallbeteiligte mit Nummer: 01 ist die Verursacherin oder der Verursacher.' : art === 'straf' ? 'Nachname ausgeschrieben – bei gleichem Nachnamen mit Vorname.' : 'Davon hängt ab, wie die Namen im Text stehen – wie bei den Schilderungen.'}</p></div>`;
     const items = P.map((p, i) => {
       const gi = ortVon(data, p), g = O[gi] || {}, weg = wieOf(g)[0] === 'weg';
       const mit = mitglieder(data, g).filter(j => j !== i).map(j => kurzName(P[j]));
@@ -379,61 +405,69 @@
       return `<li class="sd-item"><div class="sd-row"><button type="button" class="sd-card" data-sd="edit" data-i="${i}"><span class="sd-n mono">${i + 1}</span><span class="sd-main"><b>${esc(vollName(p))}</b><small>${esc([C.rolleLabel(p), ortKurz(g) + (mit.length ? ` (mit ${joinUnd(mit)})` : ''), ...(weg && !p.verl ? [] : [verlKurz(p)])].join(' · '))}</small></span><span class="pill ${fehlt ? 'pill-quiet' : 'pill-lime'}">${fehlt ? 'Offen' : 'Erfasst'}</span></button></div></li>`;
     }).join('');
     const add = art
-      ? `<div class="sd-add"><span class="w-lbl">${P.length ? 'Weitere Person hinzufügen' : 'Person hinzufügen'}</span><div class="sd-add-row">${C.rollenFor(art).map(([v, r]) => `<button type="button" class="sd-add-b" data-sd="add" data-v="${v}"><i aria-hidden="true">+</i>${esc(v === 'ub' ? `${r.x} ${pad2(C.nextUb(P))}` : r.x)}</button>`).join('')}</div><p class="w-hint sd-hint">Je Person: Name, wo sie angetroffen wurde – allein oder zusammen mit anderen – und ob sie verletzt war.</p></div>`
-      : `<div class="sd-add off"><span class="w-lbl">Person hinzufügen</span><p class="w-hint sd-hint">Erst oben wählen: Strafanzeige oder Verkehrsangelegenheit.</p></div>`;
-    const mehr = P.length
-      ? `<div class="w-q full w-head"><span class="w-head-t">Sonst noch</span><span class="w-head-h">Beides optional.</span></div>
-        <div class="w-q" data-q="zeit"><label class="w-lbl" for="esZeit">Eintreffen um</label><div class="sd-time es-zeit"><input class="input mono" type="time" id="esZeit" data-sk="zeit" value="${esc(data.zeit || '')}"><button type="button" class="chip sm" data-sd="now" data-p="zeit">Jetzt</button></div></div>
-        <div class="w-q" data-q="frei"><label class="w-lbl" for="esText">Weitere Feststellungen beim Eintreffen <i class="w-hint-i">(ganze Sätze)</i></label><textarea class="input" id="esText" data-sk="text" rows="3" placeholder="Vor dem Haus hatten sich etwa zehn Schaulustige versammelt." autocomplete="off" autocapitalize="sentences" spellcheck="true" maxlength="2000">${esc(data.text || '')}</textarea></div>`
-      : '';
-    const miss = offen(data);
-    return `${topBar('list', `Eintreffsituation · ${ARTL[art] || 'Art offen'}`, title(data))}
-      <div class="w-grid sd-grid">${artQ}
-        <div class="w-q full w-head"><span class="w-head-t">Personen vor Ort</span><span class="w-head-h">Die Schilderungen bauen später darauf auf.</span></div>
+      ? `<div class="sd-add"><span class="w-lbl">${P.length ? 'Weitere Person anlegen' : 'Person anlegen'}</span><div class="sd-add-row">${C.rollenFor(art).map(([v, r]) => `<button type="button" class="sd-add-b" data-sd="add" data-v="${v}"><i aria-hidden="true">+</i>${esc(v === 'ub' ? `${r.x} ${pad2(C.nextUb(P))}` : r.x)}</button>`).join('')}</div></div>`
+      : `<div class="sd-add off"><span class="w-lbl">Person anlegen</span><p class="w-hint sd-hint">Erst auf der Folie davor wählen: Strafanzeige oder Verkehrsangelegenheit.</p></div>`;
+    return `${api.kopf({ pos: [2, 3], titel: 'Wer war vor Ort?', lead: P.length ? 'Antippen, um eine Person zu ändern – oder eine weitere anlegen.' : 'Je Person drei kurze Folien: wer, wo angetroffen, verletzt? Die Schilderungen bauen später darauf auf.' })}
+      <div class="w-grid sd-grid">
         ${P.length ? `<div class="w-q"><ol class="sd-list es-list">${items}</ol></div>` : ''}
-        <div class="w-q">${add}</div>
-        ${mehr}
-        ${P.length ? `<div class="w-q"><div class="w-out"><div class="w-out-h"><span class="w-lbl">So steht es in der Anzeige</span><button type="button" class="btn btn-light btn-sm" data-sd="copy">Kopieren</button></div><pre class="w-out-t" data-live="text">${esc(abschnitt(data))}</pre></div></div>` : ''}
+        <div class="w-q" data-q="add">${add}</div>
       </div>
-      <div class="w-nav"><button type="button" class="btn btn-ghost btn-sm btn-danger" data-w="delete">Löschen</button><span class="grow"></span>${P.length && miss.length ? `<span class="w-nav-i">${miss.length} offen</span>` : ''}${P.length ? '<button type="button" class="btn btn-accent" data-sd="alle">Abschließen</button>' : ''}</div>`;
+      ${api.fuss({ back: { attr: 'data-sd="go" data-v="art"' }, next: { attr: 'data-sd="go" data-v="mehr"' } })}`;
+  }
+  function mehrHtml(d, api) {
+    const data = d.data;
+    return `${api.kopf({ pos: [3, 3], titel: 'Sonst noch etwas?', lead: 'Beides kann leer bleiben.' })}
+      <div class="w-grid sd-grid">
+        <div class="w-q" data-q="zeit"><label class="w-lbl" for="esZeit">Eintreffen um</label><div class="sd-time es-zeit"><input class="input mono" type="time" id="esZeit" data-sk="zeit" value="${esc(data.zeit || '')}"><button type="button" class="chip sm" data-sd="now" data-p="zeit">Jetzt</button></div></div>
+        <div class="w-q" data-q="frei"><label class="w-lbl" for="esText">Weitere Feststellungen beim Eintreffen <i class="w-hint-i">(ganze Sätze)</i></label><textarea class="input" id="esText" data-sk="text" rows="5" placeholder="Vor dem Haus hatten sich etwa zehn Schaulustige versammelt." autocomplete="off" autocapitalize="sentences" spellcheck="true" maxlength="2000">${esc(data.text || '')}</textarea></div>
+      </div>
+      ${api.fuss({ back: { attr: 'data-sd="go" data-v="pers"' }, next: { label: 'Fertig', attr: 'data-sd="alle"', ok: true } })}`;
   }
 
+  /* ---------- Folien einer Person ---------- */
   function personHtml(d, api) {
     const data = d.data, P = arr(data.personen), i = V.i, p = P[i] || {}, base = `personen.${i}`;
+    const F = pFolien(data, p); if (!F.includes(V.f)) V.f = F[F.length - 1];
+    const k = F.indexOf(V.f), last = k === F.length - 1;
+    const kopf = (titel, lead, live) => api.kopf({ up: { label: 'Personen', attr: 'data-sd="menu"' }, sub: subOf(P, i), subLive: 'sub', pos: [k + 1, F.length], titel, lead, live });
+    const fuss = api.fuss({ back: k ? { attr: 'data-sd="pf" data-v="-1"' } : { attr: 'data-sd="menu"' }, next: last ? { label: 'Person fertig', attr: 'data-sd="done1"', ok: true } : { attr: 'data-sd="pf" data-v="1"' } });
+    if (V.f === 'wo') return `${kopf(`Wo wurde ${anrede(p)} angetroffen?`, 'Schnellwahl antippen oder den Ort selbst schreiben – er steht als Satzbaustein im Sachverhalt.')}
+      <div class="w-grid sd-grid">${woHtml(data, i)}</div>${fuss}`;
+    if (V.f === 'verl') return `${kopf(`War ${anrede(p)} verletzt?`, 'Steht im Text direkt hinter dem Antreffen – in den Schilderungen dann nicht noch einmal.')}
+      <div class="w-grid sd-grid">${UI.verletzungHtml(api, p, base, '', true)}</div>${fuss}`;
     const roles = C.rollenFor(data.art, p.rolle).map(([v, x]) => `<button type="button" class="chip" data-sd="set" data-p="${base}.rolle" data-v="${v}" aria-pressed="${String(p.rolle === v)}">${esc(p.g === 'm' || p.g === 'w' ? x[p.g] : x.x)}</button>`).join('');
     const ubMax = Math.max(4, ...P.map(C.ubNr)) + (P.filter(x => C.ubNr(x)).length >= 4 ? 1 : 0);
-    const ubQ = p.rolle === 'ub' ? `<div class="w-q" data-q="ub"><span class="w-lbl">Nummer <i class="w-req" title="Pflicht">•</i></span><div class="w-chips" role="group" aria-label="Nummer">${Array.from({ length: ubMax }, (x, k) => k + 1).map(n => `<button type="button" class="chip mono" data-sd="ub" data-v="${n}" aria-pressed="${String(C.ubNr(p) === n)}">${pad2(n)}</button>`).join('')}</div><p class="w-hint sd-hint">01 ist die Unfallverursacherin oder der Unfallverursacher – in den Schilderungen als Beschuldigte/r oder Betroffene/r zu belehren, 02 und weitere als Zeugen. Ist die Nummer schon vergeben, tauschen die beiden.</p></div>` : '';
+    const ubQ = p.rolle === 'ub' ? `<div class="w-q" data-q="ub"><span class="w-lbl">Nummer <i class="w-req" title="Pflicht">•</i></span><div class="w-chips" role="group" aria-label="Nummer">${Array.from({ length: ubMax }, (x, n) => n + 1).map(n => `<button type="button" class="chip mono" data-sd="ub" data-v="${n}" aria-pressed="${String(C.ubNr(p) === n)}">${pad2(n)}</button>`).join('')}</div><p class="w-hint sd-hint">01 ist die Unfallverursacherin oder der Unfallverursacher – in den Schilderungen als Beschuldigte/r oder Betroffene/r zu belehren, 02 und weitere als Zeugen. Ist die Nummer schon vergeben, tauschen die beiden.</p></div>` : '';
     const anr = [['m', 'Herr'], ['w', 'Frau']].map(([v, l]) => `<button type="button" class="w-opt" data-sd="set" data-p="${base}.g" data-v="${v}" aria-pressed="${String(p.g === v)}">${l}</button>`).join('');
-    return `${topBar('menu', `Eintreffsituation · Person ${i + 1} von ${P.length}`, vollName(p))}
+    return `${kopf('Wer ist es?', '')}
       <div class="w-grid sd-grid">
-        <div class="w-q full w-head"><span class="w-head-t">Person</span></div>
         <div class="w-q" data-q="rolle"><span class="w-lbl">Rolle <i class="w-req" title="Pflicht">•</i></span><div class="w-chips" role="group" aria-label="Rolle">${roles}</div></div>
         ${ubQ}
         <div class="w-q" data-q="g"><span class="w-lbl">Anrede <i class="w-req" title="Pflicht">•</i></span><div class="w-seg" role="group" aria-label="Anrede">${anr}</div></div>
         <div class="w-q half" data-q="nn"><label class="w-lbl" for="esNn">Nachname <i class="w-req" title="Pflicht">•</i></label><input class="input" id="esNn" data-sk="${base}.nachname" data-next="esVn" value="${esc(p.nachname || '')}" placeholder="z. B. Müller" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="next" maxlength="80"></div>
         <div class="w-q half" data-q="vn"><label class="w-lbl" for="esVn">Vorname</label><input class="input" id="esVn" data-sk="${base}.vorname" data-next="" value="${esc(p.vorname || '')}" placeholder="z. B. Anna" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="done" maxlength="80"></div>
         <p class="sd-im">Im Text: <b data-live="wer">${esc(C.werVon(data, i))}</b></p>
-        ${woHtml(data, i)}
-        ${istWeg(data, p) ? '' : UI.verletzungHtml(api, p, base, 'Steht im Text direkt hinter dem Antreffen – in den Schilderungen dann nicht noch einmal.')}
       </div>
-      <div class="w-nav"><button type="button" class="btn btn-ghost btn-sm btn-danger" data-sd="del">Entfernen</button><span class="grow"></span><span class="w-nav-i mono">${i + 1} / ${P.length}</span><button type="button" class="btn btn-accent" data-sd="done1">Fertig</button></div>`;
+      <div class="fo-fein"><button type="button" class="link danger" data-sd="del">Person entfernen</button></div>
+      ${fuss}`;
   }
 
   const nrHint = nr => (nr ? `Überschrift „${nr} Eintreffsituation“ – ohne Punkt hinter der Zahl.` : 'Ohne Nummer steht die Überschrift ohne Gliederungsziffer da.');
+  /** Abschluss: der fertige Text, groß „Kopieren“, unten der Weg zum nächsten Abschnitt. */
   function doneHtml(d, api) {
     const data = d.data, nr = nrOf(data), txt = abschnitt(data), miss = offen(data);
     const ctx = typeof api.ctx === 'function' ? api.ctx() : null;
-    const nrQ = ctx && ctx.nrAuto
-      ? `<div class="w-q"><div class="w-info">Abschnitt ${esc(nr || '–')} – die Nummer ergibt sich aus der Reihenfolge im Vorgang.</div></div>`
-      : `<div class="w-q"><label class="w-lbl" for="esNr">Welche Nummer hat die Eintreffsituation in deiner Anzeige?</label><div class="sd-nr"><input class="input mono" id="esNr" data-sk="nr" value="${esc(nr)}" placeholder="z. B. 2" inputmode="decimal" autocomplete="off" maxlength="8"><div class="w-chips">${['2', '3', '4'].map(n => `<button type="button" class="chip" data-sd="nr" data-v="${n}" aria-pressed="${String(nr === n)}">${n}</button>`).join('')}<button type="button" class="chip w-recent" data-sd="nr" data-v="-" aria-pressed="${String(!nr)}">ohne</button></div></div><p class="w-hint sd-hint" data-live="nrhint">${esc(nrHint(nr))}</p></div>`;
-    return `${topBar('menu', 'Eintreffsituation · Fertiger Abschnitt', title(data))}
+    const nrQ = ctx && ctx.nrAuto ? ''
+      : `<div class="w-q" data-q="nr"><label class="w-lbl" for="esNr">Welche Nummer hat die Eintreffsituation in deiner Anzeige?</label><div class="sd-nr"><input class="input mono" id="esNr" data-sk="nr" value="${esc(nr)}" placeholder="z. B. 2" inputmode="decimal" autocomplete="off" maxlength="8"><div class="w-chips">${['2', '3', '4'].map(n => `<button type="button" class="chip" data-sd="nr" data-v="${n}" aria-pressed="${String(nr === n)}">${n}</button>`).join('')}<button type="button" class="chip w-recent" data-sd="nr" data-v="-" aria-pressed="${String(!nr)}">ohne</button></div></div><p class="w-hint sd-hint" data-live="nrhint">${esc(nrHint(nr))}</p></div>`;
+    return `${api.kopf({ fertig: miss.length ? `Fertig · ${miss.length} offen` : 'Fertig', offen: miss.length > 0, titel: 'So steht es im Text' })}
       <div class="w-grid sd-grid">
+        ${miss.length ? `<div class="w-q"><div class="w-warn fo-warn"><span>Noch offen: ${esc(miss.join(' · '))}</span><button type="button" class="btn btn-ghost btn-sm" data-sd="go" data-v="pers">Nachtragen</button></div></div>` : ''}
+        <div class="w-q"><div class="w-out"><pre class="w-out-t" data-live="text">${esc(txt)}</pre></div></div>
         ${nrQ}
-        ${miss.length ? `<div class="w-q"><div class="w-warn">Noch offen: ${esc(miss.join(' · '))}</div></div>` : ''}
-        <div class="w-q"><div class="w-out"><div class="w-out-h"><span class="w-lbl">Eintreffsituation</span><button type="button" class="btn btn-light btn-sm" data-sd="copy">Kopieren</button></div><pre class="w-out-t" data-live="text">${esc(txt)}</pre></div></div>
-        ${typeof api.weiter === 'function' && api.weiter() ? `<div class="w-q">${api.weiter()}</div>` : ''}
       </div>
-      <div class="w-nav"><button type="button" class="btn btn-ghost btn-sm" data-sd="menu">Zur Eingabe</button><span class="grow"></span><button type="button" class="btn btn-accent" data-sd="copy">Abschnitt kopieren</button></div>`;
+      <button type="button" class="btn btn-light fo-wide" data-sd="copy">Text kopieren</button>
+      ${api.fein()}
+      ${api.fuss({ back: { label: 'Bearbeiten', attr: 'data-sd="go" data-v="pers"' }, next: api.danach() })}`;
   }
 
   function render(d, api) {
@@ -441,9 +475,9 @@
     if (!d.data || typeof d.data !== 'object') d.data = {};
     if (ordnen(d.data)) api.persist(false);
     if (typeof api.ctx === 'function' && nimmt(d.data, api.ctx())) api.persist(false);
-    if (V.s === 'person' && !arr(d.data.personen)[V.i]) V.s = 'menu';
-    if (V.s === 'done' && !arr(d.data.personen).length) V.s = 'menu';
-    return V.s === 'person' ? personHtml(d, api) : V.s === 'done' ? doneHtml(d, api) : menuHtml(d, api);
+    if (V.s === 'person' && !arr(d.data.personen)[V.i]) V.s = 'pers';
+    if (V.s === 'done' && !arr(d.data.personen).length && !has(d.data.text)) V.s = 'pers';
+    return V.s === 'person' ? personHtml(d, api) : V.s === 'done' ? doneHtml(d, api) : V.s === 'art' ? artHtml(d, api) : V.s === 'mehr' ? mehrHtml(d, api) : persHtml(d, api);
   }
   function mounted() {
     document.querySelectorAll('#wMain textarea.es-ta').forEach(grow);
@@ -454,7 +488,7 @@
     const data = api.d.data, host = $('#wMain'); if (!host) return;
     const put = (k, t) => host.querySelectorAll(`[data-live="${k}"]`).forEach(n => { n.textContent = t; });
     put('text', abschnitt(data));
-    if (V.s === 'person' && arr(data.personen)[V.i]) { put('wer', C.werVon(data, V.i)); put('rahmen', rahmen(data, V.i)); put('kopf', vollName(data.personen[V.i])); }
+    if (V.s === 'person' && arr(data.personen)[V.i]) { put('wer', C.werVon(data, V.i)); put('rahmen', rahmen(data, V.i)); put('sub', subOf(arr(data.personen), V.i)); }
     if (V.s === 'done') { const nr = nrOf(data); put('nrhint', nrHint(nr)); host.querySelectorAll('[data-sd="nr"]').forEach(c => c.setAttribute('aria-pressed', String(c.dataset.v === '-' ? !nr : c.dataset.v === nr))); }
   }
   /** Noch nichts eingetragen: weder Name, Anrede, Verletzungen noch ein eigener Ort. */
@@ -464,11 +498,11 @@
     const g = arr(data.orte)[ortVon(data, p)];
     return !g || arr(g.wer).length > 1 || !Object.keys(ortInhalt(g)).length;
   }
-  /** Zurück zur Übersicht: eine versehentlich angelegte, leere Person verschwindet wieder. */
+  /** Zurück zur Personenliste: eine versehentlich angelegte, leere Person verschwindet wieder. */
   function leavePerson(data) {
     const P = arr(data.personen);
     if (V.s === 'person' && istLeer(data, P[V.i])) { P.splice(V.i, 1); if (!P.length) delete data.personen; ordnen(data); }
-    V.s = 'menu'; V.i = -1;
+    V.s = 'pers'; V.i = -1; V.f = 'wer';
   }
   async function delPerson(api) {
     const data = api.d.data, P = arr(data.personen), p = P[V.i]; if (!p) return;
@@ -477,8 +511,8 @@
       if (!ok) return;
     }
     P.splice(V.i, 1); if (!P.length) delete data.personen;
-    ordnen(data); V.s = 'menu'; V.i = -1;
-    api.persist(false); api.render(); top0();
+    ordnen(data); V.s = 'pers'; V.i = -1; V.f = 'wer';
+    api.persist(false); api.render();
   }
   /**
    * Person an einen Ort setzen: ziel = Ort einer anderen Person (dann stehen sie im Text „gemeinsam“) oder null = eigener
@@ -489,6 +523,13 @@
     for (const g of data.orte) if (g && Array.isArray(g.wer)) g.wer = g.wer.filter(x => x !== pid);
     data.orte = data.orte.filter(g => g && (g === ziel || arr(g.wer).length));
     if (ziel) ziel.wer = [...arr(ziel.wer), pid]; else data.orte.push({ ...(vorlage || {}), wer: [pid] });
+  }
+  /** Abschnitt abschließen: fertig markieren und den Text zeigen. */
+  function fertig(api) {
+    const d = api.d, miss = offen(d.data);
+    d.status = 'fertig'; V.s = 'done';
+    api.persist(true); api.render();
+    if (miss.length) api.toast(`Fertig – noch offen: ${miss.length} ${miss.length === 1 ? 'Punkt' : 'Punkte'} (im Text als [Platzhalter]).`);
   }
 
   function click(e, api) {
@@ -502,15 +543,30 @@
     const gi = Number(b.dataset.g);
     switch (a) {
       case 'art': data.art = b.dataset.v; save(); return true;
+      /* Folie des Abschnitts wechseln */
+      case 'go': {
+        const ziel = b.dataset.v;
+        if (ziel !== 'art' && !data.art) { api.toast('Bitte erst wählen: Strafanzeige oder Verkehrsangelegenheit.'); V.s = 'art'; api.render(); return true; }
+        if (V.s === 'person') leavePerson(data);
+        if (V.s === 'done' && d.status === 'fertig' && ziel !== 'done') { /* bleibt fertig, bis etwas geändert wird */ }
+        V.s = ['art', 'pers', 'mehr'].includes(ziel) ? ziel : 'pers'; V.i = -1;
+        save(); return true;
+      }
+      /* Folie der Person wechseln */
+      case 'pf': {
+        const p = cur(); if (!p) return true;
+        const F = pFolien(data, p), k = Math.max(0, Math.min(F.length - 1, F.indexOf(V.f) + Number(b.dataset.v)));
+        V.f = F[k]; api.render(); return true;
+      }
       case 'add': {
         if (d.status === 'fertig') d.status = 'entwurf';
         const p = { pid: pidNew(P()), rolle: b.dataset.v }; if (p.rolle === 'ub') p.ub = C.nextUb(P());
         P().push(p); O().push({ wer: [p.pid] }); // jede Person beginnt an ihrem eigenen Ort
-        V.i = P().length - 1; V.s = 'person'; save(); top0(); return true;
+        V.i = P().length - 1; V.s = 'person'; V.f = 'wer'; save(); return true;
       }
-      case 'edit': V.i = Number(b.dataset.i); V.s = 'person'; api.render(); top0(); return true;
-      case 'menu': if (V.s === 'done') { V.s = 'menu'; api.render(); top0(); return true; } leavePerson(data); save(); top0(); return true;
-      case 'done1': leavePerson(data); save(); top0(); return true;
+      case 'edit': { V.i = Number(b.dataset.i); V.s = 'person'; const p = cur(); V.f = p ? ersteOffene(data, p) : 'wer'; api.render(); return true; }
+      case 'menu': leavePerson(data); save(); return true;
+      case 'done1': leavePerson(data); save(); return true;
       case 'del': delPerson(api); return true;
       case 'set': {
         const path = b.dataset.p;
@@ -550,14 +606,8 @@
       case 'wset': { const g = O()[gi]; if (!g) return true; g.w = wohnSet(g.w || {}, b.dataset.k, b.dataset.v); g.text = wohnPhrase(g.w); save(); return true; }
       case 'wback': { const g = O()[gi]; if (!g || !g.w) return true; g.w = wohnSet(g.w, b.dataset.k); const t = wohnPhrase(g.w); if (t) g.text = t; else delete g.text; save(); return true; }
       case 'nr': { data.nr = b.dataset.v; api.persist(false); live(api); const inp = $('#esNr'); if (inp) inp.value = nrOf(data); return true; }
-      case 'copy': api.copy(abschnitt(data)); return true;
-      case 'alle': {
-        const miss = offen(data);
-        d.status = 'fertig'; V.s = 'done';
-        api.persist(true); api.render(); top0();
-        if (miss.length) api.toast(`Abgeschlossen – noch offen: ${miss.length} ${miss.length === 1 ? 'Punkt' : 'Punkte'} (im Text als [Platzhalter]).`);
-        return true;
-      }
+      case 'copy': api.copy(abschnitt(data), b); return true;
+      case 'alle': fertig(api); return true;
       default: return false;
     }
   }
@@ -583,13 +633,8 @@
     if (n) n.focus(); else el.blur();
     return true;
   }
-  /** ⌘/Strg + Enter: Person fertig, in der Übersicht abschließen, im fertigen Abschnitt kopieren. */
-  function submit(api) {
-    const data = api.d.data;
-    if (V.s === 'person') { leavePerson(data); api.persist(false); api.render(); top0(); }
-    else if (V.s === 'menu' && arr(data.personen).length) { api.d.status = 'fertig'; V.s = 'done'; api.persist(true); api.render(); top0(); }
-    else if (V.s === 'done') api.copy(abschnitt(data));
-  }
+  /** ⌘/Strg + Enter: der eine nächste Schritt der Folie – wie der Knopf unten rechts. */
+  function submit() { const b = $('#wMain .fo-nav .fo-next'); if (b) b.click(); }
 
   root.WEin = Object.freeze({
     id: 'eintreffen', name: 'Eintreffsituation', short: 'Eintreffsituation', kurz: 'ES',
@@ -601,7 +646,7 @@
     plain: abschnitt,
     text: data => [[nrOf(data), 'Eintreffsituation', text(data), '']],
     preview: () => '', kurzText: () => '', fahndung: () => '', offen, personalien: () => '',
-    screen: { open, render, mounted, click, input, change, keydown, submit },
+    screen: { open, render, mounted, click, input, change, keydown, submit, key },
     kontext: { nimmt },
     core: { text, abschnitt, ortSatz, offen, ordnen, zuordnen, nrOf, wohnSteps, wohnOffen, wohnSet, wohnPhrase, wohnLabel, GEB, WIE, SKIP }
   });

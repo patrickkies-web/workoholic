@@ -634,12 +634,12 @@
   const ICON_X = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
   const ICON_UP = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>';
   const ICON_BACK = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6l-6 6 6 6"/></svg>';
-  /** Ansicht je Vorgang: 'menu' (Liste mit +), 'person' (Maske), 'done' (Gesamtpaket). q = Suchtext der Namensfelder. */
-  const V = { id: null, s: 'menu', i: -1, last: -1, q: { bel: '', gegen: '' }, focus: '', guide: '' };
+  /** Ansicht je Vorgang: 'art' · 'pers' (Liste mit +) · 'person' (Folien einer Person, V.f) · 'done' (Gesamtpaket). q = Suchtext der Namensfelder. */
+  const V = { id: null, s: 'pers', i: -1, f: 'wer', q: { bel: '', gegen: '' }, focus: '' };
   const $ = s => document.querySelector(s);
-  const top0 = () => { try { window.scrollTo({ top: 0 }); } catch (e) { /* egal */ } };
+  const Q0 = () => ({ bel: '', gegen: '', aat: '', dt: '', wf: '' });
 
-  function open(d) { V.id = d.id; V.s = d.status === 'fertig' && arr(d.data.personen).length ? 'done' : 'menu'; V.i = -1; V.last = -1; V.q = { bel: '', gegen: '', aat: '', dt: '', wf: '' }; V.focus = ''; }
+  function open(d) { const dt = (d && d.data) || {}; V.id = d.id; V.s = d.status === 'fertig' && arr(dt.personen).length ? 'done' : dt.art ? 'pers' : 'art'; V.i = -1; V.f = 'wer'; V.q = Q0(); V.focus = ''; }
 
   function loadRanks(api) {
     const m = new Map();
@@ -711,17 +711,44 @@
     const sel = has(o.grad) ? '' : `<select class="sd-grad" data-sk="${esc(path)}.grad" aria-label="Amtsbezeichnung für ${esc(o.name)}">${DGRADE.map(x => `<option value="${esc(x)}">${esc(x || 'Amtsbez.?')}</option>`).join('')}</select>`;
     return `<span class="sd-tok${has(o.grad) ? '' : ' warn'}">${sel}<b>${esc(lbl)}</b>${nn !== str(o.name) ? `<small>${esc(o.name)}</small>` : ''}<button type="button" data-sd="${act}"${j != null ? ` data-j="${j}"` : ''}${extra} aria-label="${esc(lbl)} entfernen">${ICON_X}</button></span>`;
   }
-  const topBar = (back, kicker, ttl) => `<div class="w-top"><button type="button" class="icon-btn sm${back === 'list' ? ' w-back' : ''}" ${back === 'list' ? 'data-w="list" aria-label="Zur Liste"' : `data-sd="${back}" aria-label="Zurück zur Übersicht"`}>${ICON_BACK}</button><div class="w-top-t"><span class="spaced">${esc(kicker)}</span><div class="w-title"${back === 'menu' ? ' data-live="head"' : ''}>${esc(ttl)}</div></div></div>`;
+  /*
+   * Folien – je Seite ein Thema, gewechselt wird nur über „Zurück / Weiter“:
+   *   Abschnitt:  'art' Worum geht es? (entfällt, wenn die Art aus dem Vorgang kommt)  →  'pers' Wer hat etwas geschildert?  →  'done' Gesamtpaket
+   *   je Person:  'wer' Rolle und Name · 'verl' Verletzungen (beides entfällt bei Personen aus der Eintreffsituation)
+   *               →  'bel' Verständigung und Belehrung  →  'vw' Tatvorwurf (nur Beschuldigte/Betroffene)
+   *               →  'ein' Alkohol und Drogen  →  nur bei Hinweisen: 'wahr' Was fiel auf? · 'wahr2' Verhalten · 'folge' Tests und Konsum ·
+   *                  'aat' Atemalkoholtest · 'dt' Drogenvortest
+   *               →  'geg' Wem gegenüber?  →  'text' Schilderung (entfällt bei „keine Angaben“)
+   *               →  'sa' Strafantrag (nur Geschädigte)  →  'ok' Kontrolle des Textes
+   */
+  function pFolien(p, link) {
+    p = p || {};
+    const r = RO(p), e = einOf(p);
+    return [...(link ? [] : ['wer', 'verl']), 'bel', ...(r && r.tat ? ['vw'] : []), 'ein', ...(e.length ? ['wahr', 'wahr2', 'folge', ...(e.includes('alk') ? ['aat'] : []), ...(e.includes('drog') ? ['dt'] : [])] : []), 'geg', ...(p.keine ? [] : ['text']), ...(p.rolle === 'gs' ? ['sa'] : []), 'ok'];
+  }
+  /** Wie die Person in einer Überschrift heißt: „Herr Hollj“, solange der Name fehlt „die Person“. */
+  const herrName = p => (has(p.nachname) && (p.g === 'm' || p.g === 'w') ? `${p.g === 'm' ? 'Herr' : 'Frau'} ${str(p.nachname)}` : has(p.nachname) ? str(p.nachname) : 'die Person');
+  const subOf = (P, i) => `Person ${i + 1} von ${P.length}${has(P[i] && P[i].nachname) ? ' · ' + herrName(P[i]) : ''}`;
+  /** Kennung der Folie – wechselt sie, beginnt die neue Seite oben; sonst bleibt alles stehen. */
+  const key = () => `${V.s}:${V.i}:${V.s === 'person' ? V.f : ''}`;
 
-  function menuHtml(d, api) {
+  /* ---------- Folien des Abschnitts ---------- */
+  function artHtml(d, api) {
+    const art = d.data.art;
+    const hint = art === 'verkehr' ? 'Namen nur mit Anfangsbuchstaben: „Frau M.“ – teilen sich Personen den Buchstaben, „A. M.“, dann „An. M.“.' : art === 'straf' ? 'Nachname ausgeschrieben – bei gleichem Nachnamen mit Vorname.' : '';
+    return `${api.kopf({ pos: [1, 2], titel: 'Worum geht es?', lead: 'Davon hängt ab, wie die Namen im Text stehen.' })}
+      <div class="w-grid sd-grid">
+        <div class="w-q" data-q="art"><div class="w-seg fo-gross" role="group" aria-label="Art">${ARTEN.map(([v, l]) => `<button type="button" class="w-opt" data-sd="art" data-v="${v}" aria-pressed="${String(art === v)}">${l}</button>`).join('')}</div>${hint ? `<p class="w-hint sd-hint">${hint}</p>` : ''}</div>
+      </div>
+      ${api.fuss({ next: { attr: 'data-sd="go" data-v="pers"' } })}`;
+  }
+  function persHtml(d, api) {
     const data = d.data, P = arr(data.personen), art = data.art;
     const ctx = ctxOf(api), fest = !!(ctx && ctx.art);
-    const artHint = art === 'verkehr' ? 'Namen nur mit Anfangsbuchstaben: „Frau M.“ – teilen sich Personen den Buchstaben, „A. M.“, dann „An. M.“.' : art === 'straf' ? 'Nachname ausgeschrieben – bei gleichem Nachnamen mit Vorname.' : 'Davon hängt ab, wie die Namen im Text stehen.';
-    const artQ = `<div class="w-q"><span class="w-lbl">Worum geht es?${art ? '' : ' <i class="w-req" title="Pflicht">•</i>'}</span><div class="w-seg" role="group" aria-label="Art">${ARTEN.map(([v, l]) => `<button type="button" class="w-opt" data-sd="art" data-v="${v}" aria-pressed="${String(art === v)}"${fest ? ' disabled' : ''}>${l}</button>`).join('')}</div><p class="w-hint sd-hint">${fest ? `Übernommen aus „${esc(ctx.personenAus)}“ – dort änderbar. ` : ''}${artHint}</p></div>`;
     // Im Vorgang: Personen, die in einem früheren Abschnitt (Eintreffsituation) erfasst wurden, hier nur noch antippen
     const offen = ctx ? arr(ctx.personen).filter(q => q && q.pid && !P.some(x => x && x.ref === q.pid)) : [];
     const ctxAdd = ctx && arr(ctx.personen).length
-      ? `<div class="w-q"><div class="sd-add vg-take"><span class="w-lbl">Aus „${esc(ctx.personenAus)}“ übernehmen</span>${offen.length ? `<div class="sd-add-row">${offen.map(q => `<button type="button" class="sd-add-b" data-sd="take" data-v="${esc(q.pid)}"><i aria-hidden="true">+</i><span>${esc(ctxName(q))}<small>${esc(rolleLabel(q))}</small></span></button>`).join('')}</div>` : '<p class="w-hint sd-hint">Alle dort erfassten Personen sind übernommen.</p>'}<p class="w-hint sd-hint">Name, Rolle und Verletzungen kommen von dort – hier trägst du nur Belehrung und Schilderung ein.</p></div></div>`
+      ? `<div class="w-q" data-q="take"><div class="sd-add vg-take"><span class="w-lbl">Aus „${esc(ctx.personenAus)}“ übernehmen</span>${offen.length ? `<div class="sd-add-row">${offen.map(q => `<button type="button" class="sd-add-b" data-sd="take" data-v="${esc(q.pid)}"><i aria-hidden="true">+</i><span>${esc(ctxName(q))}<small>${esc(rolleLabel(q))}</small></span></button>`).join('')}</div>` : '<p class="w-hint sd-hint">Alle dort erfassten Personen sind übernommen.</p>'}<p class="w-hint sd-hint">Name, Rolle und Verletzungen kommen von dort – hier trägst du nur Belehrung und Schilderung ein.</p></div></div>`
       : '';
     const items = P.map((p, i) => {
       p = p || {};
@@ -731,68 +758,81 @@
       if (!p.ref && (p.verl === 'ja' || p.verl === 'schmerz')) meta.push(p.verl === 'ja' ? 'verletzt' : 'Schmerzen');
       if (p.rolle === 'gs' && p.sa) meta.push({ ja: 'Strafantrag gestellt', vorbehalt: 'Strafantrag vorbehalten', nein: 'kein Strafantrag' }[p.sa]);
       if (p.keine) meta.push(keineLabel(p).replace(/^Macht /, '').replace(/^Verweigert das Zeugnis.*/, 'verweigert das Zeugnis'));
-      const opened = i === V.last;
-      return `<li class="sd-item${opened ? ' open' : ''}"><div class="sd-row"><button type="button" class="sd-card" data-sd="edit" data-i="${i}"><span class="sd-n mono">${i + 1}</span><span class="sd-main"><b>${esc(heading(data, i))}</b><small>${esc(meta.join(' · '))}${snip ? ` · „${esc(snip.slice(0, 80))}${snip.length > 80 ? '…' : ''}“` : ''}</small></span><span class="pill ${p.fertig ? 'pill-lime' : 'pill-quiet'}">${p.fertig ? 'Fertig' : 'Entwurf'}</span></button>${P.length > 1 ? `<button type="button" class="sd-up" data-sd="up" data-i="${i}" aria-label="Nach oben"${i ? '' : ' disabled'}>${ICON_UP}</button>` : ''}</div>${opened ? `<div class="w-out sd-last"><div class="w-out-h"><span class="w-lbl">Abgeschlossen – so steht es in der Anzeige</span><button type="button" class="btn btn-light btn-sm" data-sd="copy1" data-i="${i}">Kopieren</button></div><pre class="w-out-t">${esc(block(data, i))}</pre></div>` : ''}</li>`;
+      return `<li class="sd-item"><div class="sd-row"><button type="button" class="sd-card" data-sd="edit" data-i="${i}"><span class="sd-n mono">${i + 1}</span><span class="sd-main"><b>${esc(heading(data, i))}</b><small>${esc(meta.join(' · '))}${snip ? ` · „${esc(snip.slice(0, 80))}${snip.length > 80 ? '…' : ''}“` : ''}</small></span><span class="pill ${p.fertig ? 'pill-lime' : 'pill-quiet'}">${p.fertig ? 'Fertig' : 'Entwurf'}</span></button>${P.length > 1 ? `<button type="button" class="sd-up" data-sd="up" data-i="${i}" aria-label="Nach oben"${i ? '' : ' disabled'}>${ICON_UP}</button>` : ''}</div></li>`;
     }).join('');
     const add = art
-      ? `<div class="sd-add"><span class="w-lbl">${ctxAdd ? 'Andere Person hinzufügen (nicht in der Eintreffsituation)' : P.length ? 'Weitere Person hinzufügen' : 'Person hinzufügen'}</span><div class="sd-add-row">${rollenFor(art).map(([v, r]) => `<button type="button" class="sd-add-b" data-sd="add" data-v="${v}"><i aria-hidden="true">+</i>${esc(v === 'ub' ? `${r.x} ${String(nextUb(P)).padStart(2, '0')}` : r.x)}</button>`).join('')}</div>${art === 'verkehr' ? '<p class="w-hint sd-hint">01 ist die Unfallverursacherin oder der Unfallverursacher (Belehrung als Beschuldigte/r oder Betroffene/r), 02 und weitere werden als Zeugen belehrt.</p>' : ''}</div>`
-      : `<div class="sd-add off"><span class="w-lbl">Person hinzufügen</span><p class="w-hint sd-hint">Erst oben wählen: Strafanzeige oder Verkehrsangelegenheit.</p></div>`;
-    const done = d.status === 'fertig';
-    return `${topBar('list', `Schilderungen · ${ARTL[art] || 'Art offen'}`, title(data))}
-      <div class="w-grid sd-grid">${artQ}
-        ${P.length ? `<div class="w-q"><span class="w-lbl">Erfasst <span class="sd-cnt mono">${P.length}</span></span><ol class="sd-list">${items}</ol></div>` : ''}
+      ? `<div class="sd-add"><span class="w-lbl">${ctxAdd ? 'Andere Person anlegen (nicht in der Eintreffsituation)' : P.length ? 'Weitere Person anlegen' : 'Person anlegen'}</span><div class="sd-add-row">${rollenFor(art).map(([v, r]) => `<button type="button" class="sd-add-b" data-sd="add" data-v="${v}"><i aria-hidden="true">+</i>${esc(v === 'ub' ? `${r.x} ${String(nextUb(P)).padStart(2, '0')}` : r.x)}</button>`).join('')}</div>${art === 'verkehr' ? '<p class="w-hint sd-hint">01 ist die Unfallverursacherin oder der Unfallverursacher (Belehrung als Beschuldigte/r oder Betroffene/r), 02 und weitere werden als Zeugen belehrt.</p>' : ''}</div>`
+      : `<div class="sd-add off"><span class="w-lbl">Person anlegen</span><p class="w-hint sd-hint">Erst auf der Folie davor wählen: Strafanzeige oder Verkehrsangelegenheit.</p></div>`;
+    return `${api.kopf({ pos: fest ? null : [2, 2], titel: 'Wer hat etwas geschildert?', lead: P.length ? 'Antippen, um eine Schilderung zu ändern – oder eine weitere Person dazunehmen.' : 'Je Person ein paar kurze Folien: Belehrung, Alkohol und Drogen, Schilderung.' })}
+      <div class="w-grid sd-grid">
+        ${P.length ? `<div class="w-q"><ol class="sd-list">${items}</ol></div>` : ''}
         ${ctxAdd}
-        <div class="w-q">${add}</div>
+        <div class="w-q" data-q="add">${add}</div>
       </div>
-      <div class="w-nav"><button type="button" class="btn btn-ghost btn-sm btn-danger" data-w="delete">Löschen</button><span class="grow"></span>${P.length ? `<button type="button" class="btn btn-accent" data-sd="alle">${done ? 'Zum Gesamtpaket' : 'Alle Schilderungen hinzugefügt'}</button>` : ''}</div>`;
+      ${api.fuss({ back: fest ? null : { attr: 'data-sd="go" data-v="art"' }, next: P.length ? { label: 'Fertig', attr: 'data-sd="alle"', ok: true } : null })}`;
   }
 
+  /* ---------- Folien einer Person ---------- */
   function personHtml(d, api) {
     const data = d.data, P = arr(data.personen), i = V.i, p = P[i] || {}, base = `personen.${i}`;
     const r = RO(p), ctx = ctxOf(api), link = !!(p.ref && ctx);
+    const F = pFolien(p, link); if (!F.includes(V.f)) V.f = F[0];
+    const k = F.indexOf(V.f), last = k === F.length - 1;
+    const kopf = (titel, lead) => api.kopf({ up: { label: 'Personen', attr: 'data-sd="menu"' }, sub: subOf(P, i), subLive: 'sub', pos: [k + 1, F.length], titel, lead });
+    const fuss = api.fuss({ back: k ? { attr: 'data-sd="pf" data-v="-1"' } : { attr: 'data-sd="menu"' }, next: last ? { label: 'Person fertig', attr: 'data-sd="done1"', ok: true } : { attr: 'data-sd="pf" data-v="1"' } });
+    const weg = k === 0 ? '<div class="fo-fein"><button type="button" class="link danger" data-sd="del">Person entfernen</button></div>' : '';
+    const seite = (titel, lead, inhalt, nach = '') => `${kopf(titel, lead)}<div class="w-grid sd-grid">${inhalt}</div>${nach}${weg}${fuss}`;
     const hasBel = p.bel && has(p.bel.name);
-    const anr = [['m', 'Herr'], ['w', 'Frau']].map(([v, l]) => `<button type="button" class="w-opt" data-sd="set" data-p="${base}.g" data-v="${v}" aria-pressed="${String(p.g === v)}">${l}</button>`).join('');
-    const roles = rollenFor(data.art, p.rolle).map(([v, x]) => `<button type="button" class="chip" data-sd="set" data-p="${base}.rolle" data-v="${v}" aria-pressed="${String(p.rolle === v)}">${esc(p.g === 'm' || p.g === 'w' ? x[p.g] : x.x)}</button>`).join('');
-    // Unfallbeteiligte: Nummer wählen (01 = Verursacher); wer als 01 gewählt wird, tauscht mit der bisherigen 01
-    const ubMax = Math.max(4, ...P.map(ubNr)) + (P.filter(x => ubNr(x)).length >= 4 ? 1 : 0);
-    const ubQ = p.rolle === 'ub' && !link ? `<div class="w-q" data-q="ub"><span class="w-lbl">Nummer <i class="w-req" title="Pflicht">•</i></span><div class="w-chips" role="group" aria-label="Nummer">${Array.from({ length: ubMax }, (x, k) => k + 1).map(n => `<button type="button" class="chip mono" data-sd="ub" data-v="${n}" aria-pressed="${String(ubNr(p) === n)}">${String(n).padStart(2, '0')}</button>`).join('')}</div><p class="w-hint sd-hint">01 ist die Unfallverursacherin oder der Unfallverursacher. Ist die Nummer schon vergeben, tauschen die beiden.</p></div>` : '';
-    const belAls = ubNr(p) === 1
-      ? `<div class="w-q" data-q="belals"><span class="w-lbl">Belehrt als <i class="w-req" title="Pflicht">•</i></span><div class="w-seg" role="group" aria-label="Belehrt als">${[['bs', ROLLE.bs], ['betr', ROLLE.betr]].map(([v, x]) => `<button type="button" class="w-opt" data-sd="set" data-p="${base}.belAls" data-v="${v}" aria-pressed="${String(p.belAls === v)}">${esc(p.g === 'm' || p.g === 'w' ? x[p.g] : x.x)}</button>`).join('')}</div><p class="w-hint sd-hint">01 hat den Unfall verursacht: bei einer Straftat (z. B. § 229, § 315c, § 142 StGB) Belehrung als Beschuldigte/r, bei einer Ordnungswidrigkeit als Betroffene/r (§ 55 OWiG).</p></div>`
-      : ubNr(p) > 1 ? `<div class="w-q" data-q="belals"><p class="w-hint sd-hint">Unfallbeteiligte ab 02 werden als Zeugin oder Zeuge belehrt.</p></div>` : '';
-    const person = link
-      ? `<div class="w-q"><div class="w-info">Aus „${esc(ctx.personenAus)}“: <b>${esc([herrFrau(p), str(p.vorname), str(p.nachname)].filter(Boolean).join(' '))}</b> · ${esc(rolleLabel(p))} · ${esc(verlKurz(arr(ctx.personen).find(q => q.pid === p.ref)))}. Name, Rolle und Verletzungen änderst du dort – hier stehen sie nicht noch einmal.</div></div>
-        <p class="sd-im">Im Text: <b data-live="head">${esc(heading(data, i))}</b></p>`
-      : `<div class="w-q" data-q="rolle"><span class="w-lbl">Rolle <i class="w-req" title="Pflicht">•</i></span><div class="w-chips" role="group" aria-label="Rolle">${roles}</div></div>
+
+    if (V.f === 'wer') {
+      const anr = [['m', 'Herr'], ['w', 'Frau']].map(([v, l]) => `<button type="button" class="w-opt" data-sd="set" data-p="${base}.g" data-v="${v}" aria-pressed="${String(p.g === v)}">${l}</button>`).join('');
+      const roles = rollenFor(data.art, p.rolle).map(([v, x]) => `<button type="button" class="chip" data-sd="set" data-p="${base}.rolle" data-v="${v}" aria-pressed="${String(p.rolle === v)}">${esc(p.g === 'm' || p.g === 'w' ? x[p.g] : x.x)}</button>`).join('');
+      // Unfallbeteiligte: Nummer wählen (01 = Verursacher); wer als 01 gewählt wird, tauscht mit der bisherigen 01
+      const ubMax = Math.max(4, ...P.map(ubNr)) + (P.filter(x => ubNr(x)).length >= 4 ? 1 : 0);
+      const ubQ = p.rolle === 'ub' ? `<div class="w-q" data-q="ub"><span class="w-lbl">Nummer <i class="w-req" title="Pflicht">•</i></span><div class="w-chips" role="group" aria-label="Nummer">${Array.from({ length: ubMax }, (x, n) => n + 1).map(n => `<button type="button" class="chip mono" data-sd="ub" data-v="${n}" aria-pressed="${String(ubNr(p) === n)}">${String(n).padStart(2, '0')}</button>`).join('')}</div><p class="w-hint sd-hint">01 ist die Unfallverursacherin oder der Unfallverursacher. Ist die Nummer schon vergeben, tauschen die beiden.</p></div>` : '';
+      return seite('Wer ist es?', '', `<div class="w-q" data-q="rolle"><span class="w-lbl">Rolle <i class="w-req" title="Pflicht">•</i></span><div class="w-chips" role="group" aria-label="Rolle">${roles}</div></div>
         ${ubQ}
         <div class="w-q" data-q="g"><span class="w-lbl">Anrede <i class="w-req" title="Pflicht">•</i></span><div class="w-seg" role="group" aria-label="Anrede">${anr}</div></div>
         <div class="w-q half" data-q="nn"><label class="w-lbl" for="sdNn">Nachname <i class="w-req" title="Pflicht">•</i></label><input class="input" id="sdNn" data-sk="${base}.nachname" data-next="sdVn" value="${esc(p.nachname || '')}" placeholder="z. B. Müller" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="next" maxlength="80"></div>
-        <div class="w-q half" data-q="vn"><label class="w-lbl" for="sdVn">Vorname</label><input class="input" id="sdVn" data-sk="${base}.vorname" data-next="${hasBel ? '' : 'sdBel'}" value="${esc(p.vorname || '')}" placeholder="z. B. Anna" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="next" maxlength="80"></div>
-        <p class="sd-im">Im Text: <b data-live="head">${esc(heading(data, i))}</b></p>
-        ${verletzungHtml(api, p, base)}`;
-    const g = arr(p.gegen);
-    const belOn = g.some(x => x && x.ref === 'bel'), alleOn = g.some(x => x && x.ref === 'alle');
-    const others = g.map((x, j) => [x, j]).filter(([x]) => x && !x.ref && has(x.name));
-    const gegenChips = `<div class="w-chips">${hasBel ? `<button type="button" class="chip" data-sd="gbel" aria-pressed="${String(belOn)}">${esc(offName(p.bel))}<small class="sd-sm">hat belehrt</small></button>` : ''}<button type="button" class="chip" data-sd="galle" aria-pressed="${String(alleOn)}">${crewNamen(data).length ? 'Alle: ' + esc(crewNamen(data).map(offName).join(', ')) : `den eingesetzten ${beamte(data)}`}</button></div>`;
-    return `${topBar('menu', `Schilderungen · Person ${i + 1} von ${P.length}`, heading(data, i))}
-      <div class="w-grid sd-grid">
-        <div class="w-q full w-head"><span class="w-head-t">Person</span></div>
-        ${person}
-        <div class="w-q full w-head"><span class="w-head-t">Verständigung und Belehrung</span><span class="w-head-h">Kommt zuerst – Fragen zum Konsum und Tests stehen im Text erst danach.</span></div>
+        <div class="w-q half" data-q="vn"><label class="w-lbl" for="sdVn">Vorname</label><input class="input" id="sdVn" data-sk="${base}.vorname" data-next="" value="${esc(p.vorname || '')}" placeholder="z. B. Anna" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="done" maxlength="80"></div>
+        <p class="sd-im">Im Text: <b data-live="head">${esc(heading(data, i))}</b></p>`);
+    }
+    if (V.f === 'verl') return seite(`War ${herrName(p)} verletzt?`, 'Ort und Art selbst eintragen – steht im Text ganz vorn, vor der Belehrung.', verletzungHtml(api, p, base, '', true));
+    if (V.f === 'bel') {
+      const belAls = ubNr(p) === 1
+        ? `<div class="w-q" data-q="belals"><span class="w-lbl">Belehrt als <i class="w-req" title="Pflicht">•</i></span><div class="w-seg" role="group" aria-label="Belehrt als">${[['bs', ROLLE.bs], ['betr', ROLLE.betr]].map(([v, x]) => `<button type="button" class="w-opt" data-sd="set" data-p="${base}.belAls" data-v="${v}" aria-pressed="${String(p.belAls === v)}">${esc(p.g === 'm' || p.g === 'w' ? x[p.g] : x.x)}</button>`).join('')}</div><p class="w-hint sd-hint">01 hat den Unfall verursacht: bei einer Straftat (z. B. § 229, § 315c, § 142 StGB) Belehrung als Beschuldigte/r, bei einer Ordnungswidrigkeit als Betroffene/r (§ 55 OWiG).</p></div>`
+        : ubNr(p) > 1 ? `<div class="w-q" data-q="belals"><p class="w-hint sd-hint">Unfallbeteiligte ab 02 werden als Zeugin oder Zeuge belehrt.</p></div>` : '';
+      const info = link ? `<div class="w-q"><div class="w-info">Aus „${esc(ctx.personenAus)}“: <b>${esc([herrFrau(p), str(p.vorname), str(p.nachname)].filter(Boolean).join(' '))}</b> · ${esc(rolleLabel(p))} · ${esc(verlKurz(arr(ctx.personen).find(q => q.pid === p.ref)))}. Name, Rolle und Verletzungen änderst du dort – hier stehen sie nicht noch einmal.</div></div>` : '';
+      return seite('Verständigung und Belehrung', 'Kommt im Text zuerst – Fragen zum Konsum und Tests stehen erst danach.', `${info}
         ${spracheHtml(p, base)}
         ${belAls}
         <div class="w-q" data-q="bel"><span class="w-lbl">Belehrt durch <i class="w-req" title="Pflicht">•</i></span>${r ? `<p class="w-hint">${esc(r.bel)}</p>` : ''}${hasBel ? `<div class="sd-toks">${tok(p.bel, `${base}.bel`, 'unbel')}</div>` : ta(api, data, 'bel', 'sdBel', 'Namen tippen, z. B. Schulz')}</div>
         ${belZusatzHtml(p, base)}
-        ${r && r.zeug ? `<div class="w-q" data-q="zvr"><span class="w-lbl">Belehrung</span><div class="w-chips"><button type="button" class="chip" data-sd="zvr" aria-pressed="${String(!!p.zvr)}">Besonderer Hinweis auf das Zeugnisverweigerungsrecht</button>${p.zvr && !p.keine ? `<button type="button" class="chip" data-sd="bereit" aria-pressed="${String(p.bereit !== false)}">Zur Aussage bereit erklärt</button>` : ''}</div><p class="w-hint sd-hint">Steht mit „gemäß § 52 StPO“ im Text. Gilt für Verlobte, Ehegatten, eingetragene Lebenspartner, Verwandte und Verschwägerte der beschuldigten Person.</p></div>` : ''}
-        <div class="w-q full w-head"><span class="w-head-t">Alkohol und Drogen</span></div>
-        ${einflussHtml(api, data, p, base)}
-        <div class="w-q full w-head"><span class="w-head-t">Schilderung</span><span class="w-head-h">Wem gegenüber und was die Person geschildert hat – steht im Text ganz unten.</span></div>
-        ${r ? `<div class="w-q" data-q="keine"><div class="w-chips"><button type="button" class="chip" data-sd="tog" data-p="${base}.keine" aria-pressed="${String(!!p.keine)}">${esc(keineLabel(p))}</button></div>${r.tat ? '<p class="w-hint sd-hint">Beschuldigte und Betroffene müssen sich nicht zur Sache äußern. Im Text steht dann „… erklärte, keine Angaben zur Sache machen zu wollen.“</p>' : ''}</div>` : ''}
-        ${p.keine ? '' : `<div class="w-q" data-q="gegen"><span class="w-lbl">Gegenüber <i class="w-req" title="Pflicht">•</i></span>${gegenChips}${others.length ? `<div class="sd-toks">${others.map(([x, j]) => tok(x, `${base}.gegen.${j}`, 'ungegen', j)).join('')}</div>` : ''}${ta(api, data, 'gegen', 'sdGegen', 'Weitere Person tippen …')}<p class="sd-im">Im Text: <b data-live="gegen">${esc(gegenText(data, p))}</b></p></div>`}
-        ${p.keine ? '' : `<div class="w-q" data-q="text"><label class="w-lbl" for="sdText">Schilderung <i class="w-req" title="Pflicht">•</i></label><div class="sd-sent" data-sd="focus"><span class="sd-intro" data-live="intro">${esc(vorText(data, i))}</span><textarea class="sd-text" id="sdText" data-sk="${base}.text" placeholder="Was hat die Person sinngemäß geschildert? Ich-Form oder indirekte Rede." autocomplete="off" autocapitalize="sentences" spellcheck="true" maxlength="12000">${esc(p.text || '')}</textarea></div></div>`}
-        ${strafantragHtml(p, base)}
-        <div class="w-q"><div class="w-out"><div class="w-out-h"><span class="w-lbl">So steht es in der Anzeige</span><button type="button" class="btn btn-light btn-sm" data-sd="copy1" data-i="${i}">Kopieren</button></div><pre class="w-out-t" data-live="block">${esc(block(data, i))}</pre></div></div>
-      </div>
-      <div class="w-nav"><button type="button" class="btn btn-ghost btn-sm btn-danger" data-sd="del">Entfernen</button><span class="grow"></span><span class="w-nav-i mono">${i + 1} / ${P.length}</span><button type="button" class="btn btn-accent" data-sd="done1">Abschließen</button></div>`;
+        ${r && r.zeug ? `<div class="w-q" data-q="zvr"><span class="w-lbl">Belehrung</span><div class="w-chips"><button type="button" class="chip" data-sd="zvr" aria-pressed="${String(!!p.zvr)}">Besonderer Hinweis auf das Zeugnisverweigerungsrecht</button>${p.zvr && !p.keine ? `<button type="button" class="chip" data-sd="bereit" aria-pressed="${String(p.bereit !== false)}">Zur Aussage bereit erklärt</button>` : ''}</div><p class="w-hint sd-hint">Steht mit „gemäß § 52 StPO“ im Text. Gilt für Verlobte, Ehegatten, eingetragene Lebenspartner, Verwandte und Verschwägerte der beschuldigten Person.</p></div>` : ''}`);
+    }
+    if (V.f === 'vw') return seite(r && r.owi ? 'Was wird vorgeworfen?' : 'Welcher Tatvorwurf?', 'So, wie er der Person eröffnet wurde.', vorwurfHtml(p, base));
+    if (V.f === 'ein') return seite('Alkohol und Drogen', '', einflussHtml(api, data, p, base, 'kopf'));
+    if (V.f === 'wahr') return seite('Was fiel auf?', 'Geruch, Augen, Sprache, Gang – alles antippen, was vor Ort auffiel. Es erscheint im Text als Aufzählung.', einflussHtml(api, data, p, base, 'wahr'));
+    if (V.f === 'wahr2') return seite(`Wie verhielt sich ${herrName(p)}?`, 'Verhalten, Orientierung, Umfeld. Wertende Punkte fragen gleich nach einem Beispiel.', einflussHtml(api, data, p, base, 'wahr2'));
+    if (V.f === 'folge') return seite('Tests, Konsum, Folgefähigkeit', 'Tests vor Ort, eigene Angaben und ob die Person folgen konnte.', einflussHtml(api, data, p, base, 'folge'));
+    if (V.f === 'aat') return seite('Atemalkoholtest', '', einflussHtml(api, data, p, base, 'aat'));
+    if (V.f === 'dt') return seite('Drogenvortest', '', einflussHtml(api, data, p, base, 'dt'));
+    if (V.f === 'geg') {
+      const g = arr(p.gegen);
+      const belOn = g.some(x => x && x.ref === 'bel'), alleOn = g.some(x => x && x.ref === 'alle');
+      const others = g.map((x, j) => [x, j]).filter(([x]) => x && !x.ref && has(x.name));
+      const gegenChips = `<div class="w-chips">${hasBel ? `<button type="button" class="chip" data-sd="gbel" aria-pressed="${String(belOn)}">${esc(offName(p.bel))}<small class="sd-sm">hat belehrt</small></button>` : ''}<button type="button" class="chip" data-sd="galle" aria-pressed="${String(alleOn)}">${crewNamen(data).length ? 'Alle: ' + esc(crewNamen(data).map(offName).join(', ')) : `den eingesetzten ${beamte(data)}`}</button></div>`;
+      return seite(`Wem gegenüber hat ${herrName(p)} sich geäußert?`, '', `${r ? `<div class="w-q" data-q="keine"><div class="w-chips"><button type="button" class="chip" data-sd="tog" data-p="${base}.keine" aria-pressed="${String(!!p.keine)}">${esc(keineLabel(p))}</button></div>${r.tat ? '<p class="w-hint sd-hint">Beschuldigte und Betroffene müssen sich nicht zur Sache äußern. Im Text steht dann „… erklärte, keine Angaben zur Sache machen zu wollen.“</p>' : ''}</div>` : ''}
+        ${p.keine ? '' : `<div class="w-q" data-q="gegen"><span class="w-lbl">Gegenüber <i class="w-req" title="Pflicht">•</i></span>${gegenChips}${others.length ? `<div class="sd-toks">${others.map(([x, j]) => tok(x, `${base}.gegen.${j}`, 'ungegen', j)).join('')}</div>` : ''}${ta(api, data, 'gegen', 'sdGegen', 'Weitere Person tippen …')}<p class="sd-im">Im Text: <b data-live="gegen">${esc(gegenText(data, p))}</b></p></div>`}`);
+    }
+    if (V.f === 'text') {
+      return seite(`Was hat ${herrName(p)} geschildert?`, 'Sinngemäß, in ganzen Sätzen – Ich-Form oder indirekte Rede. Der Satzanfang steht schon da.', `<div class="w-q" data-q="text"><label class="w-lbl sr" for="sdText">Schilderung</label><div class="sd-sent" data-sd="focus"><span class="sd-intro" data-live="intro">${esc(vorText(data, i))}</span><textarea class="sd-text" id="sdText" data-sk="${base}.text" placeholder="Was hat die Person sinngemäß geschildert? Ich-Form oder indirekte Rede." autocomplete="off" autocapitalize="sentences" spellcheck="true" maxlength="12000">${esc(p.text || '')}</textarea></div></div>`);
+    }
+    if (V.f === 'sa') return seite('Strafantrag', 'Nur bei Antragsdelikten nötig, z. B. Körperverletzung (§ 230 StGB), Beleidigung (§ 194 StGB), Sachbeschädigung (§ 303c StGB), Hausfriedensbruch (§ 123 Abs. 2 StGB).', strafantragHtml(p, base, true));
+    const miss = fehlt(p);
+    return seite('So steht es im Text', 'Kurz gegenlesen. Stimmt etwas nicht: mit „Zurück“ zur passenden Folie.', `${miss.length ? `<div class="w-q"><div class="w-warn">Noch offen: ${esc(miss.join(', '))} – steht im Text als [Platzhalter].</div></div>` : ''}
+        <div class="w-q"><div class="w-out"><pre class="w-out-t" data-live="block">${esc(block(data, i))}</pre></div></div>`,
+      `<button type="button" class="btn btn-ghost fo-wide" data-sd="copy1" data-i="${i}">Nur diese Schilderung kopieren</button>`);
   }
 
   /* ---------- Maske: Deutschkenntnisse, Alkohol/Drogen ---------- */
@@ -801,11 +841,15 @@
     betr: ['Fahren unter Alkoholeinfluss (§ 24a Abs. 1 StVG)', 'Fahren unter der Wirkung berauschender Mittel (§ 24a Abs. 2 StVG)', 'Rotlichtverstoß', 'Geschwindigkeitsüberschreitung', 'Benutzung eines Mobiltelefons', 'Vorfahrtsverstoß', 'ungenügender Sicherheitsabstand', 'Fehler beim Abbiegen, Wenden oder Rückwärtsfahren']
   };
   const zeitIn = (id, path, val) => `<div class="sd-time"><input class="input mono" type="time" id="${id}" data-sk="${esc(path)}" value="${esc(val || '')}"><button type="button" class="chip sm" data-sd="now" data-p="${esc(path)}">Jetzt</button></div>`;
-  /** Uhrzeit der Belehrung, Tatvorwurf (Beschuldigte/Betroffene) und „Belehrung verstanden“. */
+  /** Tatvorwurf (Beschuldigte/Betroffene) – eigene Folie: frei schreiben oder einen Vorschlag antippen. */
+  function vorwurfHtml(p, base) {
+    const r = RO(p); if (!r || !r.tat) return '';
+    return `<div class="w-q" data-q="vw"><label class="w-lbl" for="sdVw">${r.owi ? 'Vorwurf' : 'Tatvorwurf'} (eröffnet)</label>${textIn('sdVw', `${base}.vorwurf`, p.vorwurf, r.owi ? 'z. B. Rotlichtverstoß' : 'z. B. Körperverletzung')}<div class="w-chips sd-sugg">${VORWURF[eff(p)].map(v => `<button type="button" class="chip sm" data-sd="set" data-p="${base}.vorwurf" data-v="${esc(v)}" aria-pressed="${String(str(p.vorwurf) === v)}">${esc(v)}</button>`).join('')}</div><p class="w-hint sd-hint">Im Text: „Nach Eröffnung des ${r.owi ? 'Vorwurfs' : 'Tatvorwurfs'} (…) und erfolgter Belehrung …“</p></div>`;
+  }
+  /** Uhrzeit der Belehrung und „Belehrung verstanden“. */
   function belZusatzHtml(p, base) {
     const r = RO(p); if (!r) return '';
-    const vw = r.tat ? `<div><label class="w-lbl" for="sdVw">${r.owi ? 'Vorwurf' : 'Tatvorwurf'} (eröffnet)</label>${textIn('sdVw', `${base}.vorwurf`, p.vorwurf, r.owi ? 'z. B. Rotlichtverstoß' : 'z. B. Körperverletzung')}<div class="w-chips sd-sugg">${VORWURF[eff(p)].map(v => `<button type="button" class="chip sm" data-sd="set" data-p="${base}.vorwurf" data-v="${esc(v)}" aria-pressed="${String(str(p.vorwurf) === v)}">${esc(v)}</button>`).join('')}</div></div>` : '';
-    return `<div class="w-q" data-q="belz"><div class="sd-two"><div><label class="w-lbl" for="sdBelZ">Uhrzeit der Belehrung</label>${zeitIn('sdBelZ', `${base}.belZeit`, p.belZeit)}</div>${vw}</div></div>
+    return `<div class="w-q" data-q="belz"><label class="w-lbl" for="sdBelZ">Uhrzeit der Belehrung</label>${zeitIn('sdBelZ', `${base}.belZeit`, p.belZeit)}</div>
         <div class="w-q" data-q="verst"><div class="w-chips"><button type="button" class="chip" data-sd="tog" data-p="${base}.verst" aria-pressed="${String(!!p.verst)}">Hat erklärt, die Belehrung verstanden zu haben</button></div><p class="w-hint sd-hint">Steht dann im Text. Gerade bei Alkohol, Drogen oder wenig Deutsch wichtig.</p></div>`;
   }
   const seg = (path, cur, opts, cls = 'w-seg') => `<div class="${cls}" role="group">${opts.map(([v, l]) => `<button type="button" class="${cls === 'w-seg' ? 'w-opt' : 'chip'}" data-sd="set" data-p="${esc(path)}" data-v="${esc(v)}" aria-pressed="${String(cur === v)}">${esc(l)}</button>`).join('')}</div>`;
@@ -855,7 +899,7 @@
   }
 
   /** Auswahl „Verletzungen“ – auch von der Eintreffsituation benutzt (hint = eigener Hinweis unter der Überschrift). */
-  function verletzungHtml(api, p, base, hint) {
+  function verletzungHtml(api, p, base, hint, folie) {
     const pr = PR(p), v = p.verl, wer = pr.er === 'sie' ? 'sie' : pr.er === 'er' ? 'er' : 'die Person';
     let more = '';
     if (v === 'schmerz') more += `<div class="sd-inl" data-q="verlt"><label class="w-hint" for="sdSchm">„…gab an, Schmerzen <b>…</b> zu haben.“</label>${textIn('sdSchm', `${base}.schmerzText`, p.schmerzText, 'im linken Oberarm und an der linken Wange', '', 400)}</div>`;
@@ -876,11 +920,13 @@
       }
       more += `<div class="sd-inl" data-q="rtw"><span class="w-lbl">Rettungswagen <i class="w-req" title="Pflicht">•</i></span>${seg(`${base}.rtw`, p.rtw, [['kein', 'Braucht keinen (auf Nachfrage)'], ['ja', 'Rettungswagen hinzugezogen']], 'w-chips')}</div>${rtw}`;
     }
+    const frage = `<div class="w-q" data-q="verl">${folie ? '' : `<span class="w-lbl">War ${wer} verletzt?</span>`}${seg(`${base}.verl`, v, [['nein', 'Nicht verletzt'], ['schmerz', 'Nur Schmerzen'], ['ja', 'Verletzt']])}${more ? `<div class="sd-sub">${more}</div>` : ''}</div>`;
+    if (folie) return frage;
     return `<div class="w-q full w-head"><span class="w-head-t">Verletzungen</span><span class="w-head-h">${esc(hint || 'Ort und Art selbst eintragen – steht im Text ganz vorn, vor der Belehrung.')}</span></div>
-      <div class="w-q" data-q="verl"><span class="w-lbl">War ${wer} verletzt?</span>${seg(`${base}.verl`, v, [['nein', 'Nicht verletzt'], ['schmerz', 'Nur Schmerzen'], ['ja', 'Verletzt']])}${more ? `<div class="sd-sub">${more}</div>` : ''}</div>`;
+      ${frage}`;
   }
 
-  function strafantragHtml(p, base) {
+  function strafantragHtml(p, base, folie) {
     if (p.rolle !== 'gs') return '';
     const pr = PR(p), sa = p.sa;
     let more = '';
@@ -888,21 +934,29 @@
     if (sa === 'vorbehalt') more += `<div class="sd-inl" data-q="saform"><span class="w-lbl">Vordruck</span>${seg(`${base}.saForm`, p.saForm === 'vordruck' ? 'vordruck' : 'kein', [['kein', 'Nicht ausgehändigt'], ['vordruck', 'Vordruck ausgehändigt']], 'w-chips')}</div>`;
     const fristZeigen = sa === 'vorbehalt' || sa === 'nein' || (sa === 'ja' && p.saForm === 'vordruck');
     if (fristZeigen) more += `<div class="sd-inl" data-q="safrist"><div class="w-chips"><button type="button" class="chip" data-sd="frist" aria-pressed="${String(p.saFrist !== false)}">Auf die Frist von drei Monaten hingewiesen</button></div><p class="w-hint sd-hint">Vorgewählt – abwählen, falls der Hinweis nicht gegeben wurde (§ 77b StGB).</p></div>`;
-    return `<div class="w-q full w-head"><span class="w-head-t">Strafantrag</span><span class="w-head-h">Nur bei Antragsdelikten nötig, z. B. Körperverletzung (§ 230 StGB), Beleidigung (§ 194 StGB), Sachbeschädigung (§ 303c StGB), Hausfriedensbruch (§ 123 Abs. 2 StGB).</span></div>
+    return `${folie ? '' : '<div class="w-q full w-head"><span class="w-head-t">Strafantrag</span><span class="w-head-h">Nur bei Antragsdelikten nötig, z. B. Körperverletzung (§ 230 StGB), Beleidigung (§ 194 StGB), Sachbeschädigung (§ 303c StGB), Hausfriedensbruch (§ 123 Abs. 2 StGB).</span></div>'}
       <div class="w-q" data-q="sa"><span class="w-lbl">Hat ${pr.er === 'sie' ? 'sie' : pr.er === 'er' ? 'er' : 'die Person'} mündlich Strafantrag gestellt?</span>${seg(`${base}.sa`, sa, [['ja', 'Ja'], ['vorbehalt', 'Behält sich vor'], ['nein', 'Nein']])}${more ? `<div class="sd-sub">${more}</div>` : ''}</div>`;
   }
 
-  function einflussHtml(api, data, p, base) {
+  /**
+   * Alkohol und Drogen – auf mehrere Folien verteilt (teil):
+   *   'kopf'  Hinweise? Wer hat es festgestellt                     (immer)
+   *   'wahr'  Was fiel auf: Geruch, Augen, Haut, Sprache, Gang      (nur bei Hinweisen, wie alle folgenden)
+   *   'wahr2' Verhalten, Orientierung, Körper, Umfeld · Beispiele · eigene Wahrnehmung
+   *   'folge' Tests vor Ort, Angaben zum Konsum, Folgefähigkeit
+   *   'aat'   Atemalkoholtest · 'dt' Drogenvortest
+   */
+  function einflussHtml(api, data, p, base, teil) {
     const e = einOf(p), pr = PR(p);
-    const head = `<div class="w-q" data-q="ein"><span class="w-lbl">Hinweise auf Alkohol oder Drogen?</span>${flips(`${base}.ein`, e, [['alk', 'Alkohol'], ['drog', 'Drogen']])}<p class="w-hint sd-hint">${e.length ? 'Beides antippen, wenn es Hinweise auf beides gibt.' : 'Nur antippen, wenn es Hinweise gab – dann erscheinen die passenden Wahrnehmungen, die Folgefähigkeit und die Tests.'}</p></div>`;
+    const head = `<div class="w-q" data-q="ein"><span class="w-lbl">Hinweise auf Alkohol oder Drogen?</span>${flips(`${base}.ein`, e, [['alk', 'Alkohol'], ['drog', 'Drogen']])}<p class="w-hint sd-hint">${e.length ? 'Beides antippen, wenn es Hinweise auf beides gibt.' : 'Nur antippen, wenn es Hinweise gab – dann folgen Folien zu Wahrnehmungen, Folgefähigkeit und Tests.'}</p></div>`;
     if (!e.length) return head;
     const both = e.length === 2, sel = arr(p.wahr);
-    const groups = WAHR.map(([g, items]) => {
+    const gruppen = WAHR.map(([g, items]) => {
       const vis = items.filter(([, , , tags]) => passt(tags, e));
       if (!vis.length) return '';
       const n = vis.filter(([k]) => sel.includes(k)).length;
       return `<div class="sd-wg"><span class="w-mk-gt">${esc(g)}${n ? ` · ${n}` : ''}</span><div class="w-chips">${vis.map(([k, l, , tags]) => `<button type="button" class="chip" data-sd="flip" data-p="${base}.wahr" data-v="${k}" aria-pressed="${String(sel.includes(k))}">${esc(l)}${both && tags !== 'ad' ? `<small class="sd-sm">${tags === 'a' ? 'Alk.' : 'Drog.'}</small>` : ''}</button>`).join('')}</div></div>`;
-    }).join('');
+    });
     const nSel = wahrItems(p).length;
     // Wer hat es festgestellt? (Besatzung und schon genannte Beamte; ohne Auswahl die belehrende Person)
     const beo = beobachter(p).map(o => nameKey(o.name));
@@ -923,33 +977,37 @@
     const frei = arr(p.wahrFrei).map((t, j) => `<span class="sd-tok"><b>${esc(t)}</b><button type="button" data-sd="unwf" data-j="${j}" aria-label="${esc(t)} entfernen">${ICON_X}</button></span>`).join('');
     const konsum = `<span class="w-lbl">Angaben zum Konsum</span>${seg(`${base}.konsum`, p.konsum, [['ja', 'Räumte Konsum ein'], ['nein', 'Bestritt Konsum'], ['keine', 'Keine Angaben']], 'w-chips')}${p.konsum === 'ja' ? `<div class="sd-inl" data-q="konstext"><label class="w-hint" for="sdKons">„Auf Nachfrage räumte ${pr.er} ein, …“</label>${textIn('sdKons', `${base}.konsumText`, p.konsumText, 'gegen 20:00 Uhr zwei Bier getrunken zu haben')}</div>` : ''}`;
     const folge = `<span class="w-lbl">Konnte ${pr.er === 'sie' ? 'sie' : pr.er === 'er' ? 'er' : 'die Person'} den Ausführungen, Fragen und Anweisungen folgen? <i class="w-req" title="Pflicht">•</i></span>${seg(`${base}.folge`, p.folge, FOLGE)}${faktHtml}${warn}<div class="sd-inl sd-gap" data-q="folgeart"><span class="w-lbl">Formulierung</span>${seg(`${base}.folgeArt`, p.folgeArt === 'eindruck' ? 'eindruck' : 'wahr', [['wahr', 'Nach den Wahrnehmungen'], ['eindruck', 'Wirkte so (Eindruck)']], 'w-chips')}</div>`;
-    return `${head}<div class="w-q"><div class="w-sub sd-box">
-      ${vonHtml}
-      <div data-q="wahr" class="sd-gap"><span class="w-lbl">Wahrnehmungen und Feststellungen <i class="w-req" title="Pflicht">•</i>${nSel ? `<span class="sd-cnt mono">${nSel}</span>` : ''}</span><p class="w-hint">Alles antippen, was vor Ort auffiel – erscheint im Text als Aufzählung. Wertende Punkte fragen gleich nach einem Beispiel.</p>
-      ${groups}</div>
-      ${bspHtml}
-      <div class="sd-wg" data-q="wf"><span class="w-mk-gt">Eigene Wahrnehmung</span>${frei ? `<div class="sd-toks">${frei}</div>` : ''}<div class="sd-add-in"><input class="input" id="sdWf" data-wf="1" value="${esc(V.q.wf || '')}" placeholder="z. B. Hose im Schritt durchnässt" autocomplete="off" spellcheck="true" enterkeyhint="done" maxlength="200"><button type="button" class="btn btn-ghost btn-sm" data-sd="wfadd">Hinzufügen</button></div></div>
-      ${tvHtml}
+    const box = inhalt => `<div class="w-q"><div class="w-sub sd-box">${inhalt}</div></div>`;
+    if (teil === 'folge') return box(`${tvHtml}
       <div class="sd-sub" data-q="konsum">${konsum}</div>
-      <div class="sd-sub" data-q="folge">${folge}</div>
-      ${e.includes('alk') ? testHtml(api, data, p, base, 'aat') : ''}
-      ${e.includes('drog') ? testHtml(api, data, p, base, 'dt') : ''}
-    </div></div>`;
+      <div class="sd-sub" data-q="folge">${folge}</div>`);
+    if (teil === 'aat' || teil === 'dt') return box(testHtml(api, data, p, base, teil));
+    if (teil !== 'wahr' && teil !== 'wahr2') return `${head}${box(vonHtml)}`;
+    // Die neun Gruppen verteilen sich auf zwei Folien: erst die Erscheinung, dann Verhalten und Umfeld
+    if (teil === 'wahr') return box(`<div data-q="wahr"><span class="w-lbl">Wahrnehmungen und Feststellungen <i class="w-req" title="Pflicht">•</i>${nSel ? `<span class="sd-cnt mono">${nSel}</span>` : ''}</span>
+      ${gruppen.slice(0, 5).join('')}</div>`);
+    return `${box(`<div data-q="wahr"><span class="w-lbl">Wahrnehmungen und Feststellungen <i class="w-req" title="Pflicht">•</i>${nSel ? `<span class="sd-cnt mono">${nSel}</span>` : ''}</span>
+      ${gruppen.slice(5).join('')}</div>
+      ${bspHtml}
+      <div class="sd-wg" data-q="wf"><span class="w-mk-gt">Eigene Wahrnehmung</span>${frei ? `<div class="sd-toks">${frei}</div>` : ''}<div class="sd-add-in"><input class="input" id="sdWf" data-wf="1" value="${esc(V.q.wf || '')}" placeholder="z. B. Hose im Schritt durchnässt" autocomplete="off" spellcheck="true" enterkeyhint="done" maxlength="200"><button type="button" class="btn btn-ghost btn-sm" data-sd="wfadd">Hinzufügen</button></div></div>`)}`;
   }
 
   const nrHint = nr => (nr ? `Überschrift „${nr} Schilderungen“, darunter ${nr}.1, ${nr}.2 … – ohne Punkt hinter der Zahl.` : 'Ohne Nummer stehen die Überschriften ohne Gliederungsziffer da.');
+  /** Abschluss: das Gesamtpaket, groß „Kopieren“, unten der Weg zum nächsten Abschnitt. */
   function doneHtml(d, api) {
     const data = d.data, nr = cleanNr(data.nr), txt = paket(data);
     const ph = (txt.match(/\[[^\]]+\]/g) || []).length;
     const vg = api && typeof api.ctx === 'function' ? api.ctx() : null;
-    return `${topBar('menu', 'Schilderungen · Gesamtpaket', title(data))}
+    const nrQ = vg && vg.nrAuto ? '' : `<div class="w-q" data-q="nr"><label class="w-lbl" for="sdNr">Welche Nummer haben die Schilderungen in deiner Anzeige?</label><div class="sd-nr"><input class="input mono" id="sdNr" data-sk="nr" value="${esc(data.nr || '')}" placeholder="z. B. 3" inputmode="decimal" autocomplete="off" maxlength="8"><div class="w-chips">${['2', '3', '4', '5', '6'].map(n => `<button type="button" class="chip" data-sd="set" data-p="nr" data-v="${n}" aria-pressed="${String(nr === n)}">${n}</button>`).join('')}</div></div><p class="w-hint sd-hint" data-live="nrhint">${esc(nrHint(nr))}</p></div>`;
+    return `${api.kopf({ fertig: ph ? `Fertig · ${ph} offen` : 'Fertig', offen: ph > 0, titel: 'So steht es im Text' })}
       <div class="w-grid sd-grid">
-        ${vg && vg.nrAuto ? `<div class="w-q"><div class="w-info">Abschnitt ${esc(nr || '–')} – die Nummer ergibt sich aus der Reihenfolge im Vorgang.</div></div>` : `<div class="w-q"><label class="w-lbl" for="sdNr">Welche Nummer haben die Schilderungen in deiner Anzeige?</label><div class="sd-nr"><input class="input mono" id="sdNr" data-sk="nr" value="${esc(data.nr || '')}" placeholder="z. B. 3" inputmode="decimal" autocomplete="off" maxlength="8"><div class="w-chips">${['2', '3', '4', '5', '6'].map(n => `<button type="button" class="chip" data-sd="set" data-p="nr" data-v="${n}" aria-pressed="${String(nr === n)}">${n}</button>`).join('')}</div></div><p class="w-hint sd-hint" data-live="nrhint">${esc(nrHint(nr))}</p></div>`}
-        ${ph ? `<div class="w-q"><div class="w-warn">${ph} ${ph === 1 ? 'Angabe fehlt' : 'Angaben fehlen'} (in eckigen Klammern) – über „Weitere Person“ in der Übersicht die Person antippen und nachtragen.</div></div>` : ''}
-        <div class="w-q"><div class="w-out"><div class="w-out-h"><span class="w-lbl">Gesamtpaket</span><button type="button" class="btn btn-light btn-sm" data-sd="copyall">Kopieren</button></div><pre class="w-out-t" data-live="paket">${esc(txt)}</pre></div></div>
-        ${api && typeof api.weiter === 'function' && api.weiter() ? `<div class="w-q">${api.weiter()}</div>` : ''}
+        ${ph ? `<div class="w-q"><div class="w-warn fo-warn"><span>${ph} ${ph === 1 ? 'Angabe fehlt' : 'Angaben fehlen'} – im Text in eckigen Klammern.</span><button type="button" class="btn btn-ghost btn-sm" data-sd="go" data-v="pers">Nachtragen</button></div></div>` : ''}
+        ${nrQ}
+        <div class="w-q"><div class="w-out"><pre class="w-out-t" data-live="paket">${esc(txt)}</pre></div></div>
       </div>
-      <div class="w-nav"><button type="button" class="btn btn-ghost btn-sm" data-sd="menu">+ Weitere Person</button><span class="grow"></span><button type="button" class="btn btn-accent" data-sd="copyall">Gesamtpaket kopieren</button></div>`;
+      <button type="button" class="btn btn-light fo-wide" data-sd="copyall">Text kopieren</button>
+      ${api.fein()}
+      ${api.fuss({ back: { label: 'Bearbeiten', attr: 'data-sd="go" data-v="pers"' }, next: api.danach() })}`;
   }
 
   function render(d, api) {
@@ -957,40 +1015,23 @@
     loadRanks(api);
     if (!d.data || typeof d.data !== 'object') d.data = {};
     if (typeof api.ctx === 'function' && nimmt(d.data, api.ctx())) api.persist(false);
-    if (V.s === 'person' && !arr(d.data.personen)[V.i]) V.s = 'menu';
-    if (V.s === 'done' && !arr(d.data.personen).length) V.s = 'menu';
-    return V.s === 'person' ? personHtml(d, api) : V.s === 'done' ? doneHtml(d, api) : menuHtml(d, api);
+    if (V.s === 'person' && !arr(d.data.personen)[V.i]) V.s = 'pers';
+    if (V.s === 'done' && !arr(d.data.personen).length) V.s = 'pers';
+    const c = ctxOf(api);
+    if (V.s === 'art' && c && c.art) V.s = 'pers'; // die Art kommt aus dem Vorgang – nichts zu fragen
+    return V.s === 'person' ? personHtml(d, api) : V.s === 'done' ? doneHtml(d, api) : V.s === 'art' ? artHtml(d, api) : persHtml(d, api);
   }
   function grow(ta) { if (!ta) return; ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; }
   function mounted() {
     grow($('#sdText'));
     if (V.focus) { const el = document.getElementById(V.focus); V.focus = ''; if (el) { el.focus({ preventScroll: true }); try { const n = el.value.length; el.setSelectionRange(n, n); } catch (e) { /* egal */ } } }
-    if (V.guide) { const k = V.guide; V.guide = ''; guide(k); }
-  }
-  /**
-   * Nach einer Auswahl sanft weiterführen: nur wenn der Anfang der direkt folgenden Auswahl nicht zu sehen ist, und nur so
-   * weit, dass er sichtbar wird (höchstens bis knapp unter den oberen Rand). Nie nach oben, nie über etwas hinweg.
-   */
-  function guide(key) {
-    const all = [...document.querySelectorAll('#wMain [data-q]')];
-    const i = all.findIndex(n => n.dataset.q === key);
-    const nx = i >= 0 ? all[i + 1] : null; if (!nx) return;
-    const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-    const nav = document.querySelector('#wMain .w-nav'); const navH = nav ? nav.getBoundingClientRect().height : 0;
-    const r = nx.getBoundingClientRect(), free = vh - navH - 12;
-    const need = r.top + Math.min(r.height, 150); // Überschrift und erste Reihe der nächsten Auswahl
-    if (r.top < 0 || need <= free) return;
-    const delta = Math.min(r.top - vh * 0.22, need - free);
-    if (delta < 32) return;
-    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    window.scrollBy({ top: delta, behavior: reduce ? 'auto' : 'smooth' });
   }
   /** Teile der Maske aktualisieren, ohne neu zu zeichnen (Fokus bleibt im Feld). */
   function live(api) {
     const data = api.d.data, host = $('#wMain'); if (!host) return;
     const put = (k, t) => host.querySelectorAll(`[data-live="${k}"]`).forEach(n => { n.textContent = t; });
     const p = arr(data.personen)[V.i];
-    if (V.s === 'person' && p) { put('head', heading(data, V.i)); put('intro', vorText(data, V.i)); put('block', block(data, V.i)); put('gegen', gegenText(data, p)); }
+    if (V.s === 'person' && p) { put('head', heading(data, V.i)); put('sub', subOf(arr(data.personen), V.i)); put('intro', vorText(data, V.i)); put('block', block(data, V.i)); put('gegen', gegenText(data, p)); }
     if (V.s === 'done') { const nr = cleanNr(data.nr); put('paket', paket(data)); put('nrhint', nrHint(nr)); host.querySelectorAll('[data-sd="set"][data-p="nr"]').forEach(c => c.setAttribute('aria-pressed', String(c.dataset.v === nr))); }
   }
   const isEmpty = p => !p || (!p.ref && !has(p.nachname) && !has(p.vorname) && !has(p.text) && !(p.bel && has(p.bel.name)) && !arr(p.gegen).some(x => x && !x.ref));
@@ -998,7 +1039,7 @@
   function leavePerson(data) {
     const P = arr(data.personen);
     if (V.s === 'person' && isEmpty(P[V.i])) { P.splice(V.i, 1); if (!P.length) delete data.personen; }
-    V.s = 'menu'; V.i = -1; V.last = -1;
+    V.s = 'pers'; V.i = -1; V.f = 'wer';
   }
   function parseFree(api, data, q) {
     q = str(q).replace(/\s+/g, ' '); if (!q) return null;
@@ -1041,14 +1082,14 @@
       if (!ok) return;
     }
     P.splice(V.i, 1); if (!P.length) delete data.personen;
-    V.s = 'menu'; V.i = -1; V.last = -1;
-    api.persist(false); api.render(); top0();
+    V.s = 'pers'; V.i = -1; V.f = 'wer';
+    api.persist(false); api.render();
   }
   function finishPerson(api) {
     const data = api.d.data, p = arr(data.personen)[V.i]; if (!p) return;
     const miss = fehlt(p);
-    p.fertig = true; V.last = V.i; V.s = 'menu'; V.i = -1;
-    api.persist(false); api.render(); top0();
+    p.fertig = true; V.s = 'pers'; V.i = -1; V.f = 'wer';
+    api.persist(false); api.render();
     api.toast(miss.length ? `Abgeschlossen – noch offen: ${miss.join(', ')} (im Text als [Platzhalter]).` : 'Schilderung abgeschlossen');
   }
   function toDone(api) {
@@ -1057,8 +1098,8 @@
       const prev = api.docs().filter(x => x && x.type === 'sch' && x.id !== d.id && has(x.data && x.data.nr)).sort((a, b) => (b.u || 0) - (a.u || 0))[0];
       if (prev) data.nr = cleanNr(prev.data.nr);
     }
-    d.status = 'fertig'; V.s = 'done'; V.last = -1;
-    api.persist(true); api.render(); top0();
+    d.status = 'fertig'; V.s = 'done';
+    api.persist(true); api.render();
   }
 
   function addFrei(api) {
@@ -1077,40 +1118,53 @@
     switch (a) {
       case 'focus': { if (e.target.tagName !== 'TEXTAREA') { const t = $('#sdText'); if (t) { t.focus(); try { t.setSelectionRange(t.value.length, t.value.length); } catch (er) { /* egal */ } } } return true; }
       case 'art': data.art = b.dataset.v; save(); return true;
+      /* Folie des Abschnitts wechseln */
+      case 'go': {
+        const ziel = b.dataset.v;
+        if (ziel !== 'art' && !data.art) { api.toast('Bitte erst wählen: Strafanzeige oder Verkehrsangelegenheit.'); V.s = 'art'; api.render(); return true; }
+        if (V.s === 'person') leavePerson(data);
+        V.s = ziel === 'art' ? 'art' : 'pers'; V.i = -1;
+        save(); return true;
+      }
+      /* Folie der Person wechseln */
+      case 'pf': {
+        const p = cur(); if (!p) return true;
+        const F = pFolien(p, !!(p.ref && ctxOf(api))), k = Math.max(0, Math.min(F.length - 1, F.indexOf(V.f) + Number(b.dataset.v)));
+        V.f = F[k]; api.render(); return true;
+      }
       case 'take': {
         const ctx = ctxOf(api), q = ctx && arr(ctx.personen).find(x => x && x.pid === b.dataset.v); if (!q) return true;
         if (d.status === 'fertig') d.status = 'entwurf';
         P().push({ ref: q.pid, rolle: q.rolle, ...(q.ub ? { ub: q.ub } : {}), ...(q.g ? { g: q.g } : {}), ...(has(q.nachname) ? { nachname: q.nachname } : {}), ...(has(q.vorname) ? { vorname: q.vorname } : {}) });
-        V.i = P().length - 1; V.s = 'person'; V.last = -1; V.q = { bel: '', gegen: '', aat: '', dt: '', wf: '' };
-        save(); top0(); return true;
+        V.i = P().length - 1; V.s = 'person'; V.f = 'bel'; V.q = Q0();
+        save(); return true;
       }
       case 'ub': {
         const p = cur(); if (!p) return true; const n = Number(b.dataset.v), old = ubNr(p);
         const other = P().find(x => x !== p && ubNr(x) === n);
         if (other) { if (old) other.ub = old; else other.ub = nextUb(P().filter(x => x !== other).concat([{ rolle: 'ub', ub: n }])); }
-        p.ub = n; V.guide = 'ub'; save(); return true;
+        p.ub = n; save(); return true;
       }
       case 'add': {
         if (d.status === 'fertig') d.status = 'entwurf';
         P().push(b.dataset.v === 'ub' ? { rolle: 'ub', ub: nextUb(P()) } : { rolle: b.dataset.v });
-        V.i = P().length - 1; V.s = 'person'; V.last = -1; V.q = { bel: '', gegen: '', aat: '', dt: '', wf: '' };
-        save(); top0(); return true;
+        V.i = P().length - 1; V.s = 'person'; V.f = 'wer'; V.q = Q0();
+        save(); return true;
       }
-      case 'edit': V.i = Number(b.dataset.i); V.s = 'person'; V.last = -1; V.q = { bel: '', gegen: '', aat: '', dt: '', wf: '' }; api.render(); top0(); return true;
-      case 'up': { const i = Number(b.dataset.i), a2 = P(); if (i > 0 && a2[i]) { [a2[i - 1], a2[i]] = [a2[i], a2[i - 1]]; V.last = V.last === i ? i - 1 : V.last === i - 1 ? i : V.last; save(); } return true; }
-      case 'menu': leavePerson(data); save(); top0(); return true;
+      case 'edit': { V.i = Number(b.dataset.i); V.s = 'person'; const p = cur(); V.f = pFolien(p, !!(p && p.ref && ctxOf(api)))[0]; V.q = Q0(); api.render(); return true; }
+      case 'up': { const i = Number(b.dataset.i), a2 = P(); if (i > 0 && a2[i]) { [a2[i - 1], a2[i]] = [a2[i], a2[i - 1]]; save(); } return true; }
+      case 'menu': leavePerson(data); save(); return true;
       case 'set': {
         const path = b.dataset.p;
         setPath(data, path, b.dataset.v);
         if (/\.rolle$/.test(path) && cur()) { const p = cur(); if (p.rolle === 'ub') { if (!ubNr(p)) p.ub = nextUb(P().filter(x => x !== p)); } else { delete p.ub; delete p.belAls; } }
         if (/\.g$/.test(path) && cur() && !has(cur().nachname) && !api.mobile()) V.focus = 'sdNn';
-        const q = b.closest('[data-q]'); if (q) V.guide = q.dataset.q;
         if (path === 'nr') { api.persist(false); live(api); const inp = $('#sdNr'); if (inp) inp.value = b.dataset.v; return true; }
         save(); return true;
       }
       case 'zvr': { const p = cur(); if (!p) return true; if (p.zvr) { delete p.zvr; delete p.bereit; } else p.zvr = true; save(); return true; }
       case 'bereit': { const p = cur(); if (!p) return true; if (p.bereit === false) delete p.bereit; else p.bereit = false; save(); return true; }
-      case 'pick': { const q = b.closest('[data-q]'); if (q && b.dataset.ta !== 'gegen') V.guide = q.dataset.q; pick(b, api); return true; }
+      case 'pick': pick(b, api); return true;
       case 'unbel': { const p = cur(); if (!p) return true; delete p.bel; V.focus = api.mobile() ? '' : 'sdBel'; save(); return true; }
       case 'ungegen': { const p = cur(); if (!p) return true; const g = arr(p.gegen).slice(); g.splice(Number(b.dataset.j), 1); if (g.length) p.gegen = g; else delete p.gegen; save(); return true; }
       case 'gbel': { const p = cur(); if (!p) return true; const g = arr(p.gegen).filter(x => x && x.ref !== 'alle'); const on = g.some(x => x.ref === 'bel'); const n = on ? g.filter(x => x.ref !== 'bel') : [{ ref: 'bel' }, ...g]; if (n.length) p.gegen = n; else delete p.gegen; save(); return true; }
@@ -1133,11 +1187,11 @@
       case 'unoff': setPath(data, b.dataset.p, undefined); save(); return true;
       case 'wfadd': addFrei(api); return true;
       case 'unwf': { const p = cur(); if (!p) return true; const a2 = arr(p.wahrFrei).slice(); a2.splice(Number(b.dataset.j), 1); if (a2.length) p.wahrFrei = a2; else delete p.wahrFrei; save(); return true; }
-      case 'copy1': api.copy(block(data, Number(b.dataset.i))); return true;
-      case 'copyall': api.copy(paket(data)); return true;
+      case 'copy1': api.copy(block(data, Number(b.dataset.i)), b); return true;
+      case 'copyall': api.copy(paket(data), b); return true;
       case 'done1': finishPerson(api); return true;
       case 'del': delPerson(api); return true;
-      case 'alle': toDone(api); return true;
+      case 'alle': if (!P().length) { api.toast('Erst eine Person anlegen oder übernehmen.'); return true; } toDone(api); return true;
       default: return false;
     }
   }
@@ -1181,13 +1235,8 @@
     }
     return false;
   }
-  /** ⌘/Strg + Enter: Person abschließen, in der Übersicht zum Gesamtpaket, dort kopieren. */
-  function submit(api) {
-    const data = api.d.data;
-    if (V.s === 'person') finishPerson(api);
-    else if (V.s === 'menu' && arr(data.personen).length) toDone(api);
-    else if (V.s === 'done') api.copy(paket(data));
-  }
+  /** ⌘/Strg + Enter: der eine nächste Schritt der Folie – wie der Knopf unten rechts. */
+  function submit() { const b = $('#wMain .fo-nav .fo-next'); if (b) b.click(); }
 
   root.WSchild = Object.freeze({
     id: 'sch', name: 'Schilderungen', short: 'Schilderungen', kurz: 'SCH',
@@ -1199,7 +1248,7 @@
     plain: paket,
     text: data => [['', 'Schilderungen', paket(data), '']],
     preview: () => '', kurzText: () => '', fahndung: () => '', offen: () => [], personalien: () => '',
-    screen: { open, render, mounted, click, input, change, keydown, submit },
+    screen: { open, render, mounted, click, input, change, keydown, submit, key },
     kontext: { nimmt },
     ui: { verletzungHtml },
     core: { ROLLEN, ROLLE, ARTEN, rollenFor, rolleLabel, rolleArt, werVon, werDat, ubNr, nextUb, eff, PR, herrFrau, verlFehlt, nachname, offName, DGRADE, nameOf, kuerzel, heading, einleitung, gegenText, block, paket, spracheText, einflussText, belehrungSatz, vorText, strafantragText, verletzungText, WAHR, TV, FAKT, fehlt, cleanNr, canonRank, parseFree: (data, q, team = []) => parseFree({ team: () => team, docs: () => [] }, data, q), setRanks: m => { RANKS = new Map(Object.entries(m || {}).map(([k, v]) => [nameKey(k), v])); } }

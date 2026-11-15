@@ -50,9 +50,11 @@
   const visibleSteps = (m, d) => m.steps.filter(s => !s.when || s.when(d));
   /** Module mit eigener Maske (m.screen, z. B. Schilderungen) bekommen eine schmale Schnittstelle: speichern, zeichnen, kopieren. */
   const screenApi = d => ({
-    d, persist, render: renderMain, copy, list: toList, team: () => ((W() && W().team && W().team()) || []), docs: () => ((W() && W().docs()) || []), toast: (t, o) => W().toast(t, o), ask: o => W().ask(o), mobile: () => !!(W() && W().mobile && W().mobile()),
+    d, persist, render: renderMain, copy: (t, btn) => copy(t, btn), list: toList, team: () => ((W() && W().team && W().team()) || []), docs: () => ((W() && W().docs()) || []), toast: (t, o) => W().toast(t, o), ask: o => W().ask(o), mobile: () => !!(W() && W().mobile && W().mobile()),
     /* Vorgang aus Abschnitten: Kontext aus den anderen Abschnitten (null = steht für sich), Abschnitte anlegen, öffnen, löschen */
-    ctx: () => { const vg = vgOf(d); return vg ? VG.kontext(vg.data, d) : null; }, weiter: () => vgWeiter(d),
+    ctx: () => { const vg = vgOf(d); return vg ? VG.kontext(vg.data, d) : null; },
+    /* Folien-Rahmen: überall derselbe Kopf und Fuß; danach = wohin es nach dem fertigen Abschnitt geht; fein = leise Zeile am Ende */
+    kopf: o => kopf(d, o), fuss, danach: () => danach(d), fein: o => fein(d, o),
     open: id => open(id), create: (type, preset) => createDoc(type, preset), touch: x => { if (x) W().touch(x, false); },
     removeDocs: ids => { const snap = W().snapshot(); for (const id of ids) W().remove(id); return snap; }
   });
@@ -80,24 +82,73 @@
     for (const x of r.teile) W().touch(x, false);
     if (r.selbst) { vg.title = (window.WVorgang.title(vg.data) || '').slice(0, 120); W().touch(vg, false); }
   }
-  /**
-   * Leiste über der Hauptansicht eines Abschnitts (nicht in Untermasken wie einer einzelnen Person):
-   * im Vorgang die Stelle mit Sprung zum Abschnitt davor und danach; bei einem einzelnen Abschnitt das Angebot,
-   * ihn mit weiteren zu einem Vorgang zu kombinieren.
-   */
-  function vgStrip(host, d) {
-    if (!VG || !d || d.type === 'vorgang' || !VG.MATRIX[d.type] || !host.querySelector('.w-top [data-w="list"]')) return;
-    const vg = vgOf(d);
-    if (!vg) { host.insertAdjacentHTML('afterbegin', '<div class="vg-strip"><span class="vg-strip-t">Einzelner Abschnitt</span><span class="grow"></span><button type="button" class="chip sm vg-kombi" data-w="combine">+ Weitere Abschnitte</button></div>'); return; }
-    const T = VG.teile(vg.data), i = T.findIndex(t => t.id === d.id); if (i < 0) return;
-    const nb = (t, dir) => (t ? `<button type="button" class="chip sm" data-open="${esc(t.id)}">${dir < 0 ? '‹ ' : ''}${esc(t.m.short || t.m.name)}${dir > 0 ? ' ›' : ''}</button>` : '');
-    host.insertAdjacentHTML('afterbegin', `<div class="vg-strip"><button type="button" class="vg-strip-t" data-open="${esc(vg.id)}"><span class="spaced">Vorgang</span> Abschnitt ${i + 1} von ${T.length}</button><span class="grow"></span>${nb(T[i - 1], -1)}${nb(T[i + 1], 1)}</div>`);
+  /* ======================= Folien-Rahmen ======================= */
+  /* Jede Eingabe-Seite ist eine Folie mit demselben Kopf (wohin „zurück“ führt · wo bin ich · Folie x von y · gespeichert)
+     und demselben Fuß (links zurück, rechts der eine nächste Schritt). Die Seite wechselt nur über diese Knöpfe –
+     beim Antippen und Tippen bleibt sie stehen. */
+  const ICON_BACK = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6l-6 6 6 6"/></svg>';
+  const ICON_FWD = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6l6 6-6 6"/></svg>';
+  const ICON_OK = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  /** Stelle eines Abschnitts in seinem Vorgang (null, wenn er für sich steht). */
+  function stelle(d) {
+    const vg = vgOf(d); if (!vg) return null;
+    const T = VG.teile(vg.data), i = T.findIndex(t => t.id === d.id);
+    return i < 0 ? null : { vg, T, i, next: T[i + 1] || null };
   }
-  /** Am Ende eines fertigen Abschnitts im Vorgang: zurück zur Übersicht oder gleich weiter zum nächsten Abschnitt. */
-  function vgWeiter(d) {
-    const vg = vgOf(d); if (!vg) return '';
-    const T = VG.teile(vg.data), i = T.findIndex(t => t.id === d.id), nx = i >= 0 ? T[i + 1] : null;
-    return `<div class="vg-weiter"><button type="button" class="btn btn-ghost btn-sm" data-open="${esc(vg.id)}">Zum Vorgang</button>${nx ? `<button type="button" class="btn btn-light btn-sm" data-open="${esc(nx.id)}">Weiter: ${esc(nx.m.short || nx.m.name)} ›</button>` : ''}</div>`;
+  let saving = false;
+  const saveHtml = () => (saving ? 'Speichert …' : `${ICON_OK}Gespeichert`);
+  const saveShow = () => $$('#wMain [data-live="save"]').forEach(n => { n.innerHTML = saveHtml(); });
+  /**
+   * Kopf einer Folie.
+   *   up     { label, attr }  wohin der Knopf oben links führt (Vorgabe: in den Vorgang bzw. zur Liste aller Vorgänge)
+   *   name   Abschnitt (Vorgabe: Kurzname des Moduls) · sub: Zusatz dahinter (Vorgabe: „Abschnitt 2 von 3“)
+   *   pos    [x, y]  → „Folie x von y“ mit Balken · jump: Balken öffnet die Liste aller Folien · fertig: Text statt Zählung
+   *   titel, lead     Überschrift der Folie und ein Satz dazu · live: Kennung, falls sich die Überschrift beim Tippen ändert
+   */
+  function kopf(d, o = {}) {
+    const m = mod(d) || {}, st = d.type === 'vorgang' ? null : stelle(d);
+    const up = o.up || (st ? { label: 'Vorgang', attr: `data-open="${esc(st.vg.id)}"` } : { label: 'Alle Vorgänge', attr: 'data-w="list"' });
+    const name = o.name || m.short || m.name || '';
+    const sub = o.sub != null ? o.sub : st ? `Abschnitt ${st.i + 1} von ${st.T.length}` : '';
+    const pos = Array.isArray(o.pos) && o.pos[1] > 1 ? o.pos : null;
+    const dots = pos ? Array.from({ length: pos[1] }, (x, k) => `<i class="${k < pos[0] - 1 ? 'done' : k === pos[0] - 1 ? 'on' : ''}"></i>`).join('') : '';
+    const tag = pos && o.jump ? ['button type="button" data-w="overview" aria-label="Alle Folien anzeigen"', 'button'] : ['div', 'div'];
+    const prog = pos ? `<${tag[0]} class="fo-prog"><span class="fo-dots" aria-hidden="true">${dots}</span><span class="fo-pos">Folie ${pos[0]} von ${pos[1]}${o.jump ? '<em>Alle</em>' : ''}</span></${tag[1]}>`
+      : o.fertig ? `<div class="fo-prog"><span class="fo-dots" aria-hidden="true"><i class="${o.offen ? 'on' : 'done'}"></i></span><span class="fo-pos">${esc(o.fertig)}</span></div>` : '';
+    return `<div class="fo-top"><div class="fo-bar"><button type="button" class="fo-up" ${up.attr}>${ICON_BACK}<span>${esc(up.label)}</span></button><span class="fo-save" data-live="save">${saveHtml()}</span></div><div class="fo-wo"><b>${esc(name)}</b>${sub ? `<span${o.subLive ? ` data-live="${esc(o.subLive)}"` : ''}>${esc(sub)}</span>` : ''}</div>${prog}</div>${o.titel ? `<div class="fo-head"><h2 class="w-h"${o.live ? ` data-live="${esc(o.live)}"` : ''}>${esc(o.titel)}</h2>${o.lead ? `<p class="w-lead">${esc(o.lead)}</p>` : ''}</div>` : ''}`;
+  }
+  /** Fuß einer Folie. back/next: { label, attr, cls?, ok? } oder null; next ist immer der eine nächste Schritt. */
+  function fuss(o = {}) {
+    const b = o.back, n = o.next;
+    if (!b && !n) return '';
+    return `<div class="w-nav fo-nav">${b ? `<button type="button" class="btn btn-ghost fo-back" ${b.attr}>${ICON_BACK}<span>${esc(b.label || 'Zurück')}</span></button>` : ''}${n ? `<button type="button" class="btn ${n.cls || 'btn-accent'} fo-next" ${n.attr}><span>${esc(n.label || 'Weiter')}</span>${n.plain ? '' : n.ok ? ICON_OK : ICON_FWD}</button>` : ''}</div>`;
+  }
+  /** Wohin es nach einem fertigen Abschnitt geht: nächster Abschnitt, Gesamtsachverhalt des Vorgangs oder zur Liste. */
+  function danach(d) {
+    const st = stelle(d);
+    if (!st) return { label: 'Alle Vorgänge', attr: 'data-w="list"', cls: 'btn-light' };
+    if (st.next) return { label: `Weiter: ${st.next.m.short || st.next.m.name}`, attr: `data-open="${esc(st.next.id)}"` };
+    return { label: 'Gesamtsachverhalt', attr: `data-vgtext="${esc(st.vg.id)}"` };
+  }
+  /** Leise Zeile am Ende einer Abschluss-Folie: seltene Dinge (anfügen, Datei, löschen) – weg von „Zurück / Weiter“. */
+  function fein(d, o = {}) {
+    const frei = VG && d.type !== 'vorgang' && VG.MATRIX[d.type] && !vgOf(d);
+    return `<div class="fo-fein">${frei ? '<button type="button" class="link" data-w="combine">+ Weitere Abschnitte anfügen</button>' : ''}${o.mehr || ''}<button type="button" class="link danger" data-w="delete">${d.type === 'vorgang' ? 'Vorgang löschen' : vgOf(d) ? 'Abschnitt löschen' : 'Löschen'}</button></div>`;
+  }
+  /* Folienwechsel → an den Anfang. Dieselbe Folie neu gezeichnet → die angetippte Frage bleibt, wo sie war. */
+  let FOLIE = '', TIPP = null;
+  function ankerMerken(host) {
+    const a = { y: window.scrollY };
+    const el = TIPP && TIPP.isConnected && host.contains(TIPP) ? TIPP : (document.activeElement && host.contains(document.activeElement) ? document.activeElement : null);
+    const q = el && el.closest ? el.closest('[data-q]') : null;
+    if (q && q.dataset.q) { a.sel = `[data-q="${CSS.escape(q.dataset.q)}"]`; a.top = q.getBoundingClientRect().top; }
+    return a;
+  }
+  function ankerSetzen(host, a) {
+    if (!a) return;
+    const q = a.sel ? host.querySelector(a.sel) : null;
+    const dy = q ? q.getBoundingClientRect().top - a.top : a.y - window.scrollY;
+    if (Math.abs(dy) > 1) window.scrollBy(0, dy); // ohne Optionen: überall sofort, auch auf älteren iPhones
   }
   /** [Vorgang, Maske], wenn gerade ein Vorgang mit eigener Maske offen ist. */
   const screenOf = () => { const d = U.view !== 'list' ? doc() : null; const m = mod(d); return d && m && m.screen ? [d, m.screen] : null; };
@@ -108,8 +159,9 @@
     const m = mod(d);
     if (m) d.title = (m.title(d.data) || '').slice(0, 120);
     U.lastJson = stable(d.data);
+    saving = true; saveShow();
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => { W().touch(d, full); renderList(); }, full ? 0 : 350);
+    saveTimer = setTimeout(() => { W().touch(d, full); saving = false; saveShow(); renderList(); }, full ? 0 : 350);
   }
 
   /* ======================= Felder zeichnen ======================= */
@@ -207,11 +259,11 @@
         return `${Q}${L(fid(k))}${crew.length ? `<div class="w-chips">${crew.map(c => `<button type="button" class="chip" data-set="${esc(k)}" data-v="${esc(c)}" aria-pressed="${String(v === c)}">${esc(c)}</button>`).join('')}</div>` : ''}<input class="input${crew.length ? ' w-after-chips' : ''}" id="${fid(k)}" data-k="${esc(k)}" value="${esc(crew.includes(v) ? '' : (v ?? ''))}" placeholder="${crew.length ? 'oder andere Person, z. B. PK Weber' : 'z. B. POK Müller'}" autocomplete="off" spellcheck="false" enterkeyhint="next" maxlength="60"></div>`;
       }
       case 'date': {
-        const q = f.q ? `<div class="w-quick">${(f.q === 'heute' ? [['Heute', todayKey(0)], ['Gestern', todayKey(-1)]] : [['Gestern', todayKey(-1)], ['Heute', todayKey(0)]]).map(([l, val]) => `<button type="button" class="chip sm" data-set="${esc(k)}" data-v="${val}" aria-pressed="${String(v === val)}">${l}</button>`).join('')}</div>` : '';
+        const q = f.q ? `<div class="w-quick">${(f.q === 'heute' ? [['Heute', todayKey(0)], ['Gestern', todayKey(-1)]] : [['Gestern', todayKey(-1)], ['Heute', todayKey(0)]]).map(([l, val]) => `<button type="button" class="chip sm" data-set="${esc(k)}" data-v="${val}" data-fest="1" aria-pressed="${String(v === val)}">${l}</button>`).join('')}</div>` : '';
         return `${Q}${L(fid(k))}<input class="input" type="date" id="${fid(k)}" data-k="${esc(k)}" value="${esc(v ?? '')}">${q}</div>`;
       }
       case 'time': {
-        const q = f.q ? `<div class="w-quick"><button type="button" class="chip sm" data-set="${esc(k)}" data-v="__now">Jetzt</button></div>` : '';
+        const q = f.q ? `<div class="w-quick"><button type="button" class="chip sm" data-set="${esc(k)}" data-v="__now" data-fest="1">Jetzt</button></div>` : '';
         return `${Q}${L(fid(k))}<input class="input" type="time" id="${fid(k)}" data-k="${esc(k)}" value="${esc(v ?? '')}">${q}</div>`;
       }
       case 'number': case 'euro': {
@@ -581,7 +633,7 @@
     const host = $('#wMain'); if (!host) return;
     const d = doc();
     document.body.classList.toggle('w-open', U.view !== 'list' && !!d);
-    if (!d || U.view === 'list') { U.view = 'list'; remember(); host.innerHTML = introHtml(); return; }
+    if (!d || U.view === 'list') { U.view = 'list'; FOLIE = 'list'; host.style.minHeight = ''; remember(); host.innerHTML = introHtml(); return; }
     const m = mod(d);
     if (!m) { host.innerHTML = `<div class="empty w-empty"><h3>Unbekanntes Modul „${esc(d.type)}“</h3><p>Dieser Vorgang stammt aus einer neueren Version.</p></div>`; return; }
     if (m.migrate && m.migrate(d.data)) persist(false);
@@ -589,37 +641,37 @@
     syncVorgang(d.type === 'vorgang' ? d : vgOf(d)); // Nummern und Kontext aus den anderen Abschnitten, bevor gezeichnet wird
     { let tt = ''; try { tt = (m.title(d.data) || '').slice(0, 120); } catch (e) { tt = ''; } if (tt && tt !== d.title) persist(true); } // veralteten Titel (z. B. nach Umbenennung eines Moduls) beim Öffnen auffrischen
     U.lastJson = stable(d.data);
-    if (m.screen) { const api = screenApi(d); host.innerHTML = m.screen.render(d, api); vgStrip(host, d); remember(); if (m.screen.mounted) m.screen.mounted(host, api); return; }
-    if (U.view === 'result') { host.innerHTML = resultHtml(d, m); vgStrip(host, d); remember(); return; }
+    const anker = ankerMerken(host), hoch = host.getBoundingClientRect().height;
+    if (m.screen) { const api = screenApi(d); host.innerHTML = m.screen.render(d, api); remember(); if (m.screen.mounted) m.screen.mounted(host, api); }
+    else if (U.view === 'result') { host.innerHTML = resultHtml(d, m); remember(); }
+    else wizardHtml(host, d, m);
+    // Neue Folie beginnt oben; dieselbe Folie bleibt stehen, wo sie war
+    const key = `${d.id}|${m.screen ? (typeof m.screen.key === 'function' ? m.screen.key(d) : '') : U.view === 'result' ? 'r' : 'w' + U.step}`;
+    if (key !== FOLIE) { FOLIE = key; host.style.minHeight = ''; window.scrollTo(0, 0); }
+    else {
+      // Wird die Folie durch eine Antwort kürzer, darf die Seite nicht nachrutschen: Höhe halten, bis die Folie wechselt
+      host.style.minHeight = Math.max(hoch, parseFloat(host.style.minHeight) || 0) + 'px';
+      ankerSetzen(host, anker);
+    }
+  }
+  /** Eine Folie des Assistenten: Fragen eines Themas, darunter „Zurück / Weiter“. */
+  function wizardHtml(host, d, m) {
     const steps = visibleSteps(m, d.data);
     U.step = Math.max(0, Math.min(U.step, steps.length - 1));
     const st = steps[U.step];
     U.vis = visibleKeys(st, d.data);
     const phases = [...new Set(steps.map(s => s.phase))];
-    const phaseIdx = phases.indexOf(st.phase);
-    const stepsInPhase = steps.filter(s => s.phase === st.phase), posInPhase = stepsInPhase.indexOf(st) + 1;
     const prev = $('#wPreview') && $('#wPreview').open;
+    const im = stelle(d);
+    const sub = [im ? `Abschnitt ${im.i + 1} von ${im.T.length}` : '', phases.length > 1 ? st.phase : ''].filter(Boolean).join(' · ');
+    const last = U.step >= steps.length - 1;
     host.innerHTML = `
-      <div class="w-top">
-        <button type="button" class="icon-btn sm w-back" data-w="list" aria-label="Zur Liste"><svg class="i" viewBox="0 0 24 24"><path d="M14.5 6l-6 6 6 6"/></svg></button>
-        <div class="w-top-t"><span class="spaced">${esc(m.short)} · ${esc(st.phase)} ${posInPhase}/${stepsInPhase.length}</span><div class="w-title">${esc(d.title || m.name)}</div></div>
-        <button type="button" class="btn btn-ghost btn-sm" data-w="overview">Übersicht</button>
-      </div>
-      <nav class="w-rail" aria-label="Phasen">${phases.map((p, i) => `<button type="button" class="w-rail-p${i < phaseIdx ? ' done' : i === phaseIdx ? ' on' : ''}" data-jump="${steps.findIndex(s => s.phase === p)}" title="${esc(p)}"${i === phaseIdx ? ' aria-current="step"' : ''}><i></i><b>${esc(p)}</b></button>`).join('')}</nav>
-      <div class="w-prog"><i style="transform:scaleX(${((U.step + 1) / steps.length).toFixed(3)})"></i></div>
+      ${kopf(d, { sub, pos: [U.step + 1, steps.length], jump: steps.length > 3, titel: R(st.title, d.data), lead: st.lead ? R(st.lead, d.data) : '' })}
       <div class="w-step" data-step="${esc(st.id)}">
-        <h2 class="w-h">${esc(R(st.title, d.data))}</h2>
-        ${st.lead ? `<p class="w-lead">${esc(R(st.lead, d.data))}</p>` : ''}
         <div class="w-grid" id="wFields">${st.fields.filter(f => !f.when || f.when(d.data)).map(f => fieldHtml(f, d.data)).join('')}</div>
       </div>
       ${m.noPreview ? '' : `<details class="w-preview" id="wPreview" ${prev ? 'open' : ''}><summary>So steht es im Bericht</summary><pre class="w-pre" id="wPre">${esc(m.preview(st.id, d.data) || '– noch nichts erfasst –')}</pre></details>`}
-      <div class="w-nav">
-        <button type="button" class="btn btn-ghost" data-w="prev" ${U.step === 0 ? 'disabled' : ''}>Zurück</button>
-        <span class="w-nav-i mono">${U.step + 1} / ${steps.length}</span>
-        <span class="grow"></span>
-        ${U.step < steps.length - 1 ? `<button type="button" class="btn btn-accent" data-w="next">Weiter</button>` : `<button type="button" class="btn btn-accent" data-w="finish">Bericht erstellen</button>`}
-      </div>`;
-    vgStrip(host, d);
+      ${fuss({ back: U.step > 0 ? { attr: 'data-w="prev"' } : null, next: last ? { label: 'Fertig', attr: 'data-w="finish"', ok: true } : { attr: 'data-w="next"' } })}`;
     remember();
     layoutSentences();
     mountCustom(d, m);
@@ -644,33 +696,32 @@
     const fah = m.fahndung(d.data);
     const extras = extraTabs(m, d.data);
     const tabs = [['bericht', lab(m, 'bericht', 'Befundbericht')], ...extras.map(t => [t.k, t.l]), ['kurz', lab(m, 'kurz', 'Kurzsachverhalt')], ...(fah ? [['fahndung', 'Fahndung']] : []), ['offen', `${lab(m, 'offen', 'Offene Punkte')}${offen.length ? ' · ' + offen.length : ''}`], ['pers', 'Personalien']];
-    if (!tabs.some(t => t[0] === U.tab)) U.tab = 'bericht';
+    if (m.schlicht || !tabs.some(t => t[0] === U.tab)) U.tab = 'bericht';
     const extra = extras.find(t => t.k === U.tab);
     let body = '';
-    if (U.tab === 'bericht') body = `<div class="w-report">${sec.map(([n, t, txt, sid]) => txt == null ? `<h3 class="w-rh">${n} ${esc(t)}</h3>` : `<div class="w-rs"><h4 class="w-rsh">${n} ${esc(t)}<button type="button" class="link" data-edit="${esc(stepForSection(m, sid, d.data))}">Bearbeiten</button></h4><div class="w-rb${/\[[^\]]+\]/.test(txt) ? ' has-ph' : ''}">${reportHtml(txt, m)}</div></div>`).join('')}</div>`;
+    if (U.tab === 'bericht') body = `<div class="w-report">${sec.map(([n, t, txt, sid]) => txt == null ? `<h3 class="w-rh">${n} ${esc(t)}</h3>` : `<div class="w-rs">${m.schlicht ? '' : `<h4 class="w-rsh">${n} ${esc(t)}<button type="button" class="link" data-edit="${esc(stepForSection(m, sid, d.data))}">Bearbeiten</button></h4>`}<div class="w-rb${/\[[^\]]+\]/.test(txt) ? ' has-ph' : ''}">${reportHtml(txt, m)}</div></div>`).join('')}</div>`;
     else if (extra) { const tx = extra.text(d.data) || ''; body = `<div class="w-report">${extra.hint ? `<p class="w-hint">${esc(extra.hint)}</p>` : ''}<div class="w-rb${/\[[^\]]+\]/.test(tx) ? ' has-ph' : ''}">${reportHtml(tx, m)}</div></div>`; }
     else if (U.tab === 'kurz') body = `<div class="w-report"><p class="w-hint">${esc(lab(m, 'kurzHint', 'Für die Kurzbeschreibung im Vorgang und die Unfallmitteilung. Vor dem Nachsenden der Unfallmitteilung ist der Kurzsachverhalt aus der ViVA-Kurzbeschreibung zu löschen (DA 1.1).'))}</p><div class="w-rb">${reportHtml(m.kurzText(d.data), m)}</div></div>`;
     else if (U.tab === 'fahndung') body = `<div class="w-report"><p class="w-hint">${esc(lab(m, 'fahndungHint', 'Für die Leitstelle / Funkfahndung – kurz und sendefähig.'))}</p><div class="w-rb">${esc(fah)}</div></div>`;
     else if (U.tab === 'offen') body = `<div class="w-report">${offen.length ? `<ul class="w-offen">${offen.map((o, i) => `<li><label class="check-line"><input type="checkbox" data-offen="${i}"> <span>${esc(o)}</span></label></li>`).join('')}</ul><p class="w-hint">${esc(lab(m, 'offenHint', 'Angehakte Punkte landen als Todos im Planner.'))}</p><button type="button" class="btn btn-ghost btn-sm" data-w="todos">Ausgewählte als Todos anlegen</button>` : `<div class="empty w-empty"><h3>Nichts offen</h3><p>${esc(lab(m, 'offenEmpty', 'Alle Pflichtpunkte aus Erlass und Dienstanweisung sind abgedeckt.'))}</p></div>`}</div>`;
     else body = `<div class="w-report"><p class="w-hint">${esc(lab(m, 'persHint', 'Gesondert vom Befundbericht – Telefonnummern nur auf dem Original (DA 1.1). Nicht in den Berichtstext kopieren.'))}</p><div class="w-rb mono-sm">${esc(m.personalien(d.data))}</div></div>`;
     const phCount = sec.reduce((n, s) => n + (s[2] ? (s[2].match(/\[[^\]]+\]/g) || []).length : 0), 0);
+    const im = stelle(d), fertig = d.status === 'fertig';
+    const lueke = offeneFolie(m, d.data);
+    // In einem Vorgang zählt „Fertig“ auf der letzten Folie; für sich stehende Vorgänge werden von Hand als fertig markiert
+    const mehr = `<button type="button" class="link" data-w="txt">Als Datei</button>${im ? '' : `<button type="button" class="link" data-w="done">${fertig ? 'Wieder öffnen' : 'Als fertig markieren'}</button>`}`;
     return `
-      <div class="w-top">
-        <button type="button" class="icon-btn sm w-back" data-w="list" aria-label="Zur Liste"><svg class="i" viewBox="0 0 24 24"><path d="M14.5 6l-6 6 6 6"/></svg></button>
-        <div class="w-top-t"><span class="spaced">${esc(m.short)} · ${d.status === 'fertig' ? 'Fertig' : 'Entwurf'}</span><div class="w-title">${esc(d.title || m.name)}</div></div>
-        <button type="button" class="btn btn-ghost btn-sm" data-w="edit">Bearbeiten</button>
-      </div>
-      ${phCount ? `<div class="w-warn">${phCount} ${phCount === 1 ? 'Angabe fehlt' : 'Angaben fehlen'} (in eckigen Klammern markiert) – über „Bearbeiten“ am Abschnitt direkt nachtragen.</div>` : ''}
-      <div class="w-tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" class="fchip" data-tab="${k}" aria-selected="${String(U.tab === k)}">${esc(l)}</button>`).join('')}</div>
+      ${kopf(d, { fertig: fertig ? 'Fertig' : 'Entwurf', offen: !fertig, titel: m.schlicht ? 'So steht es im Text' : (d.title || m.name) })}
+      ${phCount ? `<div class="w-warn fo-warn"><span>${phCount} ${phCount === 1 ? 'Angabe fehlt' : 'Angaben fehlen'} – im Text gelb in eckigen Klammern.</span>${lueke >= 0 ? `<button type="button" class="btn btn-ghost btn-sm" data-edit="${lueke}">Nachtragen</button>` : ''}</div>` : ''}
+      ${m.schlicht ? '' : `<div class="w-tabs" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" class="fchip" data-tab="${k}" aria-selected="${String(U.tab === k)}">${esc(l)}</button>`).join('')}</div>`}
       ${body}
-      ${vgWeiter(d)}
-      <div class="w-nav">
-        <button type="button" class="btn btn-ghost btn-sm btn-danger" data-w="delete">Löschen</button>
-        <span class="grow"></span>
-        <button type="button" class="btn btn-ghost btn-sm" data-w="txt">Als Datei</button>
-        <button type="button" class="btn btn-ghost btn-sm" data-w="done">${d.status === 'fertig' ? 'Wieder öffnen' : 'Als fertig markieren'}</button>
-        <button type="button" class="btn btn-light" data-w="copy">Kopieren</button>
-      </div>`;
+      <button type="button" class="btn btn-light fo-wide" data-w="copy">Text kopieren</button>
+      ${fein(d, { mehr })}
+      ${fuss({ back: { label: 'Bearbeiten', attr: 'data-w="edit"' }, next: danach(d) })}`;
+  }
+  /** Erste Folie, auf der noch eine Pflichtangabe fehlt (-1 = keine). */
+  function offeneFolie(m, data) {
+    return visibleSteps(m, data).findIndex(s => s.fields.some(f => f.req && f.k && (!f.when || f.when(data)) && !answered(getP(data, f.k))));
   }
   function stepForSection(m, id, data) {
     const steps = visibleSteps(m, data);
@@ -739,7 +790,7 @@
     U.step = Math.max(0, Math.min(steps.length - 1, U.step + delta));
     d.step = Math.max(d.step || 0, U.step);
     persist(false);
-    renderMain(); window.scrollTo({ top: 0, behavior: 'smooth' });
+    renderMain();
   }
   /** Fehlen wichtige Angaben, kurz erwähnen – weiter geht es trotzdem (im Bericht stehen dann Platzhalter). */
   function hintMissing() {
@@ -752,7 +803,11 @@
     const d = doc(); if (!d) return;
     const m = mod(d); d.step = visibleSteps(m, d.data).length;
     U.view = 'result'; U.tab = 'bericht';
-    persist(false); renderMain(); window.scrollTo({ top: 0 });
+    const im = !!vgOf(d);
+    if (im) d.status = 'fertig'; // im Vorgang ist der Abschnitt damit erledigt (in der Übersicht „Fertig“)
+    persist(im); renderMain();
+    const miss = m.offen(d.data);
+    if (im && miss.length) W().toast(`Fertig – noch offen: ${miss.length} ${miss.length === 1 ? 'Punkt' : 'Punkte'} (im Text als [Platzhalter]).`);
   }
   /* ---------- Satzbausteine: Satzanfang bündig vor die Eingabe setzen, Höhe mitwachsen lassen ---------- */
   function grow(ta) {
@@ -805,23 +860,20 @@
     const q = el.closest('.w-q'); const box = q && $('.w-lint', q); if (!box) return;
     const msg = lintText(el); box.textContent = msg; box.hidden = !msg;
   }
-  /** Nach einer Antwort sanft zur nächsten offenen Frage führen. */
+  /** Nach einer Antwort: nichts verschieben. Sind alle Fragen der Folie beantwortet, pulst „Weiter“ kurz. */
   function focusNext(k) {
     const cur = $(`#wFields [data-q="${CSS.escape(k)}"]`); if (!cur) return;
-    const qs = $$('#wFields > [data-q]'); const i = qs.indexOf(cur); if (i < 0) return;
-    const nxt = qs.slice(i + 1).find(q => !q.classList.contains('ans'));
-    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (!nxt) { if (qs.every(q => q.classList.contains('ans'))) { const go = $('.w-nav [data-w=next], .w-nav [data-w=finish]'); if (go) { go.classList.remove('w-go'); void go.offsetWidth; go.classList.add('w-go'); } } return; }
-    const r = nxt.getBoundingClientRect(), vh = window.visualViewport ? visualViewport.height : innerHeight;
-    if (r.top > vh * 0.7 || r.top < 60) nxt.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
-    nxt.classList.remove('w-next'); void nxt.offsetWidth; nxt.classList.add('w-next');
+    const qs = $$('#wFields > [data-q]');
+    if (!qs.length || !qs.every(q => q.classList.contains('ans'))) return;
+    const go = $('.w-nav .fo-next'); if (go) { go.classList.remove('w-go'); void go.offsetWidth; go.classList.add('w-go'); }
   }
-  function setVal(k, v, rerender = true) {
+  /** fest = Schnellwahl wie „Heute“ oder „Jetzt“: setzt immer, ein zweiter Tipp löscht nichts. */
+  function setVal(k, v, rerender = true, fest = false) {
     const d = doc(); if (!d) return;
     if (v === '__now') v = nowHM();
     if (v === '__true') v = true; else if (v === '__false') v = false;
     const cur = getP(d.data, k);
-    const off = cur === v && typeof v !== 'boolean'; // zweites Tippen hebt die Auswahl auf …
+    const off = !fest && cur === v && typeof v !== 'boolean'; // zweites Tippen hebt die Auswahl auf …
     const now = Date.now();
     if (off && U.lastSet && U.lastSet.k === k && U.lastSet.v === v && now - U.lastSet.t < 700) return; // … aber nicht bei einem Doppel-Tipp
     U.lastSet = { k, v, t: now };
@@ -859,9 +911,10 @@
     if (vg) open(vg.id); else { U.id = null; U.view = 'list'; renderMain(); renderList(); }
     W().toast(vg ? 'Abschnitt gelöscht' : 'Vorgang gelöscht', { undo: snap });
   }
-  async function copy(text) {
+  async function copy(text, btn) {
     const d = doc(); if (!d) return;
     const t = typeof text === 'string' ? text : currentText(d, mod(d));
+    if (btn && btn.isConnected && !btn.dataset.alt) { btn.dataset.alt = btn.innerHTML; btn.innerHTML = `${ICON_OK}<span>Kopiert</span>`; btn.classList.add('fo-kopiert'); setTimeout(() => { if (btn.isConnected) { btn.innerHTML = btn.dataset.alt; btn.classList.remove('fo-kopiert'); } delete btn.dataset.alt; }, 1800); }
     try { await navigator.clipboard.writeText(t); W().toast('In die Zwischenablage kopiert'); }
     catch (e) { const ta = document.createElement('textarea'); ta.value = t; document.body.append(ta); ta.select(); try { document.execCommand('copy'); W().toast('Kopiert'); } catch (er) { W().toast('Kopieren nicht möglich – Text markieren und manuell kopieren.'); } ta.remove(); }
   }
@@ -886,9 +939,12 @@
     const d = doc(); if (!d) return;
     const m = mod(d); const steps = visibleSteps(m, d.data);
     const host = $('#wMain');
-    host.innerHTML = `<div class="w-top"><button type="button" class="icon-btn sm w-back" data-w="resume" aria-label="Zurück"><svg class="i" viewBox="0 0 24 24"><path d="M14.5 6l-6 6 6 6"/></svg></button><div class="w-top-t"><span class="spaced">Übersicht</span><div class="w-title">${esc(d.title || m.name)}</div></div><button type="button" class="btn btn-ghost btn-sm" data-w="finish">Bericht</button></div>
-      <ol class="w-ov">${steps.map((s, i) => { const ph = i === 0 || steps[i - 1].phase !== s.phase ? `<li class="w-ov-ph">${esc(s.phase)}</li>` : ''; const answered = s.fields.filter(f => f.k && !(f.when && !f.when(d.data))).filter(f => { const v = getP(d.data, f.k); return Array.isArray(v) ? v.length : (v && typeof v === 'object') ? Object.keys(v).length : has(v); }).length; const total = s.fields.filter(f => f.k && !(f.when && !f.when(d.data))).length; return `${ph}<li><button type="button" class="w-ov-i${i === U.step ? ' on' : ''}" data-jump="${i}"><span class="w-ov-n mono">${i + 1}</span><span class="w-ov-t"><b>${esc(R(s.title, d.data))}</b>${s.lead ? `<small>${esc(R(s.lead, d.data))}</small>` : ''}</span><span class="pill ${answered === total && total ? 'pill-lime' : answered ? 'pill-accent-soft' : 'pill-quiet'}">${answered}/${total}</span></button></li>`; }).join('')}</ol>`;
-    window.scrollTo({ top: 0 });
+    host.innerHTML = `${kopf(d, { up: { label: 'Zurück', attr: 'data-w="resume"' }, titel: 'Alle Folien', lead: 'Antippen springt dorthin. Die Zahl zeigt, wie viele Fragen beantwortet sind.' })}
+      <ol class="w-ov">${steps.map((s, i) => { const ph = i === 0 || steps[i - 1].phase !== s.phase ? `<li class="w-ov-ph">${esc(s.phase)}</li>` : ''; const answered = s.fields.filter(f => f.k && !(f.when && !f.when(d.data))).filter(f => { const v = getP(d.data, f.k); return Array.isArray(v) ? v.length : (v && typeof v === 'object') ? Object.keys(v).length : has(v); }).length; const total = s.fields.filter(f => f.k && !(f.when && !f.when(d.data))).length; return `${ph}<li><button type="button" class="w-ov-i${i === U.step ? ' on' : ''}" data-jump="${i}"><span class="w-ov-n mono">${i + 1}</span><span class="w-ov-t"><b>${esc(R(s.title, d.data))}</b>${s.lead ? `<small>${esc(R(s.lead, d.data))}</small>` : ''}</span><span class="pill ${answered === total && total ? 'pill-lime' : answered ? 'pill-accent-soft' : 'pill-quiet'}">${answered}/${total}</span></button></li>`; }).join('')}</ol>
+      ${fein(d)}
+      ${fuss({ back: { attr: 'data-w="resume"' }, next: { label: 'Zum Text', attr: 'data-w="finish"' } })}`;
+    FOLIE = d.id + '|ov'; host.style.minHeight = '';
+    window.scrollTo(0, 0);
   }
 
   /* ======================= Ereignisse ======================= */
@@ -898,12 +954,15 @@
       const z = e.target.closest && e.target.closest('.w-z');
       if (z && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); z.dispatchEvent(new MouseEvent('click', { bubbles: true })); }
     });
+    // Was zuletzt angetippt wurde – damit genau diese Frage beim Neuzeichnen an ihrer Stelle bleibt
+    root.addEventListener('pointerdown', e => { TIPP = e.target; }, true);
     root.addEventListener('click', e => {
       const sc = screenOf(); if (sc && sc[1].click && sc[1].click(e, screenApi(sc[0]))) return;
       const sb = e.target.closest('.w-sent');
       if (sb && e.target.tagName !== 'TEXTAREA') { const ta = $('textarea', sb); if (ta) { ta.focus(); const n = ta.value.length; try { ta.setSelectionRange(n, n); } catch (er) { /* egal */ } } return; }
       const b = e.target.closest('button, [data-edit], .w-z'); if (!b) return;
-      if (b.dataset.copyOut) { const d = doc(); const m = mod(d); if (d && m && typeof m[b.dataset.copyOut] === 'function') copy(m[b.dataset.copyOut](d.data)); return; }
+      if (b.dataset.copyOut) { const d = doc(); const m = mod(d); if (d && m && typeof m[b.dataset.copyOut] === 'function') copy(m[b.dataset.copyOut](d.data), b); return; }
+      if (b.dataset.vgtext) { const v = W().find(b.dataset.vgtext); if (v && window.WVorgang) { open(v.id); window.WVorgang.screen.show('text'); renderMain(); } return; }
       if (b.dataset.moreParts) { U.moreParts[b.dataset.moreParts] = b.getAttribute('aria-expanded') !== 'true'; renderMain(); return; }
       if (b.dataset.w) {
         const a = b.dataset.w;
@@ -914,10 +973,10 @@
         else if (a === 'next') { hintMissing(); go(1); }
         else if (a === 'finish') finish();
         else if (a === 'edit') { const d = doc(); if (d) { U.view = 'wizard'; U.step = 0; renderMain(); } }
+        else if (a === 'copy') copy(undefined, b);
         else if (a === 'resume') renderMain();
         else if (a === 'overview') overview();
         else if (a === 'delete') del();
-        else if (a === 'copy') copy();
         else if (a === 'txt') download();
         else if (a === 'todos') todos();
         else if (a === 'done') { const d = doc(); if (d) { d.status = d.status === 'fertig' ? 'entwurf' : 'fertig'; persist(true); renderMain(); W().toast(d.status === 'fertig' ? 'Als fertig markiert' : 'Wieder geöffnet'); } }
@@ -926,7 +985,7 @@
       if (b.dataset.swDel) { swDelete(b.dataset.swDel, b.closest('li')); return; }
       if (b.dataset.open) { if (Date.now() - SW.at < 400) return; if (b.closest('li.open')) { swClose(); return; } open(b.dataset.open); return; }
       if (b.dataset.jump) { U.step = Number(b.dataset.jump); const d = doc(); if (d) { d.step = Math.max(d.step || 0, U.step); persist(false); } renderMain(); return; }
-      if (b.dataset.edit != null) { U.view = 'wizard'; U.step = Number(b.dataset.edit) || 0; renderMain(); window.scrollTo({ top: 0 }); return; }
+      if (b.dataset.edit != null) { U.view = 'wizard'; U.step = Number(b.dataset.edit) || 0; renderMain(); return; }
       if (b.dataset.tab) { U.tab = b.dataset.tab; renderMain(); return; }
       if (b.dataset.sugg) {
         const d = doc(); if (!d) return;
@@ -954,18 +1013,18 @@
         setP(d.data, path, next || (auto ? 'nein' : undefined));
         persist(false); renderMain(); return;
       }
-      if (b.dataset.set) { setVal(b.dataset.set, b.dataset.n ? Number(b.dataset.v) : b.dataset.v); return; }
+      if (b.dataset.set) { setVal(b.dataset.set, b.dataset.n ? Number(b.dataset.v) : b.dataset.v, true, !!b.dataset.fest); return; }
       if (b.dataset.toggle) { toggleVal(b.dataset.toggle, b.dataset.v, b.dataset.x, Number(b.dataset.max) || 0); return; }
       if (b.dataset.step) { const d = doc(); if (!d) return; const cur = Number(getP(d.data, b.dataset.step)); const inp = $(`[data-k="${CSS.escape(b.dataset.step)}"]`, root); const min = inp && inp.min !== '' ? Number(inp.min) : 0, max = inp && inp.max !== '' ? Number(inp.max) : Infinity; const v = Math.max(min, Math.min(max, (Number.isFinite(cur) && has(getP(d.data, b.dataset.step)) ? cur : 0) + Number(b.dataset.d))); setP(d.data, b.dataset.step, v); persist(false); if (inp) inp.value = v; schedulePreview(); $$(`[data-set="${CSS.escape(b.dataset.step)}"]`, root).forEach(c => c.setAttribute('aria-pressed', String(Number(c.dataset.v) === v))); return; }
-      if (b.dataset.part) { const d = doc(); if (!d) return; const k = b.dataset.part, a = Array.isArray(getP(d.data, k)) ? getP(d.data, k).slice() : []; const i = a.findIndex(p => p && p.name === b.dataset.v); if (i >= 0) a.splice(i, 1); else a.push({ name: b.dataset.v, alt: 'nein' }); setP(d.data, k, a.length ? a : undefined); persist(false); renderMain(); if (i < 0) setTimeout(() => { const c = $(`#wpart-${a.length - 1}`); if (c) c.scrollIntoView({ block: 'start', behavior: 'smooth' }); }, 30); return; }
+      if (b.dataset.part) { const d = doc(); if (!d) return; const k = b.dataset.part, a = Array.isArray(getP(d.data, k)) ? getP(d.data, k).slice() : []; const i = a.findIndex(p => p && p.name === b.dataset.v); if (i >= 0) a.splice(i, 1); else a.push({ name: b.dataset.v, alt: 'nein' }); setP(d.data, k, a.length ? a : undefined); persist(false); renderMain(); if (i < 0) setTimeout(() => { const c = $(`#wpart-${a.length - 1}`); if (c) c.scrollIntoView({ block: 'nearest' }); }, 30); return; }
       if (b.dataset.partDel) { const d = doc(); if (!d) return; const a = getP(d.data, b.dataset.partDel).slice(); a.splice(Number(b.dataset.i), 1); setP(d.data, b.dataset.partDel, a.length ? a : undefined); persist(false); renderMain(); return; }
       if (b.dataset.partCopy) { const d = doc(); if (!d) return; const a = getP(d.data, b.dataset.partCopy); const i = Number(b.dataset.i); a[i] = { ...JSON.parse(JSON.stringify(a[i - 1])), name: a[i].name }; persist(false); renderMain(); return; }
-      if (b.dataset.listAdd) { const d = doc(); if (!d) return; const a = Array.isArray(getP(d.data, b.dataset.listAdd)) ? getP(d.data, b.dataset.listAdd).slice() : []; if (!a.length && b.dataset.min1) a.push({}); a.push({}); setP(d.data, b.dataset.listAdd, a); persist(false); renderMain(); const cs = $$('#wFields .w-item-card'); if (cs.length) cs[cs.length - 1].scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
+      if (b.dataset.listAdd) { const d = doc(); if (!d) return; const a = Array.isArray(getP(d.data, b.dataset.listAdd)) ? getP(d.data, b.dataset.listAdd).slice() : []; if (!a.length && b.dataset.min1) a.push({}); a.push({}); setP(d.data, b.dataset.listAdd, a); persist(false); renderMain(); const cs = $$('#wFields .w-item-card'); if (cs.length) cs[cs.length - 1].scrollIntoView({ block: 'nearest' }); return; }
       if (b.dataset.listDel) { const d = doc(); if (!d) return; const cur = getP(d.data, b.dataset.listDel); if (!Array.isArray(cur)) return; const a = cur.slice(); a.splice(Number(b.dataset.i), 1); setP(d.data, b.dataset.listDel, a.length ? a : undefined); persist(false); renderMain(); return; }
-      if (b.dataset.carAdd) { const d = doc(); if (!d) return; const k = b.dataset.carAdd; const a = Array.isArray(getP(d.data, k)) && getP(d.data, k).length ? getP(d.data, k).slice() : [{}]; a.push({}); setP(d.data, k, a); persist(false); renderMain(); const el = $(`#wFields [data-combo="pers"][data-ci="${a.length - 1}"]`); if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); if (!W().mobile()) el.focus(); } return; }
+      if (b.dataset.carAdd) { const d = doc(); if (!d) return; const k = b.dataset.carAdd; const a = Array.isArray(getP(d.data, k)) && getP(d.data, k).length ? getP(d.data, k).slice() : [{}]; a.push({}); setP(d.data, k, a); persist(false); renderMain(); const el = $(`#wFields [data-combo="pers"][data-ci="${a.length - 1}"]`); if (el) { el.scrollIntoView({ block: 'nearest' }); if (!W().mobile()) el.focus(); } return; }
       if (b.dataset.carDel) { const d = doc(); if (!d) return; const a = (getP(d.data, b.dataset.carDel) || []).slice(); a.splice(Number(b.dataset.i), 1); setP(d.data, b.dataset.carDel, a.length ? a : undefined); persist(false); renderMain(); return; }
       if (b.dataset.persDel) { const d = doc(); if (!d) return; const [ci, pi] = b.dataset.i.split('.').map(Number); const a = JSON.parse(JSON.stringify(getP(d.data, b.dataset.persDel) || [])); if (a[ci] && Array.isArray(a[ci].crew)) a[ci].crew.splice(pi, 1); setP(d.data, b.dataset.persDel, a); persist(false); renderMain(); return; }
-      if (b.dataset.crewAdd) { const d = doc(); if (!d) return; const ck = b.dataset.crewAdd; const a = Array.isArray(getP(d.data, ck)) && getP(d.data, ck).length ? getP(d.data, ck).slice() : [{}]; if (has(a[a.length - 1] && a[a.length - 1].name)) { a.push({}); setP(d.data, ck, a); persist(false); renderMain(); } const el = $(`#wFields [data-combo="crew"][data-ck="${CSS.escape(ck)}"][data-ci="${a.length - 1}"]`); if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); el.focus(); } return; }
+      if (b.dataset.crewAdd) { const d = doc(); if (!d) return; const ck = b.dataset.crewAdd; const a = Array.isArray(getP(d.data, ck)) && getP(d.data, ck).length ? getP(d.data, ck).slice() : [{}]; if (has(a[a.length - 1] && a[a.length - 1].name)) { a.push({}); setP(d.data, ck, a); persist(false); renderMain(); } const el = $(`#wFields [data-combo="crew"][data-ck="${CSS.escape(ck)}"][data-ci="${a.length - 1}"]`); if (el) { el.scrollIntoView({ block: 'nearest' }); el.focus({ preventScroll: true }); } return; }
       if (b.dataset.crewDel != null) { const d = doc(); if (!d) return; const ck = b.dataset.crewK || 'einsatz.kraefte'; const a = (getP(d.data, ck) || []).slice(); a.splice(Number(b.dataset.crewDel), 1); setP(d.data, ck, a.length ? a : undefined); persist(false); renderMain(); return; }
       if (b.dataset.crewPick) { const d = doc(); if (!d) return; let c = {}; try { c = JSON.parse(b.dataset.v); } catch (er) { return; } const ck = b.dataset.crewPick; const a = (Array.isArray(getP(d.data, ck)) ? getP(d.data, ck) : []).filter(r => r && (has(r.name) || has(r.grad))); a.push({ grad: c.grad || '', name: c.name }); setP(d.data, ck, a); persist(false); renderMain(); return; }
     });
@@ -1050,9 +1109,11 @@
       // Von außen (Sync, Rückgängig) geänderte Daten nur übernehmen, wenn hier gerade nicht getippt wird
       const typing = document.activeElement && document.activeElement.closest('#wMain');
       if (stable(d.data) !== U.lastJson && !typing) renderMain();
-      else if (!$('#wMain .w-top')) renderMain();
+      else if (!$('#wMain .fo-top')) renderMain();
       else requestAnimationFrame(layoutSentences); // nach dem Einblenden neu ausmessen
     },
-    newDoc, open
+    newDoc, open,
+    /** Kennung der gerade gezeigten Folie (für Prüfungen: gleiche Folie = nichts darf springen). */
+    folie: () => FOLIE
   });
 })();

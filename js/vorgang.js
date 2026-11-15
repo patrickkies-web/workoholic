@@ -192,54 +192,59 @@
   const ICON_BACK = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6l-6 6 6 6"/></svg>';
   const ICON_UP = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>';
   const ICON_X = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
-  /** Ansicht je Vorgang: 'ov' (Abschnitte) oder 'text' (Gesamtsachverhalt). */
-  const V = { id: null, s: 'ov' };
-  const top0 = () => { try { window.scrollTo({ top: 0 }); } catch (e) { /* egal */ } };
-  const topBar = (back, kicker, ttl) => `<div class="w-top"><button type="button" class="icon-btn sm${back === 'list' ? ' w-back' : ''}" ${back === 'list' ? 'data-w="list" aria-label="Zur Liste"' : `data-sd="${back}" aria-label="Zurück zur Übersicht"`}>${ICON_BACK}</button><div class="w-top-t"><span class="spaced">${esc(kicker)}</span><div class="w-title" data-live="title">${esc(ttl)}</div></div></div>`;
+  /** Ansicht je Vorgang: 'ov' (Abschnitte) oder 'text' (Gesamtsachverhalt). ord = Pfeile und ✕ zum Ordnen/Entfernen zeigen. */
+  const V = { id: null, s: 'ov', ord: false };
 
-  function open(d) { V.id = d.id; V.s = 'ov'; }
+  function open(d) { V.id = d.id; V.s = 'ov'; V.ord = false; }
 
-  function ovHtml(d) {
+  /** Übersicht: die Abschnitte als Liste – antippen öffnet, unten rechts geht es beim nächsten offenen weiter. */
+  function ovHtml(d, api) {
     const data = d.data, T = teile(data);
     const items = T.map((t, i) => {
       const ctx = kontext(data, t.doc), fertig = t.doc.status === 'fertig';
       let sub = ''; try { sub = t.m.subtitle(t.doc.data) || ''; } catch (e) { sub = ''; }
       const von = ctx.quellen.map(([was, aus]) => `${was} aus „${aus}“`);
-      return `<li class="sd-item"><div class="sd-row"><button type="button" class="sd-card" data-open="${esc(t.id)}"><span class="sd-n mono">${i + 1}</span><span class="sd-main"><b>${esc(t.m.name).replace('/', '/<wbr>')}</b><small>${esc(sub || 'noch leer')}</small></span><span class="pill ${fertig ? 'pill-lime' : 'pill-quiet'}">${esc(stand(t))}</span></button>${T.length > 1 ? `<button type="button" class="sd-up" data-sd="up" data-i="${i}" aria-label="${esc(t.m.name)} nach oben"${i ? '' : ' disabled'}>${ICON_UP}</button>` : ''}<button type="button" class="sd-up vg-x" data-sd="rm" data-i="${i}" aria-label="${esc(t.m.name)} entfernen">${ICON_X}</button></div>${von.length ? `<p class="w-hint vg-ctx">↳ übernimmt ${esc(joinUnd(von))}</p>` : ''}</li>`;
+      const ordnen = V.ord ? `${T.length > 1 ? `<button type="button" class="sd-up" data-sd="up" data-i="${i}" aria-label="${esc(t.m.name)} nach oben"${i ? '' : ' disabled'}>${ICON_UP}</button>` : ''}<button type="button" class="sd-up vg-x" data-sd="rm" data-i="${i}" aria-label="${esc(t.m.name)} entfernen">${ICON_X}</button>` : '';
+      return `<li class="sd-item"><div class="sd-row"><button type="button" class="sd-card" data-open="${esc(t.id)}"><span class="sd-n mono">${i + 1}</span><span class="sd-main"><b>${esc(t.m.name).replace('/', '/<wbr>')}</b><small>${esc(sub || 'noch leer')}</small></span><span class="pill ${fertig ? 'pill-lime' : 'pill-quiet'}">${esc(stand(t))}</span></button>${ordnen}</div>${von.length ? `<p class="w-hint vg-ctx">↳ übernimmt ${esc(joinUnd(von))}</p>` : ''}</li>`;
     }).join('');
     const da = new Set(T.map(t => t.doc.type));
     const frei = TYPEN.filter(k => mod(k) && !da.has(k));
     const std = STANDARD.filter(k => frei.includes(k));
     const add = frei.length
-      ? `<div class="sd-add"><span class="w-lbl">${T.length ? 'Weiteren Abschnitt hinzufügen' : 'Welche Abschnitte gehören zum Vorgang?'}</span>${!T.length && std.length === STANDARD.length ? `<div class="sd-add-row vg-std"><button type="button" class="sd-add-b" data-sd="std"><i aria-hidden="true">+</i><span>Üblicher Anfang<small>${esc(STANDARD.map(k => mod(k).short || mod(k).name).join(' → '))}</small></span></button></div>` : ''}<div class="sd-add-row">${frei.map(k => `<button type="button" class="sd-add-b" data-sd="add" data-v="${k}"><i aria-hidden="true">+</i>${esc(mod(k).name)}</button>`).join('')}</div><p class="w-hint sd-hint">Antippen reiht den Abschnitt an seiner üblichen Stelle ein; mit ↑ änderst du die Reihenfolge. Jeder Abschnitt baut auf den anderen auf: Besatzungen aus „Allgemeines“ und Personen aus der „Eintreffsituation“ stehen danach zur Auswahl.</p></div>`
+      ? `<div class="sd-add"><span class="w-lbl">${T.length ? 'Weiteren Abschnitt hinzufügen' : 'Welche Abschnitte gehören zum Vorgang?'}</span>${!T.length && std.length === STANDARD.length ? `<div class="sd-add-row vg-std"><button type="button" class="sd-add-b" data-sd="std"><i aria-hidden="true">+</i><span>Üblicher Anfang<small>${esc(STANDARD.map(k => mod(k).short || mod(k).name).join(' → '))}</small></span></button></div>` : ''}<div class="sd-add-row">${frei.map(k => `<button type="button" class="sd-add-b" data-sd="add" data-v="${k}"><i aria-hidden="true">+</i>${esc(mod(k).name)}</button>`).join('')}</div><p class="w-hint sd-hint">Jeder Abschnitt reiht sich an seiner üblichen Stelle ein und baut auf den anderen auf: Besatzungen aus „Allgemeines“ und Personen aus der „Eintreffsituation“ stehen danach zur Auswahl.</p></div>`
       : '';
-    return `${topBar('list', `Vorgang · ${T.length} ${T.length === 1 ? 'Abschnitt' : 'Abschnitte'}`, title(data))}
+    const fertigN = T.filter(t => t.doc.status === 'fertig').length, offen = T.find(t => t.doc.status !== 'fertig');
+    const next = !T.length ? null : offen ? { label: `Weiter: ${offen.m.short || offen.m.name}`, attr: `data-open="${esc(offen.id)}"` } : { label: 'Gesamtsachverhalt', attr: 'data-sd="text"' };
+    return `${api.kopf({ sub: T.length ? `${fertigN} von ${T.length} ${T.length === 1 ? 'Abschnitt' : 'Abschnitten'} fertig` : 'noch ohne Abschnitte', titel: title(data), live: 'title', lead: T.length ? 'Abschnitt antippen, um ihn auszufüllen – der Text entsteht dabei von selbst.' : '' })}
       <div class="w-grid sd-grid">
+        ${T.length ? `<div class="w-q"><ol class="sd-list vg-list">${items}</ol></div>` : ''}
+        ${T.length && offen ? '<div class="w-q"><button type="button" class="btn btn-ghost fo-wide vg-gesamt" data-sd="text">Gesamtsachverhalt ansehen</button></div>' : ''}
+        ${add ? `<div class="w-q" data-q="add">${add}</div>` : ''}
         <div class="w-q" data-q="name"><label class="w-lbl" for="vgName">Bezeichnung <i class="w-hint-i">(optional – sonst aus dem Einsatzanlass)</i></label><input class="input" id="vgName" data-sk="name" value="${esc(data.name || '')}" placeholder="z. B. Körperverletzung Lindenstraße" autocomplete="off" spellcheck="false" enterkeyhint="done" maxlength="80"></div>
-        ${T.length ? `<div class="w-q"><span class="w-lbl">Abschnitte <span class="sd-cnt mono">${T.length}</span></span><ol class="sd-list vg-list">${items}</ol></div>` : ''}
-        ${add ? `<div class="w-q">${add}</div>` : ''}
         ${T.length ? `<div class="w-q" data-q="num"><div class="w-chips"><button type="button" class="chip" data-sd="num" aria-pressed="${String(auto(data))}">Nach Reihenfolge nummerieren (1, 2, 3 …)</button></div><p class="w-hint sd-hint">${auto(data) ? 'Allgemeines, Eintreffsituation, Schilderungen und Unfallörtlichkeit bekommen die Nummer ihrer Stelle; andere Abschnitte behalten ihre eigene.' : 'Jeder Abschnitt behält die Nummer, die du dort einträgst.'}</p></div>` : ''}
       </div>
-      <div class="w-nav"><button type="button" class="btn btn-ghost btn-sm btn-danger" data-w="delete">Löschen</button><span class="grow"></span>${T.length ? '<button type="button" class="btn btn-accent" data-sd="text">Gesamtsachverhalt</button>' : ''}</div>`;
+      ${api.fein({ mehr: T.length ? `<button type="button" class="link" data-sd="ord">${V.ord ? 'Ordnen beenden' : 'Abschnitte ordnen oder entfernen'}</button>` : '' })}
+      ${api.fuss({ next })}`;
   }
 
-  function textHtml(d) {
+  /** Gesamtsachverhalt: alle Abschnitte hintereinander, einzeln oder zusammen zu kopieren. */
+  function textHtml(d, api) {
     const data = d.data, T = teile(data), txt = gesamt(data);
     const ph = (txt.match(/\[[^\]]+\]/g) || []).length;
     const blocks = T.map((t, i) => `<div class="w-q"><div class="w-out"><div class="w-out-h vg-oh"><span class="w-lbl">${esc(t.m.short || t.m.name)}</span><span class="vg-tools"><button type="button" class="btn btn-ghost btn-sm" data-open="${esc(t.id)}">Bearbeiten</button><button type="button" class="btn btn-light btn-sm" data-sd="copy1" data-i="${i}">Kopieren</button></span></div><pre class="w-out-t">${esc(teilText(data, t, i) || '– noch nichts erfasst –')}</pre></div></div>`).join('');
-    return `${topBar('ov', 'Vorgang · Gesamtsachverhalt', title(data))}
+    return `${api.kopf({ up: { label: 'Abschnitte', attr: 'data-sd="ov"' }, sub: 'Gesamtsachverhalt', fertig: ph ? `${ph} ${ph === 1 ? 'Angabe' : 'Angaben'} offen` : 'Vollständig', offen: ph > 0, titel: 'Gesamtsachverhalt', lead: 'Alle Abschnitte hintereinander – einzeln oder alles zusammen kopieren.' })}
       <div class="w-grid sd-grid">
         ${ph ? `<div class="w-q"><div class="w-warn">${ph} ${ph === 1 ? 'Angabe fehlt' : 'Angaben fehlen'} (in eckigen Klammern) – über „Bearbeiten“ am Abschnitt nachtragen.</div></div>` : ''}
         ${blocks}
       </div>
-      <div class="w-nav"><button type="button" class="btn btn-ghost btn-sm" data-sd="ov">Zu den Abschnitten</button><span class="grow"></span><button type="button" class="btn btn-accent" data-sd="copyall">Alles kopieren</button></div>`;
+      ${api.fuss({ back: { label: 'Abschnitte', attr: 'data-sd="ov"' }, next: { label: 'Alles kopieren', attr: 'data-sd="copyall"', plain: true } })}`;
   }
 
-  function render(d) {
+  function render(d, api) {
     if (V.id !== d.id) open(d);
     if (!d.data || typeof d.data !== 'object') d.data = {};
     if (V.s === 'text' && !teile(d.data).length) V.s = 'ov';
-    return V.s === 'text' ? textHtml(d) : ovHtml(d);
+    return V.s === 'text' ? textHtml(d, api) : ovHtml(d, api);
   }
 
   /** Abschnitt anlegen und an seiner üblichen Stelle einreihen. Datum, Uhrzeit und Besatzung kommen aus dem Vorgang. */
@@ -283,10 +288,11 @@
       case 'up': { const i = Number(b.dataset.i), T = teile(data); if (i > 0 && T[i]) { const ids = T.map(t => ({ id: t.id })); [ids[i - 1], ids[i]] = [ids[i], ids[i - 1]]; data.teile = ids; commit(api); } return true; }
       case 'rm': rmTeil(api, Number(b.dataset.i)); return true;
       case 'num': { if (auto(data)) data.num = 'aus'; else delete data.num; commit(api); return true; }
-      case 'text': V.s = 'text'; api.render(); top0(); return true;
-      case 'ov': V.s = 'ov'; api.render(); top0(); return true;
-      case 'copy1': { const T = teile(data), i = Number(b.dataset.i); if (T[i]) api.copy(teilText(data, T[i], i)); return true; }
-      case 'copyall': api.copy(gesamt(data)); return true;
+      case 'text': V.s = 'text'; api.render(); return true;
+      case 'ov': V.s = 'ov'; api.render(); return true;
+      case 'ord': V.ord = !V.ord; api.render(); return true;
+      case 'copy1': { const T = teile(data), i = Number(b.dataset.i); if (T[i]) api.copy(teilText(data, T[i], i), b); return true; }
+      case 'copyall': api.copy(gesamt(data), b); return true;
       default: return false;
     }
   }
@@ -302,11 +308,8 @@
     if (e.key !== 'Enter' || e.shiftKey || e.isComposing || !el.closest || !el.closest('#wMain') || !el.dataset || !el.dataset.sk) return false;
     e.preventDefault(); el.blur(); return true;
   }
-  /** ⌘/Strg + Enter: zum Gesamtsachverhalt, dort alles kopieren. */
-  function submit(api) {
-    if (V.s === 'ov') { if (teile(api.d.data).length) { V.s = 'text'; api.render(); top0(); } }
-    else api.copy(gesamt(api.d.data));
-  }
+  /** ⌘/Strg + Enter: der eine nächste Schritt – wie der Knopf unten rechts. */
+  function submit() { const b = document.querySelector('#wMain .fo-nav .fo-next'); if (b) b.click(); }
 
   root.WVorgang = Object.freeze({
     id: 'vorgang', name: 'Vorgang aus Abschnitten', short: 'Vorgang', kurz: 'VG',
@@ -318,7 +321,7 @@
     plain: gesamt,
     text: data => teile(data).map((t, i) => ['', t.m.name, teilText(data, t, i), '']),
     preview: () => '', kurzText: () => '', fahndung: () => '', offen: () => [], personalien: () => '',
-    screen: { open, render, click, input, keydown, submit },
+    screen: { open, render, click, input, keydown, submit, key: d => `${V.s}:${d ? teile(d.data).length : 0}`, show: s2 => { V.s = s2 === 'text' ? 'text' : 'ov'; } },
     bind,
     core: { MATRIX, KONTEXT, TYPEN, teile, containerOf, partIds, kontext, kraefte, kraefteAnwenden, sync, gesamt, teilText, auto }
   });

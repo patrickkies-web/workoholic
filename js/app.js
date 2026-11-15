@@ -4350,7 +4350,8 @@ async function lock(reason) {
   try { await saveChain; await devChain; } catch (e) { /* weiter */ }
   try { sessionStorage.setItem('workoholic:lockmsg', reason || ''); } catch (e) {}
   S = null; state = blank();
-  location.reload(); // räumt Klartext und Schlüssel vollständig aus dem Speicher
+  // Neuladen räumt Klartext und Schlüssel vollständig aus dem Speicher – liegt online ein neuer Stand, gleich diesen holen
+  if (window.WUpdate && window.WUpdate.neu()) window.WUpdate.laden(); else location.reload();
 }
 
 function showGate(mode, msg = '') {
@@ -4578,6 +4579,8 @@ document.addEventListener('visibilitychange', () => {
 /* Bewusst schmal: Zugriff nur auf die Vorgänge, nie auf Schlüssel oder Umschlag. Ohne entsperrten Tresor liefert alles null/false. */
 window.WBridge = Object.freeze({
   unlocked: () => !!S,
+  /** Für die Aktualisierung: speichern, sperren, neu laden. Gibt nichts preis. */
+  lock: () => lock('update'),
   docs: () => (S ? state.docs : null),
   find: id => (S ? state.docs.find(d => d.id === id) || null : null),
   add(doc) { if (!S) return null; const d = normDoc({ ...doc, id: doc.id || uid() }); if (!d) return null; delete state.del[d.id]; state.docs.push(d); save(); return d; },
@@ -4620,7 +4623,7 @@ function boot() {
   const raw = localStorage.getItem(LS.vault);
   if (raw) {
     try { lockedEnv = V.parse(raw); } catch (e) { lockedEnv = null; }
-    showGate('lock', reason === 'idle' ? 'Automatisch gesperrt wegen Inaktivität. Gib dein Master-Passwort ein.' : reason === 'manual' ? 'Gesperrt. Gib dein Master-Passwort ein, um weiterzumachen.' : '');
+    showGate('lock', reason === 'idle' ? 'Automatisch gesperrt wegen Inaktivität. Gib dein Master-Passwort ein.' : reason === 'manual' ? 'Gesperrt. Gib dein Master-Passwort ein, um weiterzumachen.' : reason === 'update' ? 'Neue Version geladen. Gib dein Master-Passwort ein, um weiterzumachen.' : '');
     if (!lockedEnv) $('#gLockMsg').textContent = 'Der Tresor auf diesem Gerät ist beschädigt. Entferne ihn und verbinde dich neu mit GitHub oder spiele ein Backup ein.';
   } else {
     $('#gLegacy').hidden = !localStorage.getItem(LS.legacy);

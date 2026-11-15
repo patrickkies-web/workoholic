@@ -286,16 +286,20 @@
   function pill(d) { const n = offen(d).length; return n ? `${n} offen` : 'bereit'; }
 
   /* ======================= Maske ======================= */
-  const V = { id: null, s: 'mask', focus: '', guide: '' };
+  /*
+   * Folien – je Seite ein Thema, gewechselt wird nur über „Zurück / Weiter“:
+   *   'bet' Beteiligte → 'ein' Eintreffen → 'ort' Wohnung → 'wohn' Zustand und Kinder → 'gs' Maßnahmen geschädigte Person
+   *   → 'bs1' § 34a → 'bs2' Schlüssel und Aufenthalt (nur mit Verweisung/Rückkehrverbot) → 'prog' Gefahrenprognose → 'sonst'
+   *   → Abschluss (V.s = 'text'): alle Abschnitte zum Kopieren
+   */
+  const V = { id: null, s: 'mask', f: 'bet', focus: '' };
+  const folien = d => { const a = wvArt(d); return ['bet', 'ein', 'ort', 'wohn', 'gs', 'bs1', ...(a === 'wvrv' || a === 'rv' ? ['bs2'] : []), 'prog', 'sonst']; };
   const $ = s => document.querySelector(s);
-  const top0 = () => { try { window.scrollTo({ top: 0 }); } catch (e) { /* egal */ } };
-  const ICON_BACK = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6l-6 6 6 6"/></svg>';
   const seg = (path, cur, opts, cls = 'w-seg') => `<div class="${cls}" role="group">${opts.map(([v, l]) => `<button type="button" class="${cls === 'w-seg' ? 'w-opt' : 'chip'}" data-sd="set" data-p="${esc(path)}" data-v="${esc(v)}" aria-pressed="${String(cur === v)}">${esc(l)}</button>`).join('')}</div>`;
   const flips = (path, cur, opts) => `<div class="w-chips">${opts.map(([v, l]) => `<button type="button" class="chip" data-sd="flip" data-p="${esc(path)}" data-v="${esc(v)}" aria-pressed="${String(arr(cur).includes(v))}">${esc(l)}</button>`).join('')}</div>`;
   const tog = (path, on, label) => `<button type="button" class="chip" data-sd="tog" data-p="${esc(path)}" aria-pressed="${String(!!on)}">${esc(label)}</button>`;
   const textIn = (id, path, val, ph, max = 240, mode = '') => `<input class="input" id="${id}" data-sk="${esc(path)}" value="${esc(val || '')}" placeholder="${esc(ph)}" autocomplete="off" spellcheck="${max > 120 ? 'true' : 'false'}" maxlength="${max}"${mode ? ` inputmode="${mode}"` : ''}>`;
   const satz = (pre, inner) => `<div class="sd-inl"><span class="w-hint">${pre}</span>${inner}</div>`;
-  const head = (t, h = '') => `<div class="w-q full w-head"><span class="w-head-t">${esc(t)}</span>${h ? `<span class="w-head-h">${esc(h)}</span>` : ''}</div>`;
   const out = (k, txt) => `<div class="w-q"><div class="w-out"><div class="w-out-h"><span class="w-lbl">So steht es da</span><button type="button" class="btn btn-light btn-sm" data-sd="copy" data-k="${k}">Kopieren</button></div><pre class="w-out-t" data-live="${k}">${esc(txt || '– noch nichts erfasst –')}</pre></div></div>`;
   /** Zuletzt benutzte Werte eines Feldes aus anderen Vorgängen dieses Moduls. */
   const zuletzt = (api, path, extra = []) => [...new Set([...api.docs().filter(x => x && x.type === 'hgv' && x.id !== api.d.id).sort((a, b) => (b.u || 0) - (a.u || 0)).map(x => str(getPath(x.data, path))).filter(Boolean), ...extra])].slice(0, 4);
@@ -308,29 +312,26 @@
   function maskHtml(d, api) {
     const data = d.data, G = P(data, 'gs'), B = P(data, 'bs'), e = data.ein || {}, o = data.ort || {}, k = data.kinder || {}, m = data.bsm || {}, pr = data.prog || {}, s = data.sonst || {};
     const art = wvArt(data), wv = art === 'wvrv' || art === 'rv';
-    const personen = `${head('Beteiligte', 'Nur für die richtige Form im Text – Namen stehen in den Schilderungen.')}
-      <div class="w-q half" data-q="gsg"><span class="w-lbl">Geschädigte Person</span>${seg('gs.g', G.g, [['w', 'Frau'], ['m', 'Mann']])}</div>
+    const personen = `<div class="w-q half" data-q="gsg"><span class="w-lbl">Geschädigte Person</span>${seg('gs.g', G.g, [['w', 'Frau'], ['m', 'Mann']])}</div>
       <div class="w-q half" data-q="bsg"><span class="w-lbl">Beschuldigte Person</span>${seg('bs.g', B.g, [['m', 'Mann'], ['w', 'Frau']])}</div>`;
     // 2 Eintreffsituation
     const wirkAuswahl = `${flips('ein.wirk', e.wirk, WIRKT)}<div class="w-chips">${tog('ein.weint', e.weint, 'weinte')}</div>`;
-    const ein = `${head(`${nrOf(data, 'ein')} Eintreffsituation`)}
-      <div class="w-q" data-q="erw"><span class="w-lbl">Von ${G.dat} erwartet?</span>${seg('ein.erw', e.erw, ERWARTET, 'w-chips')}</div>
+    const ein = `<div class="w-q" data-q="erw"><span class="w-lbl">Von ${G.dat} erwartet?</span>${seg('ein.erw', e.erw, ERWARTET, 'w-chips')}</div>
       <div class="w-q" data-q="oeff"><span class="w-lbl">Wer öffnete die Tür?</span>${seg('ein.oeff', e.oeff, OEFFNET.map(([v, l]) => [v, v === 'gs' ? cap(G.nom) : v === 'bs' ? cap(B.nom) : l]), 'w-chips')}${['gs', 'bs', 'kind'].includes(e.oeff) ? `<div class="w-chips sd-gap">${tog('ein.hinein', e.hinein, '… und bat uns hinein')}</div>` : ''}</div>
       <div class="w-q" data-q="wirk"><span class="w-lbl">Wie wirkte ${G.nom}?</span>${wirkAuswahl}${satz('Weiteres (optional), z. B. „zitterte am ganzen Körper“', textIn('hgWirk', 'ein.wirkText', e.wirkText, 'zitterte am ganzen Körper', 200))}</div>
       <div class="w-q" data-q="sicht">${satz(`Beim Eintreffen erkennbar (optional) – Details stehen in der Schilderung:`, textIn('hgSicht', 'ein.sicht', e.sicht, 'eine Rötung an der linken Wange', 300))}</div>
-      <div class="w-q" data-q="bsda"><span class="w-lbl">${cap(B.nom)} vor Ort? <i class="w-req" title="Pflicht">•</i></span>${seg('ein.bsDa', e.bsDa, [['da', 'Ja, getrennt befragt'], ['weg', 'Nein, vorher gegangen']])}</div>
-      <div class="w-q half" data-q="fam"><label class="w-lbl" for="hgFam">Familienname <i class="w-req" title="Pflicht">•</i></label>${textIn('hgFam', 'fam', data.fam, 'z. B. Müller', 80)}<p class="w-hint sd-hint">„… die Wohnung der Familie Müller“</p></div>
+      <div class="w-q" data-q="bsda"><span class="w-lbl">${cap(B.nom)} vor Ort? <i class="w-req" title="Pflicht">•</i></span>${seg('ein.bsDa', e.bsDa, [['da', 'Ja, getrennt befragt'], ['weg', 'Nein, vorher gegangen']])}</div>`;
+    const ort = `<div class="w-q half" data-q="fam"><label class="w-lbl" for="hgFam">Familienname <i class="w-req" title="Pflicht">•</i></label>${textIn('hgFam', 'fam', data.fam, 'z. B. Müller', 80)}<p class="w-hint sd-hint">„… die Wohnung der Familie Müller“</p></div>
       <div class="w-q half" data-q="geb"><span class="w-lbl">Gebäude</span>${seg('ort.art', o.art, GEBAEUDE.map(x => [x[0], x[1]]), 'w-chips')}</div>
       <div class="w-q half" data-q="str"><label class="w-lbl" for="hgStr">Straße, Hausnummer <i class="w-req" title="Pflicht">•</i></label>${textIn('hgStr', 'ort.str', o.str, 'Musterstraße 5', 120)}</div>
       <div class="w-q half" data-q="plz"><label class="w-lbl" for="hgPlz">PLZ und Ort</label>${textIn('hgPlz', 'ort.plz', o.plz, '32545 Bad Oeynhausen', 80)}${vorschlag('ort.plz', zuletzt(api, 'ort.plz'), o.plz)}</div>
-      ${o.art === 'mfh' ? `<div class="w-q" data-q="etage"><span class="w-lbl">Lage der Wohnung</span>${seg('ort.etage', o.etage, ETAGE, 'w-chips')}<div class="sd-gap">${seg('ort.lage', o.lage, LAGE, 'w-chips')}</div></div>` : ''}
-      <div class="w-q" data-q="zust"><span class="w-lbl">Die Wohnung wirkte …</span>${seg('ort.zustand', o.zustand, ZUSTAND, 'w-chips')}<span class="w-lbl sd-gap">Spuren einer Auseinandersetzung</span>${flips('ort.spuren', o.spuren, SPUREN)}${satz('Weitere Feststellung (ganzer Satz, optional)', textIn('hgOrtT', 'ort.text', o.text, 'Im Flur lag eine zerbrochene Vase', 300))}</div>
+      ${o.art === 'mfh' ? `<div class="w-q" data-q="etage"><span class="w-lbl">Lage der Wohnung</span>${seg('ort.etage', o.etage, ETAGE, 'w-chips')}<div class="sd-gap">${seg('ort.lage', o.lage, LAGE, 'w-chips')}</div></div>` : ''}`;
+    const wohn = `<div class="w-q" data-q="zust"><span class="w-lbl">Die Wohnung wirkte …</span>${seg('ort.zustand', o.zustand, ZUSTAND, 'w-chips')}<span class="w-lbl sd-gap">Spuren einer Auseinandersetzung</span>${flips('ort.spuren', o.spuren, SPUREN)}${satz('Weitere Feststellung (ganzer Satz, optional)', textIn('hgOrtT', 'ort.text', o.text, 'Im Flur lag eine zerbrochene Vase', 300))}</div>
       <div class="w-q" data-q="kinder"><span class="w-lbl">Kinder im Haushalt</span>${seg('kinder.n', has(k.n) ? String(k.n) : '', [['0', 'Keine'], ['1', '1'], ['2', '2'], ['3', '3'], ['4', '4'], ['5', '5']], 'w-chips')}
         ${kinderN(data) ? `<div class="sd-gap">${seg('kinder.art', k.art || 'gemeinsam', KIND_ART, 'w-chips')}</div>${satz('Alter (z. B. „3 und 5“) – im Text „(gemeinsame Kinder: 3 und 5 J.)“', textIn('hgAlter', 'kinder.alter', k.alter, '3 und 5', 40))}<div class="w-chips sd-gap">${tog('kinder.bsNicht', k.bsLebt === 'nein', `${cap(B.nom)} wohnt nicht dort`).replace('data-sd="tog" data-p="kinder.bsNicht"', 'data-sd="bslebt"')}</div>` : ''}</div>
       ${out('ein', eintreffen(data))}`;
     // 4 Maßnahmen gegenüber der geschädigten Person
-    const opfer = `${head(`${nrOf(data, 'gs')} ${titel(data, 'gs')}`, 'Strafantrag, Verletzungen und Rettungswagen stehen in der Schilderung.')}
-      <div class="w-q" data-q="opfer"><div class="w-chips"><button type="button" class="chip" data-sd="opferstd">Wie Vorlage: alle Standardhinweise</button></div><div class="sd-gap">${flips('gsm.h', getPath(data, 'gsm.h'), OPFER.filter(([v]) => wv || !['verl', 'rueck'].includes(v)))}</div>${satz('Weiterer Hinweis (ganzer Satz, optional)', textIn('hgGsT', 'gsm.text', getPath(data, 'gsm.text'), 'Ein Platz in einer Schutzeinrichtung wurde vermittelt', 300))}</div>
+    const opfer = `<div class="w-q" data-q="opfer"><div class="w-chips"><button type="button" class="chip" data-sd="opferstd">Wie Vorlage: alle Standardhinweise</button></div><div class="sd-gap">${flips('gsm.h', getPath(data, 'gsm.h'), OPFER.filter(([v]) => wv || !['verl', 'rueck'].includes(v)))}</div>${satz('Weiterer Hinweis (ganzer Satz, optional)', textIn('hgGsT', 'gsm.text', getPath(data, 'gsm.text'), 'Ein Platz in einer Schutzeinrichtung wurde vermittelt', 300))}</div>
       ${out('gs', opferText(data))}`;
     // 5 Maßnahmen gegenüber der beschuldigten Person
     const kr = crew(api, data);
@@ -340,10 +341,11 @@
         ${art === 'keine' ? satz('„Von einer Wohnungsverweisung mit Rückkehrverbot wurde abgesehen, weil …“', textIn('hgKein', 'bsm.keinGrund', m.keinGrund, 'es bei einem verbalen Streit geblieben ist', 300)) : ''}</div>`;
     if (art === 'wvrv') bsm += `<div class="w-q" data-q="reakt"><span class="w-lbl">Reaktion</span>${seg('bsm.reakt', m.reakt, [['halten', 'Verstanden, will sich daran halten'], ['verstanden', 'Verstanden'], ['widerspruch', 'Widersprochen']], 'w-chips')}${satz(`„${B.Er} äußerte, …“ (optional)`, textIn('hgReakt', 'bsm.reaktText', m.reaktText, 'das sei seine Wohnung', 300))}</div>`;
     if (art === 'rv') bsm += `<div class="w-q" data-q="bekannt"><span class="w-lbl">Bekanntgabe</span>${seg('bsm.bekannt', m.bekannt, [['tel', 'Telefonisch'], ['pers', 'Persönlich'], ['nein', 'Noch nicht']], 'w-chips')}</div>`;
+    let bsm2 = '';
     if (wv) {
       bsm += `<div class="w-q" data-q="inh"><span class="w-lbl">Anordnung erfolgte mit …</span>${flips('bsm.inh', m.inh, INHALT.map(x => [x[0], x[1]]))}</div>
-        <div class="w-q" data-q="zg"><span class="w-lbl">Zwangsgeld angedroht <i class="w-req" title="Pflicht">•</i></span>${seg('bsm.zg', str(m.zg), [['300', '300 €'], ['500', '500 €'], ['1000', '1.000 €']], 'w-chips')}${satz('Anderer Betrag in €', textIn('hgZg', 'bsm.zg', ['300', '500', '1000'].includes(str(m.zg)) ? '' : m.zg, 'z. B. 750', 6, 'numeric'))}</div>
-        <div class="w-q" data-q="gegenst"><div class="w-chips">${tog('bsm.gegenst', m.gegenst, 'Gelegenheit, persönliche Gegenstände mitzunehmen')}</div></div>
+        <div class="w-q" data-q="zg"><span class="w-lbl">Zwangsgeld angedroht <i class="w-req" title="Pflicht">•</i></span>${seg('bsm.zg', str(m.zg), [['300', '300 €'], ['500', '500 €'], ['1000', '1.000 €']], 'w-chips')}${satz('Anderer Betrag in €', textIn('hgZg', 'bsm.zg', ['300', '500', '1000'].includes(str(m.zg)) ? '' : m.zg, 'z. B. 750', 6, 'numeric'))}</div>`;
+      bsm2 = `<div class="w-q" data-q="gegenst"><div class="w-chips">${tog('bsm.gegenst', m.gegenst, 'Gelegenheit, persönliche Gegenstände mitzunehmen')}</div></div>
         <div class="w-q" data-q="schl"><span class="w-lbl">Wohnungsschlüssel (zur Herausgabe aufgefordert)</span>${seg('bsm.schl', m.schl, [['mit', 'Mitgeführt, an geschädigte Person übergeben'], ['ohne', 'Keinen mitgeführt']], 'w-chips')}
           ${m.schl === 'ohne' ? `<div class="w-chips sd-gap">${tog('bsm.durchs', m.durchs, 'Mit Zustimmung nach Schlüssel durchsucht')}</div>${m.durchs ? `${satz('Durchsucht von', textIn('hgDurchs', 'bsm.durchsVon', m.durchsVon, 'PK Wagner', 60))}${vorschlag('bsm.durchsVon', kr, m.durchsVon)}<div class="sd-gap">${seg('bsm.gefunden', m.gefunden || 'nein', [['nein', 'Nichts gefunden'], ['ja', 'Schlüssel gefunden']], 'w-chips')}</div>` : ''}` : ''}</div>
         <div class="w-q" data-q="auf"><span class="w-lbl">Aufenthalt / Zustellung <i class="w-req" title="Pflicht">•</i></span>${seg('bsm.auf', m.auf, [['anschrift', 'Anschrift genannt'], ['zbv', 'Zustellungsbevollmächtigte Person'], ['keine', 'Nichts genannt – Hinterlegung']], 'w-chips')}
@@ -351,65 +353,63 @@
           ${m.auf === 'zbv' ? satz('Name und Anschrift', textIn('hgZbv', 'bsm.zbv', m.zbv, 'Herr Peter Müller, Lindenweg 3, 32545 Bad Oeynhausen', 200)) : ''}
           ${m.auf === 'keine' ? `${satz('„… wird in … hinterlegt“ – Dienststelle mit Artikel', textIn('hgWache', 'bsm.wache', m.wache, 'der PW Minden', 80))}${vorschlag('bsm.wache', zuletzt(api, 'bsm.wache', ['der PW Minden']), m.wache)}<p class="w-hint sd-hint">Die Bestätigung bleibt dort für die Dauer des Rückkehrverbots hinterlegt.</p>` : ''}</div>`;
     }
-    bsm += `<div class="w-q" data-q="bsT">${satz('Weitere Maßnahme (ganzer Satz, optional)', textIn('hgBsT', 'bsm.text', m.text, 'Er begab sich anschließend zu seinem Bruder', 300))}</div>`;
-    const taeter = `${head(`${nrOf(data, 'bs')} ${titel(data, 'bs')}`)}${bsm}${out('bs', taeterText(data))}`;
+    const bsEnde = `<div class="w-q" data-q="bsT">${satz('Weitere Maßnahme (ganzer Satz, optional)', textIn('hgBsT', 'bsm.text', m.text, 'Er begab sich anschließend zu seinem Bruder', 300))}</div>${out('bs', taeterText(data))}`;
     // 6 Gefahrenprognose
     const groups = PROG.map(([g, items]) => `<div class="sd-wg"><span class="w-mk-gt">${esc(g)}</span>${flips('prog.f', pr.f, items.filter(([k]) => !['kinderAnw'].includes(k) || kinderN(data)).map(x => [x[0], x[1]]))}</div>`).join('');
-    const prog = `${head(`${nrOf(data, 'prog')} Gefahrenprognose`, 'Trägt bei wiederholter Gewalt oder einer Ersttat von hoher Intensität.')}
-      <div class="w-q" data-q="prog"><span class="w-lbl">Was spricht für weitere Übergriffe?</span><p class="w-hint">Jeder Punkt wird ein Satz – in der Reihenfolge, in der du sie antippst. Grundlage: Angaben der Beteiligten, Erkenntnisse aus Kriminalakten, ViVA und früheren Einsätzen, Zustand von Opfer, Kindern und Wohnung.</p>${groups}
+    const prog = `<div class="w-q" data-q="prog"><span class="w-lbl">Was spricht für weitere Übergriffe?</span><p class="w-hint">Jeder Punkt wird ein Satz – in der Reihenfolge, in der du sie antippst. Grundlage: Angaben der Beteiligten, Erkenntnisse aus Kriminalakten, ViVA und früheren Einsätzen, Zustand von Opfer, Kindern und Wohnung.</p>${groups}
         ${satz('Eigene Ergänzung (ganze Sätze, optional)', textIn('hgProgT', 'prog.text', pr.text, 'Er kündigte an, „das nächste Mal richtig zuzuschlagen“', 600))}
         <div class="w-chips sd-gap">${tog('prog.schlussAus', pr.schluss === false, 'Ohne Schlusssatz „weitere gleichgelagerte Delikte …“').replace('data-sd="tog" data-p="prog.schlussAus"', 'data-sd="schluss"')}</div></div>
       ${out('prog', prognoseText(data))}`;
     // 7 Maßnahmen/Sonstiges
-    const sonst = `${head(`${nrOf(data, 'sonst')} Maßnahmen/Sonstiges`)}
-      ${kinderN(data) ? `<div class="w-q" data-q="skind"><span class="w-lbl">Wie wirkten die Kinder?</span>${flips('sonst.kind', s.kind, SONST_KIND)}<div class="w-chips sd-gap">${tog('sonst.schlafen', s.schlafen, 'Schliefen während des Einsatzes')}</div><span class="w-lbl sd-gap">Weiterleitung</span>${seg('sonst.weiter', s.weiter, [['anregen', 'An entsprechende Stellen weiterleiten (anregen)'], ['ja', 'Jugendamt informiert']], 'w-chips')}</div>` : ''}
+    const sonst = `${kinderN(data) ? `<div class="w-q" data-q="skind"><span class="w-lbl">Wie wirkten die Kinder?</span>${flips('sonst.kind', s.kind, SONST_KIND)}<div class="w-chips sd-gap">${tog('sonst.schlafen', s.schlafen, 'Schliefen während des Einsatzes')}</div><span class="w-lbl sd-gap">Weiterleitung</span>${seg('sonst.weiter', s.weiter, [['anregen', 'An entsprechende Stellen weiterleiten (anregen)'], ['ja', 'Jugendamt informiert']], 'w-chips')}</div>` : ''}
       <div class="w-q" data-q="doku"><div class="w-chips">${tog('sonst.doku', s.doku, 'Dokument „Dokumentation über den Polizeieinsatz bei häuslicher Gewalt“')}</div>${s.doku ? `<div class="sd-gap">${seg('sonst.dokuAn', s.dokuAn || 'bs', [['bs', `an ${B.akk} zugestellt`], ['gs', `an ${G.akk} ausgehändigt`]], 'w-chips')}</div>` : ''}</div>
       ${wv ? `<div class="w-q" data-q="best"><span class="w-lbl">Schriftliche Bestätigung der mündlichen Polizeiverfügung</span>${seg('sonst.best', s.best, [['zugestellt', 'Zugestellt'], ['nieder', 'Nicht zugestellt – Benachrichtigung an der Tür'], ['hinterlegt', 'Hinterlegt (siehe Aufenthalt)']], 'w-chips')}</div>` : ''}
       <div class="w-q" data-q="ga"><span class="w-lbl">Gefährderansprache</span>${seg('sonst.ga', s.ga, [['durch', 'Durchgeführt (Formular liegt bei)'], ['veranl', 'Veranlasst'], ['keine', 'Keine']], 'w-chips')}</div>
       <div class="w-q" data-q="sT">${satz('Weiteres (ganzer Satz, optional)', textIn('hgSoT', 'sonst.text', s.text, 'Die Wohnung wird in der Nacht bestreift', 300))}</div>
       ${out('sonst', sonstText(data))}`;
-    const miss = offen(data);
-    return `<div class="w-top"><button type="button" class="icon-btn sm w-back" data-w="list" aria-label="Zur Liste">${ICON_BACK}</button><div class="w-top-t"><span class="spaced">Häusliche Gewalt · nach Vorlage</span><div class="w-title">${esc(title(data))}</div></div></div>
-      <p class="w-hint">Einsatzanlass und Schilderungen (mit Belehrung, Verletzungen und Strafantrag) legst du unter Schreiben als eigene Vorgänge an.</p>
-      <div class="w-grid sd-grid">${personen}${ein}${opfer}${taeter}${prog}${sonst}</div>
-      <div class="w-nav"><button type="button" class="btn btn-ghost btn-sm btn-danger" data-w="delete">Löschen</button><span class="grow"></span>${miss.length ? `<span class="w-nav-i">${miss.length} offen</span>` : ''}<button type="button" class="btn btn-accent" data-sd="text">Text ansehen</button></div>`;
+    const F = folien(data); if (!F.includes(V.f)) V.f = F[0];
+    const i = F.indexOf(V.f), last = i === F.length - 1;
+    const SEITE = {
+      bet: ['Wer ist beteiligt?', 'Nur für die richtige Form im Text – die Namen stehen in den Schilderungen. Einsatzanlass und Schilderungen sind eigene Abschnitte.', personen],
+      ein: ['Wie habt ihr die Lage angetroffen?', `Abschnitt ${nrOf(data, 'ein')} Eintreffsituation.`, ein],
+      ort: ['Welche Wohnung?', 'Gehört noch zur Eintreffsituation.', ort],
+      wohn: ['Zustand der Wohnung, Kinder', 'Damit ist die Eintreffsituation vollständig.', wohn],
+      gs: [`Hinweise an ${G.akk}`, `Abschnitt ${nrOf(data, 'gs')} ${titel(data, 'gs')} – Strafantrag, Verletzungen und Rettungswagen stehen in der Schilderung.`, opfer],
+      bs1: ['Wohnungsverweisung und Rückkehrverbot', `Abschnitt ${nrOf(data, 'bs')} ${titel(data, 'bs')}.`, bsm + (wv ? '' : bsEnde)],
+      bs2: ['Schlüssel und Aufenthalt', 'Was nach der Anordnung geschah.', bsm2 + bsEnde],
+      prog: ['Gefahrenprognose', 'Trägt bei wiederholter Gewalt oder einer Ersttat von hoher Intensität.', prog],
+      sonst: ['Maßnahmen/Sonstiges', '', sonst]
+    }[V.f];
+    return `${api.kopf({ pos: [i + 1, F.length], titel: SEITE[0], lead: SEITE[1] })}
+      <div class="w-grid sd-grid">${SEITE[2]}</div>
+      ${api.fuss({ back: i ? { attr: 'data-sd="pf" data-v="-1"' } : null, next: last ? { label: 'Fertig', attr: 'data-sd="text"', ok: true } : { attr: 'data-sd="pf" data-v="1"' } })}`;
   }
 
-  function textHtml(d) {
+  /** Abschluss: alle Abschnitte mit ihren Nummern, einzeln oder zusammen zu kopieren. */
+  function textHtml(d, api) {
     const data = d.data, miss = offen(data);
     const nums = ABSCHNITTE.map(([k, l]) => `<div class="hg-nr"><label class="w-hint" for="hgNr_${k}">${esc(l.replace(' gegenüber der geschädigten Person', ' (geschädigt)').replace(' gegenüber der beschuldigten Person', ' (beschuldigt)'))}</label><input class="input mono" id="hgNr_${k}" data-sk="nr.${k}" value="${esc(nrOf(data, k))}" inputmode="decimal" maxlength="6"></div>`).join('');
     const blocks = ABSCHNITTE.map(([k]) => `<div class="w-q"><div class="w-out"><div class="w-out-h"><span class="w-lbl">${esc(`${nrOf(data, k)} ${titel(data, k)}`.trim())}</span><button type="button" class="btn btn-light btn-sm" data-sd="copy" data-k="${k}">Kopieren</button></div><pre class="w-out-t" data-live="${k}">${esc(TEXTE[k](data) || '– noch nichts erfasst –')}</pre></div></div>`).join('');
-    return `<div class="w-top"><button type="button" class="icon-btn sm" data-sd="mask" aria-label="Zurück zur Eingabe">${ICON_BACK}</button><div class="w-top-t"><span class="spaced">Häusliche Gewalt · Text</span><div class="w-title">${esc(title(data))}</div></div></div>
+    return `${api.kopf({ fertig: miss.length ? `Fertig · ${miss.length} offen` : 'Fertig', offen: miss.length > 0, titel: 'So steht es im Text' })}
       <div class="w-grid sd-grid">
-        <div class="w-q"><span class="w-lbl">Nummern der Abschnitte (wie in der Vorlage: 1 Einsatzanlass und 3 Schilderungen kommen aus den eigenen Vorgängen)</span><div class="hg-nrs">${nums}</div></div>
-        ${miss.length ? `<div class="w-q"><div class="w-warn">Noch offen: ${esc(miss.join(', '))}.</div></div>` : ''}
+        ${miss.length ? `<div class="w-q"><div class="w-warn fo-warn"><span>Noch offen: ${esc(miss.join(', '))}.</span><button type="button" class="btn btn-ghost btn-sm" data-sd="mask">Nachtragen</button></div></div>` : ''}
         ${blocks}
+        <div class="w-q" data-q="nrs"><span class="w-lbl">Nummern der Abschnitte (wie in der Vorlage: 1 Einsatzanlass und 3 Schilderungen kommen aus den eigenen Abschnitten)</span><div class="hg-nrs">${nums}</div></div>
       </div>
-      <div class="w-nav"><button type="button" class="btn btn-ghost btn-sm" data-sd="mask">Zur Eingabe</button><span class="grow"></span><button type="button" class="btn btn-accent" data-sd="copyall">Alles kopieren</button></div>`;
+      <button type="button" class="btn btn-light fo-wide" data-sd="copyall">Alles kopieren</button>
+      ${api.fein()}
+      ${api.fuss({ back: { label: 'Bearbeiten', attr: 'data-sd="mask"' }, next: api.danach() })}`;
   }
 
-  function open(d) { V.id = d.id; V.s = 'mask'; V.focus = ''; V.guide = ''; }
+  function open(d) { V.id = d.id; V.s = d.status === 'fertig' ? 'text' : 'mask'; V.f = 'bet'; V.focus = ''; }
+  /** Kennung der Folie – wechselt sie, beginnt die neue Seite oben; sonst bleibt alles stehen. */
+  const key = () => `${V.s}:${V.s === 'mask' ? V.f : ''}`;
   function render(d, api) {
     if (V.id !== d.id) open(d);
     if (!d.data || typeof d.data !== 'object') d.data = {};
-    return V.s === 'text' ? textHtml(d) : maskHtml(d, api);
+    return V.s === 'text' ? textHtml(d, api) : maskHtml(d, api);
   }
-  function mounted() {
-    if (V.guide) { const k = V.guide; V.guide = ''; guide(k); }
-  }
-  /** Nach einer Einfachauswahl: nur scrollen, wenn der Anfang der nächsten Frage verdeckt ist – und nur so weit wie nötig. */
-  function guide(key) {
-    const all = [...document.querySelectorAll('#wMain [data-q]')];
-    const i = all.findIndex(n => n.dataset.q === key);
-    const nx = i >= 0 ? all[i + 1] : null; if (!nx) return;
-    const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-    const nav = document.querySelector('#wMain .w-nav'); const navH = nav ? nav.getBoundingClientRect().height : 0;
-    const r = nx.getBoundingClientRect(), free = vh - navH - 12, need = r.top + Math.min(r.height, 150);
-    if (r.top < 0 || need <= free) return;
-    const delta = Math.min(r.top - vh * 0.22, need - free); if (delta < 32) return;
-    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    window.scrollBy({ top: delta, behavior: reduce ? 'auto' : 'smooth' });
-  }
+  function mounted() { /* nichts nachzuführen: die Seite bleibt nach einer Auswahl stehen */ }
   function live(api) {
     const data = api.d.data, host = $('#wMain'); if (!host) return;
     for (const k of Object.keys(TEXTE)) host.querySelectorAll(`[data-live="${k}"]`).forEach(n => { n.textContent = TEXTE[k](data) || '– noch nichts erfasst –'; });
@@ -423,7 +423,6 @@
         const path = b.dataset.p, v = b.dataset.v;
         // Zahlen-Chips (Kinder) als Zahl, sonst Text
         setPath(data, path, path === 'kinder.n' ? Number(v) : v);
-        const q = b.closest('[data-q]'); if (q) V.guide = q.dataset.q;
         save(); return true;
       }
       case 'flip': { const path = b.dataset.p, v = b.dataset.v, a2 = arr(getPath(data, path)).slice(), k = a2.indexOf(v); if (k >= 0) a2.splice(k, 1); else a2.push(v); setPath(data, path, a2.length ? a2 : undefined); save(); return true; }
@@ -431,10 +430,17 @@
       case 'bslebt': setPath(data, 'kinder.bsLebt', getPath(data, 'kinder.bsLebt') === 'nein' ? undefined : 'nein'); save(); return true;
       case 'schluss': setPath(data, 'prog.schluss', getPath(data, 'prog.schluss') === false ? undefined : false); save(); return true;
       case 'opferstd': { const cur = arr(getPath(data, 'gsm.h')); setPath(data, 'gsm.h', [...new Set([...cur, ...OPFER_STD])]); save(); return true; }
-      case 'copy': api.copy(abschnitt(data, b.dataset.k)); return true;
-      case 'copyall': api.copy(paket(data)); return true;
-      case 'text': V.s = 'text'; api.render(); top0(); return true;
-      case 'mask': V.s = 'mask'; api.render(); top0(); return true;
+      case 'copy': api.copy(abschnitt(data, b.dataset.k), b); return true;
+      case 'copyall': api.copy(paket(data), b); return true;
+      /* Folie wechseln */
+      case 'pf': { const F = folien(data), k = Math.max(0, Math.min(F.length - 1, F.indexOf(V.f) + Number(b.dataset.v))); V.f = F[k]; api.render(); return true; }
+      case 'text': {
+        const miss = offen(data);
+        api.d.status = 'fertig'; V.s = 'text'; api.persist(true); api.render();
+        if (miss.length) api.toast(`Fertig – noch offen: ${miss.length} ${miss.length === 1 ? 'Punkt' : 'Punkte'}.`);
+        return true;
+      }
+      case 'mask': V.s = 'mask'; api.render(); return true;
       default: return false;
     }
   }
@@ -454,7 +460,8 @@
     if (e.key !== 'Enter' || e.shiftKey || e.isComposing || !el.closest || !el.closest('#wMain') || !el.dataset || !el.dataset.sk) return false;
     e.preventDefault(); el.blur(); return true;
   }
-  function submit(api) { if (V.s === 'mask') { V.s = 'text'; api.render(); top0(); } else api.copy(paket(api.d.data)); }
+  /** ⌘/Strg + Enter: der eine nächste Schritt der Folie – wie der Knopf unten rechts. */
+  function submit() { const b = $('#wMain .fo-nav .fo-next'); if (b) b.click(); }
 
   root.WHGV = Object.freeze({
     id: 'hgv', name: 'Häusliche Gewalt', short: 'Häusliche Gewalt', kurz: 'HG',
@@ -466,7 +473,7 @@
     plain: paket,
     text: d => ABSCHNITTE.map(([k]) => [nrOf(d, k), titel(d, k), TEXTE[k](d), k]),
     preview: () => '', kurzText: () => '', fahndung: () => '', offen, personalien: () => '',
-    screen: { open, render, mounted, click, input, change, keydown, submit },
+    screen: { open, render, mounted, click, input, change, keydown, submit, key },
     core: { eintreffen, opferText, taeterText, prognoseText, sonstText, abschnitt, paket, offen, P, PROG }
   });
 })(typeof window !== 'undefined' ? window : globalThis);
