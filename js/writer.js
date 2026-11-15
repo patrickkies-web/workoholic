@@ -721,6 +721,7 @@
   }
   /** Erste Folie, auf der noch eine Pflichtangabe fehlt (-1 = keine). */
   function offeneFolie(m, data) {
+    if (typeof m.luecke === 'function') { let id = ''; try { id = m.luecke(data) || ''; } catch (e) { id = ''; } const i = id ? visibleSteps(m, data).findIndex(s => s.id === id) : -1; if (i >= 0) return i; }
     return visibleSteps(m, data).findIndex(s => s.fields.some(f => f.req && f.k && (!f.when || f.when(data)) && !answered(getP(data, f.k))));
   }
   function stepForSection(m, id, data) {

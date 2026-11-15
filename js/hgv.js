@@ -263,11 +263,48 @@
     return `${nr ? nr + ' ' : ''}${titel(d, k)}\n${body || '[noch nichts erfasst]'}`;
   }
   const paket = d => ABSCHNITTE.map(([k]) => abschnitt(d, k)).join('\n\n');
+  /** Im Vorgang: fortlaufende Nummern übernehmen (map = { ein: '2', gs: '4', … }); true, wenn sich etwas geändert hat. */
+  function setNr(d, map) {
+    let ch = false;
+    for (const [k] of ABSCHNITTE) { if (map[k] == null || nrOf(d, k) === String(map[k])) continue; if (!d.nr || typeof d.nr !== 'object') d.nr = {}; d.nr[k] = String(map[k]); ch = true; }
+    return ch;
+  }
+  /**
+   * Übernimmt aus dem Vorgang, ob es dort den Abschnitt „Eintreffsituation“ gibt (ctx.angehaengt.ein): Dann wird die
+   * Eintreffsituation von hier dort als Absatz angehängt, und die Ankunft muss hier nicht noch einmal beschrieben werden.
+   */
+  function nimmt(d, ctx) {
+    if (!d || typeof d !== 'object') return false;
+    let ch = false;
+    const mit = !!(ctx && ctx.angehaengt && ctx.angehaengt.ein);
+    if (!!d.mitEs !== mit) { if (mit) d.mitEs = true; else delete d.mitEs; ch = true; }
+    /* Vorbelegen, was der Vorgang schon weiß – nur solange das Feld leer ist oder noch den zuletzt übernommenen Wert trägt
+       (d.vgv merkt ihn sich); was von Hand geändert wurde, bleibt stehen. */
+    const v = d.vgv && typeof d.vgv === 'object' ? d.vgv : {};
+    const folge = (path, key, wert) => {
+      wert = str(wert); if (!wert) return;
+      const cur = str(getPath(d, path)), alt = str(v[key]);
+      if (cur && cur !== alt) return; // selbst eingetragen
+      if (alt === wert) return;       // schon übernommen – oder danach bewusst geleert: dann bleibt es leer
+      setPath(d, path, wert); v[key] = wert; d.vgv = v; ch = true;
+    };
+    // Tatort = Einsatzörtlichkeit aus „Allgemeines“
+    if (ctx && ctx.ort) { folge('ort.str', 'str', ctx.ort.str); folge('ort.plz', 'plz', ctx.ort.plz); }
+    // Anrede und Familienname aus der Eintreffsituation, wenn dort genau eine geschädigte und eine beschuldigte Person steht
+    if (ctx && Array.isArray(ctx.personen)) {
+      const eine = rolle => { const L = ctx.personen.filter(q => q && q.rolle === rolle); return L.length === 1 ? L[0] : null; };
+      const gs = eine('gs'), bs = eine('bs'), gleich = (a, b) => str(a).toLocaleLowerCase('de') === str(b).toLocaleLowerCase('de');
+      if (gs && (gs.g === 'm' || gs.g === 'w')) folge('gs.g', 'gsg', gs.g);
+      if (bs && (bs.g === 'm' || bs.g === 'w')) folge('bs.g', 'bsg', bs.g);
+      if (gs && bs && has(gs.nachname) && gleich(gs.nachname, bs.nachname)) folge('fam', 'fam', gs.nachname);
+    }
+    return ch;
+  }
 
   /* ======================= Pflichtangaben ======================= */
   function offen(d) {
     const m = [], b = d.bsm || {}, art = wvArt(d);
-    if (!getPath(d, 'ein.bsDa')) m.push('Beschuldigte Person vor Ort?');
+    if (!d.mitEs && !getPath(d, 'ein.bsDa')) m.push('Beschuldigte Person vor Ort?'); // mitEs: steht schon in der „Eintreffsituation“ des Vorgangs
     if (!has(d.fam)) m.push('Familienname (Tatort)');
     if (!has(getPath(d, 'ort.str'))) m.push('Anschrift des Tatorts');
     if (!art) m.push('Wohnungsverweisung / Rückkehrverbot');
@@ -371,9 +408,9 @@
     const i = F.indexOf(V.f), last = i === F.length - 1;
     const SEITE = {
       bet: ['Wer ist beteiligt?', 'Nur für die richtige Form im Text – die Namen stehen in den Schilderungen. Einsatzanlass und Schilderungen sind eigene Abschnitte.', personen],
-      ein: ['Wie habt ihr die Lage angetroffen?', `Abschnitt ${nrOf(data, 'ein')} Eintreffsituation.`, ein],
-      ort: ['Welche Wohnung?', 'Gehört noch zur Eintreffsituation.', ort],
-      wohn: ['Zustand der Wohnung, Kinder', 'Damit ist die Eintreffsituation vollständig.', wohn],
+      ein: ['Wie habt ihr die Lage angetroffen?', data.mitEs ? '' : `Abschnitt ${nrOf(data, 'ein')} Eintreffsituation.`, (data.mitEs ? '<div class="w-q"><div class="w-info">Der Vorgang hat schon den Abschnitt „Eintreffsituation“. Was du auf dieser und den nächsten zwei Folien einträgst, wird <b>dort als Absatz angehängt</b> – wer wo angetroffen wurde, musst du hier nicht noch einmal antippen.</div></div>' : '') + ein],
+      ort: ['Welche Wohnung?', data.mitEs ? 'Wird an die Eintreffsituation des Vorgangs angehängt.' : 'Gehört noch zur Eintreffsituation.', ort],
+      wohn: ['Zustand der Wohnung, Kinder', data.mitEs ? 'Wird an die Eintreffsituation des Vorgangs angehängt.' : 'Damit ist die Eintreffsituation vollständig.', wohn],
       gs: [`Hinweise an ${G.akk}`, `Abschnitt ${nrOf(data, 'gs')} ${titel(data, 'gs')} – Strafantrag, Verletzungen und Rettungswagen stehen in der Schilderung.`, opfer],
       bs1: ['Wohnungsverweisung und Rückkehrverbot', `Abschnitt ${nrOf(data, 'bs')} ${titel(data, 'bs')}.`, bsm + (wv ? '' : bsEnde)],
       bs2: ['Schlüssel und Aufenthalt', 'Was nach der Anordnung geschah.', bsm2 + bsEnde],
@@ -389,12 +426,13 @@
   function textHtml(d, api) {
     const data = d.data, miss = offen(data);
     const nums = ABSCHNITTE.map(([k, l]) => `<div class="hg-nr"><label class="w-hint" for="hgNr_${k}">${esc(l.replace(' gegenüber der geschädigten Person', ' (geschädigt)').replace(' gegenüber der beschuldigten Person', ' (beschuldigt)'))}</label><input class="input mono" id="hgNr_${k}" data-sk="nr.${k}" value="${esc(nrOf(data, k))}" inputmode="decimal" maxlength="6"></div>`).join('');
-    const blocks = ABSCHNITTE.map(([k]) => `<div class="w-q"><div class="w-out"><div class="w-out-h"><span class="w-lbl">${esc(`${nrOf(data, k)} ${titel(data, k)}`.trim())}</span><button type="button" class="btn btn-light btn-sm" data-sd="copy" data-k="${k}">Kopieren</button></div><pre class="w-out-t" data-live="${k}">${esc(TEXTE[k](data) || '– noch nichts erfasst –')}</pre></div></div>`).join('');
+    const vg = typeof api.ctx === 'function' ? api.ctx() : null;
+    const blocks = ABSCHNITTE.map(([k]) => `<div class="w-q"><div class="w-out"><div class="w-out-h"><span class="w-lbl">${esc(`${nrOf(data, k)} ${titel(data, k)}`.trim())}${k === 'ein' && data.mitEs ? ' <i class="w-hint-i">wird im Vorgang dort angehängt</i>' : ''}</span><button type="button" class="btn btn-light btn-sm" data-sd="copy" data-k="${k}">Kopieren</button></div><pre class="w-out-t" data-live="${k}">${esc(TEXTE[k](data) || '– noch nichts erfasst –')}</pre></div></div>`).join('');
     return `${api.kopf({ fertig: miss.length ? `Fertig · ${miss.length} offen` : 'Fertig', offen: miss.length > 0, titel: 'So steht es im Text' })}
       <div class="w-grid sd-grid">
         ${miss.length ? `<div class="w-q"><div class="w-warn fo-warn"><span>Noch offen: ${esc(miss.join(', '))}.</span><button type="button" class="btn btn-ghost btn-sm" data-sd="mask">Nachtragen</button></div></div>` : ''}
         ${blocks}
-        <div class="w-q" data-q="nrs"><span class="w-lbl">Nummern der Abschnitte (wie in der Vorlage: 1 Einsatzanlass und 3 Schilderungen kommen aus den eigenen Abschnitten)</span><div class="hg-nrs">${nums}</div></div>
+        ${vg && vg.nrAuto ? '' : `<div class="w-q" data-q="nrs"><span class="w-lbl">Nummern der Abschnitte (wie in der Vorlage: 1 Einsatzanlass und 3 Schilderungen kommen aus den eigenen Abschnitten)</span><div class="hg-nrs">${nums}</div></div>`}
       </div>
       <button type="button" class="btn btn-light fo-wide" data-sd="copyall">Alles kopieren</button>
       ${api.fein()}
@@ -407,6 +445,7 @@
   function render(d, api) {
     if (V.id !== d.id) open(d);
     if (!d.data || typeof d.data !== 'object') d.data = {};
+    if (typeof api.ctx === 'function' && nimmt(d.data, api.ctx())) api.persist(false);
     return V.s === 'text' ? textHtml(d, api) : maskHtml(d, api);
   }
   function mounted() { /* nichts nachzuführen: die Seite bleibt nach einer Auswahl stehen */ }
@@ -474,6 +513,9 @@
     text: d => ABSCHNITTE.map(([k]) => [nrOf(d, k), titel(d, k), TEXTE[k](d), k]),
     preview: () => '', kurzText: () => '', fahndung: () => '', offen, personalien: () => '',
     screen: { open, render, mounted, click, input, change, keydown, submit, key },
+    kontext: { nimmt },
+    /* Eigene Gliederung für den Vorgang: Teile, Überschrift, Text mit und ohne Überschrift; slot = Teil gehört an die Stelle dieses Abschnitts */
+    gliederung: { keys: ABSCHNITTE.map(a => a[0]), slot: { ein: 'eintreffen' }, titel, abschnitt, rumpf: (d, k) => TEXTE[k](d) || '', setNr },
     core: { eintreffen, opferText, taeterText, prognoseText, sonstText, abschnitt, paket, offen, P, PROG }
   });
 })(typeof window !== 'undefined' ? window : globalThis);

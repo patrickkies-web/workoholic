@@ -35,23 +35,25 @@
    * Zeile = Abschnitt (Modul). pos = übliche Stelle im Sachverhalt (neue Abschnitte reihen sich so ein, ↑ ändert es),
    * gibt = was der Abschnitt in den Vorgang einbringt, nimmt = was er von den anderen übernimmt.
    * nr = der Abschnitt trägt seine Nummer selbst (data.nr), kopf = seine Überschrift hat keine Nummer – beide werden bei
-   * „nach Reihenfolge nummerieren“ mit ihrer Stelle im Vorgang versehen. Die übrigen behalten ihre eigene Nummerierung.
+   * „nach Reihenfolge nummerieren“ fortlaufend gezählt. Ein Abschnitt mit eigener Gliederung (Modul liefert `gliederung`,
+   * z. B. Häusliche Gewalt: Eintreffsituation, Maßnahmen …) zählt mit jedem seiner Teile mit. Blutprobe, PsychKG und
+   * Gewahrsam tragen keine Gliederungsnummer und zählen nicht – siehe plan().
    *
    *                      gibt                      nimmt
-   *   Allgemeines        Kräfte                    –
+   *   Allgemeines        Kräfte, Anschrift         –
    *   Eintreffsituation  Personen, Art             Namen (der Personen, die nur in den Schilderungen stehen)
    *   Schilderungen      Namen                     Kräfte, Personen, Art
-   *   Häusliche Gewalt   –                         Kräfte
+   *   Häusliche Gewalt   –                         Kräfte, Anschrift (Tatort), Personen (Anrede, Familienname)
    *   Unfallörtlichkeit  –                         –
    *   Blutprobe          –                         Kräfte
    *   PsychKG            –                         Kräfte
    *   Gewahrsam          –                         Kräfte
    */
   const MATRIX = {
-    anzeige: { pos: 1, gibt: ['kraefte'], nimmt: [], kopf: true },
+    anzeige: { pos: 1, gibt: ['kraefte', 'ort'], nimmt: [], kopf: true },
     eintreffen: { pos: 2, gibt: ['personen', 'art'], nimmt: ['namen'], nr: true },
     sch: { pos: 3, gibt: ['namen'], nimmt: ['kraefte', 'personen', 'art'], nr: true },
-    hgv: { pos: 4, gibt: [], nimmt: ['kraefte'] },
+    hgv: { pos: 4, gibt: [], nimmt: ['kraefte', 'ort', 'personen'] },
     unfallort: { pos: 5, gibt: [], nimmt: [], kopf: true },
     blutprobe: { pos: 6, gibt: [], nimmt: ['kraefte'] },
     psychkg: { pos: 7, gibt: [], nimmt: ['kraefte'] },
@@ -76,6 +78,8 @@
    */
   const KONTEXT = {
     kraefte: { l: 'Kräfte', lesen: kraefte, leer: v => !v.length },
+    // Einsatzörtlichkeit in der Form, wie Folgeabschnitte sie schreiben: „Am Bach 36“ und „33829 Borgholzhausen“
+    ort: { l: 'Anschrift', lesen: data => { const o = (data && data.ort) || {}; const strasse = [str(o.strasse), str(o.hausnr)].filter(Boolean).join(' '), plz = [str(o.plz), str(o.ort)].filter(Boolean).join(' '); return has(o.strasse) || has(o.ort) ? { str: strasse, plz } : null; }, leer: v => !v },
     personen: { l: 'Personen', lesen: data => arr(data && data.personen).filter(p => p && has(p.pid)).map(p => ({ pid: p.pid, rolle: p.rolle, ub: p.ub, g: p.g, nachname: p.nachname, vorname: p.vorname, verl: p.verl })), leer: () => false },
     art: { l: '', lesen: data => (data && data.art) || '', leer: () => false }, // kommt mit den Personen, steht nicht eigens im Hinweis
     // Namen der Personen, die ein Abschnitt selbst führt (nicht übernommen hat) – nur damit Namen und Kürzel überall gleich ausfallen
@@ -107,7 +111,10 @@
    */
   function kontext(data, doc) {
     const T = teile(data), cfg = MATRIX[doc && doc.type] || { nimmt: [] };
-    const ctx = { vorgang: true, nrAuto: auto(data) && !!cfg.nr, quellen: [] };
+    const gl = (mod(doc && doc.type) || {}).gliederung || null;
+    const ctx = { vorgang: true, nrAuto: auto(data) && !!(cfg.nr || gl), quellen: [] };
+    // Teile, die im Gesamtsachverhalt an einen anderen Abschnitt angehängt werden (HG-Eintreffsituation → „Eintreffsituation“)
+    if (gl) { const an = {}; for (const [k, typ] of Object.entries(gl.slot || {})) { const z = T.find(t => t.id !== doc.id && t.doc.type === typ); if (z) an[k] = z.m.name; } if (Object.keys(an).length) ctx.angehaengt = an; }
     for (const kind of cfg.nimmt) {
       const K = KONTEXT[kind];
       const src = T.find(t => t.id !== doc.id && t.cfg.gibt.includes(kind) && !K.leer(K.lesen(t.doc.data)));
@@ -148,25 +155,79 @@
     const da = roh.filter(t => t && has(t.id) && ENV.find(t.id));
     if (da.length !== roh.length || !Array.isArray(data.teile)) { data.teile = da; out.selbst = true; }
     const T = teile(data), ch = new Set();
-    T.forEach((t, i) => {
-      if (auto(data) && t.cfg.nr && t.doc.data.nr !== String(i + 1)) { t.doc.data.nr = String(i + 1); ch.add(t.doc); }
-      const ctx = kontext(data, t.doc);
-      if (t.cfg.nimmt.includes('kraefte') && kraefteAnwenden(t.doc.data, ctx.kraefte)) ch.add(t.doc);
-      if (t.m.kontext && typeof t.m.kontext.nimmt === 'function' && t.m.kontext.nimmt(t.doc.data, ctx)) ch.add(t.doc);
-    });
+    // Was ein Abschnitt übernimmt, kann ändern, was ein anderer gibt (Namen, Verknüpfungen) – deshalb abgleichen, bis nichts
+    // mehr nachrückt. Zwei Runden reichen; die dritte ist die Sicherung gegen Schleifen.
+    for (let runde = 0; runde < 3; runde++) {
+      let neu = false;
+      const merk = doc => { ch.add(doc); neu = true; };
+      if (auto(data)) {
+        const je = new Map(); // gegliederter Abschnitt → { Teil: Nummer }
+        for (const b of plan(data)) {
+          if (b.k) { if (!je.has(b.t)) je.set(b.t, {}); je.get(b.t)[b.k] = b.nr; }
+          else if (b.t.cfg.nr && b.t.doc.data.nr !== b.nr) { b.t.doc.data.nr = b.nr; merk(b.t.doc); }
+          for (const x of b.mit) { if (!je.has(x.t)) je.set(x.t, {}); je.get(x.t)[x.k] = b.nr; }
+        }
+        for (const [t, map] of je) if (t.m.gliederung.setNr(t.doc.data, map)) merk(t.doc);
+      }
+      T.forEach(t => {
+        const ctx = kontext(data, t.doc);
+        if (t.cfg.nimmt.includes('kraefte') && kraefteAnwenden(t.doc.data, ctx.kraefte)) merk(t.doc);
+        if (t.m.kontext && typeof t.m.kontext.nimmt === 'function' && t.m.kontext.nimmt(t.doc.data, ctx)) merk(t.doc);
+      });
+      if (!neu) break;
+    }
     const st = T.length && T.every(t => t.doc.status === 'fertig') ? 'fertig' : 'entwurf';
     if (vg.status !== st) { vg.status = st; out.selbst = true; }
     out.teile = [...ch];
     return out;
   }
 
-  /* ======================= Texte ======================= */
-  /** Text eines Abschnitts im Gesamtsachverhalt; Überschriften ohne eigene Nummer bekommen die Stelle im Vorgang. */
-  function teilText(data, t, i) {
-    let p = ''; try { p = t.m.plain(t.doc.data) || ''; } catch (e) { p = ''; }
-    return auto(data) && t.cfg.kopf ? `${i + 1} ${p}` : p;
+  /* ======================= Bausteine und Texte ======================= */
+  /**
+   * Bausteine des Gesamtsachverhalts in der Reihenfolge, in der sie im Text stehen: [{ t, k?, mit, nr }].
+   * Regelfall: ein Abschnitt = ein Baustein. Ein Abschnitt mit eigener Gliederung liefert je Teil einen (k = Teil). Teile,
+   * die an die Stelle eines anderen Abschnitts gehören (gliederung.slot, z. B. die Eintreffsituation der Häuslichen Gewalt):
+   *   – gibt es diesen Abschnitt im Vorgang, werden sie dort als Absatz angehängt (mit) – eine Überschrift, eine Nummer;
+   *   – sonst stehen sie als eigener Baustein an dessen üblicher Stelle, also vor den Schilderungen.
+   * nr = fortlaufende Nummer bei „nach Reihenfolge nummerieren“ ('' = ohne bzw. eigene Nummer des Abschnitts).
+   */
+  function plan(data) {
+    const T = teile(data), out = [];
+    const gl = T.find(t => t.m.gliederung) || null, G = gl ? gl.m.gliederung : null;
+    const vor = G ? G.keys.filter(k => G.slot && G.slot[k]) : [];
+    const ziel = k => T.find(t => t !== gl && t.doc.type === G.slot[k]) || null;
+    const frei = vor.filter(k => !ziel(k)); // ohne Zielabschnitt: eigener Baustein an dessen üblicher Stelle
+    const ab = frei.length ? Math.min(...frei.map(k => (MATRIX[G.slot[k]] || { pos: 0 }).pos)) : 0;
+    const vorAt = frei.length ? T.findIndex(t => t === gl || t.cfg.pos > ab) : -1;
+    T.forEach((t, i) => {
+      if (i === vorAt) for (const k of frei) out.push({ t: gl, k, mit: [] });
+      if (t === gl) { for (const k of G.keys) if (!vor.includes(k)) out.push({ t, k, mit: [] }); }
+      else out.push({ t, mit: gl ? vor.filter(k => ziel(k) === t).map(k => ({ t: gl, k })) : [] });
+    });
+    let n = 0;
+    for (const b of out) b.nr = auto(data) && (b.k || b.t.cfg.nr || b.t.cfg.kopf) ? String(++n) : '';
+    return out;
   }
-  const gesamt = data => teile(data).map((t, i) => teilText(data, t, i)).join('\n\n');
+  /** Beschriftung eines Bausteins: „Eintreffsituation“, „Häusliche Gewalt · Gefahrenprognose“. */
+  function bausteinName(b) {
+    const n = b.t.m.short || b.t.m.name;
+    return b.k ? `${n} · ${b.t.m.gliederung.titel(b.t.doc.data, b.k)}` : n;
+  }
+  /** Text eines Bausteins; Überschriften ohne eigene Nummer bekommen die fortlaufende, angehängte Teile folgen als Absatz. */
+  function bausteinText(data, b) {
+    const d = b.t.doc.data;
+    if (b.k) { try { return b.t.m.gliederung.abschnitt(d, b.k) || ''; } catch (e) { return ''; } }
+    let p = ''; try { p = b.t.m.plain(d) || ''; } catch (e) { p = ''; }
+    if (b.nr && b.t.cfg.kopf) p = `${b.nr} ${p}`;
+    for (const x of b.mit) {
+      let r = ''; try { r = x.t.m.gliederung.rumpf(x.t.doc.data, x.k) || ''; } catch (e) { r = ''; }
+      if (r) p = /\n\[noch nichts erfasst\]\s*$/i.test(p) ? p.replace(/\n\[noch nichts erfasst\]\s*$/i, '\n' + r) : p + '\n' + r; // steht dort noch nichts, ersetzt der Absatz den Platzhalter
+    }
+    return p;
+  }
+  /** Text eines Abschnitts, wie er im Gesamtsachverhalt steht (alle seine Bausteine). */
+  const teilText = (data, t) => plan(data).filter(b => b.t.id === t.id).map(b => bausteinText(data, b)).join('\n\n');
+  const gesamt = data => plan(data).map(b => bausteinText(data, b)).join('\n\n');
 
   function title(data) {
     if (has(data && data.name)) return `Vorgang – ${str(data.name)}`;
@@ -179,9 +240,11 @@
   }
   function subtitle(data) { const T = teile(data); return T.length ? T.map(t => t.m.short || t.m.name).join(' · ') : 'Noch keine Abschnitte'; }
   function pill(data) { const T = teile(data); return T.length ? `${T.filter(t => t.doc.status === 'fertig').length}/${T.length}` : 'neu'; }
-  /** Stand eines Abschnitts für die Übersicht. */
+  /** Offene Pflichtangaben eines Abschnitts (Anzahl) – so, wie sein Modul sie meldet. */
+  function offenN(t) { try { return typeof t.m.offen === 'function' ? arr(t.m.offen(t.doc.data)).length : 0; } catch (e) { return 0; } }
+  /** Stand eines Abschnitts für die Übersicht: „Fertig“ heißt abgeschlossen und ohne Lücken. */
   function stand(t) {
-    if (t.doc.status === 'fertig') return 'Fertig';
+    if (t.doc.status === 'fertig') { const n = offenN(t); return n ? `${n} offen` : 'Fertig'; }
     if (typeof t.m.pill === 'function') { try { return t.m.pill(t.doc.data); } catch (e) { return 'Entwurf'; } }
     const n = arr(t.m.steps).filter(s => !s.when || s.when(t.doc.data)).length || 1;
     const pct = Math.round(Math.min(t.doc.step || 0, n) / n * 100);
@@ -201,11 +264,11 @@
   function ovHtml(d, api) {
     const data = d.data, T = teile(data);
     const items = T.map((t, i) => {
-      const ctx = kontext(data, t.doc), fertig = t.doc.status === 'fertig';
+      const ctx = kontext(data, t.doc), fertig = t.doc.status === 'fertig', luecken = fertig && offenN(t) > 0;
       let sub = ''; try { sub = t.m.subtitle(t.doc.data) || ''; } catch (e) { sub = ''; }
       const von = ctx.quellen.map(([was, aus]) => `${was} aus „${aus}“`);
       const ordnen = V.ord ? `${T.length > 1 ? `<button type="button" class="sd-up" data-sd="up" data-i="${i}" aria-label="${esc(t.m.name)} nach oben"${i ? '' : ' disabled'}>${ICON_UP}</button>` : ''}<button type="button" class="sd-up vg-x" data-sd="rm" data-i="${i}" aria-label="${esc(t.m.name)} entfernen">${ICON_X}</button>` : '';
-      return `<li class="sd-item"><div class="sd-row"><button type="button" class="sd-card" data-open="${esc(t.id)}"><span class="sd-n mono">${i + 1}</span><span class="sd-main"><b>${esc(t.m.name).replace('/', '/<wbr>')}</b><small>${esc(sub || 'noch leer')}</small></span><span class="pill ${fertig ? 'pill-lime' : 'pill-quiet'}">${esc(stand(t))}</span></button>${ordnen}</div>${von.length ? `<p class="w-hint vg-ctx">↳ übernimmt ${esc(joinUnd(von))}</p>` : ''}</li>`;
+      return `<li class="sd-item"><div class="sd-row"><button type="button" class="sd-card" data-open="${esc(t.id)}"><span class="sd-n mono">${i + 1}</span><span class="sd-main"><b>${esc(t.m.name).replace('/', '/<wbr>')}</b><small>${esc(sub || 'noch leer')}</small></span><span class="pill ${luecken ? 'pill-accent-soft' : fertig ? 'pill-lime' : 'pill-quiet'}">${esc(stand(t))}</span></button>${ordnen}</div>${von.length ? `<p class="w-hint vg-ctx">↳ übernimmt ${esc(joinUnd(von))}</p>` : ''}</li>`;
     }).join('');
     const da = new Set(T.map(t => t.doc.type));
     const frei = TYPEN.filter(k => mod(k) && !da.has(k));
@@ -214,14 +277,15 @@
       ? `<div class="sd-add"><span class="w-lbl">${T.length ? 'Weiteren Abschnitt hinzufügen' : 'Welche Abschnitte gehören zum Vorgang?'}</span>${!T.length && std.length === STANDARD.length ? `<div class="sd-add-row vg-std"><button type="button" class="sd-add-b" data-sd="std"><i aria-hidden="true">+</i><span>Üblicher Anfang<small>${esc(STANDARD.map(k => mod(k).short || mod(k).name).join(' → '))}</small></span></button></div>` : ''}<div class="sd-add-row">${frei.map(k => `<button type="button" class="sd-add-b" data-sd="add" data-v="${k}"><i aria-hidden="true">+</i>${esc(mod(k).name)}</button>`).join('')}</div><p class="w-hint sd-hint">Jeder Abschnitt reiht sich an seiner üblichen Stelle ein und baut auf den anderen auf: Besatzungen aus „Allgemeines“ und Personen aus der „Eintreffsituation“ stehen danach zur Auswahl.</p></div>`
       : '';
     const fertigN = T.filter(t => t.doc.status === 'fertig').length, offen = T.find(t => t.doc.status !== 'fertig');
+    const angeh = T.filter(t => kontext(data, t.doc).angehaengt).map(t => `<p class="w-hint vg-ctx">↳ „${esc(t.m.short || t.m.name)}“: die Eintreffsituation von dort wird im Gesamtsachverhalt an den Abschnitt „Eintreffsituation“ angehängt.</p>`).join('');
     const next = !T.length ? null : offen ? { label: `Weiter: ${offen.m.short || offen.m.name}`, attr: `data-open="${esc(offen.id)}"` } : { label: 'Gesamtsachverhalt', attr: 'data-sd="text"' };
-    return `${api.kopf({ sub: T.length ? `${fertigN} von ${T.length} ${T.length === 1 ? 'Abschnitt' : 'Abschnitten'} fertig` : 'noch ohne Abschnitte', titel: title(data), live: 'title', lead: T.length ? 'Abschnitt antippen, um ihn auszufüllen – der Text entsteht dabei von selbst.' : '' })}
+    return `${api.kopf({ sub: T.length ? `${fertigN} von ${T.length} ${T.length === 1 ? 'Abschnitt' : 'Abschnitten'} abgeschlossen` : 'noch ohne Abschnitte', titel: title(data), live: 'title', lead: T.length ? 'Abschnitt antippen, um ihn auszufüllen – der Text entsteht dabei von selbst.' : '' })}
       <div class="w-grid sd-grid">
-        ${T.length ? `<div class="w-q"><ol class="sd-list vg-list">${items}</ol></div>` : ''}
+        ${T.length ? `<div class="w-q"><ol class="sd-list vg-list">${items}</ol>${angeh}</div>` : ''}
         ${T.length && offen ? '<div class="w-q"><button type="button" class="btn btn-ghost fo-wide vg-gesamt" data-sd="text">Gesamtsachverhalt ansehen</button></div>' : ''}
         ${add ? `<div class="w-q" data-q="add">${add}</div>` : ''}
         <div class="w-q" data-q="name"><label class="w-lbl" for="vgName">Bezeichnung <i class="w-hint-i">(optional – sonst aus dem Einsatzanlass)</i></label><input class="input" id="vgName" data-sk="name" value="${esc(data.name || '')}" placeholder="z. B. Körperverletzung Lindenstraße" autocomplete="off" spellcheck="false" enterkeyhint="done" maxlength="80"></div>
-        ${T.length ? `<div class="w-q" data-q="num"><div class="w-chips"><button type="button" class="chip" data-sd="num" aria-pressed="${String(auto(data))}">Nach Reihenfolge nummerieren (1, 2, 3 …)</button></div><p class="w-hint sd-hint">${auto(data) ? 'Allgemeines, Eintreffsituation, Schilderungen und Unfallörtlichkeit bekommen die Nummer ihrer Stelle; andere Abschnitte behalten ihre eigene.' : 'Jeder Abschnitt behält die Nummer, die du dort einträgst.'}</p></div>` : ''}
+        ${T.length ? `<div class="w-q" data-q="num"><div class="w-chips"><button type="button" class="chip" data-sd="num" aria-pressed="${String(auto(data))}">Nach Reihenfolge nummerieren (1, 2, 3 …)</button></div><p class="w-hint sd-hint">${auto(data) ? 'Die Überschriften werden fortlaufend gezählt – auch die Teile der Häuslichen Gewalt. Blutprobe, PsychKG und Gewahrsam tragen keine Nummer.' : 'Jeder Abschnitt behält die Nummer, die du dort einträgst.'}</p></div>` : ''}
       </div>
       ${api.fein({ mehr: T.length ? `<button type="button" class="link" data-sd="ord">${V.ord ? 'Ordnen beenden' : 'Abschnitte ordnen oder entfernen'}</button>` : '' })}
       ${api.fuss({ next })}`;
@@ -229,9 +293,9 @@
 
   /** Gesamtsachverhalt: alle Abschnitte hintereinander, einzeln oder zusammen zu kopieren. */
   function textHtml(d, api) {
-    const data = d.data, T = teile(data), txt = gesamt(data);
+    const data = d.data, B = plan(data), txt = gesamt(data);
     const ph = (txt.match(/\[[^\]]+\]/g) || []).length;
-    const blocks = T.map((t, i) => `<div class="w-q"><div class="w-out"><div class="w-out-h vg-oh"><span class="w-lbl">${esc(t.m.short || t.m.name)}</span><span class="vg-tools"><button type="button" class="btn btn-ghost btn-sm" data-open="${esc(t.id)}">Bearbeiten</button><button type="button" class="btn btn-light btn-sm" data-sd="copy1" data-i="${i}">Kopieren</button></span></div><pre class="w-out-t">${esc(teilText(data, t, i) || '– noch nichts erfasst –')}</pre></div></div>`).join('');
+    const blocks = B.map((b, i) => `<div class="w-q"><div class="w-out"><div class="w-out-h vg-oh"><span class="w-lbl">${esc(bausteinName(b))}${b.mit.length ? ` <i class="w-hint-i">mit ${esc(joinUnd(b.mit.map(x => x.t.m.short || x.t.m.name)))}</i>` : ''}</span><span class="vg-tools"><button type="button" class="btn btn-ghost btn-sm" data-open="${esc(b.t.id)}">Bearbeiten</button><button type="button" class="btn btn-light btn-sm" data-sd="copy1" data-i="${i}">Kopieren</button></span></div><pre class="w-out-t">${esc(bausteinText(data, b) || '– noch nichts erfasst –')}</pre></div></div>`).join('');
     return `${api.kopf({ up: { label: 'Abschnitte', attr: 'data-sd="ov"' }, sub: 'Gesamtsachverhalt', fertig: ph ? `${ph} ${ph === 1 ? 'Angabe' : 'Angaben'} offen` : 'Vollständig', offen: ph > 0, titel: 'Gesamtsachverhalt', lead: 'Alle Abschnitte hintereinander – einzeln oder alles zusammen kopieren.' })}
       <div class="w-grid sd-grid">
         ${ph ? `<div class="w-q"><div class="w-warn">${ph} ${ph === 1 ? 'Angabe fehlt' : 'Angaben fehlen'} (in eckigen Klammern) – über „Bearbeiten“ am Abschnitt nachtragen.</div></div>` : ''}
@@ -291,7 +355,7 @@
       case 'text': V.s = 'text'; api.render(); return true;
       case 'ov': V.s = 'ov'; api.render(); return true;
       case 'ord': V.ord = !V.ord; api.render(); return true;
-      case 'copy1': { const T = teile(data), i = Number(b.dataset.i); if (T[i]) api.copy(teilText(data, T[i], i), b); return true; }
+      case 'copy1': { const B = plan(data), i = Number(b.dataset.i); if (B[i]) api.copy(bausteinText(data, B[i]), b); return true; }
       case 'copyall': api.copy(gesamt(data), b); return true;
       default: return false;
     }
@@ -319,10 +383,10 @@
     steps: [],
     title, subtitle, pill,
     plain: gesamt,
-    text: data => teile(data).map((t, i) => ['', t.m.name, teilText(data, t, i), '']),
+    text: data => plan(data).map(b => ['', bausteinName(b), bausteinText(data, b), '']),
     preview: () => '', kurzText: () => '', fahndung: () => '', offen: () => [], personalien: () => '',
     screen: { open, render, click, input, keydown, submit, key: d => `${V.s}:${d ? teile(d.data).length : 0}`, show: s2 => { V.s = s2 === 'text' ? 'text' : 'ov'; } },
     bind,
-    core: { MATRIX, KONTEXT, TYPEN, teile, containerOf, partIds, kontext, kraefte, kraefteAnwenden, sync, gesamt, teilText, auto }
+    core: { MATRIX, KONTEXT, TYPEN, teile, containerOf, partIds, kontext, kraefte, kraefteAnwenden, sync, plan, bausteinText, bausteinName, gesamt, teilText, auto, stand }
   });
 })(typeof window !== 'undefined' ? window : globalThis);

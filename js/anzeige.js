@@ -128,6 +128,15 @@
       newBtn: 'Einsatzanlass'
     },
     schlicht: true, // Abschluss ohne Reiter: es gibt nur den einen Text
+    /** Folie, auf der die erste Angabe fehlt – dorthin führt „Nachtragen“ ('' = nichts offen). */
+    luecke: d => {
+      const e = (d && d.einsatz) || {}, o = (d && d.ort) || {};
+      if (!has(e.datum) || !has(e.zeit)) return 'wann';
+      if (!wagenL(d).length || wagenL(d).some(c => c.some(p => !has(p.grad)))) return 'wer';
+      if (!has(e.anlass)) return 'was';
+      if (!has(o.strasse) || !has(o.ort) || (!has(o.ortsteil) && ortsteilNoetig(o))) return 'wo';
+      return '';
+    },
     steps: STEPS, text, plain, preview, kurzText: kurz, fahndung: () => '', offen, personalien, title, subtitle, upgrade, allgemein
   });
 })(typeof window !== 'undefined' ? window : globalThis);

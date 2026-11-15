@@ -623,6 +623,24 @@
     const linked = new Set(arr(data.personen).map(p => p && p.ref).filter(Boolean));
     const mit = src.filter(q => !linked.has(q.pid) && has(q.nachname)).map(q => ({ vorname: str(q.vorname), nachname: str(q.nachname) }));
     set(data, 'mit', mit.length ? mit : undefined);
+    if (gradeNach(data, ctx.kraefte)) ch = true;
+    return ch;
+  }
+  /**
+   * Amtsbezeichnungen nachführen: Wer hier als belehrende, anwesende oder testende Kraft eingetragen ist und in den
+   * Besatzungen des Vorgangs steht, trägt dieselbe Amtsbezeichnung wie dort – wird sie in „Allgemeines“ berichtigt,
+   * stimmt sie auch in den Schilderungen. Liefert true, wenn sich etwas geändert hat.
+   */
+  function gradeNach(data, kraefte) {
+    const by = new Map(arr(kraefte).filter(c => c && has(c.name) && has(c.grad)).map(c => [nameKey(c.name), str(c.grad)]));
+    if (!by.size) return false;
+    let ch = false;
+    const fix = o => { if (!o || typeof o !== 'object' || !has(o.name)) return; const g = by.get(nameKey(o.name)); if (g && str(o.grad) !== g) { o.grad = g; ch = true; } };
+    for (const p of arr(data.personen)) {
+      if (!p) continue;
+      fix(p.bel); arr(p.gegen).forEach(fix); arr(p.wahrVon).forEach(fix);
+      for (const k of ['aat', 'dt']) if (p[k]) fix(p[k].von);
+    }
     return ch;
   }
   /** Kontext nur, wenn ein anderer Abschnitt des Vorgangs Personen führt. */
@@ -761,7 +779,7 @@
       return `<li class="sd-item"><div class="sd-row"><button type="button" class="sd-card" data-sd="edit" data-i="${i}"><span class="sd-n mono">${i + 1}</span><span class="sd-main"><b>${esc(heading(data, i))}</b><small>${esc(meta.join(' · '))}${snip ? ` · „${esc(snip.slice(0, 80))}${snip.length > 80 ? '…' : ''}“` : ''}</small></span><span class="pill ${p.fertig ? 'pill-lime' : 'pill-quiet'}">${p.fertig ? 'Fertig' : 'Entwurf'}</span></button>${P.length > 1 ? `<button type="button" class="sd-up" data-sd="up" data-i="${i}" aria-label="Nach oben"${i ? '' : ' disabled'}>${ICON_UP}</button>` : ''}</div></li>`;
     }).join('');
     const add = art
-      ? `<div class="sd-add"><span class="w-lbl">${ctxAdd ? 'Andere Person anlegen (nicht in der Eintreffsituation)' : P.length ? 'Weitere Person anlegen' : 'Person anlegen'}</span><div class="sd-add-row">${rollenFor(art).map(([v, r]) => `<button type="button" class="sd-add-b" data-sd="add" data-v="${v}"><i aria-hidden="true">+</i>${esc(v === 'ub' ? `${r.x} ${String(nextUb(P)).padStart(2, '0')}` : r.x)}</button>`).join('')}</div>${art === 'verkehr' ? '<p class="w-hint sd-hint">01 ist die Unfallverursacherin oder der Unfallverursacher (Belehrung als Beschuldigte/r oder Betroffene/r), 02 und weitere werden als Zeugen belehrt.</p>' : ''}</div>`
+      ? `<div class="sd-add"><span class="w-lbl">${ctxAdd ? 'Andere Person anlegen (nicht in der Eintreffsituation)' : P.length ? 'Weitere Person anlegen' : 'Person anlegen'}</span><div class="sd-add-row">${rollenFor(art).map(([v, r]) => `<button type="button" class="sd-add-b" data-sd="add" data-v="${v}"><i aria-hidden="true">+</i>${esc(v === 'ub' ? `${r.x} ${String(nextUb([...P, ...offen])).padStart(2, '0')}` : r.x)}</button>`).join('')}</div>${art === 'verkehr' ? '<p class="w-hint sd-hint">01 ist die Unfallverursacherin oder der Unfallverursacher (Belehrung als Beschuldigte/r oder Betroffene/r), 02 und weitere werden als Zeugen belehrt.</p>' : ''}</div>`
       : `<div class="sd-add off"><span class="w-lbl">Person anlegen</span><p class="w-hint sd-hint">Erst auf der Folie davor wählen: Strafanzeige oder Verkehrsangelegenheit.</p></div>`;
     return `${api.kopf({ pos: fest ? null : [2, 2], titel: 'Wer hat etwas geschildert?', lead: P.length ? 'Antippen, um eine Schilderung zu ändern – oder eine weitere Person dazunehmen.' : 'Je Person ein paar kurze Folien: Belehrung, Alkohol und Drogen, Schilderung.' })}
       <div class="w-grid sd-grid">
@@ -1147,7 +1165,9 @@
       }
       case 'add': {
         if (d.status === 'fertig') d.status = 'entwurf';
-        P().push(b.dataset.v === 'ub' ? { rolle: 'ub', ub: nextUb(P()) } : { rolle: b.dataset.v });
+        // Nummern, die in der Eintreffsituation schon vergeben sind, bleiben dort – auch wenn die Person hier (noch) nicht steht
+        const cx = ctxOf(api), alle = [...P(), ...(cx ? arr(cx.personen).filter(q => !P().some(x => x && x.ref === q.pid)) : [])];
+        P().push(b.dataset.v === 'ub' ? { rolle: 'ub', ub: nextUb(alle) } : { rolle: b.dataset.v });
         V.i = P().length - 1; V.s = 'person'; V.f = 'wer'; V.q = Q0();
         save(); return true;
       }

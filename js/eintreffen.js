@@ -344,7 +344,7 @@
   function open(d) {
     const dt = (d && d.data) || {};
     V.id = d.id; V.i = -1; V.f = 'wer'; V.focus = ''; V.alt = {};
-    V.s = d.status === 'fertig' && arr(dt.personen).length ? 'done' : dt.art ? 'pers' : 'art';
+    V.s = d.status === 'fertig' && (arr(dt.personen).length || has(dt.text)) ? 'done' : dt.art ? 'pers' : 'art';
   }
   /** Kennung der Folie – wechselt sie, beginnt die neue Seite oben; sonst bleibt alles stehen. */
   const key = () => `${V.s}:${V.i}:${V.s === 'person' ? V.f : ''}`;
@@ -512,7 +512,8 @@
     }
     P.splice(V.i, 1); if (!P.length) delete data.personen;
     ordnen(data); V.s = 'pers'; V.i = -1; V.f = 'wer';
-    api.persist(false); api.render();
+    if (istLeerAbschnitt(data) && api.d.status === 'fertig') api.d.status = 'entwurf'; // ohne Inhalt ist der Abschnitt nicht mehr fertig
+    api.persist(api.d.status !== 'fertig'); api.render();
   }
   /**
    * Person an einen Ort setzen: ziel = Ort einer anderen Person (dann stehen sie im Text „gemeinsam“) oder null = eigener
@@ -524,9 +525,12 @@
     data.orte = data.orte.filter(g => g && (g === ziel || arr(g.wer).length));
     if (ziel) ziel.wer = [...arr(ziel.wer), pid]; else data.orte.push({ ...(vorlage || {}), wer: [pid] });
   }
+  /** Weder Personen noch eigene Feststellungen: Dann gibt es nichts abzuschließen. */
+  const istLeerAbschnitt = data => !arr(data && data.personen).length && !has(data && data.text);
   /** Abschnitt abschließen: fertig markieren und den Text zeigen. */
   function fertig(api) {
     const d = api.d, miss = offen(d.data);
+    if (istLeerAbschnitt(d.data)) { api.toast('Noch nichts eingetragen – erst eine Person anlegen oder hier etwas schreiben.'); return; }
     d.status = 'fertig'; V.s = 'done';
     api.persist(true); api.render();
     if (miss.length) api.toast(`Fertig – noch offen: ${miss.length} ${miss.length === 1 ? 'Punkt' : 'Punkte'} (im Text als [Platzhalter]).`);
