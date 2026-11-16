@@ -218,7 +218,7 @@
     if (want.includes('vorname')) parts.push(txt('vorname', 'Vorname', 'Vorname'));
     if (want.includes('geb')) parts.push(`<div class="w-q half"><label class="w-lbl" for="${fid(k + '.geb')}">Geburtsdatum</label><input class="input" type="date" id="${fid(k + '.geb')}" data-k="${esc(k)}.geb" value="${esc(p.geb ?? '')}"></div>`);
     if (want.includes('tel')) parts.push(txt('tel', 'Telefon', 'nur auf dem Original', 'inputmode="tel"'));
-    if (want.includes('anschrift')) parts.push(`<div class="w-q full"><label class="w-lbl" for="${fid(k + '.anschrift')}">Anschrift</label><input class="input" id="${fid(k + '.anschrift')}" data-k="${esc(k)}.anschrift" value="${esc(p.anschrift ?? '')}" placeholder="Straße Nr., PLZ Ort" autocomplete="off" spellcheck="false" maxlength="160"></div>`);
+    if (want.includes('anschrift')) parts.push(`<div class="w-q full"><label class="w-lbl" for="${fid(k + '.anschrift')}">Anschrift</label><input class="input" id="${fid(k + '.anschrift')}" data-k="${esc(k)}.anschrift" value="${esc(p.anschrift ?? '')}" placeholder="Straße Nr., PLZ Ort" autocomplete="off" spellcheck="false" maxlength="160">${VGX && VGX.adresse && String(p.anschrift || '').trim() !== VGX.adresse.text ? `<div class="w-chips vg-adr"><button type="button" class="chip sm" data-set="${esc(k)}.anschrift" data-v="${esc(VGX.adresse.text)}" data-fest="1">Einsatzörtlichkeit: ${esc(VGX.adresse.text)}</button></div>` : ''}</div>`);
     if (want.includes('email')) parts.push(txt('email', 'E-Mail (optional)', 'für digitale Unfallmitteilung', 'inputmode="email"'));
     return parts;
   }
@@ -252,7 +252,11 @@
     const v = k ? getP(d, k) : undefined;
     const half = f.w === 'half' ? ' half' : '';
     const item = base ? (getP(d, base) || {}) : undefined; // auch die noch leere erste Listenkarte hat ein Objekt
-    if (VGX && !base && k) { const ers = vgFeld(f, k, v, d, item); if (ers != null) return ers; }
+    if (VGX && !base && k) {
+      const ers = vgFeld(f, k, v, d, item); if (ers != null) return ers;
+      // Ortsfrage: was der Vorgang schon kennt, steht als Vorschlag zum Antippen darunter
+      if (VGX.vorschlag && VGX.vorschlag[k]) f = { ...f, sugg: [...(R(f.sugg, d, item) || []), ...VGX.vorschlag[k]] };
+    }
     const ans = answered(v);
     const Q = `<div class="w-q${half}${ans ? ' ans' : ''}" data-q="${esc(k || '')}">`;
     const L = forId => label(f, forId, d, item);

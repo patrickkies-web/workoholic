@@ -43,21 +43,22 @@
    *   Allgemeines        Kräfte, Anschrift         –
    *   Eintreffsituation  Personen, Art             Namen (der Personen, die nur in den Schilderungen stehen)
    *   Schilderungen      Namen                     Kräfte, Personen, Art
-   *   Häusliche Gewalt   –                         Kräfte, Anschrift (Tatort), Personen (Anrede, Familienname)
+   *   Häusliche Gewalt   –                         Kräfte, Anschrift (Tatort), Personen (Anrede, Familienname),
+   *                                                 Antrefforte (Gebäude, Geschoss, Seite der Wohnung)
    *   Unfallörtlichkeit  –                         Datum
    *   Blutprobe          –                         Kräfte, Datum, Personen (Beschuldigte/r, Betroffene/r)
-   *   PsychKG            –                         Kräfte, Datum, Personen (betroffene Person)
-   *   Gewahrsam          –                         Kräfte, Datum, Personen (betroffene Person)
+   *   PsychKG            –                         Kräfte, Datum, Personen (betroffene Person), Anschrift (als Vorschlag)
+   *   Gewahrsam          –                         Kräfte, Datum, Personen (betroffene Person), Anschrift und Antrefforte (als Vorschlag)
    */
   const MATRIX = {
     anzeige: { pos: 1, gibt: ['kraefte', 'ort', 'datum'], nimmt: [], kopf: true },
-    eintreffen: { pos: 2, gibt: ['personen', 'art'], nimmt: ['namen'], nr: true },
+    eintreffen: { pos: 2, gibt: ['personen', 'art', 'plaetze'], nimmt: ['namen'], nr: true },
     sch: { pos: 3, gibt: ['namen'], nimmt: ['kraefte', 'personen', 'art'], nr: true },
-    hgv: { pos: 4, gibt: [], nimmt: ['kraefte', 'ort', 'personen'] },
+    hgv: { pos: 4, gibt: [], nimmt: ['kraefte', 'ort', 'personen', 'plaetze'] },
     unfallort: { pos: 5, gibt: [], nimmt: ['datum'], kopf: true },
     blutprobe: { pos: 6, gibt: [], nimmt: ['kraefte', 'datum', 'leute'] },
-    psychkg: { pos: 7, gibt: [], nimmt: ['kraefte', 'datum', 'leute'] },
-    gewahrsam: { pos: 8, gibt: [], nimmt: ['kraefte', 'datum', 'leute'], kopf: d => !!(d && d.gw && d.gw.art) } // Überschrift erst, wenn die Gewahrsamsart steht
+    psychkg: { pos: 7, gibt: [], nimmt: ['kraefte', 'datum', 'leute', 'ort'], vorschlag: ['ort'] },
+    gewahrsam: { pos: 8, gibt: [], nimmt: ['kraefte', 'datum', 'leute', 'ort', 'plaetze'], vorschlag: ['ort', 'plaetze'], kopf: d => !!(d && d.gw && d.gw.art) } // Überschrift erst, wenn die Gewahrsamsart steht
   };
   const TYPEN = Object.keys(MATRIX).sort((a, b) => MATRIX[a].pos - MATRIX[b].pos);
   const STANDARD = ['anzeige', 'eintreffen', 'sch'];
@@ -78,6 +79,15 @@
    */
   const KONTEXT = {
     kraefte: { l: 'Kräfte', lesen: kraefte, leer: v => !v.length },
+    /* Wo die Personen angetroffen wurden: die Satzbausteine („im Wohnzimmer der Wohnung im 2. Obergeschoss links des
+       Mehrfamilienhauses“) und – aus dem Ort-Assistenten – Gebäude, Geschoss und Seite der Wohnung */
+    plaetze: { l: 'Antrefforte', lesen: data => {
+      const O = arr(data && data.orte).filter(o => o && typeof o === 'object' && o.wie !== 'weg');
+      const texte = [...new Set(O.map(o => str(o.text)).filter(Boolean))];
+      const g = O.find(o => o.w && has(o.w.geb)), ja = v => has(v) && v !== '-';
+      const wh = O.find(o => o.w && has(o.w.geb) && (o.w.wo === 'whg' || (o.w.wo === 'tuer' && o.w.tuer === 'whg')) && ja(o.w.etage));
+      return texte.length || g ? { texte, geb: g ? str(g.w.geb) : '', etage: wh ? str(wh.w.etage) : '', lage: wh && ja(wh.w.lage) ? str(wh.w.lage) : '' } : null;
+    }, leer: v => !v },
     datum: { l: 'Datum', lesen: data => str(get(data, 'einsatz.datum')), leer: v => !v },
     // Einsatzörtlichkeit in der Form, wie Folgeabschnitte sie schreiben: „Am Bach 36“ und „33829 Borgholzhausen“
     ort: { l: 'Anschrift', lesen: data => { const o = (data && data.ort) || {}; const strasse = [str(o.strasse), str(o.hausnr)].filter(Boolean).join(' '), plz = [str(o.plz), str(o.ort)].filter(Boolean).join(' '); return has(o.strasse) || has(o.ort) ? { str: strasse, plz } : null; }, leer: v => !v },
@@ -129,6 +139,7 @@
       if (!src) continue;
       ctx[kind] = K.lesen(src.doc.data); ctx[kind + 'Aus'] = src.m.name;
       if (!K.l) continue;
+      if ((cfg.vorschlag || []).includes(kind)) continue; // nur als Vorschlag angeboten – steht nicht unter „übernimmt“
       const n = src.m.short || src.m.name, q = ctx.quellen.find(x => x[1] === n);
       if (q) q[0] += ', ' + K.l; else ctx.quellen.push([K.l, n]);
     }
@@ -230,6 +241,18 @@
     if (mv.kraefte && kraefteFolgen(d)) out.kraefte = { feld: mv.kraefte, aus: ctx.kraefteAus || '', liste: eigene(d) };
     if (mv.datum && ctx.datum && datumFolgt(d, mv.datum)) out.datum = { feld: mv.datum, aus: ctx.datumAus || '', wert: ctx.datum };
     if (mv.nr && ctx.nrAuto) out.nr = { feld: mv.nr.feld };
+    const adr = ctx.ort ? [ctx.ort.str, ctx.ort.plz].filter(Boolean).join(', ') : '';
+    if (adr) out.adresse = { text: adr, aus: ctx.ortAus || '' }; // Einsatzörtlichkeit – als Vorschlag für die Anschrift der Person
+    if (mv.orte) { // Felder, die nach einem Ort fragen: Vorschläge [Beschriftung, Text] aus dem, was der Vorgang schon kennt
+      const kurz = t => (t.length > 96 ? t.slice(0, 94).replace(/\s+\S*$/, '') + ' …' : t), V = {}; // die Chips brechen um
+      for (const [feld, art] of Object.entries(mv.orte)) {
+        const L = [];
+        if (art === 'platz') { for (const t of (ctx.plaetze ? ctx.plaetze.texte : [])) L.push([kurz(t), t]); if (ctx.ort && ctx.ort.str) L.push([`an der Anschrift ${ctx.ort.str}`, `an der Anschrift ${ctx.ort.str}${ctx.ort.plz ? `, in ${ctx.ort.plz}` : ''}`]); }
+        else if (adr) L.push([adr, art === 'adresse,' ? adr + ',' : adr]);
+        if (L.length) V[feld] = L;
+      }
+      if (Object.keys(V).length) out.vorschlag = V;
+    }
     if (mv.person && ctx.leute) { const p = get(d, mv.person.pfad); out.person = { feld: mv.person.pfad, leute: ctx.leute, q: p && p.ref ? ctx.leute.find(x => x.key === p.ref) || null : null }; }
     return out;
   }

@@ -284,12 +284,23 @@
     const folge = (path, key, wert) => {
       wert = str(wert); if (!wert) return;
       const cur = str(getPath(d, path)), alt = str(v[key]);
-      if (cur && cur !== alt) return; // selbst eingetragen
-      if (alt === wert) return;       // schon übernommen – oder danach bewusst geleert: dann bleibt es leer
-      setPath(d, path, wert); v[key] = wert; d.vgv = v; ch = true;
+      if (cur && cur !== alt && cur !== wert) return; // selbst anders eingetragen
+      if (cur === wert && alt === wert) return;       // steht schon
+      if (!cur && alt === wert) return;               // danach bewusst geleert: bleibt leer
+      if (cur !== wert) setPath(d, path, wert);       // gleich eingetragen wie im Vorgang: gilt ab jetzt als übernommen
+      v[key] = wert; d.vgv = v; ch = true;
     };
     // Tatort = Einsatzörtlichkeit aus „Allgemeines“
     if (ctx && ctx.ort) { folge('ort.str', 'str', ctx.ort.str); folge('ort.plz', 'plz', ctx.ort.plz); }
+    // Gebäude, Geschoss und Seite der Wohnung: was der Ort-Assistent der Eintreffsituation schon weiß
+    if (ctx && ctx.plaetze) {
+      const pl = ctx.plaetze, art = ({ efh: 'efh', dhh: 'dhh', rh: 'rh', mfh: 'mfh', hh: 'mfh', wgh: 'mfh' })[pl.geb];
+      if (art) folge('ort.art', 'art', art);
+      if (art === 'mfh' && getPath(d, 'ort.art') === 'mfh') {
+        if (ETAGE.some(x => x[0] === pl.etage)) folge('ort.etage', 'etage', pl.etage);
+        if (LAGE.some(x => x[0] === pl.lage)) folge('ort.lage', 'lage', pl.lage);
+      }
+    }
     // Anrede und Familienname aus der Eintreffsituation, wenn dort genau eine geschädigte und eine beschuldigte Person steht
     if (ctx && Array.isArray(ctx.personen)) {
       const eine = rolle => { const L = ctx.personen.filter(q => q && q.rolle === rolle); return L.length === 1 ? L[0] : null; };
@@ -329,7 +340,7 @@
    *   → 'bs1' § 34a → 'bs2' Schlüssel und Aufenthalt (nur mit Verweisung/Rückkehrverbot) → 'prog' Gefahrenprognose → 'sonst'
    *   → Abschluss (V.s = 'text'): alle Abschnitte zum Kopieren
    */
-  const V = { id: null, s: 'mask', f: 'bet', focus: '' };
+  const V = { id: null, s: 'mask', f: 'bet', focus: '', auf: new Set() }; // auf: Übernahmen, die zum Ändern aufgeklappt sind
   const folien = d => { const a = wvArt(d); return ['bet', 'ein', 'ort', 'wohn', 'gs', 'bs1', ...(a === 'wvrv' || a === 'rv' ? ['bs2'] : []), 'prog', 'sonst']; };
   const $ = s => document.querySelector(s);
   const seg = (path, cur, opts, cls = 'w-seg') => `<div class="${cls}" role="group">${opts.map(([v, l]) => `<button type="button" class="${cls === 'w-seg' ? 'w-opt' : 'chip'}" data-sd="set" data-p="${esc(path)}" data-v="${esc(v)}" aria-pressed="${String(cur === v)}">${esc(l)}</button>`).join('')}</div>`;
@@ -349,20 +360,37 @@
   function maskHtml(d, api) {
     const data = d.data, G = P(data, 'gs'), B = P(data, 'bs'), e = data.ein || {}, o = data.ort || {}, k = data.kinder || {}, m = data.bsm || {}, pr = data.prog || {}, s = data.sonst || {};
     const art = wvArt(data), wv = art === 'wvrv' || art === 'rv';
-    const personen = `<div class="w-q half" data-q="gsg"><span class="w-lbl">Geschädigte Person</span>${seg('gs.g', G.g, [['w', 'Frau'], ['m', 'Mann']])}</div>
+    /* Im Vorgang: Was aus „Allgemeines“ und der Eintreffsituation übernommen ist (data.vgv), steht als Zeile mit „Ändern“ da,
+       statt noch einmal abgefragt zu werden. Wer etwas ändert, bekommt die gewohnte Eingabe. */
+    const vg = typeof api.ctx === 'function' ? api.ctx() : null, vgv = (vg && data.vgv) || {};
+    const folgt = (path, key) => { const cur = str(getPath(data, path)); return !!vg && !!cur && cur === str(vgv[key]); };
+    const zu = grp => !!vg && !V.auf.has(grp);
+    const zeile = (q, lbl, wert, aus, grp) => `<div class="w-q vg-von ans" data-q="${q}"><span class="w-lbl">${esc(lbl)}</span><div class="vg-von-z"><span class="vg-von-w"><b>${esc(wert)}</b><i>${aus ? `aus „${esc(aus)}“` : 'übernommen'}</i></span><button type="button" class="link" data-sd="auf" data-k="${grp}">Ändern</button></div></div>`;
+    const wer = rolle => { const L = arr(vg && vg.personen).filter(q => q && q.rolle === rolle); const q = L.length === 1 ? L[0] : null; return q ? [q.g === 'w' ? 'Frau' : q.g === 'm' ? 'Herr' : '', str(q.vorname), str(q.nachname)].filter(Boolean).join(' ') : ''; };
+    const personen = zu('bet') && folgt('gs.g', 'gsg') && folgt('bs.g', 'bsg')
+      ? zeile('gsg', 'Geschädigte und beschuldigte Person', `${wer('gs') || (G.g === 'm' ? 'Mann' : 'Frau')} · ${wer('bs') || (B.g === 'w' ? 'Frau' : 'Mann')}`, vg.personenAus, 'bet')
+      : `<div class="w-q half" data-q="gsg"><span class="w-lbl">Geschädigte Person</span>${seg('gs.g', G.g, [['w', 'Frau'], ['m', 'Mann']])}</div>
       <div class="w-q half" data-q="bsg"><span class="w-lbl">Beschuldigte Person</span>${seg('bs.g', B.g, [['m', 'Mann'], ['w', 'Frau']])}</div>`;
     // 2 Eintreffsituation
     const wirkAuswahl = `${flips('ein.wirk', e.wirk, WIRKT)}<div class="w-chips">${tog('ein.weint', e.weint, 'weinte')}</div>`;
-    const ein = `<div class="w-q" data-q="erw"><span class="w-lbl">Von ${G.dat} erwartet?</span>${seg('ein.erw', e.erw, ERWARTET, 'w-chips')}</div>
-      <div class="w-q" data-q="oeff"><span class="w-lbl">Wer öffnete die Tür?</span>${seg('ein.oeff', e.oeff, OEFFNET.map(([v, l]) => [v, v === 'gs' ? cap(G.nom) : v === 'bs' ? cap(B.nom) : l]), 'w-chips')}${['gs', 'bs', 'kind'].includes(e.oeff) ? `<div class="w-chips sd-gap">${tog('ein.hinein', e.hinein, '… und bat uns hinein')}</div>` : ''}</div>
+    const ankunftZu = !!data.mitEs && !V.auf.has('ein') && !has(e.erw) && !has(e.oeff);
+    const ein = `${ankunftZu ? '' : `<div class="w-q" data-q="erw"><span class="w-lbl">Von ${G.dat} erwartet?</span>${seg('ein.erw', e.erw, ERWARTET, 'w-chips')}</div>
+      <div class="w-q" data-q="oeff"><span class="w-lbl">Wer öffnete die Tür?</span>${seg('ein.oeff', e.oeff, OEFFNET.map(([v, l]) => [v, v === 'gs' ? cap(G.nom) : v === 'bs' ? cap(B.nom) : l]), 'w-chips')}${['gs', 'bs', 'kind'].includes(e.oeff) ? `<div class="w-chips sd-gap">${tog('ein.hinein', e.hinein, '… und bat uns hinein')}</div>` : ''}</div>`}
       <div class="w-q" data-q="wirk"><span class="w-lbl">Wie wirkte ${G.nom}?</span>${wirkAuswahl}${satz('Weiteres (optional), z. B. „zitterte am ganzen Körper“', textIn('hgWirk', 'ein.wirkText', e.wirkText, 'zitterte am ganzen Körper', 200))}</div>
       <div class="w-q" data-q="sicht">${satz(`Beim Eintreffen erkennbar (optional) – Details stehen in der Schilderung:`, textIn('hgSicht', 'ein.sicht', e.sicht, 'eine Rötung an der linken Wange', 300))}</div>
-      <div class="w-q" data-q="bsda"><span class="w-lbl">${cap(B.nom)} vor Ort? <i class="w-req" title="Pflicht">•</i></span>${seg('ein.bsDa', e.bsDa, [['da', 'Ja, getrennt befragt'], ['weg', 'Nein, vorher gegangen']])}</div>`;
-    const ort = `<div class="w-q half" data-q="fam"><label class="w-lbl" for="hgFam">Familienname <i class="w-req" title="Pflicht">•</i></label>${textIn('hgFam', 'fam', data.fam, 'z. B. Müller', 80)}<p class="w-hint sd-hint">„… die Wohnung der Familie Müller“</p></div>
-      <div class="w-q half" data-q="geb"><span class="w-lbl">Gebäude</span>${seg('ort.art', o.art, GEBAEUDE.map(x => [x[0], x[1]]), 'w-chips')}</div>
-      <div class="w-q half" data-q="str"><label class="w-lbl" for="hgStr">Straße, Hausnummer <i class="w-req" title="Pflicht">•</i></label>${textIn('hgStr', 'ort.str', o.str, 'Musterstraße 5', 120)}</div>
-      <div class="w-q half" data-q="plz"><label class="w-lbl" for="hgPlz">PLZ und Ort</label>${textIn('hgPlz', 'ort.plz', o.plz, '32545 Bad Oeynhausen', 80)}${vorschlag('ort.plz', zuletzt(api, 'ort.plz'), o.plz)}</div>
-      ${o.art === 'mfh' ? `<div class="w-q" data-q="etage"><span class="w-lbl">Lage der Wohnung</span>${seg('ort.etage', o.etage, ETAGE, 'w-chips')}<div class="sd-gap">${seg('ort.lage', o.lage, LAGE, 'w-chips')}</div></div>` : ''}`;
+      <div class="w-q" data-q="bsda"><span class="w-lbl">${cap(B.nom)} vor Ort?${data.mitEs ? '' : ' <i class="w-req" title="Pflicht">•</i>'}</span>${seg('ein.bsDa', e.bsDa, [['da', 'Ja, getrennt befragt'], ['weg', 'Nein, vorher gegangen']])}</div>
+      ${ankunftZu ? '<div class="w-q" data-q="einmehr"><button type="button" class="link" data-sd="auf" data-k="ein">Hier zusätzlich beschreiben, wer euch erwartete oder die Tür öffnete</button></div>' : ''}`;
+    const gebL = (GEBAEUDE.find(x => x[0] === o.art) || [])[1] || '', etL = (ETAGE.find(x => x[0] === o.etage) || [])[1] || '', laL = (LAGE.find(x => x[0] === o.lage) || [])[1] || '';
+    const famZu = zu('fam') && folgt('fam', 'fam'), adrZu = zu('adr') && folgt('ort.str', 'str') && (!has(o.plz) || folgt('ort.plz', 'plz'));
+    const gebZu = zu('geb') && folgt('ort.art', 'art'), lageZu = gebZu && o.art === 'mfh' && folgt('ort.etage', 'etage') && (!has(o.lage) || folgt('ort.lage', 'lage'));
+    const ort = `${famZu ? zeile('fam', 'Familienname', str(data.fam), vg.personenAus, 'fam')
+      : `<div class="w-q half" data-q="fam"><label class="w-lbl" for="hgFam">Familienname <i class="w-req" title="Pflicht">•</i></label>${textIn('hgFam', 'fam', data.fam, 'z. B. Müller', 80)}<p class="w-hint sd-hint">„… die Wohnung der Familie Müller“</p></div>`}
+      ${adrZu ? zeile('str', 'Anschrift des Tatorts', [str(o.str), str(o.plz)].filter(Boolean).join(', '), vg.ortAus, 'adr') : ''}
+      ${gebZu ? zeile('geb', lageZu ? 'Gebäude und Lage der Wohnung' : 'Gebäude', `${gebL}${lageZu ? ` · ${etL}${laL ? ' ' + laL : ''}` : ''}`, vg.plaetzeAus, 'geb')
+      : `<div class="w-q half" data-q="geb"><span class="w-lbl">Gebäude</span>${seg('ort.art', o.art, GEBAEUDE.map(x => [x[0], x[1]]), 'w-chips')}</div>`}
+      ${adrZu ? '' : `<div class="w-q half" data-q="str"><label class="w-lbl" for="hgStr">Straße, Hausnummer <i class="w-req" title="Pflicht">•</i></label>${textIn('hgStr', 'ort.str', o.str, 'Musterstraße 5', 120)}${vg && vg.ort && str(o.str) !== str(vg.ort.str) ? vorschlag('ort.str', [str(vg.ort.str)].filter(Boolean), o.str) : ''}</div>
+      <div class="w-q half" data-q="plz"><label class="w-lbl" for="hgPlz">PLZ und Ort</label>${textIn('hgPlz', 'ort.plz', o.plz, '32545 Bad Oeynhausen', 80)}${vorschlag('ort.plz', [...new Set([...(vg && vg.ort && has(vg.ort.plz) ? [str(vg.ort.plz)] : []), ...zuletzt(api, 'ort.plz')])].slice(0, 4), o.plz)}</div>`}
+      ${o.art === 'mfh' && !lageZu ? `<div class="w-q" data-q="etage"><span class="w-lbl">Lage der Wohnung</span>${seg('ort.etage', o.etage, ETAGE, 'w-chips')}<div class="sd-gap">${seg('ort.lage', o.lage, LAGE, 'w-chips')}</div></div>` : ''}`;
     const wohn = `<div class="w-q" data-q="zust"><span class="w-lbl">Die Wohnung wirkte …</span>${seg('ort.zustand', o.zustand, ZUSTAND, 'w-chips')}<span class="w-lbl sd-gap">Spuren einer Auseinandersetzung</span>${flips('ort.spuren', o.spuren, SPUREN)}${satz('Weitere Feststellung (ganzer Satz, optional)', textIn('hgOrtT', 'ort.text', o.text, 'Im Flur lag eine zerbrochene Vase', 300))}</div>
       <div class="w-q" data-q="kinder"><span class="w-lbl">Kinder im Haushalt</span>${seg('kinder.n', has(k.n) ? String(k.n) : '', [['0', 'Keine'], ['1', '1'], ['2', '2'], ['3', '3'], ['4', '4'], ['5', '5']], 'w-chips')}
         ${kinderN(data) ? `<div class="sd-gap">${seg('kinder.art', k.art || 'gemeinsam', KIND_ART, 'w-chips')}</div>${satz('Alter (z. B. „3 und 5“) – im Text „(gemeinsame Kinder: 3 und 5 J.)“', textIn('hgAlter', 'kinder.alter', k.alter, '3 und 5', 40))}<div class="w-chips sd-gap">${tog('kinder.bsNicht', k.bsLebt === 'nein', `${cap(B.nom)} wohnt nicht dort`).replace('data-sd="tog" data-p="kinder.bsNicht"', 'data-sd="bslebt"')}</div>` : ''}</div>
@@ -409,7 +437,7 @@
     const SEITE = {
       bet: ['Wer ist beteiligt?', 'Nur für die richtige Form im Text – die Namen stehen in den Schilderungen. Einsatzanlass und Schilderungen sind eigene Abschnitte.', personen],
       ein: ['Wie habt ihr die Lage angetroffen?', data.mitEs ? '' : `Abschnitt ${nrOf(data, 'ein')} Eintreffsituation.`, (data.mitEs ? '<div class="w-q"><div class="w-info">Der Vorgang hat schon den Abschnitt „Eintreffsituation“. Was du auf dieser und den nächsten zwei Folien einträgst, wird <b>dort als Absatz angehängt</b> – wer wo angetroffen wurde, musst du hier nicht noch einmal antippen.</div></div>' : '') + ein],
-      ort: ['Welche Wohnung?', data.mitEs ? 'Wird an die Eintreffsituation des Vorgangs angehängt.' : 'Gehört noch zur Eintreffsituation.', ort],
+      ort: ['Welche Wohnung?', (famZu || adrZu || gebZu ? 'Was der Vorgang schon weiß, ist eingetragen – „Ändern“, falls der Tatort ein anderer ist. ' : '') + (data.mitEs ? 'Wird an die Eintreffsituation des Vorgangs angehängt.' : 'Gehört noch zur Eintreffsituation.'), ort],
       wohn: ['Zustand der Wohnung, Kinder', data.mitEs ? 'Wird an die Eintreffsituation des Vorgangs angehängt.' : 'Damit ist die Eintreffsituation vollständig.', wohn],
       gs: [`Hinweise an ${G.akk}`, `Abschnitt ${nrOf(data, 'gs')} ${titel(data, 'gs')} – Strafantrag, Verletzungen und Rettungswagen stehen in der Schilderung.`, opfer],
       bs1: ['Wohnungsverweisung und Rückkehrverbot', `Abschnitt ${nrOf(data, 'bs')} ${titel(data, 'bs')}.`, bsm + (wv ? '' : bsEnde)],
@@ -439,7 +467,7 @@
       ${api.fuss({ back: { label: 'Bearbeiten', attr: 'data-sd="mask"' }, next: api.danach() })}`;
   }
 
-  function open(d) { V.id = d.id; V.s = d.status === 'fertig' ? 'text' : 'mask'; V.f = 'bet'; V.focus = ''; }
+  function open(d) { V.id = d.id; V.s = d.status === 'fertig' ? 'text' : 'mask'; V.f = 'bet'; V.focus = ''; V.auf = new Set(); }
   /** Kennung der Folie – wechselt sie, beginnt die neue Seite oben; sonst bleibt alles stehen. */
   const key = () => `${V.s}:${V.s === 'mask' ? V.f : ''}`;
   function render(d, api) {
@@ -458,6 +486,7 @@
     const data = api.d.data, a = b.dataset.sd;
     const save = () => { api.persist(false); api.render(); };
     switch (a) {
+      case 'auf': V.auf.add(b.dataset.k); api.render(); return true;
       case 'set': {
         const path = b.dataset.p, v = b.dataset.v;
         // Zahlen-Chips (Kinder) als Zahl, sonst Text
