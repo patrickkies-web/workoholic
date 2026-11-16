@@ -754,6 +754,8 @@
 
   root.WGEW = Object.freeze({
     id: 'gewahrsam', name: 'Gewahrsam (PolG NRW)', short: 'Gewahrsam', kurz: 'GW',
+    /* Im Vorgang: Diese Angaben kommen aus den anderen Abschnitten und werden hier nicht noch einmal gefragt */
+    vg: { kraefte: 'einsatz.kraefte', datum: 'gw.e1_d', person: { pfad: 'gw.p', rolle: () => 'bt' } },
     desc: 'Gewahrsam nach § 35 PolG NRW: Feststellungen frei, Folgerungen antippen, wer was wann angeordnet hat, richterliche Entscheidung (auch nachts nicht erreichbar), Antrag ans Amtsgericht, Frist',
     intro: 'Gewahrsamsart wählen, Feststellungen beschreiben, Folgerungen antippen · wer was wann angeordnet und ausgesprochen hat · richterliche Entscheidung inkl. Nachtzeit (§ 104 Abs. 3 StPO) · fertiger Text zum Bearbeiten, Antrag ans Amtsgericht, Frist',
     labels: {

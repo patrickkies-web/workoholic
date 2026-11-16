@@ -85,6 +85,7 @@
 
   root.WUnfallort = Object.freeze({
     id: 'unfallort', name: 'Unfallörtlichkeit', short: 'Unfallörtlichkeit', kurz: 'UÖ',
+    vg: { datum: 'aufnahme.datum' }, // im Vorgang: Datum aus „Allgemeines“
     desc: 'Verhältnisse vor Ort zum Ankreuzen – Licht, Bewölkung, Niederschlag, Temperatur, Nebel, Wind, Fahrbahn, Glätte, Sicht und Verkehr – als ein zusammenhängender Absatz',
     labels: {
       bericht: 'Unfallörtlichkeit',

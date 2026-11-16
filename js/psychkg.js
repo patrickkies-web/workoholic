@@ -532,6 +532,15 @@
 
   root.WPsychKG = Object.freeze({
     id: 'psychkg', name: 'Maßnahmen nach dem PsychKG', short: 'PsychKG', kurz: 'PSY',
+    /* Im Vorgang: Diese Angaben kommen aus den anderen Abschnitten und werden hier nicht noch einmal gefragt */
+    vg: {
+      kraefte: 'einsatz.kraefte', datum: 'einsatz.datum', nr: { feld: 'pkStd.nr' },
+      person: {
+        pfad: 'pk.p', rolle: d => (P(d).bez === 'besch' ? 'bs' : 'bt'),
+        // Beschuldigte aus der Eintreffsituation heißen auch hier so – solange nichts anderes gewählt ist
+        nach: (d, q) => { if (!has(P(d).bez) && q.rolle === 'bs') { if (!d.pk || typeof d.pk !== 'object') d.pk = {}; d.pk.bez = 'besch'; } }
+      }
+    },
     desc: 'Eigener Abschnitt für psychische Ausnahmesituationen: Gefahr, Ordnungsamt, Ärztin oder Arzt, Entscheidung und Transport antippen – heraus kommt der fertige Abschnitt',
     intro: 'Gefahr, Ordnungsamt, Ärztin oder Arzt, Entscheidung und Transport antippen · fertiger Abschnitt „Maßnahmen nach dem PsychKG“ mit Nummer zum Kopieren',
     labels: {

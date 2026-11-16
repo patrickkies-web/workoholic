@@ -44,20 +44,20 @@
    *   Eintreffsituation  Personen, Art             Namen (der Personen, die nur in den Schilderungen stehen)
    *   Schilderungen      Namen                     Kräfte, Personen, Art
    *   Häusliche Gewalt   –                         Kräfte, Anschrift (Tatort), Personen (Anrede, Familienname)
-   *   Unfallörtlichkeit  –                         –
-   *   Blutprobe          –                         Kräfte
-   *   PsychKG            –                         Kräfte
-   *   Gewahrsam          –                         Kräfte
+   *   Unfallörtlichkeit  –                         Datum
+   *   Blutprobe          –                         Kräfte, Datum, Personen (Beschuldigte/r, Betroffene/r)
+   *   PsychKG            –                         Kräfte, Datum, Personen (betroffene Person)
+   *   Gewahrsam          –                         Kräfte, Datum, Personen (betroffene Person)
    */
   const MATRIX = {
-    anzeige: { pos: 1, gibt: ['kraefte', 'ort'], nimmt: [], kopf: true },
+    anzeige: { pos: 1, gibt: ['kraefte', 'ort', 'datum'], nimmt: [], kopf: true },
     eintreffen: { pos: 2, gibt: ['personen', 'art'], nimmt: ['namen'], nr: true },
     sch: { pos: 3, gibt: ['namen'], nimmt: ['kraefte', 'personen', 'art'], nr: true },
     hgv: { pos: 4, gibt: [], nimmt: ['kraefte', 'ort', 'personen'] },
-    unfallort: { pos: 5, gibt: [], nimmt: [], kopf: true },
-    blutprobe: { pos: 6, gibt: [], nimmt: ['kraefte'] },
-    psychkg: { pos: 7, gibt: [], nimmt: ['kraefte'] },
-    gewahrsam: { pos: 8, gibt: [], nimmt: ['kraefte'] }
+    unfallort: { pos: 5, gibt: [], nimmt: ['datum'], kopf: true },
+    blutprobe: { pos: 6, gibt: [], nimmt: ['kraefte', 'datum', 'leute'] },
+    psychkg: { pos: 7, gibt: [], nimmt: ['kraefte', 'datum', 'leute'] },
+    gewahrsam: { pos: 8, gibt: [], nimmt: ['kraefte', 'datum', 'leute'], kopf: d => !!(d && d.gw && d.gw.art) } // Überschrift erst, wenn die Gewahrsamsart steht
   };
   const TYPEN = Object.keys(MATRIX).sort((a, b) => MATRIX[a].pos - MATRIX[b].pos);
   const STANDARD = ['anzeige', 'eintreffen', 'sch'];
@@ -78,6 +78,7 @@
    */
   const KONTEXT = {
     kraefte: { l: 'Kräfte', lesen: kraefte, leer: v => !v.length },
+    datum: { l: 'Datum', lesen: data => str(get(data, 'einsatz.datum')), leer: v => !v },
     // Einsatzörtlichkeit in der Form, wie Folgeabschnitte sie schreiben: „Am Bach 36“ und „33829 Borgholzhausen“
     ort: { l: 'Anschrift', lesen: data => { const o = (data && data.ort) || {}; const strasse = [str(o.strasse), str(o.hausnr)].filter(Boolean).join(' '), plz = [str(o.plz), str(o.ort)].filter(Boolean).join(' '); return has(o.strasse) || has(o.ort) ? { str: strasse, plz } : null; }, leer: v => !v },
     personen: { l: 'Personen', lesen: data => arr(data && data.personen).filter(p => p && has(p.pid)).map(p => ({ pid: p.pid, rolle: p.rolle, ub: p.ub, g: p.g, nachname: p.nachname, vorname: p.vorname, verl: p.verl })), leer: () => false },
@@ -112,10 +113,17 @@
   function kontext(data, doc) {
     const T = teile(data), cfg = MATRIX[doc && doc.type] || { nimmt: [] };
     const gl = (mod(doc && doc.type) || {}).gliederung || null;
-    const ctx = { vorgang: true, nrAuto: auto(data) && !!(cfg.nr || gl), quellen: [] };
+    const mv = (mod(doc && doc.type) || {}).vg || null;
+    const ctx = { vorgang: true, nrAuto: auto(data) && !!(cfg.nr || gl || (mv && mv.nr)), quellen: [] };
     // Teile, die im Gesamtsachverhalt an einen anderen Abschnitt angehängt werden (HG-Eintreffsituation → „Eintreffsituation“)
     if (gl) { const an = {}; for (const [k, typ] of Object.entries(gl.slot || {})) { const z = T.find(t => t.id !== doc.id && t.doc.type === typ); if (z) an[k] = z.m.name; } if (Object.keys(an).length) ctx.angehaengt = an; }
     for (const kind of cfg.nimmt) {
+      if (kind === 'leute') { // Personen kommen aus allen anderen Abschnitten, nicht nur aus einem
+        const L = leute(data, doc); if (!L.length) continue;
+        ctx.leute = L;
+        for (const n of [...new Set(L.map(q => q.aus))]) { const q = ctx.quellen.find(x => x[1] === n); if (q) q[0] += ', Personen'; else ctx.quellen.push(['Personen', n]); }
+        continue;
+      }
       const K = KONTEXT[kind];
       const src = T.find(t => t.id !== doc.id && t.cfg.gibt.includes(kind) && !K.leer(K.lesen(t.doc.data)));
       if (!src) continue;
@@ -129,6 +137,103 @@
   const sig = v => JSON.stringify(v);
   /** Die im Abschnitt selbst eingetragene Besatzung (einsatz.kraefte) in einheitlicher Form. */
   const eigene = data => arr(get(data, 'einsatz.kraefte')).filter(c => c && has(c.name)).map(c => (has(c.grad) ? { grad: str(c.grad), name: str(c.name) } : { name: str(c.name) }));
+  /* ---------- Folgeabschnitte (Blutprobe, PsychKG, Gewahrsam, Unfallörtlichkeit): Person, Datum ---------- */
+  /* Ein Modul sagt mit `vg`, wo seine Angaben liegen: { person: { pfad, rolle?(data), nach?(data, q) }, datum: Pfad,
+     kraefte: Pfad, nr: { feld, anzahl? } }. Der Vorgang füllt sie und führt sie nach, solange dort nichts von Hand
+     geändert wurde (data.vgv merkt sich das zuletzt Übernommene). */
+  const setP = (o, path, v) => { const ks = path.split('.'); let cur = o; for (let i = 0; i < ks.length - 1; i++) { if (!cur[ks[i]] || typeof cur[ks[i]] !== 'object') cur[ks[i]] = {}; cur = cur[ks[i]]; } if (v === undefined || v === null || v === '') delete cur[ks[ks.length - 1]]; else cur[ks[ks.length - 1]] = v; };
+  const nKey = q => `${str(q && q.vorname)}|${str(q && q.nachname)}`.toLocaleLowerCase('de').replace(/\s+/g, ' ');
+  const G3 = g => (g === 'm' || g === 'w' || g === 'd' ? g : '');
+  const P_FELDER = ['geschlecht', 'nachname', 'vorname', 'geb', 'anschrift'];
+  /**
+   * Alle Personen, die in den ANDEREN Abschnitten des Vorgangs stehen: [{ key, rolle, g, nachname, vorname, geb?, anschrift?, aus }].
+   * Zuerst die Eintreffsituation, dann eigene Personen der Schilderungen, dann die betroffene Person aus PsychKG/Gewahrsam.
+   * Wer dort nur übernommen ist (ref), zählt nicht als eigene Quelle – ergänzt aber Geburtsdatum und Anschrift.
+   */
+  function leute(data, doc) {
+    const out = [], by = new Map();
+    const add = (key, q, aus, nurErgaenzen) => {
+      if (!q || !has(q.nachname)) return;
+      let e = by.get(nKey(q));
+      if (!e) { if (nurErgaenzen) return; e = { key, rolle: str(q.rolle), g: G3(q.g), nachname: str(q.nachname), vorname: str(q.vorname), aus }; by.set(nKey(q), e); out.push(e); }
+      if (!e.g && G3(q.g)) e.g = G3(q.g);
+      if (!e.geb && has(q.geb)) e.geb = str(q.geb);
+      if (!e.anschrift && has(q.anschrift)) e.anschrift = str(q.anschrift);
+    };
+    const T = teile(data).filter(t => !doc || t.id !== doc.id), n = t => t.m.short || t.m.name;
+    for (const t of T) if (t.doc.type === 'eintreffen') for (const p of arr(t.doc.data.personen)) if (p && has(p.pid)) add(`${t.id}:${p.pid}`, p, n(t));
+    for (const t of T) if (t.doc.type === 'sch') for (const p of arr(t.doc.data.personen)) if (p && !p.ref) add(`${t.id}:${nKey(p)}`, p, n(t));
+    for (const t of T) {
+      const pf = t.m.vg && t.m.vg.person; if (!pf) continue;
+      const p = get(t.doc.data, pf.pfad); if (!p || typeof p !== 'object') continue;
+      add(`${t.id}:p`, { ...p, g: p.geschlecht, rolle: typeof pf.rolle === 'function' ? pf.rolle(t.doc.data) : 'bt' }, n(t), !!p.ref);
+    }
+    return out;
+  }
+  /** Person q in das Personenfeld des Abschnitts schreiben und verknüpfen; true, wenn sich etwas geändert hat. */
+  function personSetzen(data, pf, q) {
+    let p = get(data, pf.pfad); if (!p || typeof p !== 'object') { setP(data, pf.pfad, {}); p = get(data, pf.pfad); }
+    let ch = false; const neu = p.ref !== q.key;
+    const put = (k, val) => { val = str(val); if (str(p[k]) === val) return; if (val) p[k] = val; else delete p[k]; ch = true; };
+    if (neu) { p.ref = q.key; ch = true; }
+    put('nachname', q.nachname); put('vorname', q.vorname);
+    if (q.g) put('geschlecht', q.g);                             // Anrede folgt der Quelle, wenn sie dort steht
+    if (!has(p.geb) && q.geb) put('geb', q.geb);                 // Geburtsdatum und Anschrift nur ergänzen
+    if (!has(p.anschrift) && q.anschrift) put('anschrift', q.anschrift);
+    if (neu) { if (data.vgv && data.vgv.pfrei) delete data.vgv.pfrei; if (typeof pf.nach === 'function') pf.nach(data, q); }
+    return ch;
+  }
+  /** Verknüpfung lösen: Die Angaben bleiben stehen und gehören ab jetzt dem Abschnitt selbst. */
+  function personLoesen(data, pf) {
+    const p = get(data, pf.pfad); if (!p || typeof p !== 'object' || !p.ref) return false;
+    delete p.ref; if (!data.vgv || typeof data.vgv !== 'object') data.vgv = {}; data.vgv.pfrei = 1;
+    return true;
+  }
+  /**
+   * Personenfeld nachführen: Eine verknüpfte Person folgt ihrer Quelle (Name, Anrede); fehlt die Quelle, bleibt sie als
+   * eigene Person stehen. Ist das Feld noch leer und steht im Vorgang genau eine Person (Zeugen zählen dabei nicht),
+   * wird sie gleich eingetragen; bei mehreren wählt man sie in der Eingabe mit einem Tipp.
+   */
+  function personAnwenden(data, pf, L) {
+    const p = get(data, pf.pfad), leer = !p || typeof p !== 'object' || !P_FELDER.some(k => has(p[k]));
+    if (p && p.ref) { const q = arr(L).find(x => x.key === p.ref); if (!q) { delete p.ref; return true; } return personSetzen(data, pf, q); }
+    if (data.vgv && data.vgv.pfrei) return false; // von Hand gelöst: nicht wieder von selbst verknüpfen
+    // schon eingetragen und dieselbe Person wie in einem anderen Abschnitt: verknüpfen, damit Änderungen dort hier ankommen
+    if (!leer && has(p.nachname)) { const q = arr(L).find(x => nKey(x) === nKey(p)); return q ? personSetzen(data, pf, q) : false; }
+    // noch leer: steht im Vorgang genau eine Person, die nicht nur Zeugin oder Zeuge ist, wird sie eingetragen
+    const K = arr(L).filter(x => x.rolle !== 'zeuge');
+    return leer && K.length === 1 ? personSetzen(data, pf, K[0]) : false;
+  }
+  /**
+   * Einen Wert aus dem Vorgang übernehmen und nachführen (key = Merker in data.vgv): Er folgt, solange das Feld leer ist,
+   * denselben Wert trägt oder noch den zuletzt übernommenen. Was von Hand anders eingetragen wurde, bleibt.
+   */
+  function wertFolgt(data, pfad, key, wert) {
+    wert = str(wert); if (!wert) return false;
+    const v = data.vgv && typeof data.vgv === 'object' ? data.vgv : {}, cur = str(get(data, pfad)), alt = str(v[key]);
+    if (cur && cur !== alt && cur !== wert) return false; // selbst eingetragen
+    if (cur === wert && alt === wert) return false;       // steht schon
+    if (!cur && alt === wert) return false;               // bewusst geleert
+    setP(data, pfad, wert); v[key] = wert; data.vgv = v;
+    return true;
+  }
+  /** Folgt die Angabe noch dem Vorgang? (für die Anzeige: dann wird sie nicht noch einmal abgefragt) */
+  const kraefteFolgen = data => { const own = eigene(data); return own.length > 0 && sig(own) === data.vgk; };
+  const datumFolgt = (data, pfad) => { const cur = str(get(data, pfad)); return !!cur && cur === str(data.vgv && data.vgv.datum); };
+  /**
+   * Was ein Folgeabschnitt gerade aus dem Vorgang bezieht – damit die Eingabe es zeigt, statt noch einmal zu fragen:
+   * { kraefte: { feld, aus, liste }, datum: { feld, aus, wert }, nr: { feld }, person: { feld, leute, q } } (je nur, wenn es zutrifft).
+   */
+  function sicht(data, doc) {
+    const m = mod(doc && doc.type), mv = m && m.vg; if (!mv) return null;
+    const ctx = kontext(data, doc), d = doc.data || {}, out = {};
+    if (mv.kraefte && kraefteFolgen(d)) out.kraefte = { feld: mv.kraefte, aus: ctx.kraefteAus || '', liste: eigene(d) };
+    if (mv.datum && ctx.datum && datumFolgt(d, mv.datum)) out.datum = { feld: mv.datum, aus: ctx.datumAus || '', wert: ctx.datum };
+    if (mv.nr && ctx.nrAuto) out.nr = { feld: mv.nr.feld };
+    if (mv.person && ctx.leute) { const p = get(d, mv.person.pfad); out.person = { feld: mv.person.pfad, leute: ctx.leute, q: p && p.ref ? ctx.leute.find(x => x.key === p.ref) || null : null }; }
+    return out;
+  }
+
   /**
    * Besatzungen übernehmen: Der Abschnitt folgt „Allgemeines“, solange dort nicht von Hand eine eigene Besatzung eingetragen
    * wurde (data.vgk merkt sich den zuletzt übernommenen Stand). Liefert true, wenn sich etwas geändert hat.
@@ -165,6 +270,7 @@
         for (const b of plan(data)) {
           if (b.k) { if (!je.has(b.t)) je.set(b.t, {}); je.get(b.t)[b.k] = b.nr; }
           else if (b.t.cfg.nr && b.t.doc.data.nr !== b.nr) { b.t.doc.data.nr = b.nr; merk(b.t.doc); }
+          else if (b.t.m.vg && b.t.m.vg.nr && b.nr && str(get(b.t.doc.data, b.t.m.vg.nr.feld)) !== b.nr) { setP(b.t.doc.data, b.t.m.vg.nr.feld, b.nr); merk(b.t.doc); }
           for (const x of b.mit) { if (!je.has(x.t)) je.set(x.t, {}); je.get(x.t)[x.k] = b.nr; }
         }
         for (const [t, map] of je) if (t.m.gliederung.setNr(t.doc.data, map)) merk(t.doc);
@@ -172,6 +278,9 @@
       T.forEach(t => {
         const ctx = kontext(data, t.doc);
         if (t.cfg.nimmt.includes('kraefte') && kraefteAnwenden(t.doc.data, ctx.kraefte)) merk(t.doc);
+        const mv = t.m.vg;
+        if (mv && mv.datum && ctx.datum && wertFolgt(t.doc.data, mv.datum, 'datum', ctx.datum)) merk(t.doc);
+        if (mv && mv.person && personAnwenden(t.doc.data, mv.person, ctx.leute)) merk(t.doc);
         if (t.m.kontext && typeof t.m.kontext.nimmt === 'function' && t.m.kontext.nimmt(t.doc.data, ctx)) merk(t.doc);
       });
       if (!neu) break;
@@ -191,6 +300,8 @@
    *   – sonst stehen sie als eigener Baustein an dessen üblicher Stelle, also vor den Schilderungen.
    * nr = fortlaufende Nummer bei „nach Reihenfolge nummerieren“ ('' = ohne bzw. eigene Nummer des Abschnitts).
    */
+  /** Trägt der Abschnitt eine Überschrift ohne eigene Nummer, die der Vorgang nummeriert? (beim Gewahrsam erst mit Gewahrsamsart) */
+  const kopfOk = t => (typeof t.cfg.kopf === 'function' ? !!t.cfg.kopf(t.doc.data) : !!t.cfg.kopf);
   function plan(data) {
     const T = teile(data), out = [];
     const gl = T.find(t => t.m.gliederung) || null, G = gl ? gl.m.gliederung : null;
@@ -205,7 +316,11 @@
       else out.push({ t, mit: gl ? vor.filter(k => ziel(k) === t).map(k => ({ t: gl, k })) : [] });
     });
     let n = 0;
-    for (const b of out) b.nr = auto(data) && (b.k || b.t.cfg.nr || b.t.cfg.kopf) ? String(++n) : '';
+    for (const b of out) {
+      const nrFeld = !b.k && b.t.m.vg && b.t.m.vg.nr;
+      if (!auto(data) || !(b.k || b.t.cfg.nr || kopfOk(b.t) || nrFeld)) { b.nr = ''; continue; }
+      b.nr = String(n + 1); n += (nrFeld && nrFeld.anzahl) || 1; // die Blutprobe hat zwei Überschriften und braucht zwei Nummern
+    }
     return out;
   }
   /** Beschriftung eines Bausteins: „Eintreffsituation“, „Häusliche Gewalt · Gefahrenprognose“. */
@@ -218,7 +333,7 @@
     const d = b.t.doc.data;
     if (b.k) { try { return b.t.m.gliederung.abschnitt(d, b.k) || ''; } catch (e) { return ''; } }
     let p = ''; try { p = b.t.m.plain(d) || ''; } catch (e) { p = ''; }
-    if (b.nr && b.t.cfg.kopf) p = `${b.nr} ${p}`;
+    if (b.nr && kopfOk(b.t)) p = `${b.nr} ${p}`;
     for (const x of b.mit) {
       let r = ''; try { r = x.t.m.gliederung.rumpf(x.t.doc.data, x.k) || ''; } catch (e) { r = ''; }
       if (r) p = /\n\[noch nichts erfasst\]\s*$/i.test(p) ? p.replace(/\n\[noch nichts erfasst\]\s*$/i, '\n' + r) : p + '\n' + r; // steht dort noch nichts, ersetzt der Absatz den Platzhalter
@@ -285,7 +400,7 @@
         ${T.length && offen ? '<div class="w-q"><button type="button" class="btn btn-ghost fo-wide vg-gesamt" data-sd="text">Gesamtsachverhalt ansehen</button></div>' : ''}
         ${add ? `<div class="w-q" data-q="add">${add}</div>` : ''}
         <div class="w-q" data-q="name"><label class="w-lbl" for="vgName">Bezeichnung <i class="w-hint-i">(optional – sonst aus dem Einsatzanlass)</i></label><input class="input" id="vgName" data-sk="name" value="${esc(data.name || '')}" placeholder="z. B. Körperverletzung Lindenstraße" autocomplete="off" spellcheck="false" enterkeyhint="done" maxlength="80"></div>
-        ${T.length ? `<div class="w-q" data-q="num"><div class="w-chips"><button type="button" class="chip" data-sd="num" aria-pressed="${String(auto(data))}">Nach Reihenfolge nummerieren (1, 2, 3 …)</button></div><p class="w-hint sd-hint">${auto(data) ? 'Die Überschriften werden fortlaufend gezählt – auch die Teile der Häuslichen Gewalt. Blutprobe, PsychKG und Gewahrsam tragen keine Nummer.' : 'Jeder Abschnitt behält die Nummer, die du dort einträgst.'}</p></div>` : ''}
+        ${T.length ? `<div class="w-q" data-q="num"><div class="w-chips"><button type="button" class="chip" data-sd="num" aria-pressed="${String(auto(data))}">Nach Reihenfolge nummerieren (1, 2, 3 …)</button></div><p class="w-hint sd-hint">${auto(data) ? 'Alle Überschriften werden fortlaufend gezählt – auch die Teile der Häuslichen Gewalt und die beiden der Blutprobe.' : 'Jeder Abschnitt behält die Nummer, die du dort einträgst.'}</p></div>` : ''}
       </div>
       ${api.fein({ mehr: T.length ? `<button type="button" class="link" data-sd="ord">${V.ord ? 'Ordnen beenden' : 'Abschnitte ordnen oder entfernen'}</button>` : '' })}
       ${api.fuss({ next })}`;
@@ -319,6 +434,8 @@
     const nd = api.create(type, pre); if (!nd) return null;
     // Die Vorbelegung aus der Schicht gilt nicht als eigene Eingabe: „Allgemeines“ darf sie ersetzen
     if (MATRIX[type].nimmt.includes('kraefte')) { const own = eigene(nd.data); if (own.length) nd.data.vgk = sig(own); }
+    const mv = mod(type).vg; // ebenso das heutige Datum: Es folgt dem Datum aus „Allgemeines“
+    if (mv && mv.datum && has(get(nd.data, mv.datum))) nd.data.vgv = { ...(nd.data.vgv || {}), datum: str(get(nd.data, mv.datum)) };
     const list = arr(data.teile).filter(t => t && has(t.id));
     let at = list.findIndex(t => { const x = ENV.find(t.id); return x && MATRIX[x.type] && MATRIX[x.type].pos > MATRIX[type].pos; });
     if (at < 0) at = list.length;
@@ -387,6 +504,6 @@
     preview: () => '', kurzText: () => '', fahndung: () => '', offen: () => [], personalien: () => '',
     screen: { open, render, click, input, keydown, submit, key: d => `${V.s}:${d ? teile(d.data).length : 0}`, show: s2 => { V.s = s2 === 'text' ? 'text' : 'ov'; } },
     bind,
-    core: { MATRIX, KONTEXT, TYPEN, teile, containerOf, partIds, kontext, kraefte, kraefteAnwenden, sync, plan, bausteinText, bausteinName, gesamt, teilText, auto, stand }
+    core: { MATRIX, KONTEXT, TYPEN, teile, containerOf, partIds, kontext, kraefte, kraefteAnwenden, sync, plan, bausteinText, bausteinName, gesamt, teilText, auto, stand, leute, sicht, personSetzen, personLoesen }
   });
 })(typeof window !== 'undefined' ? window : globalThis);

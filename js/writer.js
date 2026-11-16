@@ -209,11 +209,50 @@
   }
   const fid = k => 'wf-' + k.replace(/[^\w-]/g, '_');
 
+  /** Eingabefelder einer Person (Anrede, Name, Geburtsdatum …) – `want` bestimmt, welche. */
+  function personParts(k, p, want) {
+    const parts = [];
+    if (want.includes('geschlecht')) parts.push(`<div class="w-q full"><span class="w-lbl">Anrede</span><div class="w-chips">${ANREDE.map(([val, lab]) => `<button type="button" class="chip" data-set="${esc(k)}.geschlecht" data-v="${val}" aria-pressed="${String(p.geschlecht === val)}">${lab}</button>`).join('')}</div></div>`);
+    const txt = (sub, l, ph, extra = '') => `<div class="w-q half"><label class="w-lbl" for="${fid(k + '.' + sub)}">${l}</label><input class="input" id="${fid(k + '.' + sub)}" data-k="${esc(k)}.${sub}" value="${esc(p[sub] ?? '')}" placeholder="${esc(ph)}" autocomplete="off" spellcheck="false" maxlength="120" ${extra}></div>`;
+    if (want.includes('nachname')) parts.push(txt('nachname', 'Nachname', 'Nachname'));
+    if (want.includes('vorname')) parts.push(txt('vorname', 'Vorname', 'Vorname'));
+    if (want.includes('geb')) parts.push(`<div class="w-q half"><label class="w-lbl" for="${fid(k + '.geb')}">Geburtsdatum</label><input class="input" type="date" id="${fid(k + '.geb')}" data-k="${esc(k)}.geb" value="${esc(p.geb ?? '')}"></div>`);
+    if (want.includes('tel')) parts.push(txt('tel', 'Telefon', 'nur auf dem Original', 'inputmode="tel"'));
+    if (want.includes('anschrift')) parts.push(`<div class="w-q full"><label class="w-lbl" for="${fid(k + '.anschrift')}">Anschrift</label><input class="input" id="${fid(k + '.anschrift')}" data-k="${esc(k)}.anschrift" value="${esc(p.anschrift ?? '')}" placeholder="Straße Nr., PLZ Ort" autocomplete="off" spellcheck="false" maxlength="160"></div>`);
+    if (want.includes('email')) parts.push(txt('email', 'E-Mail (optional)', 'für digitale Unfallmitteilung', 'inputmode="email"'));
+    return parts;
+  }
+  /* ---------- Abschnitt im Vorgang: Übernommenes zeigen statt noch einmal fragen ---------- */
+  let VGX = null; // was der gerade gezeichnete Abschnitt aus seinem Vorgang bezieht (VG.sicht) – null außerhalb eines Vorgangs
+  const ROLLE_L = { zeuge: ['Zeuge', 'Zeugin', 'Zeuge/Zeugin'], gs: ['Geschädigter', 'Geschädigte', 'Geschädigte/r'], bs: ['Beschuldigter', 'Beschuldigte', 'Beschuldigte/r'], bt: ['Betroffener', 'Betroffene', 'Betroffene/r'], ub: ['Unfallbeteiligter', 'Unfallbeteiligte', 'Unfallbeteiligte/r'] };
+  const rolleL = q => { const r = ROLLE_L[q.rolle]; return r ? r[q.g === 'm' ? 0 : q.g === 'w' ? 1 : 2] : ''; };
+  const datumDe = iso => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || '')); return m ? `${m[3]}.${m[2]}.${m[1]}` : String(iso || ''); };
+  const personName = q => [({ m: 'Herr', w: 'Frau' })[q.g || q.geschlecht] || '', String(q.vorname || '').trim(), String(q.nachname || '').trim()].filter(Boolean).join(' ');
+  const vgZeile = (k, lbl, wert, aus, attr) => `<div class="w-q full vg-von ans" data-q="${esc(k)}"><span class="w-lbl">${esc(lbl)}</span><div class="vg-von-z"><span class="vg-von-w"><b>${esc(wert)}</b>${aus ? `<i>aus „${esc(aus)}“</i>` : '<i>übernommen</i>'}</span><button type="button" class="link" ${attr}>Ändern</button></div></div>`;
+  /** Ersatz für ein Feld, dessen Antwort der Vorgang schon kennt; null = Feld wie gewohnt zeichnen. */
+  function vgFeld(f, k, v, d, item) {
+    const X = VGX, auf = U.vgAuf || (U.vgAuf = new Set());
+    if (X.nr && X.nr.feld === k) return ''; // die Nummer vergibt der Vorgang
+    if (X.kraefte && X.kraefte.feld === k && !auf.has(k)) return vgZeile(k, R(f.l, d, item) || 'Eingesetzte Kräfte', X.kraefte.liste.map(c => [c.grad, c.name].filter(Boolean).join(' ')).join(', '), X.kraefte.aus, `data-vg-auf="${esc(k)}"`);
+    if (X.datum && X.datum.feld === k && !auf.has(k)) return vgZeile(k, R(f.l, d, item) || 'Datum', datumDe(X.datum.wert), X.datum.aus, `data-vg-auf="${esc(k)}"`);
+    if (X.person && X.person.feld === k && f.t === 'person') {
+      const p = (v && typeof v === 'object') ? v : {}, want = f.fields || ['geschlecht', 'nachname', 'vorname', 'geb', 'anschrift'], q = X.person.q;
+      const kopfzeile = `<div class="w-sub-h">${esc(R(f.l, d, item) || 'Person')}</div>`;
+      if (q) { // übernommen: Name steht fest, nur das Fehlende wird gefragt
+        const rest = want.filter(x => x !== 'nachname' && x !== 'vorname' && !(x === 'geschlecht' && q.g));
+        return `<div class="w-sub">${kopfzeile}<div class="w-grid">${vgZeile(k, '', personName(p), q.aus, `data-vg-los="${esc(k)}"`)}${personParts(k, p, rest).join('')}</div></div>`;
+      }
+      const wahl = X.person.leute.length ? `<div class="w-q full" data-q="${esc(k)}.vg"><span class="w-lbl">Aus dem Vorgang übernehmen</span><div class="w-chips">${X.person.leute.map(x => `<button type="button" class="chip vg-pchip" data-vg-p="${esc(k)}" data-v="${esc(x.key)}">${esc(personName(x))}${rolleL(x) ? `<small>${esc(rolleL(x))}</small>` : ''}</button>`).join('')}</div></div>` : '';
+      return `<div class="w-sub">${kopfzeile}<div class="w-grid">${wahl}${personParts(k, p, want).join('')}</div></div>`;
+    }
+    return null;
+  }
   function fieldHtml(f, d, base = '') {
     const k = base ? (f.k ? base + '.' + f.k : base) : f.k;
     const v = k ? getP(d, k) : undefined;
     const half = f.w === 'half' ? ' half' : '';
     const item = base ? (getP(d, base) || {}) : undefined; // auch die noch leere erste Listenkarte hat ein Objekt
+    if (VGX && !base && k) { const ers = vgFeld(f, k, v, d, item); if (ers != null) return ers; }
     const ans = answered(v);
     const Q = `<div class="w-q${half}${ans ? ' ans' : ''}" data-q="${esc(k || '')}">`;
     const L = forId => label(f, forId, d, item);
@@ -311,16 +350,7 @@
       case 'person': {
         const p = (v && typeof v === 'object') ? v : {};
         const want = f.fields || ['geschlecht', 'nachname', 'vorname', 'geb', 'anschrift', 'tel', 'email'];
-        const parts = [];
-        if (want.includes('geschlecht')) parts.push(`<div class="w-q full"><span class="w-lbl">Anrede</span><div class="w-chips">${ANREDE.map(([val, lab]) => `<button type="button" class="chip" data-set="${esc(k)}.geschlecht" data-v="${val}" aria-pressed="${String(p.geschlecht === val)}">${lab}</button>`).join('')}</div></div>`);
-        const txt = (sub, l, ph, extra = '') => `<div class="w-q half"><label class="w-lbl" for="${fid(k + '.' + sub)}">${l}</label><input class="input" id="${fid(k + '.' + sub)}" data-k="${esc(k)}.${sub}" value="${esc(p[sub] ?? '')}" placeholder="${esc(ph)}" autocomplete="off" spellcheck="false" maxlength="120" ${extra}></div>`;
-        if (want.includes('nachname')) parts.push(txt('nachname', 'Nachname', 'Nachname'));
-        if (want.includes('vorname')) parts.push(txt('vorname', 'Vorname', 'Vorname'));
-        if (want.includes('geb')) parts.push(`<div class="w-q half"><label class="w-lbl" for="${fid(k + '.geb')}">Geburtsdatum</label><input class="input" type="date" id="${fid(k + '.geb')}" data-k="${esc(k)}.geb" value="${esc(p.geb ?? '')}"></div>`);
-        if (want.includes('tel')) parts.push(txt('tel', 'Telefon', 'nur auf dem Original', 'inputmode="tel"'));
-        if (want.includes('anschrift')) parts.push(`<div class="w-q full"><label class="w-lbl" for="${fid(k + '.anschrift')}">Anschrift</label><input class="input" id="${fid(k + '.anschrift')}" data-k="${esc(k)}.anschrift" value="${esc(p.anschrift ?? '')}" placeholder="Straße Nr., PLZ Ort" autocomplete="off" spellcheck="false" maxlength="160"></div>`);
-        if (want.includes('email')) parts.push(txt('email', 'E-Mail (optional)', 'für digitale Unfallmitteilung', 'inputmode="email"'));
-        return `<div class="w-sub"><div class="w-sub-h">${esc(R(f.l, d, item) || 'Person')}</div><div class="w-grid">${parts.join('')}</div></div>`;
+        return `<div class="w-sub"><div class="w-sub-h">${esc(R(f.l, d, item) || 'Person')}</div><div class="w-grid">${personParts(k, p, want).join('')}</div></div>`;
       }
       case 'vehicle': {
         const fz = (v && typeof v === 'object') ? v : {};
@@ -660,6 +690,9 @@
     U.step = Math.max(0, Math.min(U.step, steps.length - 1));
     const st = steps[U.step];
     U.vis = visibleKeys(st, d.data);
+    const vg0 = m.vg && VG ? vgOf(d) : null;
+    VGX = vg0 ? VG.sicht(vg0.data, d) : null;
+    if (U.vgDoc !== d.id) { U.vgDoc = d.id; U.vgAuf = new Set(); }
     const phases = [...new Set(steps.map(s => s.phase))];
     const prev = $('#wPreview') && $('#wPreview').open;
     const im = stelle(d);
@@ -672,6 +705,7 @@
       </div>
       ${m.noPreview ? '' : `<details class="w-preview" id="wPreview" ${prev ? 'open' : ''}><summary>So steht es im Bericht</summary><pre class="w-pre" id="wPre">${esc(m.preview(st.id, d.data) || '– noch nichts erfasst –')}</pre></details>`}
       ${fuss({ back: U.step > 0 ? { attr: 'data-w="prev"' } : null, next: last ? { label: 'Fertig', attr: 'data-w="finish"', ok: true } : { attr: 'data-w="next"' } })}`;
+    VGX = null;
     remember();
     layoutSentences();
     mountCustom(d, m);
@@ -1013,6 +1047,14 @@
         const next = !eff ? S[0] : i < 0 ? S[0] : (i < S.length - 1 ? S[i + 1] : '');
         setP(d.data, path, next || (auto ? 'nein' : undefined));
         persist(false); renderMain(); return;
+      }
+      if (b.dataset.vgAuf) { (U.vgAuf || (U.vgAuf = new Set())).add(b.dataset.vgAuf); renderMain(); return; }
+      if (b.dataset.vgLos || b.dataset.vgP) {
+        const d = doc(), m = d && mod(d), vg = d && vgOf(d), pf = m && m.vg && m.vg.person; if (!pf || !vg || !VG) return;
+        if (b.dataset.vgLos) VG.personLoesen(d.data, pf);
+        else { const q = VG.leute(vg.data, d).find(x => x.key === b.dataset.v); if (!q) return; VG.personSetzen(d.data, pf, q); }
+        if (d.status === 'fertig') d.status = 'entwurf';
+        persist(true); renderMain(); return;
       }
       if (b.dataset.set) { setVal(b.dataset.set, b.dataset.n ? Number(b.dataset.v) : b.dataset.v, true, !!b.dataset.fest); return; }
       if (b.dataset.toggle) { toggleVal(b.dataset.toggle, b.dataset.v, b.dataset.x, Number(b.dataset.max) || 0); return; }

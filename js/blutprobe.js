@@ -183,8 +183,28 @@
     ] }
   ];
 
+  /**
+   * Im Vorgang: „Blutprobe bei“ vorbelegen, wenn dort genau eine beschuldigte oder betroffene Person mit Anrede steht.
+   * Folgt, solange hier nichts anderes gewählt wurde (d.vgv.rolle merkt sich das Übernommene).
+   */
+  function vgNimmt(d, ctx) {
+    if (!d || typeof d !== 'object' || !ctx || !Array.isArray(ctx.leute)) return false;
+    const L = ctx.leute.filter(q => q && (q.rolle === 'bs' || q.rolle === 'bt') && (q.g === 'm' || q.g === 'w'));
+    if (L.length !== 1) return false;
+    const wert = `${L[0].rolle}_${L[0].g}`, v = d.vgv && typeof d.vgv === 'object' ? d.vgv : {}, cur = str(B(d).rolle), alt = str(v.rolle);
+    if (cur && cur !== alt && cur !== wert) return false; // selbst gewählt
+    if (cur === wert && alt === wert) return false;
+    if (!cur && alt === wert) return false;               // bewusst abgewählt
+    if (!d.bp || typeof d.bp !== 'object') d.bp = {};
+    d.bp.rolle = wert; v.rolle = wert; d.vgv = v;
+    return true;
+  }
+
   root.WBP = Object.freeze({
     id: 'blutprobe', name: 'Blutprobe', short: 'Blutprobe', kurz: 'BP',
+    /* Im Vorgang: Datum und Abschnittsnummern (zwei Überschriften) kommen von dort */
+    vg: { datum: 'bp.datum', nr: { feld: 'bp.nr', anzahl: 2 } },
+    kontext: { nimmt: vgNimmt },
     desc: 'Nur der Abschnitt Blutprobe: Entscheidungsweg (StA und Richter oder § 81a Abs. 2 S. 2 StPO / § 46 Abs. 4 OWiG) und Blutentnahme mit Uhrzeiten und Venülennummern',
     intro: 'Nur der Abschnitt Blutprobe · Anordnung antippen, Uhrzeiten mit „Jetzt“ · Arzt, Ort, Venülen · zwei fertige Abschnitte zum Kopieren',
     labels: {

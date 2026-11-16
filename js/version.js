@@ -1,1 +1,1 @@
-window.WK_STAND = '20261115-1935';
+window.WK_STAND = '20261116-1214';
