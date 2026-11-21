@@ -141,7 +141,6 @@
     if (p.rolle === 'ub' && !C.ubNr(p)) m.push('Nummer');
     if (p.g !== 'm' && p.g !== 'w') m.push('Anrede');
     if (!has(p.nachname)) m.push('Nachname');
-    if (!weg && !['nein', 'schmerz', 'ja'].includes(p.verl)) m.push('Verletzungen');
     m.push(...C.verlFehlt(p));
     return m;
   }
@@ -322,7 +321,8 @@
   /** Wie die Person in einer Überschrift heißt: „Herr Hollj“, solange der Name fehlt „die Person“. */
   const anrede = p => (has(p.nachname) && (p.g === 'm' || p.g === 'w') ? `${p.g === 'm' ? 'Herr' : 'Frau'} ${str(p.nachname)}` : has(p.nachname) ? str(p.nachname) : 'die Person');
   const subOf = (P, i) => `Person ${i + 1} von ${P.length}${has(P[i] && P[i].nachname) ? ' · ' + anrede(P[i]) : ''}`;
-  const verlKurz = p => (p.verl === 'nein' ? 'nicht verletzt' : p.verl === 'schmerz' ? 'gibt Schmerzen an' : p.verl === 'ja' ? 'verletzt' : 'Verletzungen offen');
+  // „nicht verletzt“ steht nur in der Übersicht, wenn es auch im Text steht (Häkchen „Im Text erwähnen“)
+  const verlKurz = p => (p.verl === 'nein' ? (p.verlSatz ? 'nicht verletzt' : '') : p.verl === 'schmerz' ? 'gibt Schmerzen an' : p.verl === 'ja' ? 'verletzt' : '');
   /** Kurzbeschreibung eines Ortes für Chips und die Personenliste. */
   function ortKurz(g) {
     if (wieOf(g)[0] === 'weg') return 'nicht mehr vor Ort';
@@ -402,7 +402,7 @@
       const gi = ortVon(data, p), g = O[gi] || {}, weg = wieOf(g)[0] === 'weg';
       const mit = mitglieder(data, g).filter(j => j !== i).map(j => kurzName(P[j]));
       const fehlt = personFehlt(p, weg).length || (!weg && !has(g.text));
-      return `<li class="sd-item"><div class="sd-row"><button type="button" class="sd-card" data-sd="edit" data-i="${i}"><span class="sd-n mono">${i + 1}</span><span class="sd-main"><b>${esc(vollName(p))}</b><small>${esc([C.rolleLabel(p), ortKurz(g) + (mit.length ? ` (mit ${joinUnd(mit)})` : ''), ...(weg && !p.verl ? [] : [verlKurz(p)])].join(' · '))}</small></span><span class="pill ${fehlt ? 'pill-quiet' : 'pill-lime'}">${fehlt ? 'Offen' : 'Erfasst'}</span></button></div></li>`;
+      return `<li class="sd-item"><div class="sd-row"><button type="button" class="sd-card" data-sd="edit" data-i="${i}"><span class="sd-n mono">${i + 1}</span><span class="sd-main"><b>${esc(vollName(p))}</b><small>${esc([C.rolleLabel(p), ortKurz(g) + (mit.length ? ` (mit ${joinUnd(mit)})` : ''), ...(weg && !p.verl ? [] : [verlKurz(p)])].filter(Boolean).join(' · '))}</small></span><span class="pill ${fehlt ? 'pill-quiet' : 'pill-lime'}">${fehlt ? 'Offen' : 'Erfasst'}</span></button></div></li>`;
     }).join('');
     const add = art
       ? `<div class="sd-add"><span class="w-lbl">${P.length ? 'Weitere Person anlegen' : 'Person anlegen'}</span><div class="sd-add-row">${C.rollenFor(art).map(([v, r]) => `<button type="button" class="sd-add-b" data-sd="add" data-v="${v}"><i aria-hidden="true">+</i>${esc(v === 'ub' ? `${r.x} ${pad2(C.nextUb(P))}` : r.x)}</button>`).join('')}</div></div>`
@@ -433,7 +433,7 @@
     const fuss = api.fuss({ back: k ? { attr: 'data-sd="pf" data-v="-1"' } : { attr: 'data-sd="menu"' }, next: last ? { label: 'Person fertig', attr: 'data-sd="done1"', ok: true } : { attr: 'data-sd="pf" data-v="1"' } });
     if (V.f === 'wo') return `${kopf(`Wo wurde ${anrede(p)} angetroffen?`, 'Schnellwahl antippen oder den Ort selbst schreiben – er steht als Satzbaustein im Sachverhalt.')}
       <div class="w-grid sd-grid">${woHtml(data, i)}</div>${fuss}`;
-    if (V.f === 'verl') return `${kopf(`War ${anrede(p)} verletzt?`, 'Steht im Text direkt hinter dem Antreffen – in den Schilderungen dann nicht noch einmal.')}
+    if (V.f === 'verl') return `${kopf(`War ${anrede(p)} verletzt?`, 'Nur antippen, wenn es in den Text soll – sonst einfach weiter. Steht dann direkt hinter dem Antreffen.')}
       <div class="w-grid sd-grid">${UI.verletzungHtml(api, p, base, '', true)}</div>${fuss}`;
     const roles = C.rollenFor(data.art, p.rolle).map(([v, x]) => `<button type="button" class="chip" data-sd="set" data-p="${base}.rolle" data-v="${v}" aria-pressed="${String(p.rolle === v)}">${esc(p.g === 'm' || p.g === 'w' ? x[p.g] : x.x)}</button>`).join('');
     const ubMax = Math.max(4, ...P.map(C.ubNr)) + (P.filter(x => C.ubNr(x)).length >= 4 ? 1 : 0);
