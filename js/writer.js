@@ -10,8 +10,10 @@
   'use strict';
   const W = () => window.WBridge;
   const MODULES = {};
-  // Reihenfolge = Reihenfolge der Kacheln: zuerst der Vorgang aus Abschnitten, die Eintreffsituation direkt nach „Allgemeines“
-  for (const m of [window.WVorgang, window.WVUF, window.WVermisst, window.WHGV, window.WHG, window.WAnzeige, window.WEin, window.WUnfallort, window.WFEB, window.WSKZ, window.WSchild, window.WGEW, window.WPsychKG, window.WBP]) if (m) MODULES[m.id] = m;
+  // Reihenfolge = Reihenfolge der Kacheln: zuerst der Vorgang aus Abschnitten, gleich danach die Zusatzbausteine (legen einen
+  // Vorgang an und öffnen dort ihr Untermenü); die Eintreffsituation direkt nach „Allgemeines“. Personenbeschreibung,
+  // Fahrzeugbeschreibung und Maßnahmen haben keine eigene Kachel – sie entstehen über die Zusatzbausteine.
+  for (const m of [window.WVorgang, window.WZusatz, window.WVUF, window.WVermisst, window.WHGV, window.WHG, window.WAnzeige, window.WEin, window.WUnfallort, window.WFEB, window.WSKZ, window.WSchild, window.WGEW, window.WPsychKG, window.WBP, window.WPB, window.WFZ, window.WMass]) if (m) MODULES[m.id] = m;
   /** Vorgang aus mehreren Abschnitten (js/vorgang.js): Reihenfolge, Kontext-Matrix, Gesamttext. */
   const VG = window.WVorgang ? window.WVorgang.core : null;
   if (window.WVorgang) window.WVorgang.bind({ find: id => (W() && W().unlocked() ? W().find(id) : null), modules: MODULES });
@@ -117,11 +119,11 @@
       : o.fertig ? `<div class="fo-prog"><span class="fo-dots" aria-hidden="true"><i class="${o.offen ? 'on' : 'done'}"></i></span><span class="fo-pos">${esc(o.fertig)}</span></div>` : '';
     return `<div class="fo-top"><div class="fo-bar"><button type="button" class="fo-up" ${up.attr}>${ICON_BACK}<span>${esc(up.label)}</span></button><span class="fo-save" data-live="save">${saveHtml()}</span></div><div class="fo-wo"><b>${esc(name)}</b>${sub ? `<span${o.subLive ? ` data-live="${esc(o.subLive)}"` : ''}>${esc(sub)}</span>` : ''}</div>${prog}</div>${o.titel ? `<div class="fo-head"><h2 class="w-h"${o.live ? ` data-live="${esc(o.live)}"` : ''}>${esc(o.titel)}</h2>${o.lead ? `<p class="w-lead">${esc(o.lead)}</p>` : ''}</div>` : ''}`;
   }
-  /** Fuß einer Folie. back/next: { label, attr, cls?, ok? } oder null; next ist immer der eine nächste Schritt. */
+  /** Fuß einer Folie. back/next: { label, attr, cls?, ok?, plain? } oder null; next ist immer der eine nächste Schritt. plain = ohne Pfeil (links z. B. „Kopieren“ statt „Zurück“). */
   function fuss(o = {}) {
     const b = o.back, n = o.next;
     if (!b && !n) return '';
-    return `<div class="w-nav fo-nav">${b ? `<button type="button" class="btn btn-ghost fo-back" ${b.attr}>${ICON_BACK}<span>${esc(b.label || 'Zurück')}</span></button>` : ''}${n ? `<button type="button" class="btn ${n.cls || 'btn-accent'} fo-next" ${n.attr}><span>${esc(n.label || 'Weiter')}</span>${n.plain ? '' : n.ok ? ICON_OK : ICON_FWD}</button>` : ''}</div>`;
+    return `<div class="w-nav fo-nav">${b ? `<button type="button" class="btn btn-ghost fo-back${b.plain ? ' fo-plain' : ''}" ${b.attr}>${b.plain ? '' : ICON_BACK}<span>${esc(b.label || 'Zurück')}</span></button>` : ''}${n ? `<button type="button" class="btn ${n.cls || 'btn-accent'} fo-next" ${n.attr}><span>${esc(n.label || 'Weiter')}</span>${n.plain ? '' : n.ok ? ICON_OK : ICON_FWD}</button>` : ''}</div>`;
   }
   /** Wohin es nach einem fertigen Abschnitt geht: nächster Abschnitt, Gesamtsachverhalt des Vorgangs oder zur Liste. */
   function danach(d) {
@@ -806,9 +808,12 @@
       return;
     }
     const m = MODULES[type] || creatable()[0]; if (!m) return;
-    const d = createDoc(m.id, preset);
+    // m.als: Die Kachel legt ein anderes Modul an und zeigt dort eine bestimmte Ansicht (Zusatzbausteine → Vorgang, Untermenü)
+    const ziel = m.als && MODULES[m.als.type] ? MODULES[m.als.type] : m;
+    const d = createDoc(ziel.id, preset);
     if (!d) { W().toast('Vorgang konnte nicht angelegt werden.'); return; }
     open(d.id, 'wizard');
+    if (ziel !== m && ziel.screen && typeof ziel.screen.show === 'function') { ziel.screen.show(m.als.zeige); renderMain(); }
     setTimeout(() => { const f = $('#wFields input, #wFields button'); if (f && !W().mobile()) f.focus(); }, 60);
     return d;
   }

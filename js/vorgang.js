@@ -10,6 +10,10 @@
  * Kollegin oder einem Kollegen gefragt wird; die Personen der Eintreffsituation (Name, Rolle, Verletzungen) lassen sich in den
  * Schilderungen antippen, statt sie neu anzulegen – die Verletzungen stehen dann nur einmal im Sachverhalt.
  *
+ * Zusatzbausteine – Seltenes wie die Personenbeschreibung oder Fragen zu Nahbereichsfahndung, Spurensicherung,
+ * Videoaufzeichnungen und Lichtbildmappe – wählt man im Untermenü „Zusatzbausteine“. Je nach Art reihen sie sich ganz vorn
+ * ein (wird vor Ort zuerst aufgenommen) oder ganz hinten (Abschnitt „Maßnahmen“, wird zuletzt abgefragt).
+ *
  * Reine Logik (Matrix, Kontext, Abgleich, Gesamttext) ohne DOM, in Node testbar. Die Maske zeichnet writer.js über m.screen.
  */
 (function (root) {
@@ -49,16 +53,29 @@
    *   Blutprobe          –                         Kräfte, Datum, Personen (Beschuldigte/r, Betroffene/r)
    *   PsychKG            –                         Kräfte, Datum, Personen (betroffene Person), Anschrift (als Vorschlag)
    *   Gewahrsam          –                         Kräfte, Datum, Personen (betroffene Person), Anschrift und Antrefforte (als Vorschlag)
+   *
+   * Zusatzbausteine (zusatz: true) wählt man im Untermenü „Zusatzbausteine“, nicht über die Abschnittsknöpfe – jeder reiht
+   * sich an seiner Stelle ein:
+   *   Personenbeschreibung  Beschreibungen         Art, Personen (als Namensvorschlag), wer welche Beschreibung übernommen hat
+   *                         → ganz vorn (pos 0): wird vor Ort zuerst aufgenommen; im Gesamtsachverhalt steht sie dort nur,
+   *                           solange sie bei keiner Schilderung übernommen ist (ohne Nummer – sie zählt nicht mit)
+   *   Fahrzeugbeschreibung  Fahrzeuge              Personen (als Namensvorschlag), Personenbeschreibungen (wer stieg ein?), wer sie übernommen hat
+   *                         → vorn, gleich nach der Personenbeschreibung (pos 0.5); sonst wie diese
+   *   Maßnahmen             –                      Art, Personen (als Vorschlag für „wer hat Videoaufzeichnungen“)
+   *                         → ganz hinten (pos 9): fragt am Ende, was im Untermenü gewählt wurde
    */
   const MATRIX = {
+    pb: { pos: 0, gibt: ['beschreibungen'], nimmt: ['art', 'leute', 'nutzung', 'fahrzeuge'], vorschlag: ['leute', 'fahrzeuge'], zusatz: true },
+    fz: { pos: 0.5, gibt: ['fahrzeuge'], nimmt: ['art', 'leute', 'nutzung', 'beschreibungen'], vorschlag: ['leute', 'beschreibungen'], zusatz: true },
     anzeige: { pos: 1, gibt: ['kraefte', 'ort', 'datum'], nimmt: [], kopf: true },
     eintreffen: { pos: 2, gibt: ['personen', 'art', 'plaetze'], nimmt: ['namen'], nr: true },
-    sch: { pos: 3, gibt: ['namen'], nimmt: ['kraefte', 'personen', 'art'], nr: true },
+    sch: { pos: 3, gibt: ['namen', 'art', 'nutzung'], nimmt: ['kraefte', 'personen', 'art', 'beschreibungen', 'fahrzeuge'], nr: true },
     hgv: { pos: 4, gibt: [], nimmt: ['kraefte', 'ort', 'personen', 'plaetze'] },
     unfallort: { pos: 5, gibt: [], nimmt: ['datum'], kopf: true },
     blutprobe: { pos: 6, gibt: [], nimmt: ['kraefte', 'datum', 'leute'] },
     psychkg: { pos: 7, gibt: [], nimmt: ['kraefte', 'datum', 'leute', 'ort'], vorschlag: ['ort'] },
-    gewahrsam: { pos: 8, gibt: [], nimmt: ['kraefte', 'datum', 'leute', 'ort', 'plaetze'], vorschlag: ['ort', 'plaetze'], kopf: d => !!(d && d.gw && d.gw.art) } // Überschrift erst, wenn die Gewahrsamsart steht
+    gewahrsam: { pos: 8, gibt: [], nimmt: ['kraefte', 'datum', 'leute', 'ort', 'plaetze'], vorschlag: ['ort', 'plaetze'], kopf: d => !!(d && d.gw && d.gw.art) }, // Überschrift erst, wenn die Gewahrsamsart steht
+    massnahmen: { pos: 9, gibt: [], nimmt: ['art', 'leute'], vorschlag: ['leute'], nr: true, zusatz: true }
   };
   const TYPEN = Object.keys(MATRIX).sort((a, b) => MATRIX[a].pos - MATRIX[b].pos);
   const STANDARD = ['anzeige', 'eintreffen', 'sch'];
@@ -92,7 +109,13 @@
     // Einsatzörtlichkeit in der Form, wie Folgeabschnitte sie schreiben: „Am Bach 36“ und „33829 Borgholzhausen“
     ort: { l: 'Anschrift', lesen: data => { const o = (data && data.ort) || {}; const strasse = [str(o.strasse), str(o.hausnr)].filter(Boolean).join(' '), plz = [str(o.plz), str(o.ort)].filter(Boolean).join(' '); return has(o.strasse) || has(o.ort) ? { str: strasse, plz } : null; }, leer: v => !v },
     personen: { l: 'Personen', lesen: data => arr(data && data.personen).filter(p => p && has(p.pid)).map(p => ({ pid: p.pid, rolle: p.rolle, ub: p.ub, g: p.g, nachname: p.nachname, vorname: p.vorname, verl: p.verl })), leer: () => false },
-    art: { l: '', lesen: data => (data && data.art) || '', leer: () => false }, // kommt mit den Personen, steht nicht eigens im Hinweis
+    art: { l: '', lesen: data => (data && data.art) || '', leer: v => !v }, // kommt mit den Personen, steht nicht eigens im Hinweis
+    // Personenbeschreibungen (Zusatzbaustein): in den Schilderungen bei der Person übernehmbar, die sie abgegeben hat
+    beschreibungen: { l: 'Personenbeschreibungen', lesen: data => arr(data && data.pb).filter(b => b && typeof b === 'object' && has(b.id)).map(b => ({ id: b.id, von: str(b.von), d: JSON.parse(JSON.stringify(b)) })), leer: v => !v.length },
+    // Fahrzeugbeschreibungen (Zusatzbaustein): wie die Personenbeschreibungen in den Schilderungen übernehmbar
+    fahrzeuge: { l: 'Fahrzeugbeschreibungen', lesen: data => arr(data && data.fz).filter(f => f && typeof f === 'object' && has(f.id)).map(f => ({ id: f.id, von: str(f.von), d: JSON.parse(JSON.stringify(f)) })), leer: v => !v.length },
+    // Wer welche Personen- oder Fahrzeugbeschreibung übernommen hat – dort steht sie dann, vorn im Gesamtsachverhalt nicht noch einmal
+    nutzung: { l: '', lesen: data => { const C = root.WSchild && root.WSchild.core; return arr(data && data.personen).flatMap((p, i) => [...arr(p && p.pb), ...arr(p && p.fz)].filter(id => typeof id === 'string' && id).map(id => ({ id, wer: C ? C.werVon(data, i) : str(p.nachname) }))); }, leer: () => false },
     // Namen der Personen, die ein Abschnitt selbst führt (nicht übernommen hat) – nur damit Namen und Kürzel überall gleich ausfallen
     namen: { l: '', lesen: data => arr(data && data.personen).filter(p => p && !p.ref && has(p.nachname)).map(p => ({ vorname: str(p.vorname), nachname: str(p.nachname) })), leer: v => !v.length }
   };
@@ -131,6 +154,7 @@
       if (kind === 'leute') { // Personen kommen aus allen anderen Abschnitten, nicht nur aus einem
         const L = leute(data, doc); if (!L.length) continue;
         ctx.leute = L;
+        if ((cfg.vorschlag || []).includes('leute')) continue; // nur zum Antippen angeboten – steht nicht unter „übernimmt“
         for (const n of [...new Set(L.map(q => q.aus))]) { const q = ctx.quellen.find(x => x[1] === n); if (q) q[0] += ', Personen'; else ctx.quellen.push(['Personen', n]); }
         continue;
       }
@@ -166,7 +190,7 @@
     const add = (key, q, aus, nurErgaenzen) => {
       if (!q || !has(q.nachname)) return;
       let e = by.get(nKey(q));
-      if (!e) { if (nurErgaenzen) return; e = { key, rolle: str(q.rolle), g: G3(q.g), nachname: str(q.nachname), vorname: str(q.vorname), aus }; by.set(nKey(q), e); out.push(e); }
+      if (!e) { if (nurErgaenzen) return; e = { key, rolle: str(q.rolle), g: G3(q.g), nachname: str(q.nachname), vorname: str(q.vorname), aus }; if (q.ub) e.ub = q.ub; by.set(nKey(q), e); out.push(e); }
       if (!e.g && G3(q.g)) e.g = G3(q.g);
       if (!e.geb && has(q.geb)) e.geb = str(q.geb);
       if (!e.anschrift && has(q.anschrift)) e.anschrift = str(q.anschrift);
@@ -325,6 +349,8 @@
    */
   /** Trägt der Abschnitt eine Überschrift ohne eigene Nummer, die der Vorgang nummeriert? (beim Gewahrsam erst mit Gewahrsamsart) */
   const kopfOk = t => (typeof t.cfg.kopf === 'function' ? !!t.cfg.kopf(t.doc.data) : !!t.cfg.kopf);
+  /** Hat der Abschnitt gerade keinen eigenen Text im Gesamtsachverhalt? (Modul meldet es mit `still`) */
+  const istStill = t => { try { return typeof t.m.still === 'function' && !!t.m.still(t.doc.data); } catch (e) { return false; } };
   function plan(data) {
     const T = teile(data), out = [];
     const gl = T.find(t => t.m.gliederung) || null, G = gl ? gl.m.gliederung : null;
@@ -335,6 +361,7 @@
     const vorAt = frei.length ? T.findIndex(t => t === gl || t.cfg.pos > ab) : -1;
     T.forEach((t, i) => {
       if (i === vorAt) for (const k of frei) out.push({ t: gl, k, mit: [] });
+      if (t !== gl && istStill(t)) return; // steht gerade nicht im Gesamtsachverhalt (z. B. Personenbeschreibung, die bei einer Schilderung übernommen ist)
       if (t === gl) { for (const k of G.keys) if (!vor.includes(k)) out.push({ t, k, mit: [] }); }
       else out.push({ t, mit: gl ? vor.filter(k => ziel(k) === t).map(k => ({ t: gl, k })) : [] });
     });
@@ -393,8 +420,12 @@
   const ICON_BACK = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 6l-6 6 6 6"/></svg>';
   const ICON_UP = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg>';
   const ICON_X = '<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
-  /** Ansicht je Vorgang: 'ov' (Abschnitte) oder 'text' (Gesamtsachverhalt). ord = Pfeile und ✕ zum Ordnen/Entfernen zeigen. */
+  /** Ansicht je Vorgang: 'ov' (Abschnitte), 'text' (Gesamtsachverhalt) oder 'zus' (Untermenü Zusatzbausteine). ord = Pfeile und ✕ zum Ordnen/Entfernen zeigen. */
   const V = { id: null, s: 'ov', ord: false };
+  /** Module mit Zusatzbausteinen, in der Reihenfolge ihrer Stelle im Vorgang: [{ type, m, z }]. */
+  const zusatzModule = () => TYPEN.filter(k => MATRIX[k].zusatz && mod(k) && mod(k).zusatz).map(k => ({ type: k, m: mod(k), z: mod(k).zusatz }));
+  /** Ist der Punkt k des Moduls x in diesem Vorgang gewählt? */
+  const punktAn = (T, x, k) => { const t = T.find(y => y.doc.type === x.type); try { return !!t && !!x.z.hat(t.doc.data, k); } catch (e) { return false; } };
 
   function open(d) { V.id = d.id; V.s = 'ov'; V.ord = false; }
 
@@ -409,10 +440,13 @@
       return `<li class="sd-item"><div class="sd-row"><button type="button" class="sd-card" data-open="${esc(t.id)}"><span class="sd-n mono">${i + 1}</span><span class="sd-main"><b>${esc(t.m.name).replace('/', '/<wbr>')}</b><small>${esc(sub || 'noch leer')}</small></span><span class="pill ${luecken ? 'pill-accent-soft' : fertig ? 'pill-lime' : 'pill-quiet'}">${esc(stand(t))}</span></button>${ordnen}</div>${von.length ? `<p class="w-hint vg-ctx">↳ übernimmt ${esc(joinUnd(von))}</p>` : ''}</li>`;
     }).join('');
     const da = new Set(T.map(t => t.doc.type));
-    const frei = TYPEN.filter(k => mod(k) && !da.has(k));
+    const frei = TYPEN.filter(k => mod(k) && !da.has(k) && !MATRIX[k].zusatz); // Zusatzbausteine wählt man im Untermenü
     const std = STANDARD.filter(k => frei.includes(k));
-    const add = frei.length
-      ? `<div class="sd-add"><span class="w-lbl">${T.length ? 'Weiteren Abschnitt hinzufügen' : 'Welche Abschnitte gehören zum Vorgang?'}</span>${!T.length && std.length === STANDARD.length ? `<div class="sd-add-row vg-std"><button type="button" class="sd-add-b" data-sd="std"><i aria-hidden="true">+</i><span>Üblicher Anfang<small>${esc(STANDARD.map(k => mod(k).short || mod(k).name).join(' → '))}</small></span></button></div>` : ''}<div class="sd-add-row">${frei.map(k => `<button type="button" class="sd-add-b" data-sd="add" data-v="${k}"><i aria-hidden="true">+</i>${esc(mod(k).name)}</button>`).join('')}</div><p class="w-hint sd-hint">Jeder Abschnitt reiht sich an seiner üblichen Stelle ein und baut auf den anderen auf: Besatzungen aus „Allgemeines“ und Personen aus der „Eintreffsituation“ stehen danach zur Auswahl.</p></div>`
+    // Tür zum Untermenü „Zusatzbausteine“: Seltenes, das sich je nach Art vorn oder hinten einreiht
+    const Z = zusatzModule(), zP = Z.flatMap(x => x.z.punkte.map(p => ({ x, p }))), zN = zP.filter(({ x, p }) => punktAn(T, x, p.k)).length;
+    const tor = zP.length ? `<div class="sd-add-row vg-tor"><button type="button" class="sd-add-b" data-sd="zus" aria-pressed="${String(zN > 0)}"><i aria-hidden="true">${zN ? '✓' : '+'}</i><span>Zusatzbausteine<small>${zN ? `${zN} gewählt · ` : ''}${esc(zP.map(({ p }) => p.l).join(' · '))}</small></span></button></div>` : '';
+    const add = frei.length || tor
+      ? `<div class="sd-add"><span class="w-lbl">${T.length ? 'Weiteren Abschnitt hinzufügen' : 'Welche Abschnitte gehören zum Vorgang?'}</span>${!T.length && std.length === STANDARD.length ? `<div class="sd-add-row vg-std"><button type="button" class="sd-add-b" data-sd="std"><i aria-hidden="true">+</i><span>Üblicher Anfang<small>${esc(STANDARD.map(k => mod(k).short || mod(k).name).join(' → '))}</small></span></button></div>` : ''}${frei.length ? `<div class="sd-add-row">${frei.map(k => `<button type="button" class="sd-add-b" data-sd="add" data-v="${k}"><i aria-hidden="true">+</i>${esc(mod(k).name)}</button>`).join('')}</div>` : ''}${tor}<p class="w-hint sd-hint">Jeder Abschnitt reiht sich an seiner üblichen Stelle ein und baut auf den anderen auf: Besatzungen aus „Allgemeines“ und Personen aus der „Eintreffsituation“ stehen danach zur Auswahl.</p></div>`
       : '';
     const fertigN = T.filter(t => t.doc.status === 'fertig').length, offen = T.find(t => t.doc.status !== 'fertig');
     const angeh = T.filter(t => kontext(data, t.doc).angehaengt).map(t => `<p class="w-hint vg-ctx">↳ „${esc(t.m.short || t.m.name)}“: die Eintreffsituation von dort wird im Gesamtsachverhalt an den Abschnitt „Eintreffsituation“ angehängt.</p>`).join('');
@@ -442,11 +476,41 @@
       ${api.fuss({ back: { label: 'Abschnitte', attr: 'data-sd="ov"' }, next: { label: 'Alles kopieren', attr: 'data-sd="copyall"', plain: true } })}`;
   }
 
+  /**
+   * Untermenü „Zusatzbausteine“: Seltenes, das nicht in jeden Bericht gehört. Was sofort aufgenommen wird (Personenbeschreibung),
+   * öffnet sich beim Antippen und steht im Vorgang ganz vorn; alles andere wird nur angehakt und am Ende im Abschnitt
+   * „Maßnahmen“ abgefragt. Welche Punkte es gibt, sagen die Module selbst (m.zusatz).
+   */
+  function zusHtml(d, api) {
+    const data = d.data, T = teile(data), Z = zusatzModule();
+    const zeile = (x, p) => {
+      const t = T.find(y => y.doc.type === x.type) || null, an = punktAn(T, x, p.k);
+      if (x.z.wann === 'zuerst') {
+        let info = ''; try { info = an && typeof x.z.info === 'function' ? x.z.info(t.doc.data) : ''; } catch (e) { info = ''; }
+        return `<button type="button" class="sd-add-b" data-sd="zo" data-m="${esc(x.type)}" aria-pressed="${String(an)}"><i aria-hidden="true">${an ? '✓' : '+'}</i><span>${esc(p.l)}<small>${esc(info || p.h)}</small></span><em>${an ? 'Öffnen' : 'Aufnehmen'}</em></button>`;
+      }
+      return `<button type="button" class="sd-add-b" data-sd="zt" data-m="${esc(x.type)}" data-v="${esc(p.k)}" aria-pressed="${String(an)}"><i aria-hidden="true">${an ? '✓' : '+'}</i><span>${esc(p.l)}<small>${esc(p.h)}</small></span></button>`;
+    };
+    const gruppe = (vorn, titel, hin, nach) => {
+      const X = Z.filter(x => (x.z.wann === 'zuerst') === vorn); if (!X.length) return '';
+      return `<div class="w-q" data-q="${vorn ? 'zvorn' : 'zende'}"><div class="sd-add"><span class="w-lbl">${titel} <i class="w-hint-i">${hin}</i></span><div class="zs-list">${X.map(x => x.z.punkte.map(p => zeile(x, p)).join('')).join('')}</div>${nach ? `<p class="w-hint sd-hint">${nach}</p>` : ''}</div></div>`;
+    };
+    // Der eine nächste Schritt: was sofort aufgenommen wird und noch offen ist – sonst zurück in den Vorgang
+    const vorn = T.find(t => t.m.zusatz && t.m.zusatz.wann === 'zuerst' && t.doc.status !== 'fertig');
+    const next = vorn ? { label: `Weiter: ${vorn.m.short || vorn.m.name}`, attr: `data-open="${esc(vorn.id)}"` } : { label: 'Zum Vorgang', attr: 'data-sd="ov"' };
+    return `${api.kopf({ up: { label: 'Vorgang', attr: 'data-sd="ov"' }, sub: 'Zusatzbausteine', titel: 'Was soll noch in den Bericht?', lead: 'Seltenes, das nicht in jeden Bericht gehört. Antippen nimmt es auf – jedes an seiner Stelle.' })}
+      <div class="w-grid sd-grid">
+        ${gruppe(true, 'Gleich aufnehmen', '– steht im Vorgang ganz vorn', 'Lässt sich später in den Schilderungen bei der Person übernehmen, die sie abgegeben hat.')}
+        ${gruppe(false, 'Am Ende abfragen', '– im letzten Abschnitt „Maßnahmen“', 'Dort lässt sich später noch etwas dazunehmen, wenn dir etwas einfällt.')}
+      </div>
+      ${api.fuss({ back: vorn ? { label: 'Vorgang', attr: 'data-sd="ov"' } : null, next })}`;
+  }
+
   function render(d, api) {
     if (V.id !== d.id) open(d);
     if (!d.data || typeof d.data !== 'object') d.data = {};
     if (V.s === 'text' && !teile(d.data).length) V.s = 'ov';
-    return V.s === 'text' ? textHtml(d, api) : ovHtml(d, api);
+    return V.s === 'text' ? textHtml(d, api) : V.s === 'zus' ? zusHtml(d, api) : ovHtml(d, api);
   }
 
   /** Abschnitt anlegen und an seiner üblichen Stelle einreihen. Datum, Uhrzeit und Besatzung kommen aus dem Vorgang. */
@@ -494,6 +558,37 @@
       case 'num': { if (auto(data)) data.num = 'aus'; else delete data.num; commit(api); return true; }
       case 'text': V.s = 'text'; api.render(); return true;
       case 'ov': V.s = 'ov'; api.render(); return true;
+      case 'zus': V.s = 'zus'; api.render(); return true;
+      /* Zusatzbaustein, der am Ende abgefragt wird: an- oder abwählen. Der Abschnitt entsteht mit dem ersten Punkt und geht mit dem letzten. */
+      case 'zt': {
+        const type = b.dataset.m, k = b.dataset.v, m = mod(type), z = m && m.zusatz; if (!z) return true;
+        const t = teile(data).find(x => x.doc.type === type) || null;
+        let doc = t ? t.doc : null;
+        if (!(doc && z.hat(doc.data, k))) {
+          if (!doc) { doc = addTeil(api, type); if (!doc) { api.toast('Abschnitt konnte nicht angelegt werden.'); return true; } }
+          z.setzen(doc.data, k, true);
+          if (doc.status === 'fertig') doc.status = 'entwurf'; // es kommt eine Frage dazu
+          commit(api, [doc]);
+        } else if (z.punkte.filter(p => z.hat(doc.data, p.k)).length <= 1) {
+          // der letzte Punkt: der Abschnitt geht mit – samt Antworten, deshalb mit „Rückgängig“
+          const snap = api.removeDocs([doc.id]);
+          data.teile = arr(data.teile).filter(x => x && x.id !== doc.id);
+          commit(api);
+          api.toast(`Entfernt: ${m.name}`, snap ? { undo: snap } : {});
+        } else { z.setzen(doc.data, k, false); commit(api, [doc]); }
+        return true;
+      }
+      /* Zusatzbaustein, der sofort aufgenommen wird: anlegen (falls nötig) und gleich öffnen */
+      case 'zo': {
+        const type = b.dataset.m, t = teile(data).find(x => x.doc.type === type) || null;
+        let doc = t ? t.doc : null;
+        if (!doc) {
+          doc = addTeil(api, type); if (!doc) { api.toast('Abschnitt konnte nicht angelegt werden.'); return true; }
+          const r = sync(d); for (const x of new Set([...r.teile, doc])) api.touch(x);
+          api.touch(d); // sofort sichern – gleich danach wird der Abschnitt geöffnet
+        }
+        api.open(doc.id); return true;
+      }
       case 'ord': V.ord = !V.ord; api.render(); return true;
       case 'copy1': { const B = plan(data), i = Number(b.dataset.i); if (B[i]) api.copy(bausteinText(data, B[i]), b); return true; }
       case 'copyall': api.copy(gesamt(data), b); return true;
@@ -525,8 +620,22 @@
     plain: gesamt,
     text: data => plan(data).map(b => ['', bausteinName(b), bausteinText(data, b), '']),
     preview: () => '', kurzText: () => '', fahndung: () => '', offen: () => [], personalien: () => '',
-    screen: { open, render, click, input, keydown, submit, key: d => `${V.s}:${d ? teile(d.data).length : 0}`, show: s2 => { V.s = s2 === 'text' ? 'text' : 'ov'; } },
+    screen: { open, render, click, input, keydown, submit, key: d => `${V.s}:${d ? teile(d.data).length : 0}`, show: s2 => { V.s = s2 === 'text' || s2 === 'zus' ? s2 : 'ov'; } },
     bind,
-    core: { MATRIX, KONTEXT, TYPEN, teile, containerOf, partIds, kontext, kraefte, kraefteAnwenden, sync, plan, bausteinText, bausteinName, gesamt, teilText, auto, stand, leute, sicht, personSetzen, personLoesen }
+    core: { MATRIX, KONTEXT, TYPEN, teile, containerOf, partIds, kontext, kraefte, kraefteAnwenden, sync, plan, bausteinText, bausteinName, gesamt, teilText, auto, stand, leute, sicht, personSetzen, personLoesen, zusatzModule }
+  });
+
+  /**
+   * „Zusatzbausteine“ als eigene Kachel. Kein eigener Vorgangsteil: Sie legt einen Vorgang an und öffnet dort gleich das
+   * Untermenü (als = was angelegt und welche Ansicht gezeigt wird, siehe writer.js). So gehört, was vor Ort zuerst aufgenommen
+   * wird, von Anfang an zu dem Vorgang, in den später die übrigen Abschnitte kommen.
+   */
+  root.WZusatz = Object.freeze({
+    id: 'zusatz', name: 'Zusatzbausteine', short: 'Zusatzbausteine', kurz: 'ZB',
+    desc: 'Seltenes für den Bericht – Personen- und Fahrzeugbeschreibung gleich aufnehmen, Maßnahmen am Ende abfragen',
+    intro: 'Seltenes für den Bericht: Personen- und Fahrzeugbeschreibung gleich aufnehmen · Nahbereichsfahndung, Spurensicherung, Videoaufzeichnungen und Lichtbildmappe am Ende unter „Maßnahmen“ abfragen',
+    labels: { newBtn: 'Zusatzbausteine' },
+    steps: [],
+    als: { type: 'vorgang', zeige: 'zus' }
   });
 })(typeof window !== 'undefined' ? window : globalThis);

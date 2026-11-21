@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="de" data-stand="20261121-1558">
+<html lang="de" data-stand="20261121-1818">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -1688,6 +1688,96 @@ textarea.input.es-ta{display:block;min-height:42px;height:42px;padding:9px 14px;
   .w-top .btn-sm{padding:0 11px}
 }
 
+/* ---------- Zusatzbausteine: Untermenü, Personenbeschreibung (Skala, Leiste, Rad), Maßnahmen ---------- */
+.zs-list{display:flex;flex-direction:column;gap:8px}
+.zs-list .sd-add-b,.vg-tor .sd-add-b{width:100%;justify-content:flex-start;text-align:left}
+.zs-list .sd-add-b>i,.vg-tor .sd-add-b>i{flex:none;width:18px;text-align:center}
+.zs-list .sd-add-b>span,.vg-tor .sd-add-b>span{min-width:0}
+.sd-add-b[aria-pressed=true]{border-color:rgba(198,220,122,.45);background:rgba(198,220,122,.08)}
+.sd-add-b[aria-pressed=true]>i{font-size:16px;color:var(--lime)}
+.sd-add-b>em{flex:none;margin-left:auto;padding-left:12px;font-style:normal;font-size:12px;font-weight:500;color:var(--accent);white-space:nowrap}
+.vg-tor{margin-top:8px}
+.pb-im{padding:12px 14px;border-radius:16px;background:rgba(198,220,122,.05);border:1px solid rgba(198,220,122,.25)}
+.pb-im .w-mk-gt{margin:0 0 6px}
+.pb-satz{margin:0;font-size:13.5px;line-height:1.55;color:var(--text);overflow-wrap:anywhere}
+.pb-aus{opacity:.4}
+.pb-nach{margin:14px 0 0}
+/* Alter und Größe: Umschalter, Leiste mit zwei Markierungen (festhalten = feiner), Rad für die Circa-Angabe */
+.pb-sp-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+.pb-sp-h .w-lbl{margin:0}
+.pb-modus{display:flex;gap:6px}
+.pb-modus .chip{height:34px;min-height:34px!important;padding:0 12px}
+.pb-rng-kopf{display:flex;align-items:baseline;justify-content:space-between;gap:10px;min-height:32px}
+.pb-rng-wert{font-size:22px;font-weight:500;letter-spacing:-.01em;font-variant-numeric:tabular-nums;color:var(--text)}
+.pb-rng-wert.leer{font-size:13.5px;font-weight:400;letter-spacing:0;color:var(--text-3)}
+.pb-rng-kopf .link{min-height:32px;font-size:12px;text-decoration:underline;text-underline-offset:3px}
+.pb-rng-rahmen{position:relative;margin-top:6px;padding:36px 48px 30px;border-radius:18px;background:rgba(255,255,255,.035);border:1px solid var(--line);touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;cursor:pointer;transition:border-color .15s ease,background-color .15s ease,box-shadow .15s ease}
+.pb-rng.aktiv .pb-rng-rahmen{border-color:rgba(236,217,111,.45);background:rgba(236,217,111,.05)}
+.pb-rng.fein .pb-rng-rahmen{border-color:var(--accent);box-shadow:0 0 0 3px rgba(236,217,111,.12)}
+.pb-rng-bahn{position:relative;height:40px}
+.pb-rng-bahn::before{content:"";position:absolute;left:0;right:0;top:10px;height:4px;border-radius:2px;background:rgba(255,255,255,.1)}
+.pb-rng-band{position:absolute;top:10px;height:4px;border-radius:2px;background:var(--accent);pointer-events:none}
+.pb-rng-band.leer{background:transparent}
+.pb-rng-skala{position:absolute;inset:0;pointer-events:none}
+.pb-rng-skala i{position:absolute;top:19px;width:1px;height:5px;margin-left:-.5px;background:rgba(255,255,255,.22)}
+.pb-rng-skala i.f{height:8px;background:rgba(255,255,255,.34)}
+.pb-rng-skala i.g{height:9px;background:rgba(255,255,255,.42)}
+.pb-rng-skala em{position:absolute;top:13px;left:50%;transform:translateX(-50%);font:500 10.5px/1 var(--mono);font-style:normal;color:var(--text-3);white-space:nowrap}
+/* Markierung: senkrechter Strich durch die Leiste, der Wert als Fähnchen darüber – „von“ nach links, „bis“ nach rechts, so überdecken sie sich nie */
+.pb-rng-m{position:absolute;top:-28px;width:44px;height:58px;margin-left:-22px;outline:0;z-index:2;transition:left .22s var(--ease-out),opacity .15s ease}
+.pb-rng.aktiv .pb-rng-m{transition:opacity .15s ease}
+.pb-rng-m i{position:absolute;left:50%;top:0;bottom:0;width:3px;margin-left:-1.5px;border-radius:2px;background:var(--accent);box-shadow:0 0 0 3px rgba(236,217,111,.14)}
+.pb-rng-m b{position:absolute;top:0;min-width:40px;height:22px;padding:0 8px;display:grid;place-items:center;background:var(--accent);color:var(--accent-ink);font-size:12px;font-weight:600;white-space:nowrap}
+.pb-rng-m[data-m=von] b{right:50%;margin-right:1.5px;border-radius:999px 3px 3px 999px}
+.pb-rng-m[data-m=bis] b{left:50%;margin-left:1.5px;border-radius:3px 999px 999px 3px}
+.pb-rng-m.frei b{background:#2c2c2f;color:var(--text-3)}
+.pb-rng-m.frei i{background:rgba(255,255,255,.3);box-shadow:none}
+.pb-rng-m.zieht{z-index:3}
+.pb-rng-m.zieht i{box-shadow:0 0 0 5px rgba(236,217,111,.22)}
+.pb-rng-m.weg{opacity:0;pointer-events:none}
+.pb-rng-m:focus-visible i{box-shadow:0 0 0 3px var(--text)}
+.pb-rng-tip{margin:8px 2px 0}
+.pb-rad{display:flex;align-items:center;justify-content:center;gap:12px;padding:4px 0}
+.pb-rad-vor,.pb-rad-e{min-width:42px;font-size:15px;color:var(--text-2)}
+.pb-rad-vor{text-align:right}
+.pb-rad-f{width:136px;height:132px;overflow-y:auto;overscroll-behavior:contain;scroll-snap-type:y mandatory;scrollbar-width:none;-webkit-overflow-scrolling:touch;border-radius:18px;background:rgba(255,255,255,.035);border:1px solid var(--line);outline:0;-webkit-mask-image:linear-gradient(180deg,transparent 0,#000 32%,#000 68%,transparent 100%);mask-image:linear-gradient(180deg,transparent 0,#000 32%,#000 68%,transparent 100%)}
+.pb-rad-f::-webkit-scrollbar{display:none}
+.pb-rad-f:focus-visible{border-color:var(--accent)}
+.pb-rad-p{display:block;height:44px}
+.pb-rad-i{display:block;width:100%;height:44px;scroll-snap-align:center;font-size:19px;color:var(--text-3);transition:color .12s ease,font-size .12s ease}
+.pb-rad-i.on{font-size:26px;font-weight:500;color:var(--accent)}
+/* Statur als Skala von schmal nach kräftig */
+.pb-skala{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.pb-skala .chip.pb-st{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:7px;min-width:0;height:auto;min-height:76px;padding:10px 1px 9px;border-radius:14px;border-style:solid;border-color:var(--line);font-size:12.5px;letter-spacing:-.01em}
+@media (max-width:380px){.pb-skala .chip.pb-st{font-size:11.5px}.pb-rng-rahmen{padding-left:44px;padding-right:44px}}
+.pb-skala .chip.pb-st[aria-pressed=true]{border-color:rgba(236,217,111,.4)}
+.pb-st i{display:block;width:calc(4px + var(--n) * 3px);height:24px;border-radius:999px;background:currentColor;opacity:.45}
+.pb-st[aria-pressed=true] i{opacity:1}
+/* Personenbeschreibung, Übersicht: die Überpunkte untereinander – offen mit Nummer und dem, was dort gefragt wird, beantwortet mit Haken und Antwort */
+.pb-pkte{gap:6px}
+.pb-pkt>i{font:500 12.5px/1 var(--mono);color:var(--text-3)}
+.pb-pkt[aria-pressed=true]>i{font:inherit;font-size:16px;line-height:1;color:var(--lime)}
+.pb-pkt[aria-pressed=true] small{color:var(--text-2)}
+.pb-pkt small{overflow-wrap:anywhere}
+.pb-kurz{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 4px 42px}
+.pb-form{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.pb-form .w-lbl{margin:0}
+.pb-satz{white-space:pre-line}
+.btn.pb-beides{margin-top:8px}
+/* Fahrzeugbeschreibung, Insassen: je Person eine Zeile mit den Plätzen der Fahrzeugart */
+.fz-pers{padding:10px 0;border-top:1px solid var(--line)}
+.fz-pers:first-of-type{border-top:0;padding-top:0}
+.fz-pers .w-lbl{margin-bottom:6px}
+/* Maßnahmen: je Frage ein Kasten, rechts oben das kleine ✕ zum Herausnehmen */
+.mn-frage{padding:14px;border-radius:18px;background:rgba(255,255,255,.03);border:1px solid var(--line)}
+.mn-kopf{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:10px}
+.mn-kopf .w-lbl{margin:0;padding-top:5px;font-weight:500}
+.mn-kopf .icon-btn{flex:none}
+.mn-frage>.w-lbl{font-weight:500}
+.mn-im{margin:10px 0 0}
+.mn-im b:empty::before{content:"–"}
+@media (max-width:760px),(pointer:coarse){#wMain textarea.es-ta,#wMain .mn-frage textarea.input{font-size:16px}}
+
 /* ---------- Folien-Rahmen (Schreiben): auf jeder Eingabe-Seite derselbe Kopf und derselbe Fuß ---------- */
 .fo-top{position:sticky;top:0;z-index:5;margin:-22px -24px 20px;padding:16px 24px 12px;background:#1b1b1d;border-bottom:1px solid var(--line);border-radius:var(--r-xl) var(--r-xl) 0 0}
 .fo-bar{display:flex;align-items:center;gap:10px}
@@ -1711,6 +1801,7 @@ button.fo-prog{padding:7px 0;margin:1px 0 -7px;cursor:pointer;-webkit-tap-highli
 .fo-head + .w-grid,.w-step > .w-grid{margin-top:0}
 .fo-nav{gap:10px}
 .fo-nav .fo-back{min-height:48px;padding:0 16px 0 10px;gap:3px}
+.fo-nav .fo-back.fo-plain{padding:0 18px}
 .fo-nav .fo-back svg.i,.fo-nav .fo-next svg.i{width:16px;height:16px;flex:none;stroke-width:2.2}
 .fo-nav .fo-next{margin-left:auto;min-width:170px;min-height:48px;padding:0 20px;gap:6px;font-size:15px}
 .fo-nav .fo-next span{min-width:0;overflow:hidden;text-overflow:ellipsis}
@@ -2783,26 +2874,29 @@ dialog.brief-dlg.open .brief{opacity:1;transform:none}
 <input type="file" id="fileInput" multiple hidden>
 <input type="file" id="importFile" accept=".vault,.json,application/json,application/octet-stream" hidden>
 
-<script src="vendor/hash-wasm/argon2.umd.min.js?v=20261121-1558"></script>
-<script src="js/vault.js?v=20261121-1558"></script>
-<script src="js/app.js?v=20261121-1558"></script>
-<script src="js/fe.js?v=20261121-1558"></script>
-<script src="js/vuf.js?v=20261121-1558"></script>
-<script src="js/vermisst.js?v=20261121-1558"></script>
-<script src="js/hg.js?v=20261121-1558"></script>
-<script src="js/hgv.js?v=20261121-1558"></script>
-<script src="js/febericht.js?v=20261121-1558"></script>
-<script src="js/skizze.js?v=20261121-1558"></script>
-<script src="js/strassen-gt.js?v=20261121-1558"></script>
-<script src="js/anzeige.js?v=20261121-1558"></script>
-<script src="js/unfallort.js?v=20261121-1558"></script>
-<script src="js/schilderung.js?v=20261121-1558"></script>
-<script src="js/eintreffen.js?v=20261121-1558"></script>
-<script src="js/gewahrsam.js?v=20261121-1558"></script>
-<script src="js/psychkg.js?v=20261121-1558"></script>
-<script src="js/blutprobe.js?v=20261121-1558"></script>
-<script src="js/vorgang.js?v=20261121-1558"></script>
-<script src="js/writer.js?v=20261121-1558"></script>
-<script src="js/update.js?v=20261121-1558"></script>
+<script src="vendor/hash-wasm/argon2.umd.min.js?v=20261121-1818"></script>
+<script src="js/vault.js?v=20261121-1818"></script>
+<script src="js/app.js?v=20261121-1818"></script>
+<script src="js/fe.js?v=20261121-1818"></script>
+<script src="js/vuf.js?v=20261121-1818"></script>
+<script src="js/vermisst.js?v=20261121-1818"></script>
+<script src="js/hg.js?v=20261121-1818"></script>
+<script src="js/hgv.js?v=20261121-1818"></script>
+<script src="js/febericht.js?v=20261121-1818"></script>
+<script src="js/skizze.js?v=20261121-1818"></script>
+<script src="js/strassen-gt.js?v=20261121-1818"></script>
+<script src="js/anzeige.js?v=20261121-1818"></script>
+<script src="js/unfallort.js?v=20261121-1818"></script>
+<script src="js/schilderung.js?v=20261121-1818"></script>
+<script src="js/eintreffen.js?v=20261121-1818"></script>
+<script src="js/gewahrsam.js?v=20261121-1818"></script>
+<script src="js/psychkg.js?v=20261121-1818"></script>
+<script src="js/blutprobe.js?v=20261121-1818"></script>
+<script src="js/personenbeschreibung.js?v=20261121-1818"></script>
+<script src="js/fahrzeugbeschreibung.js?v=20261121-1818"></script>
+<script src="js/massnahmen.js?v=20261121-1818"></script>
+<script src="js/vorgang.js?v=20261121-1818"></script>
+<script src="js/writer.js?v=20261121-1818"></script>
+<script src="js/update.js?v=20261121-1818"></script>
 </body>
 </html>

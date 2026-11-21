@@ -6,6 +6,11 @@
  * gegenüber, Hinweis auf das Zeugnisverweigerungsrecht, Schilderung) → „Abschließen“ zeigt den Text und führt
  * zurück zur Liste → „Alle Schilderungen hinzugefügt“ liefert das Gesamtpaket mit Abschnittsnummer zum Kopieren.
  *
+ * Mehrere Personen: „Getrennt voneinander befragt“ steht auf Wunsch als Satz unter der Überschrift. Wer gleichzeitig mit
+ * einer anderen Person belehrt wurde und übereinstimmend dasselbe angab, steht mit ihr in einem Abschnitt (Folie „Belehrung“:
+ * „Gemeinsam mit …“). Im Vorgang lassen sich vorab aufgenommene Personenbeschreibungen bei der Person übernehmen, die sie
+ * abgegeben hat (Folie „Hat … jemanden beschrieben?“) – ebenso Fahrzeugbeschreibungen.
+ *
  * Die Textlogik (unten „Text“) ist rein und ohne DOM testbar. Die Maske zeichnet writer.js über m.screen.
  * Gespeichert wird ausschließlich über writer.js / WBridge im verschlüsselten Tresor.
  */
@@ -119,12 +124,45 @@
   const rolleArt = p => { const r = ROLLE[p.rolle]; if (!r) return '[Rolle]'; const a = p.g === 'm' || p.g === 'w' ? r.art[p.g] : `[${r.art.m}/${r.art.w}]`; return p.rolle === 'ub' ? `${a} ${ub2(p)}` : a; };
   /** Person im Satz: „der Zeuge Müller“ – Unfallbeteiligte mit Nummer und Name in Klammern: „der Unfallbeteiligte 01 (M.)“. */
   const werVon = (data, i) => { const p = arr(data && data.personen)[i] || {}; return p.rolle === 'ub' ? `${rolleArt(p)} (${nameOf(data, i)})` : `${rolleArt(p)} ${nameOf(data, i)}`; };
-  /** Unterüberschrift: „Schilderung der Frau Müller“ / „Schilderung des Herrn M. M.“ / „Schilderung des Unfallbeteiligten 01 (M.)“ */
-  const heading = (data, i) => {
+  /** Wessen Schilderung: „der Frau Müller“ / „des Herrn M. M.“ / „des Unfallbeteiligten 01 (M.)“ */
+  const headObj = (data, i) => {
     const p = arr(data.personen)[i] || {};
-    if (p.rolle === 'ub') { const g = ROLLE.ub.gen; return `Schilderung ${p.g === 'm' || p.g === 'w' ? g[p.g] : '[des/der] Unfallbeteiligten'} ${ub2(p)} (${nameOf(data, i)})`; }
-    return `Schilderung ${anrede(p)} ${nameOf(data, i)}`;
+    if (p.rolle === 'ub') { const g = ROLLE.ub.gen; return `${p.g === 'm' || p.g === 'w' ? g[p.g] : '[des/der] Unfallbeteiligten'} ${ub2(p)} (${nameOf(data, i)})`; }
+    return `${anrede(p)} ${nameOf(data, i)}`;
   };
+  /** Überschrift für die Person allein (Personenliste): „Schilderung der Frau Müller“. */
+  const heading1 = (data, i) => `Schilderung ${headObj(data, i)}`;
+
+  /* ---------- Gemeinsam belehrt und befragt ---------- */
+  /*
+   * Mehrere Zeuginnen, Zeugen oder Geschädigte, die gleichzeitig von einer Kollegin oder einem Kollegen belehrt wurden und
+   * übereinstimmend dasselbe angaben, stehen in EINEM Abschnitt. Eine Person führt ihn – bei ihr stehen Belehrung, Gegenüber
+   * und Schilderung –, die anderen verweisen mit p.gem auf ihre Kennung (p.sid). Verletzungen, Deutschkenntnisse,
+   * Personenbeschreibung und Strafantrag bleiben je Person.
+   */
+  /** Personen (Indizes), die mit Person i gemeinsam befragt wurden – leer, wenn i niemanden führt. */
+  const fuehrt = (data, i) => { const P = arr(data && data.personen), p = P[i]; return p && has(p.sid) && !has(p.gem) ? P.map((q, j) => (j !== i && q && q.gem === p.sid ? j : -1)).filter(j => j >= 0) : []; };
+  /** Index der Person, in deren Abschnitt Person j steht (-1 = in ihrem eigenen). */
+  const gehoertZu = (data, j) => { const P = arr(data && data.personen), p = P[j]; return p && has(p.gem) ? P.findIndex((q, k) => k !== j && q && q.sid === p.gem && !has(q.gem)) : -1; };
+  /** Personen mit eigenem Abschnitt, in der Reihenfolge der Liste. */
+  const koepfe = data => arr(data && data.personen).map((p, i) => i).filter(i => gehoertZu(data, i) < 0);
+  /** Kommt die Person für einen gemeinsamen Abschnitt in Frage? Nur wer zeugenschaftlich belehrt wird, etwas angibt und keine Hinweise auf Alkohol oder Drogen zeigt. */
+  const gemFaehig = p => { const r = RO(p); return !!(p && r && r.zeug) && !p.keine && !einOf(p).length; };
+  /**
+   * Bringt die Verweise in Form (liefert true, wenn etwas geändert wurde): „gemeinsam mit“ zeigt nur auf eine vorhandene Person
+   * mit eigenem Abschnitt, und nur, solange beide dafür in Frage kommen – sonst steht die Person wieder für sich.
+   */
+  function ordnen(data) {
+    let ch = false; const P = arr(data && data.personen);
+    for (const p of P) {
+      if (!p || !has(p.gem)) continue;
+      const q = P.find(x => x && x !== p && has(x.sid) && x.sid === p.gem);
+      if (!q || has(q.gem) || !gemFaehig(q) || !gemFaehig(p)) { delete p.gem; ch = true; }
+    }
+    return ch;
+  }
+  /** Unterüberschrift im Text: „Schilderung der Frau Müller“ – bei gemeinsam Befragten „Schilderung des Herrn Müller und der Frau Meier“. */
+  const heading = (data, i) => `Schilderung ${joinUnd([i, ...fuehrt(data, i)].map(k => headObj(data, k)))}`;
 
   /** Besatzung mit Amtsbezeichnung (aus dem Vorgang, sonst aus Team und früheren Vorgängen), ohne Doppelte. */
   function crewNamen(data) {
@@ -456,6 +494,7 @@
   /** Der Satz direkt vor der Schilderung. Mit Alkohol/Drogen dazwischen: „Zum Sachverhalt machte er gegenüber … folgende Angaben:“ */
   function vorText(data, i) {
     const p = arr(data.personen)[i] || {};
+    const M = fuehrt(data, i); if (M.length) return einleitungGem(data, [i, ...M]);
     if (einOf(p).length) {
       const r = RO(p) || {};
       if (p.keine) return r.zeug && p.zvr ? '' : `${PR(p).Er} erklärte, ${keineWas(p)}.`;
@@ -526,17 +565,70 @@
    */
   function block(data, i, num = '') {
     const p = arr(data.personen)[i] || {}, t = schilderung(p), ein = einOf(p).length;
+    const M = fuehrt(data, i); if (M.length) return blockGem(data, [i, ...M], num);
     const verl = verletzungText(data, i), sp = spracheText(data, i, !!verl), genannt = !!(verl || sp);
-    return [`${num ? num + ' ' : ''}${heading(data, i)}`, verl, sp, ein ? belehrungSatz(data, i, genannt) : '', ein ? einflussText(data, i) : '', vorText(data, i), p.keine ? '' : t || '[Schilderung]', strafantragText(data, i)].filter(Boolean).join('\n');
+    return [`${num ? num + ' ' : ''}${heading(data, i)}`, verl, sp, ein ? belehrungSatz(data, i, genannt) : '', ein ? einflussText(data, i) : '', vorText(data, i), p.keine ? '' : t || '[Schilderung]', ...(p.keine ? [] : pbTexte(data, i)), strafantragText(data, i)].filter(Boolean).join('\n');
+  }
+  /**
+   * Einleitungssatz für gemeinsam Befragte: „Nach gleichzeitiger zeugenschaftlicher Belehrung durch POK Schulz machten der Zeuge
+   * Müller und die Zeugin Meier diesem gegenüber gemeinschaftlich und übereinstimmend sinngemäß folgende Angaben:“
+   * Belehrung, Hinweis nach § 52 StPO und Gegenüber kommen von der Person, die den Abschnitt führt (idx[0]).
+   */
+  function einleitungGem(data, idx) {
+    const p = arr(data.personen)[idx[0]] || {};
+    const wer = joinUnd(idx.map(k => werVon(data, k)));
+    const durch = p.bel && has(p.bel.name) ? offName(p.bel) : '[belehrende Person]';
+    const start = `Nach gleichzeitiger zeugenschaftlicher Belehrung${p.zvr ? ' mit besonderem Hinweis auf das Zeugnisverweigerungsrecht gemäß § 52 StPO' : ''} durch ${durch}`;
+    const bereit = p.zvr && p.bereit !== false, ende = 'gemeinschaftlich und übereinstimmend sinngemäß folgende Angaben:';
+    if (p.verst) return `${start} erklärten ${wer}, diese verstanden zu haben${bereit ? ' und aussagen zu wollen' : ''}. Zum Sachverhalt machten sie ${gegenText(data, p, true)} ${ende}`;
+    if (bereit) return `${start} erklärten sich ${wer} zur Aussage bereit und machten ${gegenText(data, p)} ${ende}`;
+    return `${start} machten ${wer} ${gegenText(data, p)} ${ende}`;
+  }
+  /** Abschnitt mehrerer gemeinsam Befragter: eine Überschrift, je Person Verletzungen und Deutschkenntnisse, EINE Schilderung. */
+  function blockGem(data, idx, num = '') {
+    const p = arr(data.personen)[idx[0]] || {}, t = schilderung(p);
+    const vor = idx.flatMap(k => [verletzungText(data, k), spracheText(data, k)]);
+    return [`${num ? num + ' ' : ''}${heading(data, idx[0])}`, ...vor, einleitungGem(data, idx), t || '[Schilderung]', ...idx.flatMap(k => pbTexte(data, k)), ...idx.map(k => strafantragText(data, k))].filter(Boolean).join('\n');
+  }
+  /** Die Überschrift, unter der Person i im Text steht – ihre eigene oder die gemeinsame. */
+  const headingVon = (data, i) => { const z = gehoertZu(data, i); return heading(data, z >= 0 ? z : i); };
+  /** Der Abschnitt, in dem Person i steht – ihr eigener oder der gemeinsame. */
+  const blockVon = (data, i, num = '') => { const z = gehoertZu(data, i); return block(data, z >= 0 ? z : i, num); };
+  /**
+   * Die zwei Arten von Beschreibungen aus den Zusatzbausteinen: Personen (js/personenbeschreibung.js) und Fahrzeuge
+   * (js/fahrzeugbeschreibung.js). feld = Verweise bei der Person (p.pb / p.fz) · stand = der flach abgelegte Stand im
+   * Abschnitt (data.pbd / data.fzd) · ctx = unter welchem Namen der Vorgang sie anbietet.
+   */
+  const BESCHR = [
+    { feld: 'pb', stand: 'pbd', ctx: 'beschreibungen', name: 'Personenbeschreibung', mod: () => root.WPB && root.WPB.core },
+    { feld: 'fz', stand: 'fzd', ctx: 'fahrzeuge', name: 'Fahrzeugbeschreibung', mod: () => root.WFZ && root.WFZ.core }
+  ];
+  /**
+   * Übernommene Personen- und Fahrzeugbeschreibungen (Zusatzbausteine): Sie stehen hinter der Schilderung, mit der
+   * Person als Satzgegenstand – „Die Zeugin Müller beschrieb den Täter wie folgt: …“. Die Person verweist mit p.pb = [Kennung]
+   * auf den Stand der Beschreibung in data.pbd = { Kennung: Beschreibung } (flach abgelegt, weil der Tresor nur wenige Ebenen
+   * tief speichert).
+   */
+  function pbTexte(data, i) {
+    const p = arr(data && data.personen)[i] || {};
+    return BESCHR.flatMap(K => { const M = K.mod(), D = (data && data[K.stand]) || {}; return M ? arr(p[K.feld]).map(id => M.text(D[id], { wer: werVon(data, i), pr: PR(p), art: data.art })).filter(Boolean) : []; });
+  }
+  /** „Getrennt voneinander befragt“ – als Satz unter der Überschrift, sobald es mehr als einen Abschnitt gibt. */
+  function getrenntText(data) {
+    if (!data || !data.getrennt) return '';
+    const K = koepfe(data); if (K.length < 2) return '';
+    return K.some(i => fuehrt(data, i).length) ? 'Soweit nachfolgend nicht anders vermerkt, wurden die Personen getrennt voneinander befragt.' : 'Die nachfolgend genannten Personen wurden getrennt voneinander befragt.';
   }
   /** Abschnittsnummer ohne Punkt dahinter: „3.“ → „3“, „3.2.“ → „3.2“. */
   const cleanNr = s => str(s).replace(/[^\d.]/g, '').replace(/\.{2,}/g, '.').replace(/^\.+|\.+$/g, '');
-  /** Gesamtpaket: „3 Schilderungen“, darunter „3.1 Schilderung …“, „3.2 …“. */
+  /** Gesamtpaket: „3 Schilderungen“, darunter „3.1 Schilderung …“, „3.2 …“ – auf Wunsch mit dem Satz „getrennt voneinander befragt“. */
   function paket(data) {
     const P = arr(data && data.personen), nr = cleanNr(data && data.nr);
     const head = `${nr ? nr + ' ' : ''}Schilderungen`;
     if (!P.length) return head + '\n\n[Noch keine Person erfasst]';
-    return [head, ...P.map((p, i) => block(data, i, nr ? `${nr}.${i + 1}` : ''))].join('\n\n');
+    // Gemeinsam Befragte stehen in einem Abschnitt – gezählt werden die Abschnitte, nicht die Personen
+    const vor = getrenntText(data);
+    return [vor ? `${head}\n${vor}` : head, ...koepfe(data).map((i, n) => block(data, i, nr ? `${nr}.${n + 1}` : ''))].join('\n\n');
   }
 
   function title(data) {
@@ -593,8 +685,34 @@
     return m;
   };
 
+  /** Was bei Person i noch fehlt – wer im Abschnitt einer anderen Person steht, braucht Belehrung, Gegenüber und Schilderung nicht selbst. */
+  const fehltIn = (data, i) => { const m = fehlt(arr(data && data.personen)[i] || {}); return gehoertZu(data, i) >= 0 ? m.filter(x => !['belehrt durch', 'gegenüber', 'Schilderung'].includes(x)) : m; };
+
   /* ======================= Kontext aus dem Vorgang ======================= */
   const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+  /** Vergleich unabhängig von der Reihenfolge der Schlüssel – der Tresor legt Objekte sortiert ab. */
+  const stabil = v => (Array.isArray(v) ? '[' + v.map(stabil).join(',') + ']' : v && typeof v === 'object' ? '{' + Object.keys(v).sort().map(k => JSON.stringify(k) + ':' + stabil(v[k])).join(',') + '}' : JSON.stringify(v ?? null));
+  const gleich = (a, b) => stabil(a) === stabil(b);
+  /**
+   * Übernommene Personenbeschreibungen nachführen: Wird die Beschreibung im Abschnitt „Personenbeschreibung“ geändert, stimmt
+   * sie auch hier; wird sie dort gelöscht, verschwindet sie. Außerhalb eines Vorgangs bleibt der übernommene Stand stehen.
+   */
+  function pbNach(data, ctx) {
+    if (!ctx || !ctx.vorgang) return false;
+    let ch = false;
+    for (const K of BESCHR) {
+      const by = new Map(arr(ctx[K.ctx]).filter(b => b && has(b.id)).map(b => [b.id, b.d])), stand = {};
+      for (const p of arr(data.personen)) {
+        if (!p || p[K.feld] == null) continue;
+        const neu = arr(p[K.feld]).filter(id => typeof id === 'string' && by.has(id));
+        for (const id of neu) stand[id] = by.get(id);
+        if (!gleich(neu, p[K.feld])) { if (neu.length) p[K.feld] = neu; else delete p[K.feld]; ch = true; }
+      }
+      const neuD = Object.keys(stand).length ? JSON.parse(JSON.stringify(stand)) : undefined;
+      if (!gleich(neuD, data[K.stand])) { if (neuD) data[K.stand] = neuD; else delete data[K.stand]; ch = true; }
+    }
+    return ch;
+  }
   /**
    * Übernimmt, was frühere Abschnitte desselben Vorgangs liefern (rein, ohne DOM; liefert true, wenn sich etwas geändert hat):
    * – Art (Strafanzeige/Verkehr) aus dem Abschnitt, der die Personen führt,
@@ -605,6 +723,8 @@
   function nimmt(data, ctx) {
     if (!data || typeof data !== 'object') return false;
     let ch = false;
+    if (pbNach(data, ctx)) ch = true;
+    if (ordnen(data)) ch = true;
     const set = (o, k, v) => { if (same(o[k], v)) return; if (v === undefined || v === null || v === '') delete o[k]; else o[k] = v; ch = true; };
     const src = ctx && Array.isArray(ctx.personen) ? ctx.personen.filter(q => q && q.pid) : null;
     if (!src) {
@@ -737,15 +857,28 @@
    *               →  'ein' Alkohol und Drogen  →  nur bei Hinweisen: 'wahr' Was fiel auf? · 'wahr2' Verhalten · 'folge' Tests und Konsum ·
    *                  'aat' Atemalkoholtest · 'dt' Drogenvortest
    *               →  'geg' Wem gegenüber?  →  'text' Schilderung (entfällt bei „keine Angaben“)
+   *               →  'pb' Personenbeschreibung übernehmen (nur, wenn der Vorgang welche führt)
    *               →  'sa' Strafantrag (nur Geschädigte)  →  'ok' Kontrolle des Textes
+   *   Wer mit einer anderen Person gemeinsam belehrt und befragt wurde, hat nur: 'wer' · 'verl' · 'bel' (dort die Wahl) · 'pb' · 'sa' · 'ok'
    */
-  function pFolien(p, link) {
+  function pFolien(p, link, o = {}) {
     p = p || {};
     const r = RO(p), e = einOf(p);
-    return [...(link ? [] : ['wer', 'verl']), 'bel', ...(r && r.tat ? ['vw'] : []), 'ein', ...(e.length ? ['wahr', 'wahr2', 'folge', ...(e.includes('alk') ? ['aat'] : []), ...(e.includes('drog') ? ['dt'] : [])] : []), 'geg', ...(p.keine ? [] : ['text']), ...(p.rolle === 'gs' ? ['sa'] : []), 'ok'];
+    const pb = o.pb && !p.keine ? ['pb'] : [];
+    // Steht im Abschnitt einer anderen Person (gemeinsam belehrt und befragt): Belehrung, Gegenüber und Schilderung stehen dort
+    if (o.mit) return [...(link ? [] : ['wer', 'verl']), 'bel', ...pb, ...(p.rolle === 'gs' ? ['sa'] : []), 'ok'];
+    // Führt einen gemeinsamen Abschnitt: Hinweise auf Alkohol oder Drogen gibt es dort nicht (sonst einzeln befragen)
+    const ein = o.fuehrt ? [] : ['ein', ...(e.length ? ['wahr', 'wahr2', 'folge', ...(e.includes('alk') ? ['aat'] : []), ...(e.includes('drog') ? ['dt'] : [])] : [])];
+    return [...(link ? [] : ['wer', 'verl']), 'bel', ...(r && r.tat ? ['vw'] : []), ...ein, 'geg', ...(p.keine ? [] : ['text']), ...pb, ...(p.rolle === 'gs' ? ['sa'] : []), 'ok'];
   }
+  /** Personen- und Fahrzeugbeschreibungen, die der Vorgang zum Übernehmen anbietet: [{ id, von, d, K }] (K = Art, siehe BESCHR). */
+  const pbAngebot = api => { const c = api && typeof api.ctx === 'function' ? api.ctx() : null; return BESCHR.flatMap(K => arr(c && c[K.ctx]).map(b => ({ ...b, K }))); };
+  /** Folien der Person i – mit allem, was der Vorgang und die anderen Personen daran ändern. */
+  const folienVon = (api, data, i) => { const p = arr(data.personen)[i] || {}; return pFolien(p, !!(p.ref && ctxOf(api)), { pb: pbAngebot(api).length > 0, mit: gehoertZu(data, i) >= 0, fuehrt: fuehrt(data, i).length > 0 }); };
   /** Wie die Person in einer Überschrift heißt: „Herr Hollj“, solange der Name fehlt „die Person“. */
   const herrName = p => (has(p.nachname) && (p.g === 'm' || p.g === 'w') ? `${p.g === 'm' ? 'Herr' : 'Frau'} ${str(p.nachname)}` : has(p.nachname) ? str(p.nachname) : 'die Person');
+  /** Dieselbe Person im Dativ: „mit Herrn Hollj“, „bei Frau Meier“. */
+  const herrDat = p => (has(p.nachname) && (p.g === 'm' || p.g === 'w') ? `${p.g === 'm' ? 'Herrn' : 'Frau'} ${str(p.nachname)}` : has(p.nachname) ? str(p.nachname) : 'der Person');
   const subOf = (P, i) => `Person ${i + 1} von ${P.length}${has(P[i] && P[i].nachname) ? ' · ' + herrName(P[i]) : ''}`;
   /** Kennung der Folie – wechselt sie, beginnt die neue Seite oben; sonst bleibt alles stehen. */
   const key = () => `${V.s}:${V.i}:${V.s === 'person' ? V.f : ''}`;
@@ -772,11 +905,14 @@
       p = p || {};
       const e = einOf(p);
       const meta = [rolleLabel(p) + (ubNr(p) === 1 && RO(p) ? ` (als ${p.g === 'm' || p.g === 'w' ? RO(p)[p.g] : RO(p).x})` : ''), p.bel && has(p.bel.name) ? 'belehrt durch ' + offName(p.bel) : 'Belehrung offen', ...(p.spr === 'eingeschr' ? ['Deutsch eingeschränkt'] : p.spr === 'kein' ? ['kein Deutsch'] : []), ...(e.length ? [e.length === 2 ? 'Alkohol und Drogen' : e[0] === 'alk' ? 'Alkohol' : 'Drogen'] : [])];
-      const snip = p.keine ? '' : str(p.text).replace(/\s+/g, ' ');
+      const zuI = gehoertZu(data, i), snip = p.keine || zuI >= 0 ? '' : str(p.text).replace(/\s+/g, ' ');
+      if (zuI >= 0) meta.splice(1, 1, 'gemeinsam mit ' + herrDat(P[zuI])); // Belehrung und Schilderung stehen dort
+      else if (fuehrt(data, i).length) meta.push('gemeinsam mit ' + joinUnd(fuehrt(data, i).map(j => herrDat(P[j]))));
+      if (arr(p.pb).length || arr(p.fz).length) meta.push(arr(p.fz).length ? (arr(p.pb).length ? 'mit Personen- und Fahrzeugbeschreibung' : 'mit Fahrzeugbeschreibung') : 'mit Personenbeschreibung');
       if (!p.ref && (p.verl === 'ja' || p.verl === 'schmerz')) meta.push(p.verl === 'ja' ? 'verletzt' : 'Schmerzen');
       if (p.rolle === 'gs' && p.sa) meta.push({ ja: 'Strafantrag gestellt', vorbehalt: 'Strafantrag vorbehalten', nein: 'kein Strafantrag' }[p.sa]);
       if (p.keine) meta.push(keineLabel(p).replace(/^Macht /, '').replace(/^Verweigert das Zeugnis.*/, 'verweigert das Zeugnis'));
-      return `<li class="sd-item"><div class="sd-row"><button type="button" class="sd-card" data-sd="edit" data-i="${i}"><span class="sd-n mono">${i + 1}</span><span class="sd-main"><b>${esc(heading(data, i))}</b><small>${esc(meta.join(' · '))}${snip ? ` · „${esc(snip.slice(0, 80))}${snip.length > 80 ? '…' : ''}“` : ''}</small></span><span class="pill ${p.fertig ? 'pill-lime' : 'pill-quiet'}">${p.fertig ? 'Fertig' : 'Entwurf'}</span></button>${P.length > 1 ? `<button type="button" class="sd-up" data-sd="up" data-i="${i}" aria-label="Nach oben"${i ? '' : ' disabled'}>${ICON_UP}</button>` : ''}</div></li>`;
+      return `<li class="sd-item"><div class="sd-row"><button type="button" class="sd-card" data-sd="edit" data-i="${i}"><span class="sd-n mono">${i + 1}</span><span class="sd-main"><b>${esc(heading1(data, i))}</b><small>${esc(meta.join(' · '))}${snip ? ` · „${esc(snip.slice(0, 80))}${snip.length > 80 ? '…' : ''}“` : ''}</small></span><span class="pill ${p.fertig ? 'pill-lime' : 'pill-quiet'}">${p.fertig ? 'Fertig' : 'Entwurf'}</span></button>${P.length > 1 ? `<button type="button" class="sd-up" data-sd="up" data-i="${i}" aria-label="Nach oben"${i ? '' : ' disabled'}>${ICON_UP}</button>` : ''}</div></li>`;
     }).join('');
     const add = art
       ? `<div class="sd-add"><span class="w-lbl">${ctxAdd ? 'Andere Person anlegen (nicht in der Eintreffsituation)' : P.length ? 'Weitere Person anlegen' : 'Person anlegen'}</span><div class="sd-add-row">${rollenFor(art).map(([v, r]) => `<button type="button" class="sd-add-b" data-sd="add" data-v="${v}"><i aria-hidden="true">+</i>${esc(v === 'ub' ? `${r.x} ${String(nextUb([...P, ...offen])).padStart(2, '0')}` : r.x)}</button>`).join('')}</div>${art === 'verkehr' ? '<p class="w-hint sd-hint">01 ist die Unfallverursacherin oder der Unfallverursacher (Belehrung als Beschuldigte/r oder Betroffene/r), 02 und weitere werden als Zeugen belehrt.</p>' : ''}</div>`
@@ -784,6 +920,7 @@
     return `${api.kopf({ pos: fest ? null : [2, 2], titel: 'Wer hat etwas geschildert?', lead: P.length ? 'Antippen, um eine Schilderung zu ändern – oder eine weitere Person dazunehmen.' : 'Je Person ein paar kurze Folien: Belehrung, Alkohol und Drogen, Schilderung.' })}
       <div class="w-grid sd-grid">
         ${P.length ? `<div class="w-q"><ol class="sd-list">${items}</ol></div>` : ''}
+        ${koepfe(data).length > 1 ? `<div class="w-q" data-q="getrennt"><span class="w-lbl">Mehrere Personen</span><div class="w-chips"><button type="button" class="chip" data-sd="tog" data-p="getrennt" aria-pressed="${String(!!data.getrennt)}">Getrennt voneinander befragt</button></div><p class="w-hint sd-hint">${data.getrennt ? `Unter der Überschrift steht: „${esc(getrenntText(data))}“` : 'Steht dann als Satz unter der Überschrift.'} Wurden Personen gleichzeitig belehrt und haben übereinstimmend geschildert: bei der Person auf der Folie „Belehrung“ „Gemeinsam mit …“ antippen.</p></div>` : ''}
         ${ctxAdd}
         <div class="w-q" data-q="add">${add}</div>
       </div>
@@ -794,7 +931,7 @@
   function personHtml(d, api) {
     const data = d.data, P = arr(data.personen), i = V.i, p = P[i] || {}, base = `personen.${i}`;
     const r = RO(p), ctx = ctxOf(api), link = !!(p.ref && ctx);
-    const F = pFolien(p, link); if (!F.includes(V.f)) V.f = F[0];
+    const F = folienVon(api, data, i); if (!F.includes(V.f)) V.f = F[0];
     const k = F.indexOf(V.f), last = k === F.length - 1;
     const kopf = (titel, lead) => api.kopf({ up: { label: 'Personen', attr: 'data-sd="menu"' }, sub: subOf(P, i), subLive: 'sub', pos: [k + 1, F.length], titel, lead });
     const fuss = api.fuss({ back: k ? { attr: 'data-sd="pf" data-v="-1"' } : { attr: 'data-sd="menu"' }, next: last ? { label: 'Person fertig', attr: 'data-sd="done1"', ok: true } : { attr: 'data-sd="pf" data-v="1"' } });
@@ -813,7 +950,7 @@
         <div class="w-q" data-q="g"><span class="w-lbl">Anrede <i class="w-req" title="Pflicht">•</i></span><div class="w-seg" role="group" aria-label="Anrede">${anr}</div></div>
         <div class="w-q half" data-q="nn"><label class="w-lbl" for="sdNn">Nachname <i class="w-req" title="Pflicht">•</i></label><input class="input" id="sdNn" data-sk="${base}.nachname" data-next="sdVn" value="${esc(p.nachname || '')}" placeholder="z. B. Müller" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="next" maxlength="80"></div>
         <div class="w-q half" data-q="vn"><label class="w-lbl" for="sdVn">Vorname</label><input class="input" id="sdVn" data-sk="${base}.vorname" data-next="" value="${esc(p.vorname || '')}" placeholder="z. B. Anna" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="done" maxlength="80"></div>
-        <p class="sd-im">Im Text: <b data-live="head">${esc(heading(data, i))}</b></p>`);
+        <p class="sd-im">Im Text: <b data-live="head">${esc(headingVon(data, i))}</b></p>`);
     }
     if (V.f === 'verl') return seite(`War ${herrName(p)} verletzt?`, 'Nur antippen, wenn es in den Text soll – sonst einfach weiter. Steht dann ganz vorn, vor der Belehrung.', verletzungHtml(api, p, base, '', true));
     if (V.f === 'bel') {
@@ -821,7 +958,17 @@
         ? `<div class="w-q" data-q="belals"><span class="w-lbl">Belehrt als <i class="w-req" title="Pflicht">•</i></span><div class="w-seg" role="group" aria-label="Belehrt als">${[['bs', ROLLE.bs], ['betr', ROLLE.betr]].map(([v, x]) => `<button type="button" class="w-opt" data-sd="set" data-p="${base}.belAls" data-v="${v}" aria-pressed="${String(p.belAls === v)}">${esc(p.g === 'm' || p.g === 'w' ? x[p.g] : x.x)}</button>`).join('')}</div><p class="w-hint sd-hint">01 hat den Unfall verursacht: bei einer Straftat (z. B. § 229, § 315c, § 142 StGB) Belehrung als Beschuldigte/r, bei einer Ordnungswidrigkeit als Betroffene/r (§ 55 OWiG).</p></div>`
         : ubNr(p) > 1 ? `<div class="w-q" data-q="belals"><p class="w-hint sd-hint">Unfallbeteiligte ab 02 werden als Zeugin oder Zeuge belehrt.</p></div>` : '';
       const info = link ? `<div class="w-q"><div class="w-info">Aus „${esc(ctx.personenAus)}“: <b>${esc([herrFrau(p), str(p.vorname), str(p.nachname)].filter(Boolean).join(' '))}</b> · ${esc(rolleLabel(p))} · ${esc(verlKurz(arr(ctx.personen).find(q => q.pid === p.ref)))}. Name, Rolle und Verletzungen änderst du dort – hier stehen sie nicht noch einmal.</div></div>` : '';
+      // Gemeinsam belehrt und befragt: zur Wahl stehen Personen mit eigenem Abschnitt, die wie diese zeugenschaftlich belehrt werden
+      const zuI = gehoertZu(data, i), M = fuehrt(data, i);
+      const kand = !M.length && (gemFaehig(p) || zuI >= 0) ? P.map((q, j) => j).filter(j => j !== i && P[j] && gehoertZu(data, j) < 0 && gemFaehig(P[j])) : [];
+      const gemQ = kand.length
+        ? `<div class="w-q" data-q="gem"><span class="w-lbl">Allein oder gemeinsam mit jemandem belehrt und befragt?</span><div class="w-chips es-zu"><button type="button" class="chip" data-sd="gem" data-v="" aria-pressed="${String(zuI < 0)}">Allein</button>${kand.map(j => `<button type="button" class="chip" data-sd="gem" data-v="${j}" aria-pressed="${String(j === zuI)}">Gemeinsam mit ${esc(herrDat(P[j]))}<small class="sd-sm">${esc(P[j].bel && has(P[j].bel.name) ? 'belehrt durch ' + offName(P[j].bel) : 'Belehrung dort noch offen')}</small></button>`).join('')}</div><p class="w-hint sd-hint">${zuI >= 0 ? `Steht im Abschnitt von ${esc(herrDat(P[zuI]))}: gleichzeitig belehrt, gemeinschaftlich und übereinstimmend geschildert. Belehrung, Gegenüber und Schilderung trägst du dort ein – sie gelten für beide.` : 'Gemeinsam heißt: gleichzeitig von derselben Kollegin oder demselben Kollegen belehrt und übereinstimmend dasselbe angegeben. Beide stehen dann in einem Abschnitt.'}</p></div>`
+        : M.length ? `<div class="w-q" data-q="gem"><div class="w-info">Gemeinsam belehrt und befragt mit ${esc(joinUnd(M.map(j => herrDat(P[j]))))}: Belehrung, Gegenüber und Schilderung hier gelten für alle – im Text „gemeinschaftlich und übereinstimmend“.</div></div>` : '';
+      if (zuI >= 0) return seite('Verständigung und Belehrung', '', `${info}
+        ${gemQ}
+        ${spracheHtml(p, base)}`);
       return seite('Verständigung und Belehrung', 'Kommt im Text zuerst – Fragen zum Konsum und Tests stehen erst danach.', `${info}
+        ${gemQ}
         ${spracheHtml(p, base)}
         ${belAls}
         <div class="w-q" data-q="bel"><span class="w-lbl">Belehrt durch <i class="w-req" title="Pflicht">•</i></span>${r ? `<p class="w-hint">${esc(r.bel)}</p>` : ''}${hasBel ? `<div class="sd-toks">${tok(p.bel, `${base}.bel`, 'unbel')}</div>` : ta(api, data, 'bel', 'sdBel', 'Namen tippen, z. B. Schulz')}</div>
@@ -846,10 +993,25 @@
     if (V.f === 'text') {
       return seite(`Was hat ${herrName(p)} geschildert?`, 'Sinngemäß, in ganzen Sätzen – Ich-Form oder indirekte Rede. Der Satzanfang steht schon da.', `<div class="w-q" data-q="text"><label class="w-lbl sr" for="sdText">Schilderung</label><div class="sd-sent" data-sd="focus"><span class="sd-intro" data-live="intro">${esc(vorText(data, i))}</span><textarea class="sd-text" id="sdText" data-sk="${base}.text" placeholder="Was hat die Person sinngemäß geschildert? Ich-Form oder indirekte Rede." autocomplete="off" autocapitalize="sentences" spellcheck="true" maxlength="12000">${esc(p.text || '')}</textarea></div></div>`);
     }
+    if (V.f === 'pb') {
+      // Vorab aufgenommene Personenbeschreibungen: antippen übernimmt sie zu dieser Person – was zum Namen passt, steht oben
+      const B = pbAngebot(api), mine = new Set([...arr(p.pb), ...arr(p.fz)]);
+      const woanders = id => P.findIndex((q, j) => j !== i && (arr(q && q.pb).includes(id) || arr(q && q.fz).includes(id)));
+      const passt = b => has(b.von) && has(p.nachname) && norm(b.von).includes(norm(p.nachname));
+      const items = B.slice().sort((a, b) => Number(passt(b)) - Number(passt(a))).map(b => {
+        const on = mine.has(b.id), j = woanders(b.id);
+        const M = b.K.mod(), sub = [M ? M.kurz(b.d) : '', passt(b) && !on ? 'passt zum Namen' : '', j >= 0 ? `steht bisher bei ${herrDat(P[j])}` : ''].filter(Boolean).join(' · ');
+        return `<button type="button" class="sd-add-b" data-sd="pbtog" data-v="${esc(b.id)}" aria-pressed="${String(on)}"><i aria-hidden="true">${on ? '✓' : '+'}</i><span>${esc(has(b.von) ? `${b.K.name} von ${b.von}` : b.K.name)}<small>${esc(sub || 'noch ohne Angaben')}</small></span></button>`;
+      }).join('');
+      const txt = pbTexte(data, i).join('\n');
+      const auchFz = B.some(b => b.K.feld === 'fz'), nurFz = auchFz && B.every(b => b.K.feld === 'fz');
+      return seite(`Hat ${herrName(p)} ${nurFz ? 'ein Fahrzeug' : auchFz ? 'jemanden oder ein Fahrzeug' : 'jemanden'} beschrieben?`, 'Vorab aufgenommene Beschreibungen – antippen übernimmt sie hinter die Schilderung.', `<div class="w-q" data-q="pb"><div class="zs-list">${items}</div><p class="w-hint sd-hint">Eine Beschreibung steht bei genau einer Person. Ihren Inhalt änderst du in ihrem eigenen Abschnitt.</p></div>
+        ${txt ? `<div class="w-q" data-q="pbt"><span class="w-mk-gt">So steht es hinter der Schilderung</span><div class="w-out"><pre class="w-out-t">${esc(txt)}</pre></div></div>` : ''}`);
+    }
     if (V.f === 'sa') return seite('Strafantrag', 'Nur bei Antragsdelikten nötig, z. B. Körperverletzung (§ 230 StGB), Beleidigung (§ 194 StGB), Sachbeschädigung (§ 303c StGB), Hausfriedensbruch (§ 123 Abs. 2 StGB).', strafantragHtml(p, base, true));
-    const miss = fehlt(p);
+    const miss = fehltIn(data, i);
     return seite('So steht es im Text', 'Kurz gegenlesen. Stimmt etwas nicht: mit „Zurück“ zur passenden Folie.', `${miss.length ? `<div class="w-q"><div class="w-warn">Noch offen: ${esc(miss.join(', '))} – steht im Text als [Platzhalter].</div></div>` : ''}
-        <div class="w-q"><div class="w-out"><pre class="w-out-t" data-live="block">${esc(block(data, i))}</pre></div></div>`,
+        <div class="w-q"><div class="w-out"><pre class="w-out-t" data-live="block">${esc(blockVon(data, i))}</pre></div></div>`,
       `<button type="button" class="btn btn-ghost fo-wide" data-sd="copy1" data-i="${i}">Nur diese Schilderung kopieren</button>`);
   }
 
@@ -1049,7 +1211,7 @@
     const data = api.d.data, host = $('#wMain'); if (!host) return;
     const put = (k, t) => host.querySelectorAll(`[data-live="${k}"]`).forEach(n => { n.textContent = t; });
     const p = arr(data.personen)[V.i];
-    if (V.s === 'person' && p) { put('head', heading(data, V.i)); put('sub', subOf(arr(data.personen), V.i)); put('intro', vorText(data, V.i)); put('block', block(data, V.i)); put('gegen', gegenText(data, p)); }
+    if (V.s === 'person' && p) { put('head', headingVon(data, V.i)); put('sub', subOf(arr(data.personen), V.i)); put('intro', vorText(data, V.i)); put('block', blockVon(data, V.i)); put('gegen', gegenText(data, p)); }
     if (V.s === 'done') { const nr = cleanNr(data.nr); put('paket', paket(data)); put('nrhint', nrHint(nr)); host.querySelectorAll('[data-sd="set"][data-p="nr"]').forEach(c => c.setAttribute('aria-pressed', String(c.dataset.v === nr))); }
   }
   const isEmpty = p => !p || (!p.ref && !has(p.nachname) && !has(p.vorname) && !has(p.text) && !(p.bel && has(p.bel.name)) && !arr(p.gegen).some(x => x && !x.ref));
@@ -1105,7 +1267,7 @@
   }
   function finishPerson(api) {
     const data = api.d.data, p = arr(data.personen)[V.i]; if (!p) return;
-    const miss = fehlt(p);
+    const miss = fehltIn(data, V.i);
     p.fertig = true; V.s = 'pers'; V.i = -1; V.f = 'wer';
     api.persist(false); api.render();
     api.toast(miss.length ? `Abgeschlossen – noch offen: ${miss.join(', ')} (im Text als [Platzhalter]).` : 'Schilderung abgeschlossen');
@@ -1147,7 +1309,7 @@
       /* Folie der Person wechseln */
       case 'pf': {
         const p = cur(); if (!p) return true;
-        const F = pFolien(p, !!(p.ref && ctxOf(api))), k = Math.max(0, Math.min(F.length - 1, F.indexOf(V.f) + Number(b.dataset.v)));
+        const F = folienVon(api, data, V.i), k = Math.max(0, Math.min(F.length - 1, F.indexOf(V.f) + Number(b.dataset.v)));
         V.f = F[k]; api.render(); return true;
       }
       case 'take': {
@@ -1171,7 +1333,24 @@
         V.i = P().length - 1; V.s = 'person'; V.f = 'wer'; V.q = Q0();
         save(); return true;
       }
-      case 'edit': { V.i = Number(b.dataset.i); V.s = 'person'; const p = cur(); V.f = pFolien(p, !!(p && p.ref && ctxOf(api)))[0]; V.q = Q0(); api.render(); return true; }
+      case 'edit': { V.i = Number(b.dataset.i); V.s = 'person'; V.f = folienVon(api, data, V.i)[0]; V.q = Q0(); api.render(); return true; }
+      /* Allein oder gemeinsam mit einer anderen Person belehrt und befragt (data-v = deren Stelle in der Liste, '' = allein) */
+      case 'gem': {
+        const p = cur(); if (!p) return true;
+        if (b.dataset.v === '') { delete p.gem; save(); return true; }
+        const q = P()[Number(b.dataset.v)]; if (!q || q === p || !gemFaehig(q)) return true;
+        if (!has(q.sid)) { let id; do { id = 's' + Math.random().toString(36).slice(2, 8); } while (P().some(x => x && x.sid === id)); q.sid = id; }
+        p.gem = q.sid; save(); return true;
+      }
+      /* Personenbeschreibung aus dem Vorgang übernehmen oder wieder lösen – sie steht bei genau einer Person */
+      case 'pbtog': {
+        const p = cur(), x = pbAngebot(api).find(y => y.id === b.dataset.v); if (!p || !x) return true;
+        const F = x.K.feld, S2 = x.K.stand, hat = arr(p[F]).includes(x.id);
+        for (const q of P()) if (q && q[F]) { q[F] = arr(q[F]).filter(id => id !== x.id); if (!q[F].length) delete q[F]; }
+        if (!hat) { p[F] = [...arr(p[F]), x.id]; data[S2] = { ...(data[S2] || {}), [x.id]: JSON.parse(JSON.stringify(x.d)) }; }
+        else if (data[S2]) { delete data[S2][x.id]; if (!Object.keys(data[S2]).length) delete data[S2]; }
+        save(); return true;
+      }
       case 'up': { const i = Number(b.dataset.i), a2 = P(); if (i > 0 && a2[i]) { [a2[i - 1], a2[i]] = [a2[i], a2[i - 1]]; save(); } return true; }
       case 'menu': leavePerson(data); save(); return true;
       case 'set': {
@@ -1207,7 +1386,7 @@
       case 'unoff': setPath(data, b.dataset.p, undefined); save(); return true;
       case 'wfadd': addFrei(api); return true;
       case 'unwf': { const p = cur(); if (!p) return true; const a2 = arr(p.wahrFrei).slice(); a2.splice(Number(b.dataset.j), 1); if (a2.length) p.wahrFrei = a2; else delete p.wahrFrei; save(); return true; }
-      case 'copy1': api.copy(block(data, Number(b.dataset.i)), b); return true;
+      case 'copy1': api.copy(blockVon(data, Number(b.dataset.i)), b); return true;
       case 'copyall': api.copy(paket(data), b); return true;
       case 'done1': finishPerson(api); return true;
       case 'del': delPerson(api); return true;
@@ -1271,6 +1450,6 @@
     screen: { open, render, mounted, click, input, change, keydown, submit, key },
     kontext: { nimmt },
     ui: { verletzungHtml },
-    core: { ROLLEN, ROLLE, ARTEN, rollenFor, rolleLabel, rolleArt, werVon, werDat, ubNr, nextUb, eff, PR, herrFrau, verlFehlt, nachname, offName, DGRADE, nameOf, kuerzel, heading, einleitung, gegenText, block, paket, spracheText, einflussText, belehrungSatz, vorText, strafantragText, verletzungText, WAHR, TV, FAKT, fehlt, cleanNr, canonRank, parseFree: (data, q, team = []) => parseFree({ team: () => team, docs: () => [] }, data, q), setRanks: m => { RANKS = new Map(Object.entries(m || {}).map(([k, v]) => [nameKey(k), v])); } }
+    core: { ROLLEN, ROLLE, ARTEN, rollenFor, rolleLabel, rolleArt, werVon, werDat, ubNr, nextUb, eff, PR, herrFrau, verlFehlt, nachname, offName, DGRADE, nameOf, kuerzel, heading, heading1, einleitung, einleitungGem, gegenText, block, blockVon, paket, fuehrt, gehoertZu, koepfe, gemFaehig, ordnen, getrenntText, pbTexte, pFolien, fehltIn, nimmt, spracheText, einflussText, belehrungSatz, vorText, strafantragText, verletzungText, WAHR, TV, FAKT, fehlt, cleanNr, canonRank, parseFree: (data, q, team = []) => parseFree({ team: () => team, docs: () => [] }, data, q), setRanks: m => { RANKS = new Map(Object.entries(m || {}).map(([k, v]) => [nameKey(k), v])); } }
   });
 })(typeof window !== 'undefined' ? window : globalThis);
