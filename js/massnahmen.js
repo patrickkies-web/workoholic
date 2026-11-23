@@ -148,9 +148,14 @@
     if (C && C.ROLLE[q.rolle]) { const a = C.rolleArt({ rolle: q.rolle, g: q.g, ub: q.ub }); return q.rolle === 'ub' ? `${a} (${name})` : `${a} ${name}`; }
     return [q.g === 'w' ? 'Frau' : q.g === 'm' ? 'Herr' : '', name].filter(Boolean).join(' ');
   }
+  /** Name als Schlüssel zum Wiederfinden – wie der Vorgang ihn bildet. */
+  const nKey = q => `${str(q && q.vorname)}|${str(q && q.nachname)}`.toLocaleLowerCase('de').replace(/\s+/g, ' ');
+  /** Verweis auf eine Person des Vorgangs: Kennung, Wortlaut im Satz, Name zum Wiederfinden, Anrede. */
+  const persVon = (L, i, art) => ({ key: L[i].key, nom: werText(L, i, art), n: nKey(L[i]), ...(L[i].g ? { g: L[i].g } : {}) });
   /**
    * Die Person, die Angaben zu Videoaufzeichnungen gemacht hat, folgt ihrer Quelle im Vorgang: Wird dort der Name oder die
-   * Rolle berichtigt, stimmt es auch hier. Fehlt die Quelle, bleibt der zuletzt übernommene Wortlaut stehen.
+   * Rolle berichtigt, stimmt es auch hier. Steht die Person inzwischen in einem anderen Abschnitt (etwa nur noch in den
+   * Schilderungen), wird sie über ihren Namen wiedergefunden. Fehlt sie ganz, bleibt der zuletzt übernommene Wortlaut stehen.
    * Liefert true, wenn sich etwas geändert hat.
    */
   function nimmt(data, ctx) {
@@ -159,8 +164,11 @@
     if (!same(data.art, ctx.art || undefined)) { if (ctx.art) data.art = ctx.art; else delete data.art; ch = true; }
     const v = V_(data), p = v.pers && typeof v.pers === 'object' ? v.pers : null;
     if (p && has(p.key)) {
-      const L = arr(ctx.leute), i = L.findIndex(q => q && q.key === p.key);
-      if (i >= 0) { const neu = { key: p.key, nom: werText(L, i, ctx.art), ...(L[i].g ? { g: L[i].g } : {}) }; if (!same(neu, p)) { v.pers = neu; ch = true; } }
+      const L = arr(ctx.leute);
+      let i = L.findIndex(q => q && q.key === p.key);
+      if (i < 0) i = L.findIndex(q => q && q.alt && q.alt === p.key); // früher über den Namen verknüpft: auf die feste Kennung umstellen
+      if (i < 0 && has(p.n)) i = L.findIndex(q => q && nKey(q) === p.n); // dieselbe Person, inzwischen aus einem anderen Abschnitt
+      if (i >= 0) { const neu = persVon(L, i, ctx.art); if (!same(neu, p)) { v.pers = neu; ch = true; } }
     }
     return ch;
   }
@@ -217,6 +225,8 @@
   function videoHtml(data, api) {
     const v = V_(data), p = P_('video'), ctx = ctxOf(api), L = arr(ctx && ctx.leute).filter(q => q && has(q.nachname));
     const key0 = v.pers && v.pers.key;
+    // Die gewählte Person steht nicht mehr im Vorgang: Ihr Wortlaut bleibt im Text – hier lässt er sich wieder herausnehmen
+    const fort = key0 && !L.some(q => q.key === key0) ? `<button type="button" class="chip vg-pchip" data-sd="vpers" data-v="${esc(key0)}" aria-pressed="true">${esc(cap(str(v.pers.nom) || 'Person'))}<small>nicht mehr im Vorgang</small></button>` : '';
     let ab = '';
     if (v.ab === 'ja') {
       ab = `<div class="sd-sub"><span class="w-lbl">Wurde ein Gerät festgestellt? <i class="w-req" title="Pflicht">•</i></span>${seg('video.ger', v.ger, JN)}
@@ -225,7 +235,7 @@
     }
     let ang = '';
     if (v.ang) {
-      const wer = L.length ? `<div class="w-chips">${L.map(q => `<button type="button" class="chip vg-pchip" data-sd="vpers" data-v="${esc(q.key)}" aria-pressed="${String(key0 === q.key)}">${esc(personName(q))}${rolleL(q) ? `<small>${esc(rolleL(q))}</small>` : ''}</button>`).join('')}</div>` : '';
+      const wer = L.length || fort ? `<div class="w-chips">${L.map(q => `<button type="button" class="chip vg-pchip" data-sd="vpers" data-v="${esc(q.key)}" aria-pressed="${String(key0 === q.key)}">${esc(personName(q))}${rolleL(q) ? `<small>${esc(rolleL(q))}</small>` : ''}</button>`).join('')}${fort}</div>` : '';
       const frei = key0 ? '' : `<div class="sd-inl"><label class="w-hint" for="mnPers">${L.length ? 'Oder jemand anderes – so, wie es im Satz stehen soll:' : 'So, wie es im Satz stehen soll:'}</label>${textIn('mnPers', 'video.persFrei', v.persFrei, 'der Inhaber des Kiosks', 160)}</div>`;
       ang = `<div class="sd-sub"><span class="w-lbl">Wer? <i class="w-req" title="Pflicht">•</i></span>${wer}${frei}
         <div class="sd-inl" data-q="vsich"><span class="w-lbl">Was wurde zugesagt?</span><div class="w-chips"><button type="button" class="chip" data-sd="tog" data-p="video.sichern" aria-pressed="${String(!!v.sichern)}">Sichert die Aufzeichnungen</button><button type="button" class="chip" data-sd="antw" data-p="video.wie" data-v="nachfrage" aria-pressed="${String(v.wie === 'nachfrage')}">Hält sie auf Nachfrage bereit</button><button type="button" class="chip" data-sd="antw" data-p="video.wie" data-v="selbst" aria-pressed="${String(v.wie === 'selbst')}">Reicht sie selbstständig ein</button></div></div>
@@ -333,9 +343,9 @@
       case 'tog': setPath(data, pfad, getPath(data, pfad) ? undefined : true); save(); return true;
       case 'vpers': {
         const L = arr((ctxOf(api) || {}).leute), i = L.findIndex(q => q && q.key === v), vd = data.video && typeof data.video === 'object' ? data.video : (data.video = {});
-        if (i < 0) return true;
-        if (vd.pers && vd.pers.key === v) delete vd.pers;
-        else { vd.pers = { key: v, nom: werText(L, i, data.art), ...(L[i].g ? { g: L[i].g } : {}) }; delete vd.persFrei; }
+        if (vd.pers && vd.pers.key === v) delete vd.pers; // auch, wenn die Person nicht mehr im Vorgang steht
+        else if (i < 0) return true;
+        else { vd.pers = persVon(L, i, data.art); delete vd.persFrei; }
         save(); return true;
       }
       case 'dazu': { if (d.status === 'fertig') d.status = 'entwurf'; setzen(data, v, true); V.s = v === 'video' ? 'video' : v === 'lbm' ? 'ende' : 'a'; save(); return true; }

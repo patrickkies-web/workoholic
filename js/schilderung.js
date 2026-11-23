@@ -149,15 +149,32 @@
   /** Kommt die Person für einen gemeinsamen Abschnitt in Frage? Nur wer zeugenschaftlich belehrt wird, etwas angibt und keine Hinweise auf Alkohol oder Drogen zeigt. */
   const gemFaehig = p => { const r = RO(p); return !!(p && r && r.zeug) && !p.keine && !einOf(p).length; };
   /**
-   * Bringt die Verweise in Form (liefert true, wenn etwas geändert wurde): „gemeinsam mit“ zeigt nur auf eine vorhandene Person
-   * mit eigenem Abschnitt, und nur, solange beide dafür in Frage kommen – sonst steht die Person wieder für sich.
+   * Bringt die Verweise in Form (liefert true, wenn etwas geändert wurde):
+   * – Jede Person trägt eine feste Kennung (p.sid). Über sie finden andere Abschnitte des Vorgangs die Person wieder
+   *   (Maßnahmen, Blutprobe …) – auch wenn ihr Name später berichtigt wird.
+   * – „Gemeinsam mit“ zeigt nur auf eine vorhandene Person mit eigenem Abschnitt, und nur, solange beide dafür in Frage
+   *   kommen – sonst steht die Person wieder für sich.
+   * – Wer keine Angaben macht, hat auch niemanden beschrieben: Eine übernommene Personen- oder Fahrzeugbeschreibung wird
+   *   wieder frei. Sonst stünde sie weder hier noch vorn im Sachverhalt – und niemand würde es merken.
    */
   function ordnen(data) {
     let ch = false; const P = arr(data && data.personen);
     for (const p of P) {
+      if (!p || typeof p !== 'object' || has(p.sid)) continue;
+      let id; do { id = 's' + Math.random().toString(36).slice(2, 8); } while (P.some(x => x && x.sid === id));
+      p.sid = id; ch = true;
+    }
+    for (const p of P) {
       if (!p || !has(p.gem)) continue;
       const q = P.find(x => x && x !== p && has(x.sid) && x.sid === p.gem);
       if (!q || has(q.gem) || !gemFaehig(q) || !gemFaehig(p)) { delete p.gem; ch = true; }
+    }
+    for (const K of BESCHR) {
+      for (const p of P) if (p && p.keine && p[K.feld] != null) { delete p[K.feld]; ch = true; }
+      const D = data && data[K.stand]; if (!D || typeof D !== 'object') continue;
+      const da = new Set(P.flatMap(p => arr(p && p[K.feld])));
+      for (const id of Object.keys(D)) if (!da.has(id)) { delete D[id]; ch = true; }
+      if (!Object.keys(D).length) { delete data[K.stand]; ch = true; }
     }
     return ch;
   }
@@ -610,8 +627,14 @@
    * tief speichert).
    */
   function pbTexte(data, i) {
-    const p = arr(data && data.personen)[i] || {};
-    return BESCHR.flatMap(K => { const M = K.mod(), D = (data && data[K.stand]) || {}; return M ? arr(p[K.feld]).map(id => M.text(D[id], { wer: werVon(data, i), pr: PR(p), art: data.art })).filter(Boolean) : []; });
+    const p = arr(data && data.personen)[i] || {}, o = { wer: werVon(data, i), pr: PR(p), art: data.art };
+    return BESCHR.flatMap(K => {
+      const M = K.mod(), D = (data && data[K.stand]) || {}; if (!M) return [];
+      const L = arr(p[K.feld]).map(id => D[id]).filter(Boolean), T = L.map(b => M.text(b, o)).filter(Boolean);
+      // mehrere Personen: davor der Satz, wie viele es waren und wie viele davon diese Person beschreiben kann
+      const ein = T.length && typeof M.einleitung === 'function' ? M.einleitung(L, o) : '';
+      return ein ? [ein, ...T] : T;
+    });
   }
   /** „Getrennt voneinander befragt“ – als Satz unter der Überschrift, sobald es mehr als einen Abschnitt gibt. */
   function getrenntText(data) {
@@ -689,7 +712,6 @@
   const fehltIn = (data, i) => { const m = fehlt(arr(data && data.personen)[i] || {}); return gehoertZu(data, i) >= 0 ? m.filter(x => !['belehrt durch', 'gegenüber', 'Schilderung'].includes(x)) : m; };
 
   /* ======================= Kontext aus dem Vorgang ======================= */
-  const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
   /** Vergleich unabhängig von der Reihenfolge der Schlüssel – der Tresor legt Objekte sortiert ab. */
   const stabil = v => (Array.isArray(v) ? '[' + v.map(stabil).join(',') + ']' : v && typeof v === 'object' ? '{' + Object.keys(v).sort().map(k => JSON.stringify(k) + ':' + stabil(v[k])).join(',') + '}' : JSON.stringify(v ?? null));
   const gleich = (a, b) => stabil(a) === stabil(b);
@@ -723,9 +745,9 @@
   function nimmt(data, ctx) {
     if (!data || typeof data !== 'object') return false;
     let ch = false;
-    if (pbNach(data, ctx)) ch = true;
     if (ordnen(data)) ch = true;
-    const set = (o, k, v) => { if (same(o[k], v)) return; if (v === undefined || v === null || v === '') delete o[k]; else o[k] = v; ch = true; };
+    if (pbNach(data, ctx)) ch = true;
+    const set = (o, k, v) => { if (gleich(o[k], v)) return; if (v === undefined || v === null || v === '') delete o[k]; else o[k] = v; ch = true; }; // gleich(): der Tresor sortiert die Schlüssel – sonst gälte nach jedem Laden alles als geändert
     const src = ctx && Array.isArray(ctx.personen) ? ctx.personen.filter(q => q && q.pid) : null;
     if (!src) {
       for (const p of arr(data.personen)) if (p && p.ref) { delete p.ref; ch = true; }
@@ -1001,7 +1023,7 @@
       const items = B.slice().sort((a, b) => Number(passt(b)) - Number(passt(a))).map(b => {
         const on = mine.has(b.id), j = woanders(b.id);
         const M = b.K.mod(), sub = [M ? M.kurz(b.d) : '', passt(b) && !on ? 'passt zum Namen' : '', j >= 0 ? `steht bisher bei ${herrDat(P[j])}` : ''].filter(Boolean).join(' · ');
-        return `<button type="button" class="sd-add-b" data-sd="pbtog" data-v="${esc(b.id)}" aria-pressed="${String(on)}"><i aria-hidden="true">${on ? '✓' : '+'}</i><span>${esc(has(b.von) ? `${b.K.name} von ${b.von}` : b.K.name)}<small>${esc(sub || 'noch ohne Angaben')}</small></span></button>`;
+        return `<button type="button" class="sd-add-b" data-sd="pbtog" data-v="${esc(b.id)}" aria-pressed="${String(on)}"><i aria-hidden="true">${on ? '✓' : '+'}</i><span>${esc(has(b.von) ? `${b.K.name} von ${str(b.von).replace(/^Herr(?=\s)/, 'Herrn')}` : b.K.name)}<small>${esc(sub || 'noch ohne Angaben')}</small></span></button>`;
       }).join('');
       const txt = pbTexte(data, i).join('\n');
       const auchFz = B.some(b => b.K.feld === 'fz'), nurFz = auchFz && B.every(b => b.K.feld === 'fz');
@@ -1381,7 +1403,12 @@
         if (k >= 0) list.splice(k, 1); else list.push(o);
         p.wahrVon = list; save(); return true;
       }
-      case 'tog': setPath(data, b.dataset.p, getPath(data, b.dataset.p) ? undefined : true); save(); return true;
+      case 'tog': {
+        setPath(data, b.dataset.p, getPath(data, b.dataset.p) ? undefined : true);
+        const p = cur();
+        if (/\.keine$/.test(b.dataset.p) && p && p.keine && (arr(p.pb).length || arr(p.fz).length)) api.toast('Die übernommene Beschreibung ist wieder frei – wer keine Angaben macht, hat auch niemanden beschrieben.');
+        save(); return true;
+      }
       case 'now': { const d0 = new Date(); setPath(data, b.dataset.p, `${String(d0.getHours()).padStart(2, '0')}:${String(d0.getMinutes()).padStart(2, '0')}`); save(); return true; }
       case 'unoff': setPath(data, b.dataset.p, undefined); save(); return true;
       case 'wfadd': addFrei(api); return true;

@@ -56,6 +56,8 @@
     .replace(/^[\s,;]+|[\s.,;]+$/g, '');
   const mit = (...t) => t.filter(Boolean).join(', ');
   const nur = (l, x) => (x ? `${l}: ${x}` : '');
+  /** Name hinter „von“ oder „laut“: „Herr Meier“ → „Herrn Meier“. */
+  const dativ = s => str(s).replace(/^Herr(?=\s)/, 'Herrn');
 
   /* ======================= Kataloge ======================= */
   /**
@@ -64,7 +66,7 @@
    *   fragt  was auf der Folie gefragt wird – steht in der Übersicht, solange der Punkt offen ist
    */
   const PUNKTE = [
-    { k: 'wer', l: 'Wer beschreibt wen?', fragt: 'Name für deine Zuordnung · Bezeichnung im Text' },
+    { k: 'wer', l: 'Wer beschreibt wen?', fragt: 'Name für deine Zuordnung · Bezeichnung · Anzahl der Personen' },
     { k: 'ga', gr: 'A', l: 'Geschlecht und Alter', fragt: 'Männlich oder weiblich · Alter' },
     { k: 'gs', gr: 'A', l: 'Größe und Statur', fragt: 'Körpergröße · Statur' },
     { k: 'ph', gr: 'A', l: 'Erscheinungsbild', fragt: 'Phänotyp · Weiteres zum Aussehen' },
@@ -97,9 +99,9 @@
   const STATUR = [['hager', 'Hager', 'hagere'], ['schmaechtig', 'Schmächtig', 'schmächtige'], ['schlank', 'Schlank', 'schlanke'], ['normal', 'Normal', 'normale'], ['sportlich', 'Sportlich', 'sportliche'], ['kraeftig', 'Kräftig', 'kräftige'], ['staemmig', 'Stämmig', 'stämmige'], ['korpulent', 'Korpulent', 'korpulente']];
   /**
    * Erscheinungsbild: neutrale, geografische Bezeichnungen, wie sie die polizeilichen Kataloge zum „Phänotypus“ führen
-   * (vgl. Abgeordnetenhaus Berlin, Drs. 17/14582) – dazu das im Bericht übliche „mitteleuropäisch“. [Schlüssel, Chip, im Text].
+   * (vgl. Abgeordnetenhaus Berlin, Drs. 17/14582) – dazu die im Bericht üblichen „mitteleuropäisch“ und „südländisch“. [Schlüssel, Chip, im Text].
    */
-  const PHAENO = [['meu', 'mitteleuropäisch'], ['neu', 'nordeuropäisch'], ['oeu', 'osteuropäisch'], ['soeu', 'südosteuropäisch'], ['seu', 'südeuropäisch'], ['naf', 'nordafrikanisch'], ['was', 'westasiatisch'], ['sas', 'südasiatisch'], ['oas', 'ostasiatisch'], ['afr', 'afrikanisch'], ['msam', 'mittel-/südamerikanisch', 'mittel- oder südamerikanisch']];
+  const PHAENO = [['meu', 'mitteleuropäisch'], ['sl', 'südländisch'], ['neu', 'nordeuropäisch'], ['oeu', 'osteuropäisch'], ['soeu', 'südosteuropäisch'], ['seu', 'südeuropäisch'], ['naf', 'nordafrikanisch'], ['was', 'westasiatisch'], ['sas', 'südasiatisch'], ['oas', 'ostasiatisch'], ['afr', 'afrikanisch'], ['msam', 'mittel-/südamerikanisch', 'mittel- oder südamerikanisch']];
   /** Haar- und Bartfarbe: [Schlüssel, Chip, vor „Haare“, vor „Bart“]. */
   const FARBE = [['hell', 'hell', 'helle', 'heller'], ['blond', 'blond', 'blonde', 'blonder'], ['dblond', 'dunkelblond', 'dunkelblonde', 'dunkelblonder'], ['rot', 'rot', 'rote', 'roter'], ['braun', 'braun', 'braune', 'brauner'], ['dbraun', 'dunkelbraun', 'dunkelbraune', 'dunkelbrauner'], ['schwarz', 'schwarz', 'schwarze', 'schwarzer'], ['dunkel', 'dunkel', 'dunkle', 'dunkler'], ['grau', 'grau', 'graue', 'grauer'], ['weiss', 'weiß', 'weiße', 'weißer']];
   /** Haarlänge: [Schlüssel, Chip, vor „Haare“] – Glatze steht für sich. */
@@ -116,15 +118,23 @@
   const WLV = [['ja', 'Ja'], ['unsicher', 'Nicht sicher'], ['nein', 'Nein']];
   /** Darstellung der Ausgabe: gegliederte Liste (Vorgabe) oder Fließtext. */
   const FORMEN = [['liste', 'Liste'], ['text', 'Fließtext']];
+  /** Wie viele Personen es insgesamt waren – auch wenn nicht alle beschrieben werden: [Schlüssel, Chip]; 'm' = mehrere, Zahl nicht bekannt. */
+  const ANZAHL = [['1', '1'], ['2', '2'], ['3', '3'], ['4', '4'], ['5', '5'], ['6', '6'], ['m', 'Mehr']];
+  const ZAHLWORT = ['', 'eine', 'zwei', 'drei', 'vier', 'fünf', 'sechs', 'sieben', 'acht', 'neun', 'zehn'];
+  /** Mehrzahl der Bezeichnung für den Einleitungssatz: [Mehrzahl, „einer von ihnen“ (Nominativ), „einen von ihnen“ (Akkusativ)]. */
+  const MEHRZAHL = { taeter: ['Täter', 'einer', 'einen'], tv: ['Tatverdächtige', 'einer', 'einen'], person: ['unbekannte Personen', 'eine', 'eine'], fahrer: ['Fahrzeugführer', 'einer', 'einen'] };
 
   /* ======================= Text ======================= */
   /** Vorgabe für die Bezeichnung: in Verkehrsangelegenheiten die Fahrerin oder der Fahrer, sonst die Täterin oder der Täter. */
   const bezOf = (b, art) => (BEZ.some(x => x[0] === (b && b.bez)) ? b.bez : art === 'verkehr' ? 'fahrer' : 'taeter');
-  /** { nom, akk, dat } – „der Täter“ / „den Täter“ / „dem Täter“, bei mehreren beschriebenen Personen mit Nummer. */
+  /**
+   * { nom, akk, dat } – „der Täter“ / „den Täter“ / „dem Täter“. Geht es um mehrere Personen, steht die Nummer dabei
+   * („den Täter 2“); beschreiben alle dieselbe eine Person (b.solo, siehe ordnen), bleibt sie weg.
+   */
   function formen(b, art) {
     const F = BEZ.find(x => x[0] === bezOf(b, art))[2];
     const g = b && (b.g === 'm' || b.g === 'w') ? b.g : 'x';
-    const f = F[g] || F.x, n = num(b && b.nr), nr = n ? ' ' + n : '';
+    const f = F[g] || F.x, n = b && !b.solo ? num(b.nr) : null, nr = n ? ' ' + n : '';
     return { nom: f[0] + nr, akk: f[1] + nr, dat: f[2] + nr };
   }
   /** Satzteil zu Alter oder Größe ('' = keine Angabe). Eine Markierung am Rand der Leiste zählt als offen. */
@@ -222,13 +232,39 @@
     if (formOf(b) === 'text') return [T.W.length ? `${T.intro} ${alsText(T.W)}` : '', ...T.schluss].filter(Boolean).join(' ');
     return [T.W.length ? `${T.intro}\n${alsListe(T.W)}` : '', T.schluss.join(' ')].filter(Boolean).join('\n');
   }
+  /** Gesamtzahl als Zahl (0 = nicht angegeben, Infinity = „mehrere“). */
+  const gesamtZahl = g => (g === 'm' ? Infinity : Math.max(0, num(g) || 0));
+  /**
+   * Einleitungssatz, sobald es um mehrere Personen geht: wie viele es waren und wie viele davon beschrieben sind – so muss
+   * niemand den Text umbauen, wenn es drei waren, aber nur zwei beschrieben werden konnten.
+   *   L      die Beschreibungen, um die es geht (alle des Abschnitts – oder die, die eine Person der Schilderungen abgegeben hat);
+   *          die Gesamtzahl tragen sie selbst (b.ges, siehe ordnen)
+   *   o.wer  „die Zeugin Müller“ und o.pr ihr Pronomen: dann spricht der Satz von ihr („… gab an, dass es sich um drei Täter
+   *          gehandelt habe, von denen sie zwei beschreiben könne.“); ohne o.wer unpersönlich („Nach Zeugenangaben …“)
+   * '' = kein Satz nötig (eine Person, eine Beschreibung).
+   */
+  function einleitung(L, o = {}) {
+    L = arr(L).filter(b => b && typeof b === 'object'); if (!L.length) return '';
+    const mitInhalt = L.filter(b => werte(b).length), nummern = new Set(mitInhalt.map(b => num(b.nr)).filter(n => n != null));
+    const beschr = nummern.size || (mitInhalt.length ? 1 : 0);
+    const ges = gesamtZahl((L.find(b => b.ges != null) || {}).ges);
+    if (ges <= 1 && beschr <= 1) return '';
+    const bz = new Set(L.map(b => bezOf(b, o.art))), M = bz.size === 1 ? MEHRZAHL[[...bz][0]] : ['Personen', 'eine', 'eine'];
+    const wort = n => (n === Infinity ? 'mehrere' : ZAHLWORT[n] || String(n));
+    const wer = has(o.wer) ? cap(str(o.wer)) : '', er = wer && o.pr && has(o.pr.er) ? o.pr.er : '';
+    // ohne Gesamtzahl steht nur fest, wie viele beschrieben wurden
+    if (!ges) return wer ? `${wer} beschrieb ${wort(beschr)} ${M[0]}.` : `Es wurden ${wort(beschr)} ${M[0]} beschrieben.`;
+    const n = Math.max(ges, beschr), alle = beschr >= n || !beschr;
+    if (wer) return `${wer} gab an, dass es sich um ${wort(n)} ${M[0]} gehandelt habe${alle ? '' : `, von denen ${er || 'sie'} ${beschr === 1 ? M[2] : wort(beschr)} beschreiben könne`}.`;
+    return `Nach Zeugenangaben handelte es sich um ${wort(n)} ${M[0]}${alle ? '' : `, von denen ${beschr === 1 ? M[1] : wort(beschr)} beschrieben werden ${beschr === 1 ? 'konnte' : 'konnten'}`}.`;
+  }
   /** Kurzfassung für Listen und Chips: die ersten Merkmale. */
   function kurz(b, n = 4) {
     const L = liste(b);
     return L.length > n ? L.slice(0, n).join(' · ') + ' …' : L.join(' · ');
   }
-  /** Noch nichts eingetragen – eine versehentlich angelegte Beschreibung verschwindet wieder. */
-  const istLeer = b => !b || (!has(b.von) && !werte(b).length && b.sonst !== true && !b.wlv && !b.bez && !b.nr);
+  /** Noch nichts eingetragen – eine versehentlich angelegte Beschreibung verschwindet wieder. Bezeichnung und vergebene Nummer zählen nicht: Die bringt sie schon mit. */
+  const istLeer = b => !b || (!has(b.von) && !werte(b).length && b.sonst !== true && !b.wlv && (!b.nr || !!b.nrA));
   /**
    * Schlusssatz vorwählen (liefert true, wenn er gesetzt wurde): sobald etwas beschrieben ist und anderes offen blieb – genau
    * dafür ist er da. Nur solange noch nichts entschieden ist; wer ihn abwählt, bekommt ihn nicht wieder untergeschoben.
@@ -242,9 +278,12 @@
   const freie = data => B_(data).filter(b => !beiWem(data, b));
   const rumpf = (data, list) => list.map(b => text(b, { art: data && data.art })).filter(Boolean).join('\n');
   /** Der ganze Abschnitt zum Kopieren – alle Beschreibungen, auch die, die schon bei einer Schilderung stehen. */
-  const abschnitt = data => `Personenbeschreibung\n${rumpf(data, B_(data)) || '[Noch nichts erfasst]'}`;
+  /** Einleitungssatz des Abschnitts – über alle Beschreibungen, auch wenn ein Teil schon bei einer Schilderung steht. */
+  const vorab = data => einleitung(B_(data), { art: data && data.art });
+  const mitVorab = (data, t) => [vorab(data), t].filter(Boolean).join('\n');
+  const abschnitt = data => { const t = rumpf(data, B_(data)); return `Personenbeschreibung\n${t ? mitVorab(data, t) : '[Noch nichts erfasst]'}`; };
   /** Im Gesamtsachverhalt: nur, was nicht schon in einer Schilderung steht. */
-  const plain = data => { const t = rumpf(data, freie(data)); return t ? `Personenbeschreibung\n${t}` : ''; };
+  const plain = data => { const t = rumpf(data, freie(data)); return t ? `Personenbeschreibung\n${mitVorab(data, t)}` : ''; };
   /** Steht im Gesamtsachverhalt gerade nichts von diesem Abschnitt? (leer oder alles bei den Schilderungen) */
   const still = data => !rumpf(data, freie(data));
 
@@ -281,7 +320,7 @@
    */
   function nimmt(data, ctx) {
     if (!data || typeof data !== 'object' || !ctx) return false;
-    let ch = false;
+    let ch = ordnen(data); // erst mit der Art, die bisher galt – danach kommt die neue
     const set = (k, v) => { if (same(data[k], v)) return; if (v == null || v === '') delete data[k]; else data[k] = v; ch = true; };
     set('art', ctx.art || undefined);
     const zu = {};
@@ -299,9 +338,10 @@
    *                     'wer' → 'ga' → 'gs' → 'ph' → 'haar' → 'bart' (entfällt bei „weiblich“) → 'kl' → 'bm' → 'ab'
    * Die Übersicht ist die Drehscheibe: Antippen öffnet einen Punkt, „Der Reihe nach abfragen“ beginnt beim ersten offenen.
    * In den Folien geht es mit „Zurück / Weiter“ durch alle Punkte; „Übersicht“ führt jederzeit zurück. Wer einen Punkt in
-   * der Übersicht angetippt hat (V.direkt), kommt mit dem Knopf unten links auch wieder dorthin.
+   * der Übersicht angetippt hat (V.direkt), kommt mit dem Knopf unten links auch wieder dorthin. Vom fertigen Text aus führen
+   * Sprungmarken direkt zu jedem Punkt (V.nachtrag) – dort heißt der Knopf unten rechts „Fertig“ und bringt zurück zum Text.
    */
-  const V = { id: null, s: 'liste', i: -1, f: 'hub', direkt: false, zurueck: '', neu: false, focus: '' };
+  const V = { id: null, s: 'liste', i: -1, f: 'hub', direkt: false, nachtrag: false, zurueck: '', neu: false, focus: '' };
   const $ = s => document.querySelector(s);
   const punkt = k => PUNKTE.find(p => p.k === k);
   const folien = b => PUNKTE.map(p => p.k).filter(k => !(k === 'bart' && b && b.g === 'w'));
@@ -310,7 +350,27 @@
   /** Der erste Punkt, zu dem noch nichts eingetragen ist – dort beginnt „Der Reihe nach abfragen“. */
   const erstesOffene = b => folien(b).find(k => !punktDa(b, k)) || 'ab';
   const neuId = B => { let id; do { id = 'b' + Math.random().toString(36).slice(2, 8); } while (arr(B).some(b => b && b.id === id)); return id; };
-  /** Bringt die Liste in Form (liefert true, wenn etwas geändert wurde): nur Beschreibungen, jede mit eigener Kennung – über sie verweisen die Schilderungen. */
+  /**
+   * Lücken in den vergebenen Nummern schließen (liefert true, wenn etwas geändert wurde): Eine Nummer, die niemand von Hand
+   * gewählt hat, rückt auf die kleinste freie davor. Wer dieselbe Nummer trägt, rückt gemeinsam – es bleibt dieselbe Person.
+   */
+  function lueckenZu(L) {
+    const fest = new Set(L.filter(b => !b.nrA).map(b => num(b.nr)).filter(n => n != null));
+    const lose = [...new Set(L.filter(b => b.nrA).map(b => num(b.nr)).filter(n => n != null && !fest.has(n)))].sort((x, y) => x - y);
+    const belegt = new Set(fest); let ch = false;
+    for (const m of lose) {
+      let n = 1; while (belegt.has(n)) n++;
+      const ziel = Math.min(n, m); belegt.add(ziel);
+      if (ziel !== m) { for (const b of L) if (b.nrA && num(b.nr) === m) b.nr = ziel; ch = true; }
+    }
+    return ch;
+  }
+  /**
+   * Bringt die Liste in Form (liefert true, wenn etwas geändert wurde): nur Beschreibungen, jede mit eigener Kennung – über sie
+   * verweisen die Schilderungen und die Fahrzeugbeschreibung. Dazu alles, was sich aus dem Zusammenspiel der Beschreibungen
+   * ergibt: Bezeichnung, Nummern, Gesamtzahl. Läuft nach jeder Änderung und bei jedem Abgleich des Vorgangs – so stimmen die
+   * anderen Abschnitte, auch wenn dieser gerade nicht offen ist.
+   */
   function ordnen(data) {
     if (!data || data.pb == null) return false;
     let ch = false;
@@ -318,14 +378,48 @@
     if (!Array.isArray(data.pb) || B.length !== data.pb.length) ch = true;
     for (const b of B) { if (!has(b.id) || seen.has(b.id)) { b.id = neuId(B); ch = true; } seen.add(b.id); }
     if (ch) { if (B.length) data.pb = B; else delete data.pb; }
+    /*
+     * Bezeichnung festhalten: Sobald etwas eingetragen ist, gilt die Bezeichnung, die dabei zu sehen war („Täter/in“ oder in
+     * Verkehrssachen „Fahrer/in“) – kommt die Art der Sache erst später in den Vorgang, kippt der Text nicht nachträglich.
+     */
+    for (const b of B) if (!BEZ.some(x => x[0] === b.bez) && !istLeer(b)) { b.bez = bezOf(b, data.art); ch = true; }
+    /*
+     * Nummern: Geht es um mehrere Personen (mehrere Beschreibungen oder eine Gesamtzahl über eins), trägt jede Beschreibung
+     * eine – vergeben wird die kleinste freie (b.nrA merkt sich, dass sie vergeben und nicht gewählt ist). Von Hand gewählte
+     * bleiben, auch dieselbe bei zwei Zeugen, die dieselbe Person beschreiben. Fällt eine Beschreibung weg, rücken die
+     * vergebenen Nummern auf (1, 3 → 1, 2); steht eine Beschreibung allein, entfällt die vergebene Nummer wieder.
+     */
+    const mehrere = B.length > 1 || gesamtZahl(data.anz) > 1;
+    for (const b of B) {
+      if (!mehrere) { if (b.nrA) { delete b.nr; delete b.nrA; ch = true; } continue; }
+      if (num(b.nr) == null) { const belegt = new Set(B.map(x => num(x.nr)).filter(n => n != null)); let n = 1; while (belegt.has(n)) n++; b.nr = n; b.nrA = true; ch = true; }
+    }
+    if (mehrere && lueckenZu(B)) ch = true;
+    // Nur eine Person im Spiel (alle tragen dieselbe Nummer, keine höhere Gesamtzahl): die Nummer bleibt aus dem Text
+    const allein = new Set(B.map(b => num(b.nr)).filter(n => n != null)).size <= 1 && gesamtZahl(data.anz) <= 1;
+    for (const b of B) { const s = allein && num(b.nr) != null; if (!!b.solo !== s) { if (s) b.solo = true; else delete b.solo; ch = true; } }
+    // Die Gesamtzahl fährt an jeder Beschreibung mit – so steht der Einleitungssatz auch dort, wo sie in einer Schilderung übernommen ist
+    const g = data.anz === 'm' ? 'm' : gesamtZahl(data.anz) || undefined;
+    for (const b of B) if ((b.ges ?? undefined) !== g) { if (g === undefined) delete b.ges; else b.ges = g; ch = true; }
     return ch;
   }
   const ctxOf = api => (api && typeof api.ctx === 'function' ? api.ctx() : null);
+  /** Wie viele verschiedene Personen beschrieben sind – gezählt wie im Einleitungssatz: nur was Angaben trägt, dieselbe Nummer einmal. */
+  const beschrieben = B => { const M = B.filter(b => werte(b).length), N = new Set(M.map(b => num(b.nr)).filter(n => n != null)); return N.size || (M.length ? 1 : 0); };
+  /** Die Gesamtzahl, wie sie gilt ('' = nicht angegeben): nie kleiner als die Zahl der beschriebenen Personen – so steht sie auch im Text. */
+  const anzWahl = (data, B) => { const g = gesamtZahl(data && data.anz); return !g ? '' : g === Infinity ? 'm' : String(Math.max(g, beschrieben(B))); };
+  /** Die Frage nach der Gesamtzahl: Zahlen unter der Zahl der Beschriebenen sind gesperrt. hin = Satz darunter, solange nichts gesperrt ist. */
+  function anzFrage(data, B, hin) {
+    const n = beschrieben(B), cur = anzWahl(data, B), eng = n > 1;
+    const chips = ANZAHL.map(([v, l]) => `<button type="button" class="chip mono" data-sd="eins" data-p="anz" data-v="${v}" aria-pressed="${String(cur === v)}"${v !== 'm' && Number(v) < n ? ' disabled' : ''}>${l}</button>`).join('');
+    const zeile = eng ? `Beschrieben sind schon ${ZAHLWORT[n] || n} verschiedene Personen – weniger können es nicht gewesen sein. Beschreiben zwei Zeugen dieselbe Person: bei beiden dieselbe Nummer antippen.` : hin;
+    return `<div class="w-q" data-q="anz"><span class="w-lbl">Wie viele Personen waren es insgesamt? <i class="w-hint-i">(optional)</i></span><div class="w-chips" role="group" aria-label="Anzahl der Personen">${chips}</div>${zeile ? `<p class="w-hint sd-hint">${esc(zeile)}</p>` : ''}</div>`;
+  }
   const subOf = (B, i) => `Beschreibung ${i + 1} von ${B.length}${has(B[i] && B[i].von) ? ' · ' + str(B[i].von) : ''}`;
   const WLV_KURZ = { ja: 'würde wiedererkennen', unsicher: 'nicht sicher', nein: 'würde nicht wiedererkennen' };
   /** Was in der Übersicht unter dem Punkt steht: die Antwort – oder, solange er offen ist, was dort gefragt wird. */
   function punktZeile(data, b, k) {
-    if (k === 'wer') return has(b.von) ? `${str(b.von)} beschreibt ${formen(b, data.art).akk}` : punkt(k).fragt;
+    if (k === 'wer') { const g = gesamtZahl(data.anz), z = g > 1 ? ` · ${g === Infinity ? 'mehrere' : g} Personen insgesamt` : ''; return has(b.von) ? `${str(b.von)} beschreibt ${formen(b, data.art).akk}${z}` : z ? `${cap(formen(b, data.art).nom)}${z}` : punkt(k).fragt; }
     if (k === 'ab') return [b.sonst === true ? 'Keine weiteren Angaben' : '', b.wlv ? `Wahllichtbildvorlage: ${WLV_KURZ[b.wlvA] || 'Antwort offen'}` : ''].filter(Boolean).join(' · ') || punkt(k).fragt;
     return punktWert(b, k) || punkt(k).fragt;
   }
@@ -345,7 +439,7 @@
 
   function open(d) {
     const B = B_(d && d.data);
-    V.id = d.id; V.f = 'hub'; V.direkt = false; V.zurueck = ''; V.focus = '';
+    V.id = d.id; V.f = 'hub'; V.direkt = false; V.nachtrag = false; V.zurueck = ''; V.focus = '';
     V.neu = !B.length; // leer geöffnet: gleich mit der ersten Beschreibung beginnen
     if (d.status === 'fertig' && B.length) { V.s = 'done'; V.i = -1; }
     else if (B.length === 1) { V.s = 'b'; V.i = 0; } // eine Beschreibung: gleich ihre Übersicht
@@ -396,12 +490,20 @@
   /* ---------- Folien einer Beschreibung: je Überpunkt eine ---------- */
   function werHtml(data, b, base, api, B) {
     const ctx = ctxOf(api), L = arr(ctx && ctx.leute).filter(q => q && has(q.nachname));
-    const vor = L.length ? `<div class="w-chips sd-sugg">${L.map(q => { const n = personName(q); return `<button type="button" class="chip sm" data-sd="von" data-v="${esc(n)}" aria-pressed="${String(str(b.von) === n)}">${esc(n)}${rolleL(q) ? `<small class="sd-sm">${esc(rolleL(q))}</small>` : ''}</button>`; }).join('')}</div>` : '';
+    // Vorschläge für den Namen: wer in diesem Abschnitt schon jemanden beschrieben hat, dann die Personen des Vorgangs
+    const zuvor = [...new Set(B.filter(x => x !== b).map(x => str(x.von)).filter(Boolean))];
+    const namen2 = [...zuvor.filter(n => !L.some(q => personName(q) === n)).map(n => ({ n, r: 'wie zuvor' })), ...L.map(q => ({ n: personName(q), r: rolleL(q) }))]
+      .sort((x, y) => Number(zuvor.includes(y.n)) - Number(zuvor.includes(x.n))); // wer schon beschrieben hat, steht vorn
+    const vor = namen2.length ? `<div class="w-chips sd-sugg">${namen2.map(c => `<button type="button" class="chip sm" data-sd="von" data-v="${esc(c.n)}" aria-pressed="${String(str(b.von) === c.n)}">${esc(c.n)}${c.r ? `<small class="sd-sm">${esc(c.r)}</small>` : ''}</button>`).join('')}</div>` : '';
     const bz = bezOf(b, data.art);
     const bez = BEZ.filter(([k]) => k !== 'fahrer' || data.art !== 'straf' || bz === 'fahrer').map(([k, l]) => `<button type="button" class="chip" data-sd="setze" data-p="${base}.bez" data-v="${k}" aria-pressed="${String(bz === k)}">${esc(l)}</button>`).join('');
-    const nrQ = B.length > 1 || b.nr ? `<div class="w-q" data-q="nr"><span class="w-lbl">Mehrere beschriebene Personen? <i class="w-hint-i">(Nummer, optional)</i></span><div class="w-chips">${eins(`${base}.nr`, String(b.nr || ''), [['1', '1'], ['2', '2'], ['3', '3'], ['4', '4']], 'chip mono')}</div></div>` : '';
+    const anz = data.anz, viele = B.length > 1 || gesamtZahl(anz) > 1;
+    const anzQ = anzFrage(data, B, 'Auch wenn du nicht alle beschreibst – im Text steht dann z. B. „… drei Täter, von denen zwei beschrieben werden konnten“.');
+    const hoch = Math.min(9, Math.max(4, gesamtZahl(anz) === Infinity ? 0 : gesamtZahl(anz), B.length, num(b.nr) || 0));
+    const nrQ = viele || b.nr ? `<div class="w-q" data-q="nr"><span class="w-lbl">Welche Person ist das?</span><div class="w-chips" role="group" aria-label="Nummer der Person">${Array.from({ length: hoch }, (x, n) => `<button type="button" class="chip mono" data-sd="nrw" data-v="${n + 1}" aria-pressed="${String(num(b.nr) === n + 1)}">${n + 1}</button>`).join('')}</div><p class="w-hint sd-hint">${b.solo ? 'Alle beschreiben dieselbe Person – im Text steht sie deshalb ohne Nummer.' : 'Die Nummer wird von selbst vergeben. Beschreiben zwei Zeugen dieselbe Person: bei beiden dieselbe Nummer antippen.'}</p></div>` : '';
     return `<div class="w-q" data-q="von"><label class="w-lbl" for="pbVon">Wer beschreibt?</label><input class="input" id="pbVon" data-sk="${base}.von" value="${esc(b.von || '')}" placeholder="z. B. Frau Müller" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="done" maxlength="80">${vor}<p class="w-hint sd-hint">Nur für deine Zuordnung – bei den Schilderungen übernimmst du die Beschreibung später mit einem Tipp bei der richtigen Person.</p></div>
       <div class="w-q" data-q="bez"><span class="w-lbl">Wer wird beschrieben?</span><div class="w-chips" role="group" aria-label="Bezeichnung im Text">${bez}</div></div>
+      ${anzQ}
       ${nrQ}`;
   }
   function gaHtml(b, base) {
@@ -462,7 +564,7 @@
       // Schnellwahl bei der Bekleidung: ein Tipp, und der Punkt ist erledigt
       return k === 'kl' ? `${knopf}<div class="pb-kurz"><button type="button" class="chip" data-sd="tog" data-p="${base}.dunkel" aria-pressed="${String(!!b.dunkel)}">Dunkel gekleidet</button></div>` : knopf;
     };
-    const block = (q, titel, K) => `<div class="w-q" data-q="${q}">${titel ? `<span class="w-mk-gt">${esc(titel)}</span>` : ''}<div class="zs-list pb-pkte">${K.filter(k => F.includes(k)).map(zeile).join('')}</div></div>`;
+    const block = (q, titel, K) => `<div class="w-q" data-q="${q}">${titel ? `<span class="pb-grp">${esc(titel)}</span>` : ''}<div class="zs-list pb-pkte">${K.filter(k => F.includes(k)).map(zeile).join('')}</div></div>`;
     const up = B.length > 1 ? { label: 'Beschreibungen', attr: 'data-sd="menu"' } : { label: ctxOf(api) ? 'Vorgang' : 'Alle Vorgänge', attr: 'data-sd="raus"' };
     const next = leer ? { label: 'Der Reihe nach abfragen', attr: 'data-sd="reihe"' } : { label: 'Fertig', attr: 'data-sd="done1"', ok: true };
     return `${api.kopf({ up, sub: subOf(B, i), titel: has(b.von) ? `Was kann ${str(b.von)} beschreiben?` : 'Was kann die Person beschreiben?', lead: leer ? 'Der Reihe nach abfragen – oder nur antippen, wozu es Angaben gibt. Was offen bleibt, steht nicht im Text.' : 'Antippen öffnet den Punkt. Was offen bleibt, steht nicht im Text.' })}
@@ -483,7 +585,7 @@
     const k = F.indexOf(V.f), last = k === F.length - 1;
     const zurHub = { label: 'Übersicht', attr: 'data-sd="hub"' };
     const kopf = (titel, lead) => api.kopf({ up: zurHub, sub: subOf(B, i), subLive: 'sub', pos: [k + 1, F.length], titel, lead });
-    const fuss = api.fuss({ back: V.direkt || !k ? zurHub : { attr: 'data-sd="pf" data-v="-1"' }, next: last ? { label: 'Fertig', attr: 'data-sd="done1"', ok: true } : { attr: 'data-sd="pf" data-v="1"' } });
+    const fuss = api.fuss({ back: V.direkt || !k ? zurHub : { attr: 'data-sd="pf" data-v="-1"' }, next: last || V.nachtrag ? { label: 'Fertig', attr: 'data-sd="done1"', ok: true } : { attr: 'data-sd="pf" data-v="1"' } });
     const seite = (titel, lead, inhalt) => `${kopf(titel, lead)}<div class="w-grid sd-grid">${inhalt}${imText(data, b, V.f)}</div>${fuss}`;
     if (V.f === 'ga') return seite('Mann oder Frau – und wie alt?', '', gaHtml(b, base));
     if (V.f === 'gs') return seite('Wie groß, welche Statur?', '', gsHtml(b, base));
@@ -494,6 +596,20 @@
     if (V.f === 'bm') return seite('Was fiel sonst auf?', 'Kann leer bleiben.', bmHtml(b, base));
     if (V.f === 'ab') return seite('Zum Abschluss', 'Mehr nicht bekannt? Würde die Person wiedererkannt?', abHtml(data, b, base));
     return seite('Wer beschreibt wen?', '', werHtml(data, b, base, api, B));
+  }
+
+  /**
+   * Nachtragen vom fertigen Text aus: die Überpunkte als Sprungmarken, gegliedert wie die Ausgabe – wer noch etwas ergänzen will,
+   * landet mit einem Tipp an der passenden Stelle (Person, Bekleidung …) und mit „Fertig“ wieder beim Text.
+   */
+  function nachtragHtml(data, B, i) {
+    const b = B[i] || {}, F = folien(b);
+    const marke = k => `<button type="button" class="chip pb-ntc${punktDa(b, k) ? ' da' : ''}" data-sd="nach" data-i="${i}" data-v="${k}">${esc(punkt(k).l)}</button>`;
+    const reihe = (titel, K) => `<span class="pb-grp">${esc(titel)}</span><div class="w-chips">${K.filter(k => F.includes(k)).map(marke).join('')}</div>`;
+    return `<div class="w-q pb-nt" data-q="nt${i}"><span class="w-lbl">${esc(B.length > 1 ? `Nachtragen bei ${formen(b, data.art).dat}${has(b.von) ? ` (${str(b.von)})` : ''}` : 'Nachtragen')} <i class="w-hint-i">– direkt zur passenden Stelle</i></span>
+      ${reihe(GRUPPE.A, PUNKTE.filter(p => p.gr === 'A').map(p => p.k))}
+      ${reihe(GRUPPE.B, PUNKTE.filter(p => p.gr === 'B').map(p => p.k))}
+      ${reihe('Außerdem', ['wer', 'ab'])}</div>`;
   }
 
   /* ---------- Folien des Abschnitts ---------- */
@@ -507,6 +623,8 @@
     return `${api.kopf({ titel: 'Wer hat jemanden beschrieben?', lead: B.length ? 'Antippen, um eine Beschreibung zu ändern – oder eine weitere aufnehmen.' : 'Geführte Abfrage vom Gesamteindruck zum Einzelnen – der Text entsteht dabei von selbst.' })}
       <div class="w-grid sd-grid">
         ${B.length ? `<div class="w-q"><ol class="sd-list es-list">${items}</ol></div>` : ''}
+        ${B.length ? anzFrage(data, B, '') : ''}
+        ${B.length && vorab(data) ? `<div class="w-q pb-im" data-q="vorab"><span class="w-mk-gt">So beginnt der Text</span><p class="pb-satz">${esc(vorab(data))}</p></div>` : ''}
         <div class="w-q" data-q="add"><div class="sd-add"><span class="w-lbl">${B.length ? 'Weitere Beschreibung aufnehmen' : 'Beschreibung aufnehmen'}</span><div class="sd-add-row"><button type="button" class="sd-add-b" data-sd="add"><i aria-hidden="true">+</i>Personenbeschreibung</button></div><p class="w-hint sd-hint">Je Person, die jemanden beschreibt, eine eigene Beschreibung – auch wenn zwei dieselbe Person beschreiben.</p></div></div>
       </div>
       ${api.fuss({ next: B.length ? { label: 'Fertig', attr: 'data-sd="alle"', ok: true } : null })}`;
@@ -515,15 +633,17 @@
   function doneHtml(d, api) {
     const data = d.data, B = B_(data), miss = luecken(data), frei2 = unverteilt(data), n = miss.length + frei2.length;
     const zu = B.filter(b => beiWem(data, b));
-    const blocks = B.map((b, i) => `<div class="w-q"><div class="w-out"><div class="w-out-h vg-oh"><span class="w-lbl">${esc(has(b.von) ? `Von ${str(b.von)}` : `Beschreibung ${i + 1}`)}${beiWem(data, b) ? ` <i class="w-hint-i">steht in der Schilderung: ${esc(beiWem(data, b))}</i>` : ''}</span>${B.length > 1 ? `<span class="vg-tools"><button type="button" class="btn btn-light btn-sm" data-sd="copy1" data-i="${i}">Kopieren</button></span>` : ''}</div><pre class="w-out-t">${esc(text(b, { art: data.art }) || '– noch nichts erfasst –')}</pre></div></div>`).join('');
+    const blocks = B.map((b, i) => `<div class="w-q"><div class="w-out"><div class="w-out-h vg-oh"><span class="w-lbl">${esc(B.length > 1 ? `${cap(formen(b, data.art).nom)}${has(b.von) ? ` · von ${dativ(b.von)}` : ''}` : has(b.von) ? `Von ${dativ(b.von)}` : `Beschreibung ${i + 1}`)}${beiWem(data, b) ? ` <i class="w-hint-i">steht in der Schilderung: ${esc(beiWem(data, b))}</i>` : ''}</span>${B.length > 1 ? `<span class="vg-tools"><button type="button" class="btn btn-light btn-sm" data-sd="copy1" data-i="${i}">Kopieren</button></span>` : ''}</div><pre class="w-out-t">${esc(text(b, { art: data.art }) || '– noch nichts erfasst –')}</pre></div></div>`).join('');
     return `${api.kopf({ fertig: n ? `Fertig · ${n} offen` : 'Fertig', offen: n > 0, titel: 'So steht es im Text' })}
       <div class="w-grid sd-grid">
         ${miss.length ? `<div class="w-q"><div class="w-warn fo-warn"><span>Noch offen: ${esc(miss.join(' · '))}</span><button type="button" class="btn btn-ghost btn-sm" data-sd="go" data-v="liste">Nachtragen</button></div></div>` : ''}
         <div class="w-q" data-q="form"><div class="pb-form"><span class="w-lbl">Darstellung</span>${formWahl(B[0])}</div></div>
+        ${vorab(data) ? `<div class="w-q" data-q="vorab"><div class="w-out"><div class="w-out-h vg-oh"><span class="w-lbl">Einleitung <i class="w-hint-i">bei mehreren Personen</i></span></div><pre class="w-out-t">${esc(vorab(data))}</pre></div></div>` : ''}
         ${blocks}
       </div>
       <button type="button" class="btn btn-light fo-wide" data-sd="copy">Text kopieren</button>
       ${arr((ctxOf(api) || {}).fahrzeuge).length && root.WFZ ? '<button type="button" class="btn btn-ghost fo-wide pb-beides" data-sd="copy2">Mit Fahrzeugbeschreibung kopieren</button>' : ''}
+      <div class="w-grid sd-grid pb-ntg">${B.map((b, i) => nachtragHtml(data, B, i)).join('')}</div>
       ${frei2.length ? `<div class="w-info pb-nach">${frei2.length === 1 ? 'Diese Beschreibung steht' : `${frei2.length} Beschreibungen stehen`} noch bei keiner Schilderung. In den Schilderungen bei der Person antippen (Folie „Hat … beschrieben?“) – dann steht sie dort mit Rolle und Namen.</div>` : zu.length ? '<p class="w-hint pb-nach">Im Gesamtsachverhalt steht die Beschreibung bei der Schilderung, nicht noch einmal vorn. Hier bleibt sie zum Kopieren.</p>' : ''}
       ${api.fein({ mehr: '<button type="button" class="link" data-sd="add">+ Weitere Beschreibung</button>' })}
       ${api.fuss({ back: { label: 'Bearbeiten', attr: 'data-sd="go" data-v="liste"' }, next: api.danach() })}`;
@@ -696,17 +816,21 @@
   function leave(data) {
     const B = B_(data);
     if (V.s === 'b' && istLeer(B[V.i])) { B.splice(V.i, 1); if (B.length) data.pb = B; else delete data.pb; }
-    V.s = 'liste'; V.i = -1; V.f = 'hub'; V.direkt = false;
+    ordnen(data); // Nummern und Gesamtzahl stimmen sofort – auch wenn es von hier gleich in einen anderen Abschnitt geht
+    V.s = 'liste'; V.i = -1; V.f = 'hub'; V.direkt = false; V.nachtrag = false;
   }
   async function del(api) {
     const data = api.d.data, B = B_(data), b = B[V.i]; if (!b) return;
     if (!istLeer(b)) {
       const zu = beiWem(data, b);
-      const ok = await api.ask({ title: 'Beschreibung entfernen?', text: `Die Personenbeschreibung${has(b.von) ? ` von ${str(b.von)}` : ''} wird gelöscht${zu ? ` – auch in der Schilderung (${zu})` : ''}.`, buttons: [{ label: 'Abbrechen', value: null }, { label: 'Entfernen', value: 'ok', cls: 'btn-ghost btn-danger', submit: true }] });
+      // Steht die Person bei einem Fahrzeug als eingestiegen, entfällt das mit – sonst bliebe dort ein Name ohne Beschreibung stehen
+      const imFz = arr((ctxOf(api) || {}).fahrzeuge).some(f => arr(f && f.d && f.d.ins).some(x => x && x.k === b.id));
+      const ok = await api.ask({ title: 'Beschreibung entfernen?', text: `Die Personenbeschreibung${has(b.von) ? ` von ${dativ(b.von)}` : ''} wird gelöscht${zu ? ` – auch in der Schilderung (${zu})` : ''}.${imFz ? ' Bei der Fahrzeugbeschreibung entfällt damit, wo diese Person eingestiegen ist.' : ''}`, buttons: [{ label: 'Abbrechen', value: null }, { label: 'Entfernen', value: 'ok', cls: 'btn-ghost btn-danger', submit: true }] });
       if (!ok) return;
     }
     B.splice(V.i, 1); if (B.length) data.pb = B; else delete data.pb;
-    V.s = 'liste'; V.i = -1; V.f = 'hub'; V.direkt = false;
+    ordnen(data);
+    V.s = 'liste'; V.i = -1; V.f = 'hub'; V.direkt = false; V.nachtrag = false;
     if (!B.length && api.d.status === 'fertig') api.d.status = 'entwurf';
     api.persist(true); api.render();
   }
@@ -726,32 +850,38 @@
     const d = api.d, data = d.data, a = b0.dataset.sd, v = b0.dataset.v, pfad = b0.dataset.p;
     const B = () => { if (!Array.isArray(data.pb)) data.pb = []; return data.pb; };
     const cur = () => B()[V.i];
-    const save = () => { api.persist(false); api.render(); };
+    const save = () => { ordnen(data); api.persist(false); api.render(); };
     /** Folie zeigen. Beim Abschluss ist der Schlusssatz vorgewählt, sobald etwas beschrieben ist und anderes offen blieb. */
     const zeige = (b, f) => { V.f = folien(b).includes(f) ? f : 'hub'; if (V.f === 'wer' && !api.mobile()) V.focus = 'pbVon'; if (V.f === 'ab' && sonstVorwahl(b)) api.persist(false); api.render(); };
     switch (a) {
       case 'add': {
         if (d.status === 'fertig') d.status = 'entwurf';
         const neu = { id: neuId(B()) }; if (formOf(B()[0]) === 'text') neu.form = 'text'; // dieselbe Darstellung wie die übrigen
+        if (B()[0] && B()[0].bez) neu.bez = B()[0].bez; // und dieselbe Bezeichnung – „unbekannte Person 1“ und „2“, nicht „Täter 2“
         B().push(neu);
-        V.i = B().length - 1; V.s = 'b'; V.f = 'hub'; V.direkt = false;
+        V.i = B().length - 1; V.s = 'b'; V.f = 'hub'; V.direkt = false; V.nachtrag = false;
         save(); return true;
       }
-      case 'edit': V.i = Number(b0.dataset.i); V.s = 'b'; V.f = 'hub'; V.direkt = false; api.render(); return true;
+      case 'edit': V.i = Number(b0.dataset.i); V.s = 'b'; V.f = 'hub'; V.direkt = false; V.nachtrag = false; api.render(); return true;
       case 'menu': leave(data); save(); return true;
       /* aus der Übersicht hinaus – in den Vorgang oder zur Liste aller Vorgänge */
       case 'raus': leave(data); api.persist(false); if (typeof api.list === 'function') api.list(); else api.render(); return true;
       /* Bearbeiten/Nachtragen: bei einer einzigen Beschreibung gleich in ihre Übersicht */
       case 'go': { if (V.s === 'b') leave(data); if (B_(data).length === 1) { V.s = 'b'; V.i = 0; V.f = 'hub'; } else { V.s = 'liste'; V.i = -1; } save(); return true; }
-      case 'hub': V.zurueck = V.f; V.f = 'hub'; V.direkt = false; api.render(); return true;
+      case 'hub': V.zurueck = V.f; V.f = 'hub'; V.direkt = false; V.nachtrag = false; api.render(); return true;
       /* einen Punkt in der Übersicht antippen · alles der Reihe nach, beginnend beim ersten offenen */
-      case 'pkt': { const b = cur(); if (!b) return true; V.direkt = true; zeige(b, v); return true; }
-      case 'reihe': { const b = cur(); if (!b) return true; V.direkt = false; zeige(b, erstesOffene(b)); return true; }
-      case 'pf': { const b = cur(); if (!b) return true; const F = folien(b), k = Math.max(0, Math.min(F.length - 1, F.indexOf(V.f) + Number(v))); V.direkt = false; zeige(b, F[k]); return true; }
+      case 'pkt': { const b = cur(); if (!b) return true; V.direkt = true; V.nachtrag = false; zeige(b, v); return true; }
+      /* vom fertigen Text aus direkt zu einem Punkt (data-i = Beschreibung) – „Fertig“ führt von dort zurück zum Text */
+      case 'nach': { V.i = Number(b0.dataset.i); const b = cur(); if (!b) return true; V.s = 'b'; V.direkt = true; V.nachtrag = true; zeige(b, v); return true; }
+      case 'reihe': { const b = cur(); if (!b) return true; V.direkt = false; V.nachtrag = false; zeige(b, erstesOffene(b)); return true; }
+      case 'pf': { const b = cur(); if (!b) return true; const F = folien(b), k = Math.max(0, Math.min(F.length - 1, F.indexOf(V.f) + Number(v))); V.direkt = false; V.nachtrag = false; zeige(b, F[k]); return true; }
       case 'done1': case 'alle': fertig(api); return true;
       case 'del': del(api); return true;
       /* eine Auswahl – ein zweiter Tipp nimmt sie zurück */
-      case 'eins': { const c = getPath(data, pfad); setPath(data, pfad, String(c ?? '') === v ? undefined : (/\.nr$/.test(pfad) ? Number(v) : v)); save(); return true; }
+      case 'eins': { const c = pfad === 'anz' ? anzWahl(data, B_(data)) : getPath(data, pfad); setPath(data, pfad, String(c ?? '') === v ? undefined : (pfad === 'anz' && /^\d+$/.test(v) ? Number(v) : v)); save(); return true; }
+      /* Nummer der beschriebenen Person von Hand wählen – sie gilt dann als gewählt und wird nicht mehr neu vergeben.
+         Eine gewählte Nummer noch einmal antippen gibt sie wieder frei – dann wird die kleinste freie vergeben. */
+      case 'nrw': { const b = cur(); if (!b) return true; if (num(b.nr) === Number(v)) { if (!b.nrA) delete b.nr; } else { b.nr = Number(v); delete b.nrA; } save(); return true; }
       case 'setze': setPath(data, pfad, v); save(); return true;
       /* mehrere bis zu einer Höchstzahl – darüber fällt die älteste Auswahl weg */
       case 'mehr': {
@@ -799,7 +929,7 @@
     steps: [],
     title, subtitle, pill,
     plain, still,
-    text: data => [['', 'Personenbeschreibung', rumpf(data, B_(data)), '']],
+    text: data => { const t = rumpf(data, B_(data)); return [['', 'Personenbeschreibung', t ? mitVorab(data, t) : '', '']]; },
     preview: () => '', kurzText: () => '', fahndung: () => '', offen, personalien: () => '',
     screen: { open, render, mounted, click, input, keydown, submit, key },
     kontext: { nimmt },
@@ -810,6 +940,6 @@
       hat: () => true, setzen: () => true, leer: data => !B_(data).length,
       info: data => { const n = B_(data).length; return n ? `${n} erfasst${namen(data).length ? ' · ' + namen(data).join(', ') : ''}` : ''; }
     },
-    core: { PUNKTE, GRUPPE, MERKMALE, SPANNE, STATUR, PHAENO, FARBE, LAENGE, BART, BEZ, WLV, FORMEN, bezOf, formen, spanneText, spanneKurz, werte, liste, punktWert, punktDa, offene, formOf, teile, text, kurz, istLeer, sonstVorwahl, folien, erstesOffene, luecken, offen, abschnitt, plain, still, nimmt, ordnen }
+    core: { PUNKTE, GRUPPE, MERKMALE, SPANNE, STATUR, PHAENO, FARBE, LAENGE, BART, BEZ, WLV, FORMEN, ANZAHL, einleitung, beschrieben, anzWahl, lueckenZu, bezOf, formen, spanneText, spanneKurz, werte, liste, punktWert, punktDa, offene, formOf, teile, text, kurz, istLeer, sonstVorwahl, folien, erstesOffene, luecken, offen, abschnitt, plain, still, nimmt, ordnen }
   });
 })(typeof window !== 'undefined' ? window : globalThis);

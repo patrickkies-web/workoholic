@@ -115,7 +115,8 @@
     // Fahrzeugbeschreibungen (Zusatzbaustein): wie die Personenbeschreibungen in den Schilderungen übernehmbar
     fahrzeuge: { l: 'Fahrzeugbeschreibungen', lesen: data => arr(data && data.fz).filter(f => f && typeof f === 'object' && has(f.id)).map(f => ({ id: f.id, von: str(f.von), d: JSON.parse(JSON.stringify(f)) })), leer: v => !v.length },
     // Wer welche Personen- oder Fahrzeugbeschreibung übernommen hat – dort steht sie dann, vorn im Gesamtsachverhalt nicht noch einmal
-    nutzung: { l: '', lesen: data => { const C = root.WSchild && root.WSchild.core; return arr(data && data.personen).flatMap((p, i) => [...arr(p && p.pb), ...arr(p && p.fz)].filter(id => typeof id === 'string' && id).map(id => ({ id, wer: C ? C.werVon(data, i) : str(p.nachname) }))); }, leer: () => false },
+    // (wer keine Angaben macht, hat auch nichts beschrieben – bei ihr oder ihm steht die Beschreibung nicht im Text)
+    nutzung: { l: '', lesen: data => { const C = root.WSchild && root.WSchild.core; return arr(data && data.personen).flatMap((p, i) => (p && p.keine ? [] : [...arr(p && p.pb), ...arr(p && p.fz)]).filter(id => typeof id === 'string' && id).map(id => ({ id, wer: C ? C.werVon(data, i) : str(p.nachname) }))); }, leer: () => false },
     // Namen der Personen, die ein Abschnitt selbst führt (nicht übernommen hat) – nur damit Namen und Kürzel überall gleich ausfallen
     namen: { l: '', lesen: data => arr(data && data.personen).filter(p => p && !p.ref && has(p.nachname)).map(p => ({ vorname: str(p.vorname), nachname: str(p.nachname) })), leer: v => !v.length }
   };
@@ -181,23 +182,26 @@
   const G3 = g => (g === 'm' || g === 'w' || g === 'd' ? g : '');
   const P_FELDER = ['geschlecht', 'nachname', 'vorname', 'geb', 'anschrift'];
   /**
-   * Alle Personen, die in den ANDEREN Abschnitten des Vorgangs stehen: [{ key, rolle, g, nachname, vorname, geb?, anschrift?, aus }].
+   * Alle Personen, die in den ANDEREN Abschnitten des Vorgangs stehen: [{ key, alt?, rolle, g, nachname, vorname, geb?, anschrift?, aus }].
    * Zuerst die Eintreffsituation, dann eigene Personen der Schilderungen, dann die betroffene Person aus PsychKG/Gewahrsam.
    * Wer dort nur übernommen ist (ref), zählt nicht als eigene Quelle – ergänzt aber Geburtsdatum und Anschrift.
+   * key = feste Kennung der Person in ihrem Abschnitt. Eigene Personen der Schilderungen fand man früher über ihren Namen
+   * (alt) – wer noch so verknüpft ist, wird beim Abgleich auf die feste Kennung umgestellt; seitdem folgt die Verknüpfung
+   * auch einem berichtigten Namen.
    */
   function leute(data, doc) {
     const out = [], by = new Map();
-    const add = (key, q, aus, nurErgaenzen) => {
+    const add = (key, q, aus, nurErgaenzen, alt) => {
       if (!q || !has(q.nachname)) return;
       let e = by.get(nKey(q));
-      if (!e) { if (nurErgaenzen) return; e = { key, rolle: str(q.rolle), g: G3(q.g), nachname: str(q.nachname), vorname: str(q.vorname), aus }; if (q.ub) e.ub = q.ub; by.set(nKey(q), e); out.push(e); }
+      if (!e) { if (nurErgaenzen) return; e = { key, rolle: str(q.rolle), g: G3(q.g), nachname: str(q.nachname), vorname: str(q.vorname), aus }; if (alt && alt !== key) e.alt = alt; if (q.ub) e.ub = q.ub; by.set(nKey(q), e); out.push(e); }
       if (!e.g && G3(q.g)) e.g = G3(q.g);
       if (!e.geb && has(q.geb)) e.geb = str(q.geb);
       if (!e.anschrift && has(q.anschrift)) e.anschrift = str(q.anschrift);
     };
     const T = teile(data).filter(t => !doc || t.id !== doc.id), n = t => t.m.short || t.m.name;
     for (const t of T) if (t.doc.type === 'eintreffen') for (const p of arr(t.doc.data.personen)) if (p && has(p.pid)) add(`${t.id}:${p.pid}`, p, n(t));
-    for (const t of T) if (t.doc.type === 'sch') for (const p of arr(t.doc.data.personen)) if (p && !p.ref) add(`${t.id}:${nKey(p)}`, p, n(t));
+    for (const t of T) if (t.doc.type === 'sch') for (const p of arr(t.doc.data.personen)) if (p && !p.ref) { const alt = `${t.id}:${nKey(p)}`; add(has(p.sid) ? `${t.id}:s.${p.sid}` : alt, p, n(t), false, alt); }
     for (const t of T) {
       const pf = t.m.vg && t.m.vg.person; if (!pf) continue;
       const p = get(t.doc.data, pf.pfad); if (!p || typeof p !== 'object') continue;
@@ -231,7 +235,12 @@
    */
   function personAnwenden(data, pf, L) {
     const p = get(data, pf.pfad), leer = !p || typeof p !== 'object' || !P_FELDER.some(k => has(p[k]));
-    if (p && p.ref) { const q = arr(L).find(x => x.key === p.ref); if (!q) { delete p.ref; return true; } return personSetzen(data, pf, q); }
+    if (p && p.ref) {
+      let q = arr(L).find(x => x.key === p.ref), um = false;
+      if (!q) { q = arr(L).find(x => x.alt && x.alt === p.ref); if (q) { p.ref = q.key; um = true; } } // früher über den Namen verknüpft: auf die feste Kennung umstellen
+      if (!q) { delete p.ref; return true; }
+      return personSetzen(data, pf, q) || um;
+    }
     if (data.vgv && data.vgv.pfrei) return false; // von Hand gelöst: nicht wieder von selbst verknüpfen
     // schon eingetragen und dieselbe Person wie in einem anderen Abschnitt: verknüpfen, damit Änderungen dort hier ankommen
     if (!leer && has(p.nachname)) { const q = arr(L).find(x => nKey(x) === nKey(p)); return q ? personSetzen(data, pf, q) : false; }
@@ -441,12 +450,14 @@
     }).join('');
     const da = new Set(T.map(t => t.doc.type));
     const frei = TYPEN.filter(k => mod(k) && !da.has(k) && !MATRIX[k].zusatz); // Zusatzbausteine wählt man im Untermenü
+    // „Üblicher Anfang“ steht bereit, solange noch kein gewöhnlicher Abschnitt da ist – auch wenn vor Ort schon ein Zusatzbaustein
+    // (Personen- oder Fahrzeugbeschreibung) aufgenommen wurde: Der reiht sich davor bzw. dahinter ein
     const std = STANDARD.filter(k => frei.includes(k));
     // Tür zum Untermenü „Zusatzbausteine“: Seltenes, das sich je nach Art vorn oder hinten einreiht
     const Z = zusatzModule(), zP = Z.flatMap(x => x.z.punkte.map(p => ({ x, p }))), zN = zP.filter(({ x, p }) => punktAn(T, x, p.k)).length;
     const tor = zP.length ? `<div class="sd-add-row vg-tor"><button type="button" class="sd-add-b" data-sd="zus" aria-pressed="${String(zN > 0)}"><i aria-hidden="true">${zN ? '✓' : '+'}</i><span>Zusatzbausteine<small>${zN ? `${zN} gewählt · ` : ''}${esc(zP.map(({ p }) => p.l).join(' · '))}</small></span></button></div>` : '';
     const add = frei.length || tor
-      ? `<div class="sd-add"><span class="w-lbl">${T.length ? 'Weiteren Abschnitt hinzufügen' : 'Welche Abschnitte gehören zum Vorgang?'}</span>${!T.length && std.length === STANDARD.length ? `<div class="sd-add-row vg-std"><button type="button" class="sd-add-b" data-sd="std"><i aria-hidden="true">+</i><span>Üblicher Anfang<small>${esc(STANDARD.map(k => mod(k).short || mod(k).name).join(' → '))}</small></span></button></div>` : ''}${frei.length ? `<div class="sd-add-row">${frei.map(k => `<button type="button" class="sd-add-b" data-sd="add" data-v="${k}"><i aria-hidden="true">+</i>${esc(mod(k).name)}</button>`).join('')}</div>` : ''}${tor}<p class="w-hint sd-hint">Jeder Abschnitt reiht sich an seiner üblichen Stelle ein und baut auf den anderen auf: Besatzungen aus „Allgemeines“ und Personen aus der „Eintreffsituation“ stehen danach zur Auswahl.</p></div>`
+      ? `<div class="sd-add"><span class="w-lbl">${T.length ? 'Weiteren Abschnitt hinzufügen' : 'Welche Abschnitte gehören zum Vorgang?'}</span>${!T.some(t => !t.cfg.zusatz) && std.length === STANDARD.length ? `<div class="sd-add-row vg-std"><button type="button" class="sd-add-b" data-sd="std"><i aria-hidden="true">+</i><span>Üblicher Anfang<small>${esc(STANDARD.map(k => mod(k).short || mod(k).name).join(' → '))}</small></span></button></div>` : ''}${frei.length ? `<div class="sd-add-row">${frei.map(k => `<button type="button" class="sd-add-b" data-sd="add" data-v="${k}"><i aria-hidden="true">+</i>${esc(mod(k).name)}</button>`).join('')}</div>` : ''}${tor}<p class="w-hint sd-hint">Jeder Abschnitt reiht sich an seiner üblichen Stelle ein und baut auf den anderen auf: Besatzungen aus „Allgemeines“ und Personen aus der „Eintreffsituation“ stehen danach zur Auswahl.</p></div>`
       : '';
     const fertigN = T.filter(t => t.doc.status === 'fertig').length, offen = T.find(t => t.doc.status !== 'fertig');
     const angeh = T.filter(t => kontext(data, t.doc).angehaengt).map(t => `<p class="w-hint vg-ctx">↳ „${esc(t.m.short || t.m.name)}“: die Eintreffsituation von dort wird im Gesamtsachverhalt an den Abschnitt „Eintreffsituation“ angehängt.</p>`).join('');

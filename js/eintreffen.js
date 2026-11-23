@@ -75,7 +75,9 @@
   function nimmt(data, ctx) {
     if (!data || typeof data !== 'object') return false;
     const mit = ctx && Array.isArray(ctx.namen) && ctx.namen.length ? ctx.namen : undefined;
-    if (JSON.stringify(data.mit ?? null) === JSON.stringify(mit ?? null)) return false;
+    // Vergleich unabhängig von der Reihenfolge der Schlüssel: Der Tresor legt Objekte sortiert ab – sonst gälte nach jedem Laden alles als geändert
+    const stabil = v => (Array.isArray(v) ? '[' + v.map(stabil).join(',') + ']' : v && typeof v === 'object' ? '{' + Object.keys(v).sort().map(k => JSON.stringify(k) + ':' + stabil(v[k])).join(',') + '}' : JSON.stringify(v ?? null));
+    if (stabil(data.mit) === stabil(mit)) return false;
     if (mit) data.mit = JSON.parse(JSON.stringify(mit)); else delete data.mit;
     return true;
   }

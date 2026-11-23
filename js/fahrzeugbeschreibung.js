@@ -48,6 +48,8 @@
     .replace(/\s*,\s*/g, (m, at, t) => (/\d$/.test(t.slice(0, at)) && /^\d/.test(t.slice(at + m.length)) ? ',' : ', '))
     .replace(/^[\s,;]+|[\s.,;]+$/g, '');
   const mit = (...t) => t.filter(Boolean).join(', ');
+  /** Name hinter „von“ oder „laut“: „Herr Meier“ → „Herrn Meier“. */
+  const dativ = s => str(s).replace(/^Herr(?=\s)/, 'Herrn');
 
   /* ======================= Kataloge ======================= */
   /** Die Überpunkte der Abfrage in der Reihenfolge der Folien. gr: 'A' = das Fahrzeug selbst · 'B' = was mit ihm geschah. */
@@ -86,14 +88,18 @@
     lkw: ['MAN', 'Mercedes', 'DAF', 'Scania', 'Volvo', 'Iveco'],
     krad: ['Honda', 'Yamaha', 'Kawasaki', 'Suzuki', 'BMW', 'KTM', 'Harley-Davidson', 'Vespa']
   };
-  /** Wo jemand einstieg – je nach Fahrzeugart: [Schlüssel, Chip, im Text]. */
+  /** Wo jemand einstieg – je nach Fahrzeugart: [Schlüssel, Chip, im Text, im Text bei einer Frau (wenn es abweicht)]. */
   const PLATZ = {
-    auto: [['f', 'Fahrer', 'als Fahrer auf der Fahrerseite'], ['bf', 'Beifahrer', 'auf der Beifahrerseite'], ['hl', 'Hinten links', 'hinten links'], ['hr', 'Hinten rechts', 'hinten rechts'], ['h', 'Hinten', 'hinten']],
-    kasten: [['f', 'Fahrer', 'als Fahrer auf der Fahrerseite'], ['bf', 'Beifahrer', 'auf der Beifahrerseite'], ['st', 'Schiebetür', 'durch die seitliche Schiebetür'], ['lr', 'Laderaum', 'hinten in den Laderaum']],
-    lkw: [['f', 'Fahrer', 'als Fahrer auf der Fahrerseite'], ['bf', 'Beifahrer', 'auf der Beifahrerseite']],
-    zweirad: [['f', 'Fahrer', 'als Fahrer'], ['soz', 'Sozius', 'als Sozius']],
+    auto: [['f', 'Fahrer', 'als Fahrer auf der Fahrerseite', 'als Fahrerin auf der Fahrerseite'], ['bf', 'Beifahrer', 'auf der Beifahrerseite'], ['hl', 'Hinten links', 'hinten links'], ['hr', 'Hinten rechts', 'hinten rechts'], ['h', 'Hinten', 'hinten']],
+    kasten: [['f', 'Fahrer', 'als Fahrer auf der Fahrerseite', 'als Fahrerin auf der Fahrerseite'], ['bf', 'Beifahrer', 'auf der Beifahrerseite'], ['st', 'Schiebetür', 'durch die seitliche Schiebetür'], ['lr', 'Laderaum', 'hinten in den Laderaum']],
+    lkw: [['f', 'Fahrer', 'als Fahrer auf der Fahrerseite', 'als Fahrerin auf der Fahrerseite'], ['bf', 'Beifahrer', 'auf der Beifahrerseite']],
+    zweirad: [['f', 'Fahrer', 'als Fahrer', 'als Fahrerin'], ['soz', 'Sozius', 'als Sozius', 'als Sozia']],
     einsitz: [['f', 'Fuhr damit', '']]
   };
+  /** Plätze, die es nur einmal gibt: Wird eine zweite Person dorthin gesetzt, löst sie die erste ab. */
+  const EINER = ['f', 'soz'];
+  /** Wechselt die Fahrzeugart, wandert der Platz mit, wo es eine Entsprechung gibt (Beifahrer ↔ Sozius) – sonst entfällt er. */
+  const PLATZ_UM = { bf: 'soz', soz: 'bf' };
   /** Besetzung: [Schlüssel, Chip, im Text]. */
   const ZAHL = [['1', '1', 'einer Person'], ['2', '2', 'zwei Personen'], ['3', '3', 'drei Personen'], ['4', '4', 'vier Personen'], ['m', 'Mehr', 'mehreren Personen']];
   /** Wie das Fahrzeug im Text heißt: [Schlüssel, Chip, Nominativ/Akkusativ, Dativ]. */
@@ -110,9 +116,9 @@
   /** Steigt man auf (Motorrad, Fahrrad) statt ein? */
   const aufsteigen = f => ['zweirad', 'einsitz'].includes((artOf(f) || [])[3]);
   const bezOf = f => (BEZ.find(x => x[0] === (f && f.bez)) || BEZ[0]);
-  /** { nom, akk, dat } – „das Fluchtfahrzeug“ / „dem Fluchtfahrzeug“, bei mehreren Fahrzeugen mit Nummer. */
+  /** { nom, akk, dat } – „das Fluchtfahrzeug“ / „dem Fluchtfahrzeug“, bei mehreren Fahrzeugen mit Nummer (f.solo: alle beschreiben dasselbe – ohne). */
   function formen(f) {
-    const b = bezOf(f), n = num(f && f.nr), nr = n ? ' ' + n : '';
+    const b = bezOf(f), n = f && !f.solo ? num(f.nr) : null, nr = n ? ' ' + n : '';
     return { nom: b[2] + nr, akk: b[2] + nr, dat: b[3] + nr };
   }
   const farbeText = f => (has(f.farbe) ? (f.ton && !TONLOS.includes(f.farbe) ? f.ton + f.farbe : str(f.farbe)) : TON.some(x => x[0] === f.ton) ? f.ton : '');
@@ -122,10 +128,32 @@
     if (/^richtung\s/i.test(t)) return `in Richtung ${t.replace(/^richtung\s+/i, '')}`;
     return /^(in|auf|nach|zur|zum|über|entlang|durch|gen)\s/i.test(t) || /^(stadt|orts)(ein|aus)wärts/i.test(t) ? t : `in Richtung ${t}`;
   }
-  /** Wer wo einstieg: gültige Einträge mit dem Satzteil zum Platz. Ein Platz, den es bei der Art nicht (mehr) gibt, behält seinen Text. */
+  /**
+   * Wer wo einstieg: [{ k, nom, platz, wie }] – nur Plätze, die es bei dieser Fahrzeugart gibt; die beschriebenen Personen
+   * zuerst, wer nicht eigens beschrieben ist, zuletzt. Diese Person heißt „eine Person“ – oder „eine weitere Person“, wenn
+   * vor ihr schon jemand genannt ist. Bei einer Frau steht „als Fahrerin“; heißt die Person ohnehin „Fahrzeugführer“,
+   * steht „als Fahrer“ nicht noch einmal dabei. Dieselbe Person kommt nur einmal vor.
+   */
   function einstiege(f) {
-    const P = plaetze(f), alle = Object.values(PLATZ).flat();
-    return arr(f && f.ins).filter(x => x && has(x.nom) && has(x.platz)).map(x => ({ k: x.k, nom: str(x.nom), platz: x.platz, wie: ((P.find(p => p[0] === x.platz) || alle.find(p => p[0] === x.platz) || [])[2]) || '' }));
+    const P = plaetze(f), out = [], seen = new Set();
+    const roh = arr(f && f.ins).filter(x => x && has(x.platz) && (x.k === JEMAND || has(x.nom)) && P.some(p => p[0] === x.platz));
+    const benannt = roh.some(x => x.k !== JEMAND);
+    for (const x of [...roh.filter(y => y.k !== JEMAND), ...roh.filter(y => y.k === JEMAND)]) {
+      const nom = x.k === JEMAND ? (benannt ? 'eine weitere Person' : 'eine Person') : str(x.nom);
+      if (seen.has(nom)) continue; seen.add(nom);
+      const p = P.find(q => q[0] === x.platz);
+      let wie = (x.g === 'w' && p[3]) || p[2] || '';
+      if (/fahrzeugführer/i.test(nom)) wie = wie.replace(/^als Fahrer(in)? ?/, '');
+      out.push({ k: x.k, nom, platz: x.platz, wie });
+    }
+    return out;
+  }
+  /** Besetzung, wie sie gilt ('' = keine Angabe): nie weniger Personen, als eingestiegen sind – so steht sie auch im Text. */
+  function besetzt(f) {
+    const k = String((f && f.zahl) ?? ''); if (!ZAHL.some(x => x[0] === k)) return '';
+    if (k === 'm') return 'm';
+    const n = Math.max(Number(k), einstiege(f).length);
+    return ZAHL.some(x => x[0] === String(n)) ? String(n) : 'm';
   }
   /**
    * Die Angaben einer Beschreibung, in der Reihenfolge der Abfrage. Je Angabe:
@@ -144,7 +172,7 @@
     const kz = frei(f.kz), kl = f.kzTeil ? 'Kennzeichenfragment' : 'Kennzeichen';
     add('kz', 'kz', kl, kz, kz ? `${kl} ${kz}` : '', 'A');
     add('bes', 'bes', 'Besonderheiten', frei(f.bes), '', 'A');
-    const E = einstiege(f), z = ZAHL.find(x => x[0] === String(f.zahl ?? ''));
+    const E = einstiege(f), z = ZAHL.find(x => x[0] === besetzt(f));
     add('ins', 'ein', aufsteigen(f) ? 'Aufgestiegen' : 'Eingestiegen', E.map(x => [x.nom, x.wie].filter(Boolean).join(' ')).join('; '), '', 'B');
     add('ins', 'zahl', 'Besetzt mit', z ? z[2] : '', '', 'B');
     add('ins', 'insX', 'Insassen', frei(f.insX), '', 'B');
@@ -199,7 +227,7 @@
     return L.length > n ? L.slice(0, n).join(' · ') + ' …' : L.join(' · ');
   }
   /** Noch nichts eingetragen – eine versehentlich angelegte Beschreibung verschwindet wieder. */
-  const istLeer = f => !f || (!has(f.von) && !werte(f).length && f.sonst !== true && !f.bez && !f.nr);
+  const istLeer = f => !f || (!has(f.von) && !werte(f).length && f.sonst !== true && (!f.nr || !!f.nrA));
   /** Schlusssatz vorwählen (liefert true, wenn er gesetzt wurde): sobald etwas beschrieben ist und anderes offen blieb. */
   const sonstVorwahl = f => { if (!f || f.sonst !== undefined || !werte(f).length || !offene(f).length) return false; f.sonst = true; return true; };
 
@@ -216,7 +244,8 @@
   /** Personen- und Fahrzeugbeschreibung in einem Stück – zum schnellen Weitergeben. pb = Beschreibungen aus dem Vorgang ([{ d }]). */
   function zusammen(data, pb, art) {
     const PB = root.WPB && root.WPB.core;
-    const p = PB ? arr(pb).map(b => PB.text(b && b.d, { art })).filter(Boolean).join('\n') : '';
+    const D = arr(pb).map(b => b && b.d).filter(Boolean), t = PB ? D.map(b => PB.text(b, { art })).filter(Boolean).join('\n') : '';
+    const p = t ? [PB.einleitung(D, { art }), t].filter(Boolean).join('\n') : '';
     return [p ? `Personenbeschreibung\n${p}` : '', abschnitt(data)].filter(Boolean).join('\n\n');
   }
 
@@ -241,16 +270,36 @@
   function pill(data) { const L = F_(data); return L.length ? `${L.filter(f => f.fertig).length}/${L.length}` : 'neu'; }
 
   /* ======================= Kontext aus dem Vorgang ======================= */
-  /** Die beschriebenen Personen des Vorgangs, wie sie beim Fahrzeug zur Wahl stehen: [{ k, nom, von }]. */
-  function personen(ctx) {
-    const PB = root.WPB && root.WPB.core;
-    return PB ? arr(ctx && ctx.beschreibungen).filter(b => b && has(b.id)).map(b => ({ k: b.id, nom: PB.formen(b.d, ctx.art).nom, von: str(b.von) })) : [];
+  /**
+   * Die beschriebenen Personen des Vorgangs, wie sie beim Fahrzeug zur Wahl stehen: [{ k, ks, nom, g, von }]. Haben zwei Zeugen
+   * dieselbe Person beschrieben (gleiche Bezeichnung und Nummer), steht sie nur einmal da – ks nennt dann alle ihre
+   * Beschreibungen, damit eine Verknüpfung mit jeder von ihnen als dieselbe Person gilt; alle = jede Beschreibung für sich.
+   */
+  function personen(ctx, alle = false) {
+    const PB = root.WPB && root.WPB.core; if (!PB) return [];
+    const P = arr(ctx && ctx.beschreibungen).filter(b => b && has(b.id)).map(b => ({ k: b.id, ks: [b.id], nom: PB.formen(b.d, ctx.art).nom, g: b.d && b.d.g === 'w' ? 'w' : '', von: str(b.von) }));
+    if (alle) return P;
+    const out = [];
+    for (const q of P) {
+      const da = out.find(x => x.nom === q.nom);
+      if (!da) { out.push({ ...q, ks: [q.k] }); continue; }
+      da.ks.push(q.k);
+      if (q.von && !da.von.split(', ').includes(q.von)) da.von = [da.von, q.von].filter(Boolean).join(', ');
+    }
+    return out;
+  }
+  /** Einträge „wer stieg ein“ in der Reihenfolge der beschriebenen Personen; wer nicht eigens beschrieben ist, zuletzt. */
+  function insSortieren(I, P) {
+    const ord = arr(P).flatMap(q => q.ks || [q.k]), rang = x => (x.k === JEMAND ? 1e9 : ord.indexOf(x.k) < 0 ? 1e8 : ord.indexOf(x.k));
+    return I.map((x, i) => [x, i]).sort((a, b) => rang(a[0]) - rang(b[0]) || a[1] - b[1]).map(a => a[0]);
   }
   /**
    * Übernimmt aus dem Vorgang (rein, ohne DOM; liefert true, wenn sich etwas geändert hat):
    * – bei wem welche Beschreibung in den Schilderungen steht (data.zu) und ob es Schilderungen gibt (data.schDa),
    * – wie die verknüpften Personen der Personenbeschreibung heißen („der Täter“, „die Täterin 2“) – ändert sich dort
-   *   Geschlecht, Bezeichnung oder Nummer, stimmt der Satz auch hier. Eine gelöschte Personenbeschreibung lässt den Satz stehen.
+   *   Geschlecht, Bezeichnung oder Nummer, stimmt der Satz auch hier. Wird die Personenbeschreibung gelöscht, entfällt die
+   *   Verknüpfung: Sonst bliebe ein Name stehen, den es im Bericht nicht mehr gibt – oder den inzwischen jemand anderes trägt.
+   *   Gelten zwei Einträge nach einer Änderung dort derselben Person, bleibt der erste.
    */
   function nimmt(data, ctx) {
     if (!data || typeof data !== 'object' || !ctx) return false;
@@ -260,8 +309,18 @@
     for (const n of arr(ctx.nutzung)) if (n && has(n.id) && F_(data).some(f => f.id === n.id)) zu[n.id] = str(n.wer) || 'eine Person';
     set('zu', Object.keys(zu).length ? zu : undefined);
     set('schDa', ctx.nutzungAus ? true : undefined);
-    const P = new Map(personen(ctx).map(q => [q.k, q.nom]));
-    for (const f of F_(data)) for (const x of arr(f.ins)) if (x && P.has(x.k) && x.nom !== P.get(x.k)) { x.nom = P.get(x.k); ch = true; }
+    const P = personen(ctx, true), by = new Map(P.map(q => [q.k, q]));
+    for (const f of F_(data)) {
+      if (f.ins == null) continue;
+      let I = arr(f.ins).filter(x => x && typeof x === 'object' && (x.k === JEMAND || by.has(x.k))).map(x => {
+        const q = by.get(x.k); if (!q) return x;
+        const y = { k: x.k, nom: q.nom, platz: x.platz }; if (q.g) y.g = q.g; return y;
+      });
+      const seen = new Set();
+      I = insSortieren(I.filter(x => { const n = x.k === JEMAND ? JEMAND : x.nom; if (seen.has(n)) return false; seen.add(n); return true; }), P);
+      if (!same(I, f.ins)) { if (I.length) f.ins = I; else delete f.ins; ch = true; }
+    }
+    if (ordnen(data)) ch = true;
     return ch;
   }
 
@@ -272,14 +331,47 @@
    *   je Beschreibung:  'b' mit V.f = 'hub' (Übersicht der Überpunkte) oder einer Folie, eine je Überpunkt:
    *                     'wer' → 'art' → 'farbe' → 'marke' → 'kz' → 'bes' → 'ins' → 'richt' → 'ab'
    */
-  const V = { id: null, s: 'liste', i: -1, f: 'hub', direkt: false, zurueck: '', neu: false, focus: '' };
+  const V = { id: null, s: 'liste', i: -1, f: 'hub', direkt: false, nachtrag: false, zurueck: '', neu: false, focus: '' };
   const $ = s => document.querySelector(s);
   const punkt = k => PUNKTE.find(p => p.k === k);
   const folien = () => PUNKTE.map(p => p.k);
   const punktDa = (f, k) => { f = f || {}; return k === 'wer' ? has(f.von) : k === 'ab' ? f.sonst === true : !!punktWert(f, k); };
   const erstesOffene = f => folien().find(k => !punktDa(f, k)) || 'ab';
   const neuId = L => { let id; do { id = 'f' + Math.random().toString(36).slice(2, 8); } while (arr(L).some(f => f && f.id === id)); return id; };
-  /** Bringt die Liste in Form (liefert true, wenn etwas geändert wurde): nur Beschreibungen, jede mit eigener Kennung. */
+  /** Lücken in den vergebenen Nummern schließen – wie bei der Personenbeschreibung: Nicht von Hand gewählte rücken auf die kleinste freie davor. */
+  function lueckenZu(L) {
+    const fest = new Set(L.filter(f => !f.nrA).map(f => num(f.nr)).filter(n => n != null));
+    const lose = [...new Set(L.filter(f => f.nrA).map(f => num(f.nr)).filter(n => n != null && !fest.has(n)))].sort((x, y) => x - y);
+    const belegt = new Set(fest); let ch = false;
+    for (const m of lose) {
+      let n = 1; while (belegt.has(n)) n++;
+      const ziel = Math.min(n, m); belegt.add(ziel);
+      if (ziel !== m) { for (const f of L) if (f.nrA && num(f.nr) === m) f.nr = ziel; ch = true; }
+    }
+    return ch;
+  }
+  /**
+   * Wer wo einstieg, passend zur Fahrzeugart (liefert true, wenn etwas geändert wurde): Ein Platz, den es bei der Art nicht
+   * gibt, wandert auf seine Entsprechung (Beifahrer ↔ Sozius) oder entfällt; Fahrer und Sozius gibt es je nur einmal.
+   */
+  function plaetzeOrdnen(f) {
+    if (f.ins == null) return false;
+    const P = plaetze(f).map(p => p[0]), I = [], einmal = new Set();
+    for (const x of arr(f.ins)) {
+      if (!x || typeof x !== 'object' || !has(x.k) || !has(x.platz)) continue;
+      const platz = P.includes(x.platz) ? x.platz : P.includes(PLATZ_UM[x.platz]) ? PLATZ_UM[x.platz] : '';
+      if (!platz || I.some(y => y.k === x.k)) continue;
+      if (EINER.includes(platz)) { if (einmal.has(platz)) continue; einmal.add(platz); }
+      I.push(platz === x.platz ? x : { ...x, platz });
+    }
+    if (same(I, f.ins)) return false;
+    if (I.length) f.ins = I; else delete f.ins;
+    return true;
+  }
+  /**
+   * Bringt die Liste in Form (liefert true, wenn etwas geändert wurde): nur Beschreibungen, jede mit eigener Kennung, die Plätze
+   * passend zur Fahrzeugart, dazu die Nummern. Läuft nach jeder Änderung und bei jedem Abgleich des Vorgangs.
+   */
   function ordnen(data) {
     if (!data || data.fz == null) return false;
     let ch = false;
@@ -287,6 +379,17 @@
     if (!Array.isArray(data.fz) || L.length !== data.fz.length) ch = true;
     for (const f of L) { if (!has(f.id) || seen.has(f.id)) { f.id = neuId(L); ch = true; } seen.add(f.id); }
     if (ch) { if (L.length) data.fz = L; else delete data.fz; }
+    for (const f of L) if (plaetzeOrdnen(f)) ch = true;
+    // Nummern wie bei der Personenbeschreibung: bei mehreren Fahrzeugen bekommt jedes die kleinste freie (f.nrA = vergeben, nicht
+    // gewählt); fällt eines weg, rücken die vergebenen auf; allein entfällt die vergebene Nummer wieder
+    for (const f of L) {
+      if (L.length < 2) { if (f.nrA) { delete f.nr; delete f.nrA; ch = true; } continue; }
+      if (num(f.nr) == null) { const belegt = new Set(L.map(x => num(x.nr)).filter(n => n != null)); let n = 1; while (belegt.has(n)) n++; f.nr = n; f.nrA = true; ch = true; }
+    }
+    if (L.length > 1 && lueckenZu(L)) ch = true;
+    // Beschreiben alle dasselbe Fahrzeug (dieselbe Nummer), bleibt die Nummer aus dem Text
+    const allein = new Set(L.map(f => num(f.nr)).filter(n => n != null)).size <= 1;
+    for (const f of L) { const s = allein && num(f.nr) != null; if (!!f.solo !== s) { if (s) f.solo = true; else delete f.solo; ch = true; } }
     return ch;
   }
   const ctxOf = api => (api && typeof api.ctx === 'function' ? api.ctx() : null);
@@ -313,7 +416,7 @@
 
   function open(d) {
     const L = F_(d && d.data);
-    V.id = d.id; V.f = 'hub'; V.direkt = false; V.zurueck = ''; V.focus = '';
+    V.id = d.id; V.f = 'hub'; V.direkt = false; V.nachtrag = false; V.zurueck = ''; V.focus = '';
     V.neu = !L.length; // leer geöffnet: gleich mit der ersten Beschreibung beginnen
     if (d.status === 'fertig' && L.length) { V.s = 'done'; V.i = -1; }
     else if (L.length === 1) { V.s = 'b'; V.i = 0; }
@@ -330,8 +433,12 @@
   /* ---------- Folien einer Beschreibung: je Überpunkt eine ---------- */
   function werHtml(f, base, api, L) {
     const ctx = ctxOf(api), P = arr(ctx && ctx.leute).filter(q => q && has(q.nachname));
-    const vor = P.length ? `<div class="w-chips sd-sugg">${P.map(q => { const n = personName(q); return `<button type="button" class="chip sm" data-sd="von" data-v="${esc(n)}" aria-pressed="${String(str(f.von) === n)}">${esc(n)}${rolleL(q) ? `<small class="sd-sm">${esc(rolleL(q))}</small>` : ''}</button>`; }).join('')}</div>` : '';
-    const nrQ = L.length > 1 || f.nr ? `<div class="w-q" data-q="nr"><span class="w-lbl">Mehrere Fahrzeuge? <i class="w-hint-i">(Nummer, optional)</i></span><div class="w-chips">${eins(`${base}.nr`, f.nr, [['1', '1'], ['2', '2'], ['3', '3'], ['4', '4']], 'chip mono')}</div></div>` : '';
+    // Vorschläge für den Namen: wer schon ein Fahrzeug oder eine Person beschrieben hat, dann die Personen des Vorgangs
+    const zuvor = [...new Set([...L.filter(x => x !== f).map(x => str(x.von)), ...arr(ctx && ctx.beschreibungen).map(b => str(b && b.von))].filter(Boolean))];
+    const namen2 = [...zuvor.filter(n => !P.some(q => personName(q) === n)).map(n => ({ n, r: 'wie zuvor' })), ...P.map(q => ({ n: personName(q), r: rolleL(q) }))]
+      .sort((x, y) => Number(zuvor.includes(y.n)) - Number(zuvor.includes(x.n))); // wer schon beschrieben hat, steht vorn
+    const vor = namen2.length ? `<div class="w-chips sd-sugg">${namen2.map(c => `<button type="button" class="chip sm" data-sd="von" data-v="${esc(c.n)}" aria-pressed="${String(str(f.von) === c.n)}">${esc(c.n)}${c.r ? `<small class="sd-sm">${esc(c.r)}</small>` : ''}</button>`).join('')}</div>` : '';
+    const nrQ = L.length > 1 || f.nr ? `<div class="w-q" data-q="nr"><span class="w-lbl">Welches Fahrzeug ist das?</span><div class="w-chips" role="group" aria-label="Nummer des Fahrzeugs">${Array.from({ length: Math.min(9, Math.max(4, L.length, num(f.nr) || 0)) }, (x, n) => `<button type="button" class="chip mono" data-sd="nrw" data-v="${n + 1}" aria-pressed="${String(num(f.nr) === n + 1)}">${n + 1}</button>`).join('')}</div><p class="w-hint sd-hint">${f.solo ? 'Alle beschreiben dasselbe Fahrzeug – im Text steht es deshalb ohne Nummer.' : 'Die Nummer wird von selbst vergeben. Beschreiben zwei Zeugen dasselbe Fahrzeug: bei beiden dieselbe Nummer antippen.'}</p></div>` : '';
     return `<div class="w-q" data-q="von"><label class="w-lbl" for="fzVon">Wer beschreibt?</label><input class="input" id="fzVon" data-sk="${base}.von" value="${esc(f.von || '')}" placeholder="z. B. Frau Müller" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="done" maxlength="80">${vor}<p class="w-hint sd-hint">Nur für deine Zuordnung – bei den Schilderungen übernimmst du die Beschreibung später mit einem Tipp bei der richtigen Person.</p></div>
       <div class="w-q" data-q="bez"><span class="w-lbl">Wie heißt es im Text?</span><div class="w-chips" role="group" aria-label="Bezeichnung im Text">${BEZ.map(([k, l]) => `<button type="button" class="chip" data-sd="setze" data-p="${base}.bez" data-v="${k}" aria-pressed="${String(bezOf(f)[0] === k)}">${esc(l)}</button>`).join('')}</div></div>
       ${nrQ}`;
@@ -362,15 +469,16 @@
   function insHtml(f, base, api) {
     const ctx = ctxOf(api), P = personen(ctx), auf = aufsteigen(f), Pl = plaetze(f);
     // Wer zur Wahl steht: die beschriebenen Personen, dazu jemand, der nicht eigens beschrieben ist – und wer schon eingetragen ist
-    const zeilen = [...P, { k: JEMAND, nom: P.length ? 'eine weitere Person' : 'eine Person', von: '' }];
-    for (const x of arr(f.ins)) if (x && has(x.nom) && !zeilen.some(q => q.k === x.k)) zeilen.push({ k: x.k, nom: str(x.nom), von: '' });
+    const zeilen = [...P, { k: JEMAND, ks: [JEMAND], nom: P.length ? 'eine weitere Person' : 'eine Person', von: '' }];
+    for (const x of arr(f.ins)) if (x && has(x.nom) && !zeilen.some(q => q.ks.includes(x.k))) zeilen.push({ k: x.k, ks: [x.k], nom: str(x.nom), g: x.g || '', von: '' });
     const reihen = zeilen.map(q => {
-      const cur = (arr(f.ins).find(x => x && x.k === q.k) || {}).platz;
-      return `<div class="fz-pers"><span class="w-lbl">${esc(cap(q.nom))}${q.von ? ` <i class="w-hint-i">laut ${esc(q.von)}</i>` : ''}</span><div class="w-chips" role="group" aria-label="${esc(cap(q.nom))}: ${auf ? 'aufgestiegen' : 'eingestiegen'}">${Pl.map(([v, l]) => `<button type="button" class="chip" data-sd="platz" data-k="${esc(q.k)}" data-n="${esc(q.nom)}" data-v="${v}" aria-pressed="${String(cur === v)}">${esc(l)}</button>`).join('')}</div></div>`;
+      const cur = (arr(f.ins).find(x => x && q.ks.includes(x.k)) || {}).platz;
+      return `<div class="fz-pers"><span class="w-lbl">${esc(cap(q.nom))}${q.von ? ` <i class="w-hint-i">laut ${esc(q.von.split(', ').map(dativ).join(', '))}</i>` : ''}</span><div class="w-chips" role="group" aria-label="${esc(cap(q.nom))}: ${auf ? 'aufgestiegen' : 'eingestiegen'}">${Pl.map(([v, l]) => `<button type="button" class="chip" data-sd="platz" data-k="${esc(q.k)}" data-n="${esc(q.nom)}" data-g="${esc(q.g || '')}" data-v="${v}" aria-pressed="${String(cur === v)}">${esc(q.g === 'w' && l === 'Fahrer' ? 'Fahrerin' : q.g === 'w' && l === 'Sozius' ? 'Sozia' : l)}</button>`).join('')}</div></div>`;
     }).join('');
+    const nE = einstiege(f).length, zE = besetzt(f);
     const hin = P.length ? 'Zur Wahl stehen die Personen aus der Personenbeschreibung. Nichts antippen heißt: kein Bezug – dann steht dazu nichts im Text.' : 'Ist im Vorgang eine Personenbeschreibung aufgenommen, steht die beschriebene Person hier zur Wahl.';
     return `<div class="w-q" data-q="ein"><span class="w-lbl">${auf ? 'Wer stieg auf?' : 'Wer stieg ein – und wo?'}</span>${reihen}<p class="w-hint sd-hint">${hin}</p></div>
-      <div class="w-q" data-q="zahl"><span class="w-lbl">Mit wie vielen Personen besetzt? <i class="w-hint-i">(optional)</i></span><div class="w-chips" role="group" aria-label="Besetzung">${eins(`${base}.zahl`, f.zahl, ZAHL.map(x => [x[0], x[1]]), 'chip mono')}</div></div>
+      <div class="w-q" data-q="zahl"><span class="w-lbl">Mit wie vielen Personen besetzt? <i class="w-hint-i">(optional)</i></span><div class="w-chips" role="group" aria-label="Besetzung">${ZAHL.map(([v, l]) => `<button type="button" class="chip mono" data-sd="eins" data-p="${base}.zahl" data-v="${v}" aria-pressed="${String(zE === v)}"${v !== 'm' && Number(v) < nE ? ' disabled' : ''}>${l}</button>`).join('')}</div>${nE > 1 ? `<p class="w-hint sd-hint">Eingestiegen sind schon ${nE} – weniger können es nicht gewesen sein.</p>` : ''}</div>
       ${feld('fzInsX', `${base}.insX`, f.insX, 'Weiteres zu den Insassen', 'z. B. Beifahrer trug eine helle Mütze')}`;
   }
   function abHtml(f) {
@@ -388,11 +496,11 @@
     const kurzwahl = k => {
       // Schnellwahl: „dunkel“ reicht oft schon als Farbe · die beschriebene Person als Fahrer
       if (k === 'farbe') return `<div class="pb-kurz">${TON.slice().reverse().map(([v, l]) => `<button type="button" class="chip" data-sd="eins" data-p="${base}.ton" data-v="${v}" aria-pressed="${String(f.ton === v)}">${l}</button>`).join('')}</div>`;
-      if (k === 'ins' && P.length) return `<div class="pb-kurz">${P.slice(0, 2).map(q => `<button type="button" class="chip" data-sd="platz" data-k="${esc(q.k)}" data-n="${esc(q.nom)}" data-v="f" aria-pressed="${String(arr(f.ins).some(x => x && x.k === q.k && x.platz === 'f'))}">${esc(cap(q.nom))} als Fahrer</button>`).join('')}</div>`;
+      if (k === 'ins' && P.length) return `<div class="pb-kurz">${P.slice(0, 2).map(q => `<button type="button" class="chip" data-sd="platz" data-k="${esc(q.k)}" data-n="${esc(q.nom)}" data-g="${esc(q.g || '')}" data-v="f" aria-pressed="${String(arr(f.ins).some(x => x && q.ks.includes(x.k) && x.platz === 'f'))}">${esc(cap(q.nom))} als ${q.g === 'w' ? 'Fahrerin' : 'Fahrer'}</button>`).join('')}</div>`;
       return '';
     };
     const zeile = k => { const da = punktDa(f, k); return `<button type="button" class="sd-add-b pb-pkt" data-sd="pkt" data-v="${k}" aria-pressed="${String(da)}"><i aria-hidden="true">${da ? '✓' : F.indexOf(k) + 1}</i><span>${esc(punkt(k).l)}<small>${esc(punktZeile(f, k))}</small></span></button>${kurzwahl(k)}`; };
-    const block = (q, titel, K) => `<div class="w-q" data-q="${q}">${titel ? `<span class="w-mk-gt">${esc(titel)}</span>` : ''}<div class="zs-list pb-pkte">${K.map(zeile).join('')}</div></div>`;
+    const block = (q, titel, K) => `<div class="w-q" data-q="${q}">${titel ? `<span class="pb-grp">${esc(titel)}</span>` : ''}<div class="zs-list pb-pkte">${K.map(zeile).join('')}</div></div>`;
     const up = L.length > 1 ? { label: 'Fahrzeuge', attr: 'data-sd="menu"' } : { label: ctxOf(api) ? 'Vorgang' : 'Alle Vorgänge', attr: 'data-sd="raus"' };
     const next = leer ? { label: 'Der Reihe nach abfragen', attr: 'data-sd="reihe"' } : { label: 'Fertig', attr: 'data-sd="done1"', ok: true };
     return `${api.kopf({ up, sub: subOf(L, i), titel: has(f.von) ? `Was kann ${str(f.von)} zum Fahrzeug sagen?` : 'Was ist zum Fahrzeug bekannt?', lead: leer ? 'Der Reihe nach abfragen – oder nur antippen, wozu es Angaben gibt. Was offen bleibt, steht nicht im Text.' : 'Antippen öffnet den Punkt. Was offen bleibt, steht nicht im Text.' })}
@@ -412,7 +520,7 @@
     if (V.f === 'hub') return hubHtml(d, api);
     const k = F.indexOf(V.f), last = k === F.length - 1;
     const zurHub = { label: 'Übersicht', attr: 'data-sd="hub"' };
-    const fuss = api.fuss({ back: V.direkt || !k ? zurHub : { attr: 'data-sd="pf" data-v="-1"' }, next: last ? { label: 'Fertig', attr: 'data-sd="done1"', ok: true } : { attr: 'data-sd="pf" data-v="1"' } });
+    const fuss = api.fuss({ back: V.direkt || !k ? zurHub : { attr: 'data-sd="pf" data-v="-1"' }, next: last || V.nachtrag ? { label: 'Fertig', attr: 'data-sd="done1"', ok: true } : { attr: 'data-sd="pf" data-v="1"' } });
     const seite = (titel, lead, inhalt) => `${api.kopf({ up: zurHub, sub: subOf(L, i), subLive: 'sub', pos: [k + 1, F.length], titel, lead })}<div class="w-grid sd-grid">${inhalt}${imText(f, V.f)}</div>${fuss}`;
     if (V.f === 'art') return seite('Was für ein Fahrzeug?', '', artHtml(f, base));
     if (V.f === 'farbe') return seite('Welche Farbe?', '', farbeHtml(f, base));
@@ -423,6 +531,17 @@
     if (V.f === 'richt') return seite('Wohin fuhr es?', 'Kann leer bleiben.', feld('fzRicht', `${base}.richt`, f.richt, 'Fahrtrichtung', 'z. B. Bahnhof, Innenstadt, A 2', { kurz: true, hin: 'Ein Ziel genügt – im Text wird daraus „… entfernte sich in Richtung Bahnhof“.' }));
     if (V.f === 'ab') return seite('Zum Abschluss', 'Mehr nicht bekannt?', abHtml(f));
     return seite('Wer beschreibt was?', '', werHtml(f, base, api, L));
+  }
+
+  /** Nachtragen vom fertigen Text aus: die Überpunkte als Sprungmarken, gegliedert wie die Ausgabe – „Fertig“ führt von dort zurück zum Text. */
+  function nachtragHtml(L, i) {
+    const f = L[i] || {};
+    const marke = k => `<button type="button" class="chip pb-ntc${punktDa(f, k) ? ' da' : ''}" data-sd="nach" data-i="${i}" data-v="${k}">${esc(punkt(k).l)}</button>`;
+    const reihe = (titel, K) => `<span class="pb-grp">${esc(titel)}</span><div class="w-chips">${K.map(marke).join('')}</div>`;
+    return `<div class="w-q pb-nt" data-q="nt${i}"><span class="w-lbl">${esc(L.length > 1 ? `Nachtragen bei ${formen(f).dat}${has(f.von) ? ` (${str(f.von)})` : ''}` : 'Nachtragen')} <i class="w-hint-i">– direkt zur passenden Stelle</i></span>
+      ${reihe(GRUPPE.A, PUNKTE.filter(p => p.gr === 'A').map(p => p.k))}
+      ${reihe(GRUPPE.B, PUNKTE.filter(p => p.gr === 'B').map(p => p.k))}
+      ${reihe('Außerdem', ['wer', 'ab'])}</div>`;
   }
 
   /* ---------- Folien des Abschnitts ---------- */
@@ -444,7 +563,7 @@
   function doneHtml(d, api) {
     const data = d.data, L = F_(data), miss = luecken(data), frei2 = unverteilt(data), n = miss.length + frei2.length;
     const zu = L.filter(f => beiWem(data, f)), pb = arr((ctxOf(api) || {}).beschreibungen);
-    const blocks = L.map((f, i) => `<div class="w-q"><div class="w-out"><div class="w-out-h vg-oh"><span class="w-lbl">${esc(has(f.von) ? `Von ${str(f.von)}` : `Fahrzeug ${i + 1}`)}${beiWem(data, f) ? ` <i class="w-hint-i">steht in der Schilderung: ${esc(beiWem(data, f))}</i>` : ''}</span>${L.length > 1 ? `<span class="vg-tools"><button type="button" class="btn btn-light btn-sm" data-sd="copy1" data-i="${i}">Kopieren</button></span>` : ''}</div><pre class="w-out-t">${esc(text(f) || '– noch nichts erfasst –')}</pre></div></div>`).join('');
+    const blocks = L.map((f, i) => `<div class="w-q"><div class="w-out"><div class="w-out-h vg-oh"><span class="w-lbl">${esc(L.length > 1 ? `${cap(formen(f).nom)}${has(f.von) ? ` · von ${dativ(f.von)}` : ''}` : has(f.von) ? `Von ${dativ(f.von)}` : `Fahrzeug ${i + 1}`)}${beiWem(data, f) ? ` <i class="w-hint-i">steht in der Schilderung: ${esc(beiWem(data, f))}</i>` : ''}</span>${L.length > 1 ? `<span class="vg-tools"><button type="button" class="btn btn-light btn-sm" data-sd="copy1" data-i="${i}">Kopieren</button></span>` : ''}</div><pre class="w-out-t">${esc(text(f) || '– noch nichts erfasst –')}</pre></div></div>`).join('');
     return `${api.kopf({ fertig: n ? `Fertig · ${n} offen` : 'Fertig', offen: n > 0, titel: 'So steht es im Text' })}
       <div class="w-grid sd-grid">
         ${miss.length ? `<div class="w-q"><div class="w-warn fo-warn"><span>Noch offen: ${esc(miss.join(' · '))}</span><button type="button" class="btn btn-ghost btn-sm" data-sd="go" data-v="liste">Nachtragen</button></div></div>` : ''}
@@ -453,6 +572,7 @@
       </div>
       <button type="button" class="btn btn-light fo-wide" data-sd="copy">Text kopieren</button>
       ${pb.length ? '<button type="button" class="btn btn-ghost fo-wide pb-beides" data-sd="copy2">Mit Personenbeschreibung kopieren</button>' : ''}
+      <div class="w-grid sd-grid pb-ntg">${L.map((f, i) => nachtragHtml(L, i)).join('')}</div>
       ${frei2.length ? `<div class="w-info pb-nach">${frei2.length === 1 ? 'Diese Beschreibung steht' : `${frei2.length} Beschreibungen stehen`} noch bei keiner Schilderung. In den Schilderungen bei der Person antippen (Folie „Hat … beschrieben?“) – dann steht sie dort mit Rolle und Namen.</div>` : zu.length ? '<p class="w-hint pb-nach">Im Gesamtsachverhalt steht die Beschreibung bei der Schilderung, nicht noch einmal vorn. Hier bleibt sie zum Kopieren.</p>' : ''}
       ${api.fein({ mehr: '<button type="button" class="link" data-sd="add">+ Weiteres Fahrzeug</button>' })}
       ${api.fuss({ back: { label: 'Bearbeiten', attr: 'data-sd="go" data-v="liste"' }, next: api.danach() })}`;
@@ -492,17 +612,19 @@
   function leave(data) {
     const L = F_(data);
     if (V.s === 'b' && istLeer(L[V.i])) { L.splice(V.i, 1); if (L.length) data.fz = L; else delete data.fz; }
-    V.s = 'liste'; V.i = -1; V.f = 'hub'; V.direkt = false;
+    ordnen(data); // Nummern stimmen sofort – auch wenn es von hier gleich in einen anderen Abschnitt geht
+    V.s = 'liste'; V.i = -1; V.f = 'hub'; V.direkt = false; V.nachtrag = false;
   }
   async function del(api) {
     const data = api.d.data, L = F_(data), f = L[V.i]; if (!f) return;
     if (!istLeer(f)) {
       const zu = beiWem(data, f);
-      const ok = await api.ask({ title: 'Beschreibung entfernen?', text: `Die Fahrzeugbeschreibung${has(f.von) ? ` von ${str(f.von)}` : ''} wird gelöscht${zu ? ` – auch in der Schilderung (${zu})` : ''}.`, buttons: [{ label: 'Abbrechen', value: null }, { label: 'Entfernen', value: 'ok', cls: 'btn-ghost btn-danger', submit: true }] });
+      const ok = await api.ask({ title: 'Beschreibung entfernen?', text: `Die Fahrzeugbeschreibung${has(f.von) ? ` von ${dativ(f.von)}` : ''} wird gelöscht${zu ? ` – auch in der Schilderung (${zu})` : ''}.`, buttons: [{ label: 'Abbrechen', value: null }, { label: 'Entfernen', value: 'ok', cls: 'btn-ghost btn-danger', submit: true }] });
       if (!ok) return;
     }
     L.splice(V.i, 1); if (L.length) data.fz = L; else delete data.fz;
-    V.s = 'liste'; V.i = -1; V.f = 'hub'; V.direkt = false;
+    ordnen(data);
+    V.s = 'liste'; V.i = -1; V.f = 'hub'; V.direkt = false; V.nachtrag = false;
     if (!L.length && api.d.status === 'fertig') api.d.status = 'entwurf';
     api.persist(true); api.render();
   }
@@ -521,40 +643,56 @@
     const d = api.d, data = d.data, a = b0.dataset.sd, v = b0.dataset.v, pfad = b0.dataset.p;
     const L = () => { if (!Array.isArray(data.fz)) data.fz = []; return data.fz; };
     const cur = () => L()[V.i];
-    const save = () => { api.persist(false); api.render(); };
+    const save = () => { ordnen(data); api.persist(false); api.render(); };
     const zeige = (f, k) => { V.f = folien().includes(k) ? k : 'hub'; if (V.f === 'wer' && !api.mobile()) V.focus = 'fzVon'; if (V.f === 'ab' && sonstVorwahl(f)) api.persist(false); api.render(); };
     switch (a) {
       case 'add': {
         if (d.status === 'fertig') d.status = 'entwurf';
         const neu = { id: neuId(L()) }; if (formOf(L()[0]) === 'text') neu.form = 'text';
+        if (L()[0] && L()[0].bez) neu.bez = L()[0].bez; // dieselbe Bezeichnung wie beim ersten
         L().push(neu);
-        V.i = L().length - 1; V.s = 'b'; V.f = 'hub'; V.direkt = false;
+        V.i = L().length - 1; V.s = 'b'; V.f = 'hub'; V.direkt = false; V.nachtrag = false;
         save(); return true;
       }
-      case 'edit': V.i = Number(b0.dataset.i); V.s = 'b'; V.f = 'hub'; V.direkt = false; api.render(); return true;
+      case 'edit': V.i = Number(b0.dataset.i); V.s = 'b'; V.f = 'hub'; V.direkt = false; V.nachtrag = false; api.render(); return true;
       case 'menu': leave(data); save(); return true;
       case 'raus': leave(data); api.persist(false); if (typeof api.list === 'function') api.list(); else api.render(); return true;
       case 'go': { if (V.s === 'b') leave(data); if (F_(data).length === 1) { V.s = 'b'; V.i = 0; V.f = 'hub'; } else { V.s = 'liste'; V.i = -1; } save(); return true; }
-      case 'hub': V.zurueck = V.f; V.f = 'hub'; V.direkt = false; api.render(); return true;
-      case 'pkt': { const f = cur(); if (!f) return true; V.direkt = true; zeige(f, v); return true; }
-      case 'reihe': { const f = cur(); if (!f) return true; V.direkt = false; zeige(f, erstesOffene(f)); return true; }
-      case 'pf': { const f = cur(); if (!f) return true; const F = folien(), k = Math.max(0, Math.min(F.length - 1, F.indexOf(V.f) + Number(v))); V.direkt = false; zeige(f, F[k]); return true; }
+      case 'hub': V.zurueck = V.f; V.f = 'hub'; V.direkt = false; V.nachtrag = false; api.render(); return true;
+      case 'pkt': { const f = cur(); if (!f) return true; V.direkt = true; V.nachtrag = false; zeige(f, v); return true; }
+      /* vom fertigen Text aus direkt zu einem Punkt (data-i = Beschreibung) – „Fertig“ führt von dort zurück zum Text */
+      case 'nach': { V.i = Number(b0.dataset.i); const f = cur(); if (!f) return true; V.s = 'b'; V.direkt = true; V.nachtrag = true; zeige(f, v); return true; }
+      case 'reihe': { const f = cur(); if (!f) return true; V.direkt = false; V.nachtrag = false; zeige(f, erstesOffene(f)); return true; }
+      case 'pf': { const f = cur(); if (!f) return true; const F = folien(), k = Math.max(0, Math.min(F.length - 1, F.indexOf(V.f) + Number(v))); V.direkt = false; V.nachtrag = false; zeige(f, F[k]); return true; }
       case 'done1': case 'alle': fertig(api); return true;
       case 'del': del(api); return true;
       /* eine Auswahl – ein zweiter Tipp nimmt sie zurück. Mit der Art wechselt, welche Formen es gibt. */
       case 'eins': {
-        const c = getPath(data, pfad); setPath(data, pfad, String(c ?? '') === v ? undefined : (/\.nr$/.test(pfad) ? Number(v) : v));
-        if (/\.art$/.test(pfad)) { const f = cur(); if (f && !arr(AUFBAU[f.art]).includes(f.aufbau)) delete f.aufbau; }
+        const c = /\.zahl$/.test(pfad) ? besetzt(cur()) : getPath(data, pfad); setPath(data, pfad, String(c ?? '') === v ? undefined : (/\.nr$/.test(pfad) ? Number(v) : v));
+        if (/\.art$/.test(pfad)) {
+          const f = cur(); if (f && !arr(AUFBAU[f.art]).includes(f.aufbau)) delete f.aufbau;
+          // welche Plätze es gibt, richtet sich nach der Art: Was nicht mehr passt, entfällt (Beifahrer ↔ Sozius wandert mit)
+          const vor = arr(f && f.ins).length; if (f && plaetzeOrdnen(f) && arr(f.ins).length < vor) api.toast('Wer wo einstieg, richtet sich nach der Fahrzeugart – bitte neu wählen.');
+        }
         save(); return true;
       }
       case 'setze': setPath(data, pfad, v); save(); return true;
+      /* Nummer des Fahrzeugs von Hand wählen – sie gilt dann als gewählt und wird nicht mehr neu vergeben; eine gewählte noch einmal antippen gibt sie wieder frei */
+      case 'nrw': { const f = cur(); if (!f) return true; if (num(f.nr) === Number(v)) { if (!f.nrA) delete f.nr; } else { f.nr = Number(v); delete f.nrA; } save(); return true; }
       case 'tog': setPath(data, pfad, getPath(data, pfad) ? undefined : true); save(); return true;
       case 'marke': { const f = cur(); if (!f) return true; if (str(f.marke) === v) delete f.marke; else f.marke = v; save(); return true; }
       /* Wer wo einstieg (data-k = Person, data-n = wie sie im Text heißt, data-v = Platz) – ein zweiter Tipp nimmt es zurück */
       case 'platz': {
         const f = cur(); if (!f) return true;
-        const I = arr(f.ins).filter(x => x && x.k !== b0.dataset.k), alt = arr(f.ins).find(x => x && x.k === b0.dataset.k);
-        if (!(alt && alt.platz === v)) I.push({ k: b0.dataset.k, nom: b0.dataset.n, platz: v });
+        // dieselbe Person, auch wenn zwei Zeugen sie beschrieben haben (mehrere Beschreibungen, eine Benennung)
+        const k = b0.dataset.k, P = personen(ctxOf(api)), ks = (P.find(q => q.ks.includes(k)) || { ks: [k] }).ks;
+        const alt = arr(f.ins).find(x => x && ks.includes(x.k));
+        let I = arr(f.ins).filter(x => x && !ks.includes(x.k));
+        if (!(alt && alt.platz === v)) {
+          if (EINER.includes(v)) I = I.filter(x => x.platz !== v); // nur eine Person fährt: die neue löst die bisherige ab
+          I.push({ k, nom: b0.dataset.n, platz: v, ...(b0.dataset.g ? { g: b0.dataset.g } : {}) });
+        }
+        I = insSortieren(I, P);
         if (I.length) f.ins = I; else delete f.ins;
         save(); return true;
       }
@@ -604,6 +742,6 @@
       hat: () => true, setzen: () => true, leer: data => !F_(data).length,
       info: data => { const n = F_(data).length; return n ? `${n} erfasst${title(data).includes('–') ? ' · ' + title(data).split('– ')[1] : ''}` : ''; }
     },
-    core: { PUNKTE, GRUPPE, ART, AUFBAU, FARBE, TON, MARKEN, PLATZ, ZAHL, BEZ, FORMEN, JEMAND, artOf, plaetze, aufsteigen, formen, farbeText, richtText, einstiege, werte, liste, punktWert, punktDa, offene, formOf, teile, text, kurz, istLeer, sonstVorwahl, folien, erstesOffene, luecken, offen, abschnitt, plain, still, zusammen, personen, nimmt, ordnen }
+    core: { PUNKTE, GRUPPE, ART, AUFBAU, FARBE, TON, MARKEN, PLATZ, EINER, ZAHL, BEZ, FORMEN, JEMAND, artOf, plaetze, aufsteigen, formen, farbeText, richtText, einstiege, besetzt, plaetzeOrdnen, insSortieren, lueckenZu, werte, liste, punktWert, punktDa, offene, formOf, teile, text, kurz, istLeer, sonstVorwahl, folien, erstesOffene, luecken, offen, abschnitt, plain, still, zusammen, personen, nimmt, ordnen }
   });
 })(typeof window !== 'undefined' ? window : globalThis);

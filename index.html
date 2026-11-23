@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="de" data-stand="20261121-1818">
+<html lang="de" data-stand="20261124-0000">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -1701,6 +1701,8 @@ textarea.input.es-ta{display:block;min-height:42px;height:42px;padding:9px 14px;
 .pb-im .w-mk-gt{margin:0 0 6px}
 .pb-satz{margin:0;font-size:13.5px;line-height:1.55;color:var(--text);overflow-wrap:anywhere}
 .pb-aus{opacity:.4}
+/* Auswahl, die gerade nicht geht (z. B. eine Gesamtzahl unter der Zahl der beschriebenen Personen) */
+#wMain .chip:disabled{opacity:.3;cursor:not-allowed;text-decoration:line-through}
 .pb-nach{margin:14px 0 0}
 /* Alter und Größe: Umschalter, Leiste mit zwei Markierungen (festhalten = feiner), Rad für die Circa-Angabe */
 .pb-sp-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
@@ -1763,6 +1765,14 @@ textarea.input.es-ta{display:block;min-height:42px;height:42px;padding:9px 14px;
 .pb-form{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .pb-form .w-lbl{margin:0}
 .pb-satz{white-space:pre-line}
+/* Kategorien: in der Übersicht als Überschrift der Blöcke, im fertigen Text als Sprungmarken zum Nachtragen (✓ = dort steht schon etwas) */
+.pb-grp{display:block;margin:0 0 8px 2px;font-size:13px;font-weight:600;color:var(--text)}
+.pb-ntg{margin-top:20px}
+.pb-nt{padding:14px;border-radius:18px;background:rgba(255,255,255,.03);border:1px solid var(--line)}
+.pb-nt .w-lbl{margin-bottom:2px;font-weight:500}
+.pb-nt .pb-grp{margin-top:14px}
+.pb-ntc.da{border-style:solid;border-color:rgba(198,220,122,.4);color:var(--text)}
+.pb-ntc.da::before{content:"✓";margin-right:6px;color:var(--lime)}
 .btn.pb-beides{margin-top:8px}
 /* Fahrzeugbeschreibung, Insassen: je Person eine Zeile mit den Plätzen der Fahrzeugart */
 .fz-pers{padding:10px 0;border-top:1px solid var(--line)}
@@ -2874,29 +2884,29 @@ dialog.brief-dlg.open .brief{opacity:1;transform:none}
 <input type="file" id="fileInput" multiple hidden>
 <input type="file" id="importFile" accept=".vault,.json,application/json,application/octet-stream" hidden>
 
-<script src="vendor/hash-wasm/argon2.umd.min.js?v=20261121-1818"></script>
-<script src="js/vault.js?v=20261121-1818"></script>
-<script src="js/app.js?v=20261121-1818"></script>
-<script src="js/fe.js?v=20261121-1818"></script>
-<script src="js/vuf.js?v=20261121-1818"></script>
-<script src="js/vermisst.js?v=20261121-1818"></script>
-<script src="js/hg.js?v=20261121-1818"></script>
-<script src="js/hgv.js?v=20261121-1818"></script>
-<script src="js/febericht.js?v=20261121-1818"></script>
-<script src="js/skizze.js?v=20261121-1818"></script>
-<script src="js/strassen-gt.js?v=20261121-1818"></script>
-<script src="js/anzeige.js?v=20261121-1818"></script>
-<script src="js/unfallort.js?v=20261121-1818"></script>
-<script src="js/schilderung.js?v=20261121-1818"></script>
-<script src="js/eintreffen.js?v=20261121-1818"></script>
-<script src="js/gewahrsam.js?v=20261121-1818"></script>
-<script src="js/psychkg.js?v=20261121-1818"></script>
-<script src="js/blutprobe.js?v=20261121-1818"></script>
-<script src="js/personenbeschreibung.js?v=20261121-1818"></script>
-<script src="js/fahrzeugbeschreibung.js?v=20261121-1818"></script>
-<script src="js/massnahmen.js?v=20261121-1818"></script>
-<script src="js/vorgang.js?v=20261121-1818"></script>
-<script src="js/writer.js?v=20261121-1818"></script>
-<script src="js/update.js?v=20261121-1818"></script>
+<script src="vendor/hash-wasm/argon2.umd.min.js?v=20261124-0000"></script>
+<script src="js/vault.js?v=20261124-0000"></script>
+<script src="js/app.js?v=20261124-0000"></script>
+<script src="js/fe.js?v=20261124-0000"></script>
+<script src="js/vuf.js?v=20261124-0000"></script>
+<script src="js/vermisst.js?v=20261124-0000"></script>
+<script src="js/hg.js?v=20261124-0000"></script>
+<script src="js/hgv.js?v=20261124-0000"></script>
+<script src="js/febericht.js?v=20261124-0000"></script>
+<script src="js/skizze.js?v=20261124-0000"></script>
+<script src="js/strassen-gt.js?v=20261124-0000"></script>
+<script src="js/anzeige.js?v=20261124-0000"></script>
+<script src="js/unfallort.js?v=20261124-0000"></script>
+<script src="js/schilderung.js?v=20261124-0000"></script>
+<script src="js/eintreffen.js?v=20261124-0000"></script>
+<script src="js/gewahrsam.js?v=20261124-0000"></script>
+<script src="js/psychkg.js?v=20261124-0000"></script>
+<script src="js/blutprobe.js?v=20261124-0000"></script>
+<script src="js/personenbeschreibung.js?v=20261124-0000"></script>
+<script src="js/fahrzeugbeschreibung.js?v=20261124-0000"></script>
+<script src="js/massnahmen.js?v=20261124-0000"></script>
+<script src="js/vorgang.js?v=20261124-0000"></script>
+<script src="js/writer.js?v=20261124-0000"></script>
+<script src="js/update.js?v=20261124-0000"></script>
 </body>
 </html>
