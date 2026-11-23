@@ -230,7 +230,8 @@
     if (!b || typeof b !== 'object') return '';
     const T = teile(b, o);
     if (formOf(b) === 'text') return [T.W.length ? `${T.intro} ${alsText(T.W)}` : '', ...T.schluss].filter(Boolean).join(' ');
-    return [T.W.length ? `${T.intro}\n${alsListe(T.W)}` : '', T.schluss.join(' ')].filter(Boolean).join('\n');
+    // Liste: nach dem letzten Spiegelstrich ein Absatz, dann die Sätze zum Abschluss („Weitere Angaben … konnten nicht gemacht werden.“)
+    return [T.W.length ? `${T.intro}\n${alsListe(T.W)}` : '', T.schluss.join(' ')].filter(Boolean).join('\n\n');
   }
   /** Gesamtzahl als Zahl (0 = nicht angegeben, Infinity = „mehrere“). */
   const gesamtZahl = g => (g === 'm' ? Infinity : Math.max(0, num(g) || 0));
@@ -276,7 +277,12 @@
   const beiWem = (data, b) => str(((data && data.zu) || {})[b && b.id]);
   /** Beschreibungen, die (noch) bei keiner Schilderung stehen – nur sie stehen im Gesamtsachverhalt als eigener Abschnitt. */
   const freie = data => B_(data).filter(b => !beiWem(data, b));
-  const rumpf = (data, list) => list.map(b => text(b, { art: data && data.art })).filter(Boolean).join('\n');
+  /**
+   * Mehrere Beschreibungen untereinander: Steht eine als Liste da (mehrzeilig), trennt sie eine Leerzeile von der nächsten –
+   * Fließtexte folgen direkt aufeinander.
+   */
+  const absatz = T => T.filter(Boolean).reduce((s, t, k, A) => (k ? s + (/\n/.test(A[k - 1]) || /\n/.test(t) ? '\n\n' : '\n') + t : t), '');
+  const rumpf = (data, list) => absatz(list.map(b => text(b, { art: data && data.art })));
   /** Der ganze Abschnitt zum Kopieren – alle Beschreibungen, auch die, die schon bei einer Schilderung stehen. */
   /** Einleitungssatz des Abschnitts – über alle Beschreibungen, auch wenn ein Teil schon bei einer Schilderung steht. */
   const vorab = data => einleitung(B_(data), { art: data && data.art });
@@ -940,6 +946,6 @@
       hat: () => true, setzen: () => true, leer: data => !B_(data).length,
       info: data => { const n = B_(data).length; return n ? `${n} erfasst${namen(data).length ? ' · ' + namen(data).join(', ') : ''}` : ''; }
     },
-    core: { PUNKTE, GRUPPE, MERKMALE, SPANNE, STATUR, PHAENO, FARBE, LAENGE, BART, BEZ, WLV, FORMEN, ANZAHL, einleitung, beschrieben, anzWahl, lueckenZu, bezOf, formen, spanneText, spanneKurz, werte, liste, punktWert, punktDa, offene, formOf, teile, text, kurz, istLeer, sonstVorwahl, folien, erstesOffene, luecken, offen, abschnitt, plain, still, nimmt, ordnen }
+    core: { absatz, PUNKTE, GRUPPE, MERKMALE, SPANNE, STATUR, PHAENO, FARBE, LAENGE, BART, BEZ, WLV, FORMEN, ANZAHL, einleitung, beschrieben, anzWahl, lueckenZu, bezOf, formen, spanneText, spanneKurz, werte, liste, punktWert, punktDa, offene, formOf, teile, text, kurz, istLeer, sonstVorwahl, folien, erstesOffene, luecken, offen, abschnitt, plain, still, nimmt, ordnen }
   });
 })(typeof window !== 'undefined' ? window : globalThis);

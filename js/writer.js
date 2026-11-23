@@ -226,7 +226,7 @@
   }
   /* ---------- Abschnitt im Vorgang: Übernommenes zeigen statt noch einmal fragen ---------- */
   let VGX = null; // was der gerade gezeichnete Abschnitt aus seinem Vorgang bezieht (VG.sicht) – null außerhalb eines Vorgangs
-  const ROLLE_L = { zeuge: ['Zeuge', 'Zeugin', 'Zeuge/Zeugin'], gs: ['Geschädigter', 'Geschädigte', 'Geschädigte/r'], bs: ['Beschuldigter', 'Beschuldigte', 'Beschuldigte/r'], bt: ['Betroffener', 'Betroffene', 'Betroffene/r'], ub: ['Unfallbeteiligter', 'Unfallbeteiligte', 'Unfallbeteiligte/r'] };
+  const ROLLE_L = { zeuge: ['Zeuge', 'Zeugin', 'Zeuge/Zeugin'], gs: ['Geschädigter', 'Geschädigte', 'Geschädigte/r'], bs: ['Beschuldigter', 'Beschuldigte', 'Beschuldigte/r'], bt: ['Betroffener', 'Betroffene', 'Betroffene/r'], betr: ['Betroffener (OWi)', 'Betroffene (OWi)', 'Betroffene/r (OWi)'], mass: ['Betroffener (Maßnahme)', 'Betroffene (Maßnahme)', 'Betroffene/r (Maßnahme)'], ub: ['Unfallbeteiligter', 'Unfallbeteiligte', 'Unfallbeteiligte/r'] };
   const rolleL = q => { const r = ROLLE_L[q.rolle]; return r ? r[q.g === 'm' ? 0 : q.g === 'w' ? 1 : 2] : ''; };
   const datumDe = iso => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || '')); return m ? `${m[3]}.${m[2]}.${m[1]}` : String(iso || ''); };
   const personName = q => [({ m: 'Herr', w: 'Frau' })[q.g || q.geschlecht] || '', String(q.vorname || '').trim(), String(q.nachname || '').trim()].filter(Boolean).join(' ');
@@ -955,10 +955,63 @@
     if (vg) open(vg.id); else { U.id = null; U.view = 'list'; renderMain(); renderList(); }
     W().toast(vg ? 'Abschnitt gelöscht' : 'Vorgang gelöscht', { undo: snap });
   }
+  /* ---------- Kopieren für Word ----------
+   * In die Zwischenablage kommt der Text zweimal: als reiner Text und als formatierter Text, den Word beim Einfügen übernimmt –
+   * Calibri 12, Zeilenabstand „Mehrfach 1,26“, kein Abstand vor und nach Absätzen und „Keinen Abstand zwischen Absätzen
+   * gleicher Formatierung einfügen“ (mso-add-space:auto). Jede Zeile wird ein Absatz, eine Leerzeile ein leerer Absatz.
+   * Überschriften und Unterüberschriften stehen fett (istKopf).
+   */
+  const WORD_P = 'margin:0cm;line-height:126%;mso-add-space:auto;font-size:12.0pt;font-family:"Calibri",sans-serif';
+  /**
+   * Ist Zeile k eine Überschrift? Kurz, ohne Satzzeichen am Ende, kein Spiegelstrich, keine Lücke […]; dazu
+   * – nummeriert („3 Schilderungen“, „3.1 Schilderung der Frau Müller“) oder ohne Nummer mit Text darunter („Personenbeschreibung“),
+   * – und am Anfang eines Absatzes oder direkt unter einer anderen Überschrift.
+   * Zeilen wie „Körperliche Merkmale:“ enden mit Doppelpunkt und bleiben normal.
+   */
+  function koepfe(L) {
+    const K = [];
+    L.forEach((z0, k) => {
+      const z = z0.trim();
+      const form = !!z && z.length <= 90 && !/^[–\-•[„"(]/.test(z) && !/[.:!?;,…“"\]]$/.test(z);
+      const oben = k === 0 || !L[k - 1].trim() || K[k - 1];
+      const nr = /^\d+(\.\d+)*\.?\s+\S/.test(z);
+      const frei = !nr && /^[A-ZÄÖÜ]/.test(z) && !/[,:;]/.test(z) && k + 1 < L.length && !!L[k + 1].trim();
+      K.push(form && oben && (nr || frei));
+    });
+    return K;
+  }
+  function wordHtml(t) {
+    const L = String(t || '').replace(/\r\n?/g, '\n').split('\n'), K = koepfe(L);
+    const p = (k, z) => `<p class="MsoNormal" style='${WORD_P}'>${z.trim() ? (K[k] ? `<b>${esc(z)}</b>` : esc(z)) : '&nbsp;'}</p>`;
+    return `<meta charset="utf-8">${L.map((z, k) => p(k, z)).join('')}`;
+  }
+  /**
+   * Beide Fassungen auf einmal in die Zwischenablage – über das Kopierereignis, das im Moment des Tippens zuverlässig läuft
+   * (auch auf dem iPhone). Liefert true, wenn es geklappt hat.
+   */
+  function kopiereMitFormat(t) {
+    const html = wordHtml(t); let ok = false;
+    const auf = e => { if (!e.clipboardData) return; e.clipboardData.setData('text/plain', t); e.clipboardData.setData('text/html', html); e.preventDefault(); ok = true; };
+    const vorher = document.activeElement;
+    const ta = document.createElement('textarea'); ta.value = t || ' '; ta.setAttribute('readonly', ''); ta.setAttribute('aria-hidden', 'true');
+    ta.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;font-size:16px;border:0;padding:0';
+    document.addEventListener('copy', auf, true);
+    try { document.body.append(ta); ta.focus({ preventScroll: true }); ta.select(); ta.setSelectionRange(0, ta.value.length); document.execCommand('copy'); }
+    catch (e) { ok = false; }
+    finally { document.removeEventListener('copy', auf, true); ta.remove(); try { if (vorher && vorher.focus && vorher !== document.body) vorher.focus({ preventScroll: true }); } catch (e) { /* egal */ } }
+    return ok;
+  }
   async function copy(text, btn) {
     const d = doc(); if (!d) return;
     const t = typeof text === 'string' ? text : currentText(d, mod(d));
     if (btn && btn.isConnected && !btn.dataset.alt) { btn.dataset.alt = btn.innerHTML; btn.innerHTML = `${ICON_OK}<span>Kopiert</span>`; btn.classList.add('fo-kopiert'); setTimeout(() => { if (btn.isConnected) { btn.innerHTML = btn.dataset.alt; btn.classList.remove('fo-kopiert'); } delete btn.dataset.alt; }, 1800); }
+    if (kopiereMitFormat(t)) { W().toast('In die Zwischenablage kopiert'); return; }
+    try {
+      if (navigator.clipboard && navigator.clipboard.write && typeof ClipboardItem === 'function') {
+        await navigator.clipboard.write([new ClipboardItem({ 'text/plain': new Blob([t], { type: 'text/plain' }), 'text/html': new Blob([wordHtml(t)], { type: 'text/html' }) })]);
+        W().toast('In die Zwischenablage kopiert'); return;
+      }
+    } catch (e) { /* weiter mit reinem Text */ }
     try { await navigator.clipboard.writeText(t); W().toast('In die Zwischenablage kopiert'); }
     catch (e) { const ta = document.createElement('textarea'); ta.value = t; document.body.append(ta); ta.select(); try { document.execCommand('copy'); W().toast('Kopiert'); } catch (er) { W().toast('Kopieren nicht möglich – Text markieren und manuell kopieren.'); } ta.remove(); }
   }
@@ -1152,6 +1205,7 @@
 
   /* ======================= Öffentlich ======================= */
   window.WWriter = Object.freeze({
+    wordHtml, // Kopieren für Word – auch für Tests
     render() {
       if (!W() || !W().unlocked()) return;
       renderList();

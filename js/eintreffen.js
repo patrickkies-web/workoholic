@@ -407,7 +407,7 @@
       return `<li class="sd-item"><div class="sd-row"><button type="button" class="sd-card" data-sd="edit" data-i="${i}"><span class="sd-n mono">${i + 1}</span><span class="sd-main"><b>${esc(vollName(p))}</b><small>${esc([C.rolleLabel(p), ortKurz(g) + (mit.length ? ` (mit ${joinUnd(mit)})` : ''), ...(weg && !p.verl ? [] : [verlKurz(p)])].filter(Boolean).join(' · '))}</small></span><span class="pill ${fehlt ? 'pill-quiet' : 'pill-lime'}">${fehlt ? 'Offen' : 'Erfasst'}</span></button></div></li>`;
     }).join('');
     const add = art
-      ? `<div class="sd-add"><span class="w-lbl">${P.length ? 'Weitere Person anlegen' : 'Person anlegen'}</span><div class="sd-add-row">${C.rollenFor(art).map(([v, r]) => `<button type="button" class="sd-add-b" data-sd="add" data-v="${v}"><i aria-hidden="true">+</i>${esc(v === 'ub' ? `${r.x} ${pad2(C.nextUb(P))}` : r.x)}</button>`).join('')}</div></div>`
+      ? `<div class="sd-add"><span class="w-lbl">${P.length ? 'Weitere Person anlegen' : 'Person anlegen'}</span><div class="sd-add-row">${C.rollenFor(art).map(([v, r]) => `<button type="button" class="sd-add-b" data-sd="add" data-v="${v}"><i aria-hidden="true">+</i>${esc(v === 'ub' ? `${r.x} ${pad2(C.nextUb(P))}` : C.rolleChip(r))}</button>`).join('')}</div></div>`
       : `<div class="sd-add off"><span class="w-lbl">Person anlegen</span><p class="w-hint sd-hint">Erst auf der Folie davor wählen: Strafanzeige oder Verkehrsangelegenheit.</p></div>`;
     return `${api.kopf({ pos: [2, 3], titel: 'Wer war vor Ort?', lead: P.length ? 'Antippen, um eine Person zu ändern – oder eine weitere anlegen.' : 'Je Person drei kurze Folien: wer, wo angetroffen, verletzt? Die Schilderungen bauen später darauf auf.' })}
       <div class="w-grid sd-grid">
@@ -437,7 +437,7 @@
       <div class="w-grid sd-grid">${woHtml(data, i)}</div>${fuss}`;
     if (V.f === 'verl') return `${kopf(`War ${anrede(p)} verletzt?`, 'Nur antippen, wenn es in den Text soll – sonst einfach weiter. Steht dann direkt hinter dem Antreffen.')}
       <div class="w-grid sd-grid">${UI.verletzungHtml(api, p, base, '', true)}</div>${fuss}`;
-    const roles = C.rollenFor(data.art, p.rolle).map(([v, x]) => `<button type="button" class="chip" data-sd="set" data-p="${base}.rolle" data-v="${v}" aria-pressed="${String(p.rolle === v)}">${esc(p.g === 'm' || p.g === 'w' ? x[p.g] : x.x)}</button>`).join('');
+    const roles = C.rollenFor(data.art, p.rolle).map(([v, x]) => `<button type="button" class="chip" data-sd="set" data-p="${base}.rolle" data-v="${v}" aria-pressed="${String(p.rolle === v)}">${esc(C.rolleChip(x, p.g))}</button>`).join('');
     const ubMax = Math.max(4, ...P.map(C.ubNr)) + (P.filter(x => C.ubNr(x)).length >= 4 ? 1 : 0);
     const ubQ = p.rolle === 'ub' ? `<div class="w-q" data-q="ub"><span class="w-lbl">Nummer <i class="w-req" title="Pflicht">•</i></span><div class="w-chips" role="group" aria-label="Nummer">${Array.from({ length: ubMax }, (x, n) => n + 1).map(n => `<button type="button" class="chip mono" data-sd="ub" data-v="${n}" aria-pressed="${String(C.ubNr(p) === n)}">${pad2(n)}</button>`).join('')}</div><p class="w-hint sd-hint">01 ist die Unfallverursacherin oder der Unfallverursacher – in den Schilderungen als Beschuldigte/r oder Betroffene/r zu belehren, 02 und weitere als Zeugen. Ist die Nummer schon vergeben, tauschen die beiden.</p></div>` : '';
     const anr = [['m', 'Herr'], ['w', 'Frau']].map(([v, l]) => `<button type="button" class="w-opt" data-sd="set" data-p="${base}.g" data-v="${v}" aria-pressed="${String(p.g === v)}">${l}</button>`).join('');

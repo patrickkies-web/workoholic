@@ -219,7 +219,8 @@
     if (!f || typeof f !== 'object') return '';
     const T = teile(f, o), A = T.W.filter(x => x.gr === 'A');
     if (formOf(f) === 'text') return [A.length ? `${T.intro} ${A.map(x => x.s).join(', ')}`.replace(/([^.…!?])$/, '$1.') : '', ...T.saetze, ...T.schluss].filter(Boolean).join(' ');
-    return [T.W.length ? `${T.intro}\n${alsListe(T.W)}` : '', T.schluss.join(' ')].filter(Boolean).join('\n');
+    // Liste: nach dem letzten Spiegelstrich ein Absatz, dann der Satz zum Abschluss
+    return [T.W.length ? `${T.intro}\n${alsListe(T.W)}` : '', T.schluss.join(' ')].filter(Boolean).join('\n\n');
   }
   /** Kurzfassung für Listen und Chips. */
   function kurz(f, n = 4) {
@@ -235,7 +236,12 @@
   /** Bei wem die Beschreibung in den Schilderungen steht ('' = bei niemandem). */
   const beiWem = (data, f) => str(((data && data.zu) || {})[f && f.id]);
   const freie = data => F_(data).filter(f => !beiWem(data, f));
-  const rumpf = (data, list) => list.map(f => text(f)).filter(Boolean).join('\n');
+  /**
+   * Mehrere Beschreibungen untereinander: Steht eine als Liste da (mehrzeilig), trennt sie eine Leerzeile von der nächsten –
+   * Fließtexte folgen direkt aufeinander.
+   */
+  const absatz = T => T.filter(Boolean).reduce((s, t, k, A) => (k ? s + (/\n/.test(A[k - 1]) || /\n/.test(t) ? '\n\n' : '\n') + t : t), '');
+  const rumpf = (data, list) => absatz(list.map(f => text(f)));
   /** Der ganze Abschnitt zum Kopieren – alle Beschreibungen, auch die, die schon bei einer Schilderung stehen. */
   const abschnitt = data => `Fahrzeugbeschreibung\n${rumpf(data, F_(data)) || '[Noch nichts erfasst]'}`;
   /** Im Gesamtsachverhalt: nur, was nicht schon in einer Schilderung steht. */
@@ -244,7 +250,7 @@
   /** Personen- und Fahrzeugbeschreibung in einem Stück – zum schnellen Weitergeben. pb = Beschreibungen aus dem Vorgang ([{ d }]). */
   function zusammen(data, pb, art) {
     const PB = root.WPB && root.WPB.core;
-    const D = arr(pb).map(b => b && b.d).filter(Boolean), t = PB ? D.map(b => PB.text(b, { art })).filter(Boolean).join('\n') : '';
+    const D = arr(pb).map(b => b && b.d).filter(Boolean), t = PB ? absatz(D.map(b => PB.text(b, { art }))) : '';
     const p = t ? [PB.einleitung(D, { art }), t].filter(Boolean).join('\n') : '';
     return [p ? `Personenbeschreibung\n${p}` : '', abschnitt(data)].filter(Boolean).join('\n\n');
   }

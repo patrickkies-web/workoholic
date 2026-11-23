@@ -189,7 +189,8 @@
    */
   function vgNimmt(d, ctx) {
     if (!d || typeof d !== 'object' || !ctx || !Array.isArray(ctx.leute)) return false;
-    const L = ctx.leute.filter(q => q && (q.rolle === 'bs' || q.rolle === 'bt') && (q.g === 'm' || q.g === 'w'));
+    // Betroffene/r im Ordnungswidrigkeitenverfahren heißt in den Schilderungen 'betr' – hier wie alle Betroffenen 'bt'
+    const L = ctx.leute.filter(q => q && (q.rolle === 'bs' || q.rolle === 'bt' || q.rolle === 'betr') && (q.g === 'm' || q.g === 'w')).map(q => (q.rolle === 'betr' ? { ...q, rolle: 'bt' } : q));
     if (L.length !== 1) return false;
     const wert = `${L[0].rolle}_${L[0].g}`, v = d.vgv && typeof d.vgv === 'object' ? d.vgv : {}, cur = str(B(d).rolle), alt = str(v.rolle);
     if (cur && cur !== alt && cur !== wert) return false; // selbst gewählt
