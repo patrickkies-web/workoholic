@@ -45,8 +45,9 @@
 
   /* ======================= Zustand ======================= */
   const U = { view: 'list', id: null, step: 0, tab: 'bericht', lastJson: '', vis: [], moreParts: {} };
-  try { const s = JSON.parse(sessionStorage.getItem('workoholic:writer') || 'null'); if (s && typeof s === 'object') { U.view = s.view === 'result' ? 'result' : s.view === 'wizard' ? 'wizard' : 'list'; U.id = s.id || null; } } catch (e) { /* egal */ }
-  const remember = () => { try { sessionStorage.setItem('workoholic:writer', JSON.stringify({ view: U.view, id: U.id })); } catch (e) { /* egal */ } };
+  try { const s = JSON.parse(sessionStorage.getItem('workoholic:writer') || 'null'); if (s && typeof s === 'object') { U.view = s.view === 'result' ? 'result' : s.view === 'wizard' ? 'wizard' : 'list'; U.id = s.id || null; if (Number.isInteger(s.step) && s.step > 0) U.step = s.step; } } catch (e) { /* egal */ }
+  // Auch die Folie merken: Nach dem Entsperren (die App lädt dabei neu) geht der Vorgang dort wieder auf, wo man war
+  const remember = () => { try { sessionStorage.setItem('workoholic:writer', JSON.stringify({ view: U.view, id: U.id, step: U.step })); } catch (e) { /* egal */ } };
   const doc = () => (U.id ? W().find(U.id) : null);
   const mod = d => (d && MODULES[d.type]) || null;
   const visibleSteps = (m, d) => m.steps.filter(s => !s.when || s.when(d));
@@ -113,7 +114,9 @@
     const name = o.name || m.short || m.name || '';
     const sub = o.sub != null ? o.sub : st ? `Abschnitt ${st.i + 1} von ${st.T.length}` : '';
     const pos = Array.isArray(o.pos) && o.pos[1] > 1 ? o.pos : null;
-    const dots = pos ? Array.from({ length: pos[1] }, (x, k) => `<i class="${k < pos[0] - 1 ? 'done' : k === pos[0] - 1 ? 'on' : ''}"></i>`).join('') : '';
+    // Ab 30 Folien wären die Punkte nur noch Striche: dann ein Balken (erledigt · hier · offen)
+    const dots = !pos ? '' : pos[1] > 30 ? `${pos[0] > 1 ? `<i class="done" style="flex:${pos[0] - 1}"></i>` : ''}<i class="on" style="flex:0 0 10px"></i>${pos[1] > pos[0] ? `<i style="flex:${pos[1] - pos[0]}"></i>` : ''}`
+      : Array.from({ length: pos[1] }, (x, k) => `<i class="${k < pos[0] - 1 ? 'done' : k === pos[0] - 1 ? 'on' : ''}"></i>`).join('');
     const tag = pos && o.jump ? ['button type="button" data-w="overview" aria-label="Alle Folien anzeigen"', 'button'] : ['div', 'div'];
     const prog = pos ? `<${tag[0]} class="fo-prog"><span class="fo-dots" aria-hidden="true">${dots}</span><span class="fo-pos">Folie ${pos[0]} von ${pos[1]}${o.jump ? '<em>Alle</em>' : ''}</span></${tag[1]}>`
       : o.fertig ? `<div class="fo-prog"><span class="fo-dots" aria-hidden="true"><i class="${o.offen ? 'on' : 'done'}"></i></span><span class="fo-pos">${esc(o.fertig)}</span></div>` : '';
@@ -269,7 +272,8 @@
         const o = (R(f.o, d, item, base) || []).filter(x => x && x[1]);
         if (!o.length) return '';
         const same = vals => Object.entries(vals).every(([kk, vv]) => JSON.stringify(getP(d, kk) ?? null) === JSON.stringify(vv ?? null));
-        return `<div class="w-q full w-preset">${f.l ? `<span class="w-lbl">${esc(R(f.l, d, item))}</span>` : ''}<div class="w-pre-row">${o.map(([lab, vals, sub]) => { const on = same(vals); return `<button type="button" class="w-pre${on ? ' on' : ''}" data-multi="${esc(JSON.stringify(vals))}" aria-pressed="${on}"><b>${esc(lab)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</button>`; }).join('')}</div></div>`;
+        // x (optional): { call: Modulfunktion, die beim Tipp mitläuft; toast: eigener Hinweistext; haupt: hervorgehoben }
+        return `<div class="w-q full w-preset">${f.l ? `<span class="w-lbl">${esc(R(f.l, d, item))}</span>` : ''}<div class="w-pre-row${f.gross ? ' gross' : ''}">${o.map(([lab, vals, sub, x]) => { const on = !(x && x.call) && same(vals); return `<button type="button" class="w-pre${on ? ' on' : ''}${x && x.haupt ? ' haupt' : ''}" data-multi="${esc(JSON.stringify(vals))}"${x && x.call ? ` data-call="${esc(x.call)}"` : ''}${x && x.toast ? ` data-toast="${esc(x.toast)}"` : ''} aria-pressed="${on}"><b>${esc(lab)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</button>`; }).join('')}</div></div>`;
       }
       /* Ausgabe: live erzeugter Text des Moduls (f.fn), zum Durchgeben/Kopieren direkt im Schritt */
       case 'out': {
@@ -706,11 +710,11 @@
     const last = U.step >= steps.length - 1;
     host.innerHTML = `
       ${kopf(d, { sub, pos: [U.step + 1, steps.length], jump: steps.length > 3, titel: R(st.title, d.data), lead: st.lead ? R(st.lead, d.data) : '' })}
-      <div class="w-step" data-step="${esc(st.id)}">
+      <div class="w-step${st.luft ? ' luft' : ''}" data-step="${esc(st.id)}">
         <div class="w-grid" id="wFields">${st.fields.filter(f => !f.when || f.when(d.data)).map(f => fieldHtml(f, d.data)).join('')}</div>
       </div>
-      ${m.noPreview ? '' : `<details class="w-preview" id="wPreview" ${prev ? 'open' : ''}><summary>So steht es im Bericht</summary><pre class="w-pre" id="wPre">${esc(m.preview(st.id, d.data) || '– noch nichts erfasst –')}</pre></details>`}
-      ${fuss({ back: U.step > 0 ? { attr: 'data-w="prev"' } : null, next: last ? { label: 'Fertig', attr: 'data-w="finish"', ok: true } : { attr: 'data-w="next"' } })}`;
+      ${m.noPreview || st.ohneWeiter ? '' : `<details class="w-preview" id="wPreview" ${prev ? 'open' : ''}><summary>So steht es im Bericht</summary><pre class="w-pre" id="wPre">${esc(m.preview(st.id, d.data) || '– noch nichts erfasst –')}</pre></details>`}
+      ${fuss({ back: U.step > 0 ? { attr: 'data-w="prev"' } : null, next: st.ohneWeiter ? null : last ? { label: 'Fertig', attr: 'data-w="finish"', ok: true } : { attr: 'data-w="next"' } })}`;
     VGX = null;
     remember();
     layoutSentences();
@@ -835,6 +839,27 @@
     d.step = Math.max(d.step || 0, U.step);
     persist(false);
     renderMain();
+  }
+  /**
+   * Grundsatz bleibt: Die Seite wechselt nur über „Weiter“. Eine Folie kann davon abweichen (auto: true oder
+   * auto: d => …, z. B. als Einstellung des Vor-Ort-Modus): Dann blättert sie von selbst weiter, sobald nach einem
+   * Tipp alles Sichtbare beantwortet ist (Ja/Nein, Auswahl, Schnellwahl). Öffnet die Antwort eine Folgefrage,
+   * bleibt die Folie stehen; Texteingaben und Mehrfachauswahl blättern nie.
+   */
+  let autoT = 0;
+  function autoWeiter() {
+    clearTimeout(autoT);
+    const d = doc(); if (!d || U.view !== 'wizard') return;
+    const m = mod(d); if (!m || m.screen) return;
+    const steps = visibleSteps(m, d.data), st = steps[U.step];
+    if (!st || !(typeof st.auto === 'function' ? st.auto(d.data) : st.auto) || U.step >= steps.length - 1) return;
+    if (st.fields.some(f => f.k && (!f.when || f.when(d.data)) && !answered(getP(d.data, f.k)))) return;
+    const id = d.id, sid = st.id, at = U.step;
+    autoT = setTimeout(() => {
+      const d2 = doc(); if (!d2 || d2.id !== id || U.view !== 'wizard' || U.step !== at) return;
+      const s2 = visibleSteps(mod(d2), d2.data)[U.step];
+      if (s2 && s2.id === sid) go(1);
+    }, 280);
   }
   /** Fehlen wichtige Angaben, kurz erwähnen – weiter geht es trotzdem (im Bericht stehen dann Platzhalter). */
   function hintMissing() {
@@ -1098,7 +1123,10 @@
         const d = doc(); if (!d) return;
         let o = {}; try { o = JSON.parse(b.dataset.multi); } catch (er) { return; }
         for (const [k, v] of Object.entries(o)) setP(d.data, k, JSON.parse(JSON.stringify(v)));
-        persist(false); renderMain(); W().toast('Übernommen');
+        // Manche Schnellwahl braucht mehr als feste Werte (z. B. die Uhrzeit des Tipps): das Modul rechnet selbst
+        if (b.dataset.call) { const m = mod(d), fn = m && m[b.dataset.call]; if (typeof fn === 'function') { try { fn(d.data, { now: nowHM(), today: todayKey(0) }); } catch (er) { /* Werte der Schnellwahl stehen trotzdem */ } } }
+        persist(false); renderMain(); if (b.dataset.toast !== '-') W().toast(b.dataset.toast || 'Übernommen'); // „-“: die Schnellwahl ist hier die Antwort, kein Hinweis nötig
+        autoWeiter();
         return;
       }
       if (b.dataset.mark) {
@@ -1118,7 +1146,7 @@
         if (d.status === 'fertig') d.status = 'entwurf';
         persist(true); renderMain(); return;
       }
-      if (b.dataset.set) { setVal(b.dataset.set, b.dataset.n ? Number(b.dataset.v) : b.dataset.v, true, !!b.dataset.fest); return; }
+      if (b.dataset.set) { setVal(b.dataset.set, b.dataset.n ? Number(b.dataset.v) : b.dataset.v, true, !!b.dataset.fest); autoWeiter(); return; }
       if (b.dataset.toggle) { toggleVal(b.dataset.toggle, b.dataset.v, b.dataset.x, Number(b.dataset.max) || 0); return; }
       if (b.dataset.step) { const d = doc(); if (!d) return; const cur = Number(getP(d.data, b.dataset.step)); const inp = $(`[data-k="${CSS.escape(b.dataset.step)}"]`, root); const min = inp && inp.min !== '' ? Number(inp.min) : 0, max = inp && inp.max !== '' ? Number(inp.max) : Infinity; const v = Math.max(min, Math.min(max, (Number.isFinite(cur) && has(getP(d.data, b.dataset.step)) ? cur : 0) + Number(b.dataset.d))); setP(d.data, b.dataset.step, v); persist(false); if (inp) inp.value = v; schedulePreview(); $$(`[data-set="${CSS.escape(b.dataset.step)}"]`, root).forEach(c => c.setAttribute('aria-pressed', String(Number(c.dataset.v) === v))); return; }
       if (b.dataset.part) { const d = doc(); if (!d) return; const k = b.dataset.part, a = Array.isArray(getP(d.data, k)) ? getP(d.data, k).slice() : []; const i = a.findIndex(p => p && p.name === b.dataset.v); if (i >= 0) a.splice(i, 1); else a.push({ name: b.dataset.v, alt: 'nein' }); setP(d.data, k, a.length ? a : undefined); persist(false); renderMain(); if (i < 0) setTimeout(() => { const c = $(`#wpart-${a.length - 1}`); if (c) c.scrollIntoView({ block: 'nearest' }); }, 30); return; }

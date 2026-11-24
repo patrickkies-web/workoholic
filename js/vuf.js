@@ -1000,6 +1000,494 @@
     }
   ];
 
+  /* =====================================================================
+   * Vor-Ort-Modus
+   * ---------------------------------------------------------------------
+   * Dieselben Angaben wie oben, aber so gefragt, wie man sie an der Unfallstelle aufnimmt: ein Tipp startet
+   * die Aufnahme und hält die Eintreffzeit fest, danach eine Frage je Folie in der Reihenfolge des Gesprächs –
+   * Besatzung, Nachname der meldenden Person, abgestellt, bemerkt, Zwischenzeit, Hinweise, Schilderung,
+   * dann Örtlichkeit, Fahrzeug, Spuren, Umfeld und zum Schluss, was sich auch im Wagen nachtragen lässt.
+   * Jede Folie bezieht sich auf die Antworten davor (Name, Fahrzeugart, Zeiten, Art der Fläche, Wetter).
+   * Es entstehen dieselben Datenfelder und derselbe Befundbericht wie in der ausführlichen Maske; zwischen
+   * beiden lässt sich jederzeit wechseln. Gedacht für das abgestellte Fahrzeug – Sachen, fließender Verkehr
+   * und die Aufnahme auf der Wache bleiben in der ausführlichen Maske.
+   * ===================================================================== */
+  const S = C.str, cap = C.cap, num = C.num;
+  const hatWas = o => o != null && (Array.isArray(o) ? o.some(hatWas) : typeof o === 'object' ? Object.keys(o).some(k => hatWas(o[k])) : has(o));
+  const INHALT = ['ort', 'gesch', 'zeit', 'ub02', 'taeter', 'spuren', 'zeugen', 'zg', 'massnahmen', 'dritte', 'bewertung', 'weitere'];
+  /** 'vorort' | 'voll' | '' (noch nicht gewählt). Vorgänge aus der Zeit vor dem Vor-Ort-Modus zählen als ausführlich. */
+  const modus = d => get(d, 'meta.modus') || (INHALT.some(k => hatWas(d && d[k])) ? 'voll' : '');
+  const vo = d => modus(d) === 'vorort';
+  const voll = d => modus(d) === 'voll';
+
+  /* ---------- Bezug auf frühere Antworten: Person, Fahrzeug, Zeiten, Anschrift ---------- */
+  const nm = d => { const n = S(get(d, 'gesch.nachname')); return n ? ({ m: 'Herr ', w: 'Frau ' }[gG(d)] || '') + n : ''; };
+  const herrn = n => n.replace(/^Herr /, 'Herrn ');
+  const werN = d => nm(d) || geschNom(d);                                    // Frau Meier · der Geschädigte
+  const werA = d => (nm(d) ? herrn(nm(d)) : geschAkk(d));                     // Herrn Meier · den Geschädigten
+  const werD = d => (nm(d) ? herrn(nm(d)) : ({ m: 'dem Geschädigten', w: 'der Geschädigten', d: 'der geschädigten Person' }[gG(d)] || 'dem Geschädigten'));
+  const werG = d => (nm(d) ? 'von ' + herrn(nm(d)) : geschGen(d));            // von Frau Meier · des Geschädigten
+  const fz02 = d => get(d, 'ub02.fz') || {};
+  const fzN = d => C.vehicle(fz02(d), 'nom'), fzA = d => C.vehicle(fz02(d), 'akk'), fzD = d => C.vehicle(fz02(d), 'dat');
+  const hm = t => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ''); return m ? +m[1] * 60 + +m[2] : null; };
+  const hmStr = n => { n = ((n % 1440) + 1440) % 1440; return String(Math.floor(n / 60)).padStart(2, '0') + ':' + String(n % 60).padStart(2, '0'); };
+  const eintreff = d => S(get(d, 'einsatz.eintreffZeit'));
+  /** Feststellung vor dem Abstellen? Dann stimmt eine der beiden Zeiten nicht. */
+  const zeitVerdreht = d => {
+    const a = S(get(d, 'zeit.vonDatum')), b = S(get(d, 'zeit.bisDatum')); if (!a || !b) return false;
+    if (a !== b) return b < a;
+    const x = hm(get(d, 'zeit.vonZeit')), y = hm(get(d, 'zeit.bisZeit')); return x != null && y != null && y < x;
+  };
+  const zeitraum = d => { const z = get(d, 'zeit') || {}; return C.period(z.vonDatum, z.vonZeit, z.bisDatum, z.bisZeit); };
+  const adrKurz = d => { const o = get(d, 'ort') || {}; const s = [S(o.strasse), S(o.hausnr)].filter(Boolean).join(' '); const st = S(o.ort) || S(o.stadt); return [s, st].filter(Boolean).join(', '); };
+  const artFl = d => get(d, 'ort.art');
+  const strOderOffen = d => !has(artFl(d)) || istStrasse(d);
+  const eigeneWorte = d => freiModus(d) || get(d, 'gesch.aufmerksam') === 'beobachtet';
+  const PARK = { laengs: 'längs am Fahrbahnrand', quer: 'quer', schraeg: 'schräg', bucht: 'in einer Parkbucht', stellplatz: 'auf einem markierten Stellplatz', frei: 'frei auf der Fläche' };
+  /** Parkposition: nur, was zur Art der Fläche passt (eine früher gewählte Antwort bleibt wählbar). */
+  const parkOpt = d => { const ks = strOderOffen(d) ? ['laengs', 'quer', 'schraeg', 'bucht'] : ['stellplatz', 'quer', 'schraeg', 'frei']; const cur = get(d, 'ub02.park.ordnung'); if (cur && PARK[cur] && !ks.includes(cur)) ks.push(cur); return ks.map(k => [k, PARK[k]]); };
+  const lageSugg = d => {
+    if (strOderOffen(d)) {
+      const li = get(d, 'ub02.park.seite') === 'links', bucht = get(d, 'ub02.park.ordnung') === 'bucht';
+      const a = [['rechter Fahrbahnrand', 'am rechten Fahrbahnrand '], ['linker Fahrbahnrand', 'am linken Fahrbahnrand '], ['Parkbucht', 'in einer Parkbucht '], ['Einmündung', 'im Einmündungsbereich '], ['Einfahrt', 'vor der Grundstückseinfahrt ']];
+      if (li) a.unshift(a.splice(1, 1)[0]);
+      if (bucht) a.unshift(a.splice(2, 1)[0]);
+      return a;
+    }
+    return artFl(d) === 'parkhaus' ? [['Parkebene', 'auf der Parkebene '], ['Stellplatz', 'auf dem Stellplatz Nr. '], ['Ein-/Ausfahrt', 'im Bereich der Ein- bzw. Ausfahrt ']]
+      : [['Parkreihe', 'in der Parkreihe '], ['Stellplatz', 'auf dem Stellplatz Nr. '], ['Einfahrt', 'im Bereich der Einfahrt '], ['vor dem Eingang', 'vor dem Eingang ']];
+  };
+  const zuSugg = d => (artFl(d) === 'parkhaus' ? [['Einkaufszentrum', 'des Einkaufszentrums '], ['Klinikum', 'des Klinikums '], ['Bahnhof', 'am Bahnhof']]
+    : artFl(d) === 'parkplatz' ? [['Supermarkt', 'des Supermarktes '], ['Baumarkt', 'des Baumarktes '], ['Firma', 'der Firma '], ['Wohnanlage', 'der Wohnanlage '], ['Bahnhof', 'am Bahnhof']]
+      : [['Firmengelände', 'auf dem Firmengelände '], ['Hof', 'im Hof des Hauses '], ['Tankstelle', 'der Tankstelle ']]);
+  /** Winterseite nur, wenn es danach aussieht: Temperatur bis 3 °C, winterlicher Niederschlag – oder ohne Temperatur von November bis März. */
+  const winterlich = d => {
+    const t = num(get(d, 'ort.temp'));
+    if (arr(get(d, 'ort.winter')).length) return true;
+    if (['schneeregen', 'schnee', 'schneeschauer', 'graupel', 'eisregen'].includes(get(d, 'ort.nsArt'))) return true;
+    if (t != null) return t <= 3;
+    const m = /^\d{4}-(\d{2})-/.exec(get(d, 'einsatz.datum') || ''); return !!m && [11, 12, 1, 2, 3].includes(+m[1]);
+  };
+  const fremdlack = d => [...new Set(arr(get(d, 'ub02.teile')).filter(t => t && t.fremdlack === 'ja').map(t => S(t.farbe).toLowerCase()).filter(Boolean))];
+  const hatFremdlack = d => arr(get(d, 'ub02.teile')).some(t => t && t.fremdlack === 'ja');
+  /** Woraus sich nach der Befragung noch Hinweise ergeben können (Zeugen, Kamera, Dritte). */
+  const spaeteQuellen = d => [zeugenJa(d) ? 'Zeugen' : '', get(d, 'massnahmen.zeugensucheErgebnis') === 'hinweise' ? 'Zeugensuche' : '', ['vorhanden', 'gesichert', 'angefragt'].includes(get(d, 'massnahmen.kameraErgebnis')) ? 'Kamera' : '', get(d, 'dritte.vorhanden') === 'ja' ? 'Angaben Dritter' : ''].filter(Boolean);
+
+  /* ---------- Fragen der ausführlichen Maske wiederverwenden: gleiche Felder, gleiche Daten ---------- */
+  const FELD = {};
+  STEPS.forEach(s => s.fields.forEach(f => { if (f.k && !FELD[f.k]) FELD[f.k] = f; }));
+  /** Feld der ausführlichen Maske, hier und da anders beschriftet (null entfernt eine Eigenschaft, z. B. when). */
+  const F = (k, over) => { const f = Object.assign({}, FELD[k], over || {}); Object.keys(f).forEach(p => { if (f[p] === null) delete f[p]; }); return f; };
+  const schnell = id => STEPS.find(s => s.id === id).fields.find(f => f.t === 'preset');
+  const STILL = { toast: '-' }; // Antwort per Schnellwahl: kein „Übernommen“
+  /**
+   * Blättern: Wie überall im Bereich Schreiben wechselt die Seite nur über „Weiter“. Wer es für den Vor-Ort-Modus
+   * einschaltet (vo.weiter = 'auto', wird in den nächsten Vorgang übernommen), kommt nach der letzten Antwort einer
+   * Seite von selbst zur nächsten Frage.
+   */
+  const autoAn = d => get(d, 'vo.weiter') === 'auto';
+
+  const VO = [
+    /* ---------- Start: ein Tipp, Zeitstempel sitzt ---------- */
+    {
+      id: 'vo_wahl', phase: 'Start', title: 'Verkehrsunfallflucht', ohneWeiter: true, luft: true, gen: ['kurz'], when: d => !modus(d),
+      lead: 'Stehst du gerade an der Unfallstelle? Ein Tipp startet die Aufnahme und hält die Eintreffzeit fest.',
+      fields: [{
+        t: 'preset', gross: true, o: [
+          ['Unfallaufnahme starten', { 'meta.modus': 'vorort' }, 'Wir sind vor Ort · Eintreffzeit ist jetzt · danach Frage für Frage', { call: 'voStart', toast: 'Aufnahme läuft – Eintreffzeit gesetzt', haupt: true }],
+          ['Ausführliche Maske', { 'meta.modus': 'voll' }, 'Wie bisher – auch für die Aufnahme auf der Wache, beschädigte Sachen und Unfälle im fließenden Verkehr', { toast: 'Ausführliche Maske' }]
+        ]
+      }]
+    },
+
+    /* ---------- Aufnahme: wer nimmt auf, wer steht vor dir ---------- */
+    {
+      id: 'vo_team', phase: 'Aufnahme', luft: true, gen: ['6.2'],
+      title: d => (eintreff(d) ? `Aufnahme läuft seit ${eintreff(d)} Uhr` : 'Aufnahme läuft'),
+      lead: 'Wer nimmt auf? Trag dich und deine Streifenpartnerin oder deinen Streifenpartner ein.',
+      fields: [
+        F('einsatz.kraefte', { l: 'Du und deine Streife' }),
+        F('einsatz.eintreffZeit', { l: 'Eintreffzeit an der Unfallstelle', when: null, req: true }),
+        F('einsatz.datum', { l: 'Datum' }),
+        { k: 'vo.weiter', t: 'choice', l: 'Blättern', h: 'Von selbst: Sobald alles auf einer Seite beantwortet ist, kommt die nächste Frage. Gilt auch für deine nächsten Unfallfluchten.', o: [['knopf', 'nur mit „Weiter“'], ['auto', 'von selbst nach der Antwort']] },
+        { t: 'preset', l: 'Anderer Fall?', o: [['Zur ausführlichen Maske', { 'meta.modus': 'voll' }, 'Sache beschädigt, fließender Verkehr oder Aufnahme auf der Wache', { toast: 'Ausführliche Maske – deine Angaben bleiben erhalten' }]] }
+      ]
+    },
+    {
+      id: 'vo_person', phase: 'Aufnahme', luft: true, gen: ['3.1'], title: 'Wer steht vor dir?',
+      lead: 'Nur Anrede und Nachname. Geburtsdatum, Anschrift und Telefon kommen später, wenn du den Ausweis in der Hand hast.',
+      fields: [{ k: 'gesch', t: 'person', l: 'Meldende Person', fields: ['geschlecht', 'nachname'] }]
+    },
+    {
+      id: 'vo_belehrung', phase: 'Aufnahme', luft: true, auto: autoAn, gen: ['3.1'],
+      title: d => `${cap(werA(d))} belehren`, lead: 'Zeugenschaftliche Belehrung vor der Befragung.',
+      fields: [F('gesch.belehrt', { w: null }), F('gesch.belehrtVon', { w: null })]
+    },
+
+    /* ---------- Schilderung: die Fragen in der Reihenfolge des Gesprächs ---------- */
+    {
+      id: 'vo_abgestellt', phase: 'Schilderung', luft: true, gen: ['3.1'],
+      title: d => `Wann wurde ${fzN(d)} abgestellt?`, lead: d => `Die erste Frage an ${werA(d)}.`,
+      fields: [
+        F('zeit.vonDatum', { l: 'Abgestellt am', q: 'heute', when: null }),
+        F('zeit.vonZeit', { l: 'um (Uhrzeit, ungefähr reicht)', when: null }),
+        F('ub02.park.abgestelltVon', { l: d => `Wer hat ${fzA(d)} abgestellt?`, o: d => [['gesch', `${cap(werN(d))} selbst`], ['andere', 'Eine andere Person']] }),
+        F('ub02.park.fahrer')
+      ]
+    },
+    {
+      id: 'vo_bemerkt', phase: 'Schilderung', luft: true, gen: ['3.1'],
+      title: d => `Wann hat ${werN(d)} den Schaden bemerkt?`,
+      lead: d => (has(get(d, 'zeit.vonDatum')) || has(get(d, 'zeit.vonZeit')) ? `Abgestellt ${C.when(get(d, 'zeit.vonDatum'), get(d, 'zeit.vonZeit'))}.` : 'Die Abstellzeit fehlt noch – sie steht eine Seite zurück.'),
+      fields: [
+        F('zeit.bisDatum', { l: 'Schaden bemerkt am', when: null }),
+        F('zeit.bisZeit', { l: 'um (Uhrzeit, ungefähr reicht)', when: null }),
+        { t: 'info', when: zeitVerdreht, text: 'So wäre der Schaden vor dem Abstellen bemerkt worden – bitte Datum und Uhrzeit prüfen.' }
+      ]
+    },
+    {
+      id: 'vo_aufmerksam', phase: 'Schilderung', luft: true, auto: autoAn, gen: ['3.1'],
+      title: d => `Wie ist ${werN(d)} auf den Schaden aufmerksam geworden?`,
+      fields: [F('gesch.aufmerksam', { l: 'Aufmerksam geworden', when: null, o: [['selbst', 'Bei der Rückkehr selbst bemerkt'], ['zeuge', 'Durch einen Zeugen'], ['nachbar', 'Durch Nachbarn / Anwohner'], ['zettel', 'Durch einen Zettel am Fahrzeug'], ['geraeusch', 'Anstoßgeräusch gehört'], ['beobachtet', 'Unfall selbst beobachtet']] })]
+    },
+    {
+      id: 'vo_zwischen', phase: 'Schilderung', luft: true, auto: autoAn, gen: ['3.1'],
+      title: d => `Wo war ${werN(d)} in der Zwischenzeit?`,
+      lead: d => (zeitraum(d) ? `Also ${zeitraum(d)}.` : 'Zwischen dem Abstellen und der Feststellung des Schadens.'),
+      fields: [
+        F('gesch.standort', { l: 'Aufenthaltsort', when: null }),
+        F('gesch.sichtkontakt', { l: d => `Hatte ${erL(gG(d))} von dort Sichtkontakt zum Fahrzeug?`, w: null, when: d => has(get(d, 'gesch.standort')) })
+      ]
+    },
+    {
+      id: 'vo_kontrolle', phase: 'Schilderung', luft: true, auto: autoAn, gen: ['3.1'], when: d => !eigeneWorte(d),
+      title: d => `Hat ${werN(d)} ${fzA(d)} zwischendurch gesehen?`, lead: 'Eine Zwischenkontrolle grenzt den Unfallzeitraum ein.',
+      fields: [F('gesch.zwischenzeit', { l: 'Zwischendurch am Fahrzeug gewesen?', when: null }), F('gesch.zwischenzeitText', { when: d => get(d, 'gesch.zwischenzeit') === 'ja' })]
+    },
+    {
+      id: 'vo_vorher', phase: 'Schilderung', luft: true, auto: autoAn, gen: ['3.1'],
+      title: d => `War ${fzN(d)} beim Abstellen unbeschädigt?`, lead: d => `Stand laut ${werD(d)}: Gab es an der Stelle schon ältere Schäden?`,
+      fields: [{
+        t: 'preset', gross: true, o: [
+          ['Ja, vorher unbeschädigt', { 'gesch.vorher': 'ja', 'gesch.altschaden': 'nein' }, 'Altschäden an der Stelle ausgeschlossen', STILL],
+          ['Nicht sicher', { 'gesch.vorher': 'unsicher', 'gesch.altschaden': 'unsicher' }, 'Ältere Schäden lassen sich nicht ausschließen', STILL],
+          ['Nein, es gab schon Schäden', { 'gesch.vorher': 'nein', 'gesch.altschaden': 'ja' }, 'Teilweise Altschäden möglich', STILL]
+        ]
+      }]
+    },
+    {
+      id: 'vo_veraendert', phase: 'Schilderung', luft: true, auto: autoAn, gen: ['1.3'],
+      title: 'Wurde seit der Feststellung etwas verändert?',
+      lead: d => `Hat ${werN(d)} ${fzA(d)} bewegt, Teile aufgesammelt oder etwas abgewischt?`,
+      fields: [
+        F('spuren.eintreff.veraendert', { l: 'Etwas verändert?', h: 'Auch Regen zählt, wenn er Spuren verwischt hat.' }),
+        F('spuren.eintreff.veraendertText', { sugg: d => [['Fahrzeug umgesetzt', `hatte ${geschNom(d)} ${fzA(d)} umgesetzt`], ['Teile aufgesammelt', `hatte ${geschNom(d)} Fahrzeugteile aufgesammelt`], ['Stelle abgewischt', `hatte ${geschNom(d)} die Schadensstelle abgewischt`], ['Regen', 'hatte Regen die Spuren teilweise verwischt']] })
+      ]
+    },
+    {
+      id: 'vo_hinweise', phase: 'Schilderung', luft: true, auto: autoAn, gen: ['3.1'],
+      title: 'Gibt es Hinweise auf den Verursacher?',
+      lead: d => `Hat ${werN(d)} etwas Verdächtiges bemerkt – einen Zettel, Zeugen, ein auffälliges Fahrzeug?`,
+      fields: [
+        { t: 'info', when: d => ['zeuge', 'zettel', 'beobachtet'].includes(get(d, 'gesch.aufmerksam')) && !hinweise(d), text: d => ({ zeuge: `${cap(werN(d))} wurde durch einen Zeugen aufmerksam – das ist in aller Regel ein Hinweis.`, zettel: 'Ein Zettel am Fahrzeug ist ein Hinweis auf den Verursacher.', beobachtet: `${cap(werN(d))} hat den Unfall selbst beobachtet – das ist ein Hinweis.` }[get(d, 'gesch.aufmerksam')]) },
+        { t: 'info', when: d => hinweise(d) && get(d, 'gesch.verdacht') === 'nein', text: d => `Hinweise haben sich später aus dem Umfeld ergeben; ${werN(d)} selbst hat nichts bemerkt. In der Schilderung bleibt es bei „keine Hinweise“.` },
+        {
+          t: 'preset', gross: true, o: [
+            ['Nein, keine Hinweise', { 'taeter.hinweise': 'nein', 'gesch.verdacht': 'nein' }, 'Nichts Verdächtiges bemerkt – es bleibt beim Standardtext', STILL],
+            ['Ja, es gibt Hinweise', { 'taeter.hinweise': 'ja', 'gesch.verdacht': null }, 'Die Fragen zum Verursacher kommen später dazu', STILL]
+          ]
+        },
+        F('taeter.quelle', { when: d => hinweise(d) && get(d, 'gesch.verdacht') !== 'nein' })
+      ]
+    },
+    {
+      id: 'vo_schilderung', phase: 'Schilderung', luft: true, gen: ['3.1'],
+      title: d => `Schilderung ${werG(d)}`,
+      lead: d => (eigeneWorte(d) ? 'Hier braucht es eigene Worte – in indirekter Rede.' : 'Der Standardtext aus deinen Antworten. Vorlesen, ergänzen oder in eigene Worte fassen.') + (has(get(d, 'ort.strasse')) ? '' : ' Die Örtlichkeit folgt gleich, der Platzhalter füllt sich dann von selbst.'),
+      fields: [
+        { t: 'out', fn: 'schilderung', l: 'So steht es im Bericht' },
+        F('gesch.freitext', { when: eigeneWorte }),
+        F('gesch.ergaenzung', { when: d => !eigeneWorte(d) }),
+        F('gesch.modus', { l: 'Lieber in eigenen Worten?', h: null, o: [['abgestellt', 'Textbaustein aus den Antworten'], ['frei', 'Eigene Schilderung']], when: d => get(d, 'gesch.aufmerksam') !== 'beobachtet' })
+      ]
+    },
+
+    /* ---------- Unfallort: Anschrift, Fläche, Stellung des Fahrzeugs, Straße, Wetter ---------- */
+    {
+      id: 'vo_adresse', phase: 'Unfallort', luft: true, gen: ['2.1'], title: 'Wo sind wir?',
+      lead: 'Straße antippen – Postleitzahl und Ort kommen aus dem Verzeichnis für den Kreis Gütersloh, der Ortsteil zum Antippen.',
+      fields: [{ k: 'ort', t: 'adresse', l: 'Unfallörtlichkeit', req: true }]
+    },
+    {
+      id: 'vo_flaeche', phase: 'Unfallort', luft: true, auto: autoAn, gen: ['2.1'], title: 'Was ist das für eine Fläche?',
+      lead: d => (adrKurz(d) ? `${adrKurz(d)} – Straße, Parkplatz oder Parkhaus?` : 'Straße, Parkplatz oder Parkhaus?'),
+      fields: [F('ort.art', { l: 'Art der Fläche', o: [['strasse', 'Straße'], ['parkplatz', 'Parkplatz'], ['parkhaus', 'Parkhaus / Tiefgarage'], ['sonst', 'Sonstige Fläche']] })]
+    },
+    {
+      id: 'vo_zugang', phase: 'Unfallort', luft: true, gen: ['2.1'], when: d => has(artFl(d)) && !istStrasse(d),
+      title: d => ({ parkplatz: 'Zu wem gehört der Parkplatz?', parkhaus: 'Zu wem gehört das Parkhaus?' }[artFl(d)] || 'Zu wem gehört die Fläche?'),
+      lead: 'Und: Kommt dort jeder hin? Nur dann ist es öffentlicher Verkehrsraum im Sinne des § 142 StGB.',
+      fields: [F('ort.zugehoerigkeit', { l: 'Zugehörigkeit', sugg: zuSugg }), F('ort.oeffentlich', { l: 'Für jedermann zugänglich?' })]
+    },
+    {
+      id: 'vo_parkpos', phase: 'Unfallort', luft: true, auto: autoAn, gen: ['3.1'],
+      title: d => `Wie stand ${fzN(d)}?`,
+      lead: d => ({ strasse: 'Am Fahrbahnrand: längs, quer, schräg oder in einer Bucht?', parkplatz: 'Auf dem Parkplatz: markierter Stellplatz oder frei auf der Fläche?', parkhaus: 'Im Parkhaus: auf einem markierten Stellplatz?' }[artFl(d)] || 'Parkposition und Richtung.'),
+      fields: [F('ub02.park.ordnung', { o: parkOpt }), F('ub02.park.richtung', { w: null }), F('ub02.park.seite', { w: null })]
+    },
+    {
+      id: 'vo_beladen', phase: 'Unfallort', luft: true, auto: autoAn, gen: ['2.3'],
+      title: d => `War ${fzN(d)} beladen oder besetzt?`, lead: 'Aus dem Fragebogen zur Verkehrsunfallflucht.',
+      fields: [F('ub02.park.beladen', { l: 'Beladen oder besetzt?', w: null }), F('ub02.park.beladenText')]
+    },
+    {
+      id: 'vo_lage', phase: 'Unfallort', luft: true, gen: ['2.1'], title: 'Wo genau ist die Unfallstelle?',
+      lead: d => (adrKurz(d) ? `${adrKurz(d)} – jetzt die genaue Stelle.` : 'Die genaue Stelle an der Örtlichkeit.'),
+      fields: [F('ort.position', { l: 'Genaue Lage', sugg: lageSugg })]
+    },
+    {
+      id: 'vo_str_art', phase: 'Unfallort', luft: true, gen: ['2.1'], when: istStrasse,
+      title: d => (has(get(d, 'ort.strasse')) ? `${S(get(d, 'ort.strasse'))}: Was für eine Straße?` : 'Was für eine Straße?'),
+      lead: 'Ein Tipp füllt das Übliche für Tempo, Fahrstreifen und Verlauf. Auf den nächsten Seiten änderst du nur noch, was abweicht.',
+      fields: [schnell('strasse'), F('ort.lage', { w: null }), F('ort.strassentyp')]
+    },
+    {
+      id: 'vo_str_tempo', phase: 'Unfallort', luft: true, auto: autoAn, gen: ['2.1'], when: istStrasse, title: 'Welches Tempo gilt dort?',
+      lead: d => ({ innerorts: 'Innerorts – ohne Schild gelten 50 km/h.', ausserorts: 'Außerorts – ohne Schild gelten 100 km/h.' }[get(d, 'ort.lage')] || 'Zulässige Höchstgeschwindigkeit an der Unfallstelle.'),
+      fields: [F('ort.tempo', { w: null }), F('ort.tempoGrund')]
+    },
+    {
+      id: 'vo_str_fahrbahn', phase: 'Unfallort', luft: true, auto: autoAn, gen: ['2.1'], when: istStrasse, title: 'Fahrstreifen und Parken',
+      lead: d => (PARK[get(d, 'ub02.park.ordnung')] ? `${cap(fzN(d))} stand ${PARK[get(d, 'ub02.park.ordnung')]} – wird dort allgemein so geparkt?` : 'Wie ist die Fahrbahn aufgeteilt, und wie wird am Rand geparkt?'),
+      fields: [F('ort.fahrstreifen', { w: null }), F('ort.trennung'), F('ort.parkordnung')]
+    },
+    {
+      id: 'vo_str_verlauf', phase: 'Unfallort', luft: true, gen: ['2.1'], when: istStrasse, title: 'Wie verläuft die Straße?', lead: 'Verlauf und Höhenprofil an der Unfallstelle.',
+      fields: [F('ort.verlauf', { w: null }), F('ort.steigung', { w: null }), F('ort.fahrtrichtung', { ph: 'Innenstadt' })]
+    },
+    {
+      id: 'vo_str_bes', phase: 'Unfallort', luft: true, gen: ['2.1'], when: istStrasse, title: 'Besonderheiten an der Stelle?', lead: 'Nichts davon? Einfach weiter.',
+      fields: [F('ort.besonderheiten', { l: 'Vorhanden ist' })]
+    },
+    {
+      id: 'vo_licht', phase: 'Unfallort', luft: true, gen: ['2.1'], title: 'Licht und Wetter',
+      lead: d => `Ein Tipp setzt Licht, Niederschlag, Nässe und Sicht${aufnahmeZeit(d) ? ' – passend zu ' + aufnahmeZeit(d) + ' Uhr' : ''}. Die Einzelheiten folgen auf den nächsten Seiten.`,
+      fields: [{ t: 'preset', l: 'Schnellwahl', o: d => C.verhSchnellwahl(C.lichtVorschlag(get(d, 'einsatz.datum'), aufnahmeZeit(d))) }, F('ort.licht'), F('ort.beleuchtung'), F('ort.himmel')]
+    },
+    {
+      id: 'vo_wetter', phase: 'Unfallort', luft: true, gen: ['2.1'], title: 'Niederschlag und Temperatur', lead: 'So, wie es jetzt bei der Aufnahme ist.',
+      fields: [F('ort.nsArt'), F('ort.nsStaerke', { w: null }), F('ort.nsZeit', { w: null }), F('ort.temp', { w: null })]
+    },
+    {
+      id: 'vo_wind', phase: 'Unfallort', luft: true, gen: ['2.1'], title: 'Nebel und Wind', lead: 'Nur, wenn es eine Rolle spielt – sonst einfach weiter.',
+      fields: [F('ort.nebel'), F('ort.sichtweite', { w: null }), F('ort.wind'), F('ort.boeig', { w: null }), F('ort.windRichtung')]
+    },
+    {
+      id: 'vo_boden', phase: 'Unfallort', luft: true, auto: autoAn, gen: ['2.1'],
+      title: d => (strOderOffen(d) ? 'Wie ist die Fahrbahn?' : 'Wie ist der Boden?'),
+      lead: d => (has(get(d, 'ort.naesse')) ? 'Die Nässe ist aus der Schnellwahl vorbelegt – nur ändern, wenn es nicht stimmt.' : 'Belag und Nässe.'),
+      fields: [F('ort.belag'), F('ort.naesse')]
+    },
+    {
+      id: 'vo_winter', phase: 'Unfallort', luft: true, gen: ['2.1'], when: winterlich, title: 'Winterglätte?',
+      lead: d => (num(get(d, 'ort.temp')) != null ? `Bei ${String(num(get(d, 'ort.temp'))).replace('.', ',').replace('-', '−')} °C: Ist es glatt? Nichts davon – einfach weiter.` : 'Um diese Jahreszeit: Ist es glatt? Nichts davon – einfach weiter.'),
+      fields: [F('ort.winter'), F('ort.schneehoehe', { w: null }), F('ort.winterdienst')]
+    },
+    {
+      id: 'vo_decke', phase: 'Unfallort', luft: true, gen: ['2.1'],
+      title: d => (strOderOffen(d) ? 'Zustand der Fahrbahn' : 'Zustand des Belags'), lead: 'Schäden, Markierungen, Verschmutzung. Unauffällig? Dann weiter.',
+      fields: [F('ort.decke'), F('ort.markierung'), F('ort.schmutz'), F('ort.schmutzGlatt', { w: null })]
+    },
+    {
+      id: 'vo_sicht', phase: 'Unfallort', luft: true, auto: autoAn, gen: ['2.1'], title: 'Wie ist die Sicht?',
+      lead: d => (['dunkel', 'morgen', 'abend'].includes(get(d, 'ort.licht')) ? 'Bei Dunkelheit oder Dämmerung zählt auch die Beleuchtung.' : 'Sichtverhältnisse an der Unfallstelle.'),
+      fields: [F('ort.sicht'), F('ort.sichtGrund'), F('ort.sonneRichtung'), F('ort.sichtText')]
+    },
+    {
+      id: 'vo_verkehr', phase: 'Unfallort', luft: true, gen: ['2.1'], title: 'Wie viel ist los?', lead: 'Verkehr, Fußgänger und die Belegung der Parkplätze bei der Aufnahme.',
+      fields: [F('ort.verkehr'), F('ort.verkehrAnlass'), F('ort.fussRad'), F('ort.parken')]
+    },
+
+    /* ---------- Fahrzeug & Schaden ---------- */
+    {
+      id: 'vo_fz', phase: 'Fahrzeug', luft: true, gen: ['2.3'], title: 'Das beschädigte Fahrzeug', lead: 'Art, Marke, Farbe und Kennzeichen – am einfachsten vom Fahrzeugschein.',
+      fields: [F('ub02.fz', { when: null })]
+    },
+    {
+      id: 'vo_rolle', phase: 'Fahrzeug', luft: true, auto: autoAn, gen: ['3.1'],
+      title: d => `Wem gehört ${fzN(d)}?`, lead: d => `Stellung ${werG(d)} zum Fahrzeug.`,
+      fields: [F('gesch.rolle', { l: 'Stellung zum Fahrzeug', when: null }), F('gesch.firma', { ph: 'die Musterbau GmbH, Gütersloh' })]
+    },
+    {
+      id: 'vo_personalien', phase: 'Fahrzeug', luft: true, gen: ['3.1'],
+      title: d => `Personalien ${werG(d)}`, lead: 'Jetzt mit Ausweis: Vorname, Geburtsdatum, Anschrift und Telefon.',
+      fields: [{ k: 'gesch', t: 'person', l: 'Geschädigte/r (UB 02)', fields: PERSON_FIELDS }]
+    },
+    {
+      id: 'vo_teile', phase: 'Fahrzeug', luft: true, gen: ['2.3'], title: 'Was ist beschädigt?', lead: 'Beschädigte Teile antippen – danach erscheinen die Einzelheiten je Teil.',
+      fields: [F('ub02.teile')]
+    },
+    {
+      id: 'vo_hoehe', phase: 'Fahrzeug', luft: true, gen: ['2.3', '3.1'], title: 'Wie hoch ist der Schaden?', lead: d => `Zwei Zahlen: die Schätzung ${werG(d)} und deine eigene.`,
+      fields: [F('gesch.schaden', { l: d => `Schätzung ${werG(d)} (€)` }), F('ub02.wert', { l: 'Deine Schätzung (€)' }), F('ub02.verdeckt')]
+    },
+    {
+      id: 'vo_alt', phase: 'Fahrzeug', luft: true, auto: autoAn, gen: ['2.3'], title: 'Siehst du Altschäden am Fahrzeug?',
+      lead: d => ({ ja: `Laut ${werD(d)} war ${fzN(d)} vorher unbeschädigt – was siehst du selbst?`, unsicher: `${cap(werN(d))} war sich bei älteren Schäden nicht sicher – was siehst du selbst?`, nein: `${cap(werN(d))} hat ältere Schäden eingeräumt – lassen sie sich abgrenzen?` }[get(d, 'gesch.vorher')] || 'Dein eigener Eindruck am Fahrzeug.'),
+      fields: [F('ub02.altschaden', { l: 'Altschäden insgesamt' }), F('ub02.altschadenText')]
+    },
+    {
+      id: 'vo_verbleib', phase: 'Fahrzeug', luft: true, auto: autoAn, gen: ['2.3'], title: d => `Was passiert mit ${fzD(d)}?`, lead: 'Fahrbereit, und wo bleibt das Fahrzeug?',
+      fields: [F('ub02.fahrbereit', { w: null }), F('ub02.verbleib')]
+    },
+    {
+      id: 'vo_weitere', phase: 'Fahrzeug', luft: true, auto: autoAn, gen: ['2.3', '2.5'], title: 'Wurde noch etwas beschädigt?', lead: 'Zum Beispiel ein daneben geparktes Fahrzeug mit passendem Schaden.',
+      fields: [F('ub02.weitere', { l: 'Weitere Fahrzeuge oder Sachen beschädigt?', h: null })]
+    },
+    {
+      id: 'vo_weitere2', phase: 'Fahrzeug', luft: true, gen: ['2.3', '2.5'], when: d => get(d, 'ub02.weitere') === 'ja', title: 'Weitere Schäden',
+      lead: 'Jedes weitere beschädigte Fahrzeug und jede Sache erhält eine eigene Ordnungsnummer (UB 03 …).',
+      fields: [F('weitere')]
+    },
+
+    /* ---------- Spuren ---------- */
+    {
+      id: 'vo_spurfix', phase: 'Spuren', luft: true, auto: autoAn, gen: ['2.3'], title: 'Spurfix-Folie aufgebracht?',
+      lead: 'Zwei bis drei kleine Folien an den markanten Berührungspunkten reichen. Nur den Beschriftungsstreifen beschriften.',
+      fields: [F('spuren.fz.spurfix', { l: 'Spurensicherungsfolie aufgebracht?' }), F('spuren.fz.spurfixAnzahl', { w: null }), F('spuren.fz.spurfixDoku')]
+    },
+    {
+      id: 'vo_lack', phase: 'Spuren', luft: true, auto: autoAn, gen: ['2.3'], title: 'Fremdlack gesichert?',
+      lead: d => (hatFremdlack(d) ? `Am Fahrzeug hast du Fremdlack erfasst${fremdlack(d).length ? ' (' + C.joinList(fremdlack(d)) + ')' : ''} – den jetzt gesondert sichern: schneiden oder ausheben, nicht schaben.` : 'Anriebe oder Splitter in die Pergamintüte – schneiden oder ausheben, nicht schaben.'),
+      fields: [F('spuren.fz.lackprobe', { l: 'Fremdlack gesondert gesichert?', h: null }), F('spuren.fz.lackprobeArt', { w: null }), F('spuren.fz.eigenlack', { w: null })]
+    },
+    {
+      id: 'vo_fremdteile', phase: 'Spuren', luft: true, auto: autoAn, gen: ['2.3'], title: 'Teile vom Verursacherfahrzeug gefunden?', lead: 'Spiegelglas, Blinkerglas, Zierleiste, ein Stück vom Stoßfänger …',
+      fields: [F('spuren.fz.fremdteile', { l: 'Fremdteile aufgefunden?', h: null }), F('spuren.fz.fremdteileText'), F('spuren.fz.fremdteileSicher', { w: null })]
+    },
+    {
+      id: 'vo_fotos', phase: 'Spuren', luft: true, auto: autoAn, gen: ['1.3', '2.3'], title: 'Fotos vom Schaden', lead: 'Erst die Übersicht, dann die Details mit Maßstab für die Anstoßhöhe.',
+      fields: [F('spuren.eintreff.fotos', { l: 'Übersichtsaufnahmen gefertigt?' }), F('spuren.fz.fotosMassstab'), F('spuren.fz.mikroskop', { w: null })]
+    },
+    {
+      id: 'vo_bodenspuren', phase: 'Spuren', luft: true, auto: autoAn, gen: ['2.2'],
+      title: d => (strOderOffen(d) ? 'Spuren auf der Fahrbahn?' : 'Spuren auf dem Boden?'), lead: 'Splitter, Fahrzeugteile, Lackpartikel oder Rangierspuren im Umfeld.',
+      fields: [F('spuren.fahrbahn.vorhanden', { l: 'Spuren festgestellt?' }), F('spuren.fahrbahn.arten'), F('spuren.fahrbahn.text'), F('spuren.fahrbahn.gesichert', { w: null })]
+    },
+    {
+      id: 'vo_sonstspuren', phase: 'Spuren', luft: true, auto: autoAn, gen: ['2.5'], title: 'Spuren an anderen Gegenständen?', lead: 'Poller, Zaun, Hauswand, Verkehrszeichen.',
+      fields: [F('spuren.sonst.vorhanden', { l: 'Spuren an sonstigen Gegenständen?' }), F('spuren.sonst.text')]
+    },
+
+    /* ---------- Umfeld: Kameras, Zeugen, Dritte ---------- */
+    {
+      id: 'vo_kamera', phase: 'Umfeld', luft: true, auto: autoAn, gen: ['5.1'], title: 'Gibt es Kameras im Umfeld?',
+      lead: d => (strOderOffen(d) ? 'Anliegende Firmen, Tankstellen, Haltestellen, Türklingeln mit Kamera, Dashcams.' : 'Kameras am Markt oder im Parkhaus, Tankstellen, Dashcams in den Nachbarfahrzeugen.'),
+      fields: [F('massnahmen.kamera', { l: 'Auf Kameras geprüft?', h: null }), F('massnahmen.kameraErgebnis'), F('massnahmen.kameraText')]
+    },
+    {
+      id: 'vo_zeugensuche', phase: 'Umfeld', luft: true, auto: autoAn, gen: ['5.1'], title: 'Nach Zeugen gesucht?',
+      lead: d => (strOderOffen(d) ? 'Anwohner, Geschäfte, daneben abgestellte Fahrzeuge mit passenden Schäden.' : 'Marktpersonal, andere Kunden, daneben abgestellte Fahrzeuge mit passenden Schäden.'),
+      fields: [F('massnahmen.zeugensuche', { l: 'Aktiv nach Zeugen gesucht?' }), F('massnahmen.zeugensucheArt'), F('massnahmen.zeugensucheErgebnis', { w: null })]
+    },
+    {
+      id: 'vo_zeugen', phase: 'Umfeld', luft: true, auto: autoAn, gen: ['3.2'], title: 'Gibt es Zeugen?',
+      lead: d => (get(d, 'gesch.aufmerksam') === 'zeuge' ? `${cap(werN(d))} wurde durch einen Zeugen aufmerksam – den hier erfassen.` : get(d, 'massnahmen.zeugensucheErgebnis') === 'hinweise' ? 'Die Zeugensuche hat Hinweise gebracht – die Personen hier erfassen.' : 'Auch Knallzeugen zählen.'),
+      fields: [F('zg.vorhanden', { l: 'Zeugen vorhanden?' })]
+    },
+    {
+      id: 'vo_zeugenliste', phase: 'Umfeld', luft: true, gen: ['3.2'], when: zeugenJa, title: 'Zeugen erfassen', lead: 'Mit Personalien – Knallzeugen werden als solche kenntlich gemacht.',
+      fields: [F('zeugen', { when: null })]
+    },
+    {
+      id: 'vo_dritte', phase: 'Umfeld', luft: true, auto: autoAn, gen: ['3.3'], title: 'Hat sonst jemand etwas mitgeteilt?', lead: 'Anwohner, Marktleitung, Angehörige – keine Unfallzeugen.',
+      fields: [F('dritte.vorhanden', { l: 'Angaben Dritter?' }), F('dritte.text')]
+    },
+    {
+      id: 'vo_hinweise2', phase: 'Umfeld', luft: true, auto: autoAn, gen: ['4.1'], when: d => get(d, 'gesch.verdacht') === 'nein' && spaeteQuellen(d).length > 0,
+      title: 'Haben sich daraus Hinweise ergeben?',
+      lead: d => `${cap(werN(d))} selbst hatte keine. Inzwischen gibt es: ${C.joinList(spaeteQuellen(d))}.`,
+      fields: [F('taeter.hinweise', { l: 'Hinweise auf den Verursacher?', h: 'Bei „Ja“ folgen die Fragen zum Verursacherfahrzeug.' }), F('taeter.quelle')]
+    }
+  ];
+
+  /* ---------- Abschluss: was sich auch im Wagen nachtragen lässt ---------- */
+  const VO_ENDE = [
+    {
+      id: 'vo_einsatz', phase: 'Abschluss', luft: true, gen: ['1.1', '1.2'], title: 'Wann kam der Einsatz?',
+      lead: d => (eintreff(d) ? `Eingetroffen seid ihr um ${eintreff(d)} Uhr.` : 'Uhrzeit der Einsatzübernahme und Meldeweg.'),
+      fields: [
+        { t: 'preset', l: 'Vor dem Eintreffen', when: d => hm(eintreff(d)) != null, o: d => [5, 10, 15, 20, 30].map(n => [`${n} Min`, { 'einsatz.zeit': hmStr(hm(eintreff(d)) - n) }, hmStr(hm(eintreff(d)) - n) + ' Uhr', STILL]) },
+        F('einsatz.zeit', { w: null }),
+        F('einsatz.meldeweg')
+      ]
+    },
+    {
+      id: 'vo_meldung', phase: 'Abschluss', luft: true, gen: ['1.2'], title: 'Was wurde gemeldet?', lead: 'Die Erkenntnislage bei der Einsatzübernahme – Telegrammstil reicht.',
+      fields: [F('einsatz.mitteiler', { o: d => [['gesch', `${cap(werN(d))} selbst`], ['zeuge', 'Zeuge/Zeugin'], ['dritte', 'Dritte (Anwohner, Firma …)'], ['unbekannt', 'Unbekannt']] }), F('einsatz.erkenntnis')]
+    },
+    {
+      id: 'vo_anfahrt', phase: 'Abschluss', luft: true, gen: ['1.1'], title: 'Einsatzmittel und Anfahrt', lead: 'Rufname und was euch auf der Anfahrt aufgefallen ist.',
+      fields: [F('einsatz.rufname', { w: null }), F('einsatz.anfahrt')]
+    },
+    {
+      id: 'vo_eintreff', phase: 'Abschluss', luft: true, gen: ['1.3'], title: 'Was habt ihr beim Eintreffen vorgefunden?', lead: 'Leer lassen übernimmt den Standardsatz aus deinen Antworten – er steht unten unter „So steht es im Bericht“.',
+      fields: [F('spuren.eintreff.text', { l: 'Eintreffsituation (optional)' })]
+    },
+    {
+      id: 'vo_mitteilung', phase: 'Abschluss', luft: true, auto: autoAn, gen: ['6.1'], title: 'Unfallmitteilung und Fragebogen',
+      lead: d => `Hat ${werN(d)} die Durchschrift bekommen?`,
+      fields: [schnell('massnahmen1'), F('massnahmen.unfallmitteilung'), F('gesch.fragebogen')]
+    },
+    {
+      id: 'vo_bilder', phase: 'Abschluss', luft: true, auto: autoAn, gen: ['6.1'], title: 'Lichtbilder gefertigt?', lead: 'Bei einer Verkehrsunfallflucht Pflicht – Übersicht und Details mit Maßstab.',
+      fields: [F('massnahmen.lichtbilder'), F('massnahmen.lichtbilderAnzahl', { w: null }), F('massnahmen.mappe', { w: null })]
+    },
+    {
+      id: 'vo_anzeige', phase: 'Abschluss', luft: true, gen: ['5.1', '6.1'], title: 'Skizze, Anzeige, Aktenzeichen',
+      fields: [F('massnahmen.skizze', { w: null }), F('massnahmen.anzeige', { w: null }), F('massnahmen.az', { w: null })]
+    },
+    {
+      id: 'vo_asservate', phase: 'Abschluss', luft: true, auto: autoAn, gen: ['5.1'], title: 'Asservate zum Vorgang genommen?',
+      lead: d => (asservatVorschlag(d) ? `Aus der Spurensicherung: ${asservatVorschlag(d)}.` : 'Folien, Lackproben, Fahrzeugteile.'),
+      fields: [F('massnahmen.asservate', { l: 'Asservate?' }), F('massnahmen.asservateText')]
+    },
+    {
+      id: 'vo_sonst', phase: 'Abschluss', luft: true, gen: ['5.1', '5.2', '5.3'], title: 'Noch etwas veranlasst?', lead: 'Nichts davon? Einfach weiter.',
+      fields: [F('massnahmen.sonstige'), F('massnahmen.weiteres')]
+    },
+    {
+      id: 'vo_ende', phase: 'Abschluss', luft: true, gen: ['6.3'], title: 'Ende der Maßnahmen vor Ort', lead: 'Ein Tipp auf „Jetzt“, wenn ihr abrückt.',
+      fields: [F('massnahmen.einsatzende', { l: 'Einsatzende', w: null })]
+    },
+    {
+      id: 'vo_spurenbild', phase: 'Bewertung', luft: true, auto: autoAn, gen: ['4.1', '4.2'], title: 'Wofür spricht das Spurenbild?', lead: 'Deine eigene Einschätzung – daraus entsteht der vermutliche Hergang.',
+      fields: [F('bewertung.hergangArt', { l: 'Das Spurenbild spricht für' }), F('bewertung.uebereinstimmung')]
+    },
+    {
+      id: 'vo_hergang', phase: 'Bewertung', luft: true, gen: ['4.2'], title: 'Vermutlicher Unfallhergang', lead: 'Leer lassen übernimmt den grauen Vorschlag.',
+      fields: [F('bewertung.hergang', { l: 'Hergang (optional)' })]
+    },
+    {
+      id: 'vo_wider', phase: 'Bewertung', luft: true, auto: autoAn, gen: ['4.3'], title: 'Widersprüche oder Auffälligkeiten?', lead: 'Passt alles zusammen, zweimal „Nein“ – fertig.',
+      fields: [F('bewertung.widersprueche'), F('bewertung.widerspruecheText'), F('bewertung.manipulation'), F('bewertung.manipulationText')]
+    },
+    {
+      id: 'vo_namen', phase: 'Bewertung', luft: true, gen: ['3.1'], title: 'Namen im Bericht?', lead: 'Zum Schluss: Rollen und Ordnungsnummern oder Klarnamen.',
+      fields: [F('meta.klarnamen'), { t: 'preset', l: 'Alles noch einmal in der großen Maske sehen?', o: [['Zur ausführlichen Maske', { 'meta.modus': 'voll' }, 'Dieselben Angaben, alle Fragen auf wenigen Seiten', { toast: 'Ausführliche Maske – deine Angaben bleiben erhalten' }]] }]
+    }
+  ];
+
+  /* ---------- Beide Masken in einer Liste: der Modus entscheidet, welche Folien zu sehen sind ---------- */
+  // Die Folien zum Verursacher (Fahrzeug, Personen, Ermittlungen, Beschuldigte/r) gehören zu beiden Masken.
+  const BEIDE = new Set(['taeterfz', 'taeterperson', 'ermittlung', 'besch', 'besch2', 'teile01']);
+  STEPS.forEach(s => { const w = s.when; s.when = BEIDE.has(s.id) ? d => !!modus(d) && (!w || w(d)) : d => voll(d) && (!w || w(d)); });
+  [...VO, ...VO_ENDE].forEach(s => { if (s.id === 'vo_wahl') return; const w = s.when; s.when = d => vo(d) && (!w || w(d)); });
+  // Aus der ausführlichen Maske zurück in den Vor-Ort-Modus (nur, wo er passt: abgestelltes Fahrzeug, Aufnahme am Unfallort)
+  STEPS[0].fields.push({ t: 'preset', l: 'Stehst du an der Unfallstelle?', when: d => geparkt(d) && !aufWache(d) && ['', 'vorort'].includes(kontakt(d)), o: [['Vor-Ort-Modus', { 'meta.modus': 'vorort' }, 'Eine Frage je Seite, in der Reihenfolge des Gesprächs', { call: 'voWechsel', toast: 'Vor-Ort-Modus – deine Angaben bleiben erhalten' }]] });
+  STEPS.splice(0, STEPS.length, ...VO, ...STEPS, ...VO_ENDE);
+  root.WVUF_VO = { modus, hm };
+
   root.WVUF_STEPS = STEPS;
 })(typeof window !== 'undefined' ? window : globalThis);
 
@@ -1054,17 +1542,27 @@
   }
   const STRASSENTYP = { gemeinde: 'Gemeindestraße', kreis: 'Kreisstraße', land: 'Landesstraße', bundes: 'Bundesstraße', bab: 'Bundesautobahn' };
   const reineNr = s => /^\d+\s*[a-z]?(\s*[-–/]\s*\d+\s*[a-z]?)?$/i.test(str(s));
+  /** Ort: die ausführliche Maske schreibt ort.stadt, die Straßenauswahl (Vor-Ort-Modus) ort.ort – gelesen wird beides. */
+  const stadt = o => str(o && o.stadt) || str(o && o.ort);
+  /** Ortsteil; „-“ heißt in der Straßenauswahl „ohne Ortsteil“. */
+  const ortsteil = o => (str(o && o.ortsteil) === '-' ? '' : str(o && o.ortsteil));
+  const istVo = d => get(d, 'meta.modus') === 'vorort';
   function adresse(d, kurz = false) {
     const o = get(d, 'ort') || {};
     const s = [str(o.strasse) || PH('Straße'), str(o.hausnr)].filter(Boolean).join(' ');
-    if (kurz) return s + (has(o.stadt) ? ' in ' + str(o.stadt) : '');
-    return s + ', ' + [str(o.plz), str(o.stadt) || PH('Ort')].filter(Boolean).join(' ') + (has(o.ortsteil) ? ' (Ortsteil ' + str(o.ortsteil) + ')' : '');
+    if (kurz) return s + (stadt(o) ? ' in ' + stadt(o) : '');
+    return s + ', ' + [str(o.plz), stadt(o) || PH('Ort')].filter(Boolean).join(' ') + (ortsteil(o) ? ' (Ortsteil ' + ortsteil(o) + ')' : '');
   }
+  /**
+   * Straßenname hinter „auf der …“ / „am Fahrbahnrand der …“: Namen auf -straße, -allee, -gasse stehen für sich
+   * („der Bahnhofstraße“), alle anderen mit Gattungswort („der Straße „Am Fichtenbusch““, „der Straße „Lindenweg““).
+   */
+  const strName = o => (!has(o.strasse) ? PH('Straße') : /(stra(ß|ss)e|str\.|allee|gasse|chaussee|promenade)$/i.test(str(o.strasse)) ? str(o.strasse) : `Straße „${str(o.strasse)}“`);
   /** „der Bahnhofstraße in Höhe der Hausnummer 12 in Steinfurt“ */
   function strassePhrase(d) {
     const o = get(d, 'ort') || {};
     const nr = has(o.hausnr) ? (reineNr(o.hausnr) ? ' in Höhe der Hausnummer ' + str(o.hausnr) : ' (' + str(o.hausnr) + ')') : '';
-    return (str(o.strasse) || PH('Straße')) + nr + (has(o.stadt) ? ' in ' + str(o.stadt) : '');
+    return strName(o) + nr + (stadt(o) ? ' in ' + stadt(o) : '');
   }
   /**
    * Ortsangabe im Satz: „am rechten Fahrbahnrand der Bahnhofstraße …“ / „auf dem Parkplatz des REWE-Marktes,
@@ -1149,7 +1647,7 @@
       const lage = o.lage === 'innerorts' ? 'innerorts gelegene ' : o.lage === 'ausserorts' ? 'außerorts gelegene ' : '';
       const typ = STRASSENTYP[o.strassentyp] || 'Straße';
       const nr = has(o.hausnr) ? (reineNr(o.hausnr) ? ' in Höhe der Hausnummer ' + str(o.hausnr) : ' (' + str(o.hausnr) + ')') : '';
-      out.push(`Bei der Unfallörtlichkeit handelt es sich um die ${lage}${typ} ${has(o.strasse) ? '„' + str(o.strasse) + '“' : PH('Straße')}${nr}, ${[str(o.plz), str(o.stadt) || PH('Ort')].filter(Boolean).join(' ')}${has(o.ortsteil) ? ' (Ortsteil ' + str(o.ortsteil) + ')' : ''}.`);
+      out.push(`Bei der Unfallörtlichkeit handelt es sich um die ${lage}${typ} ${has(o.strasse) ? '„' + str(o.strasse) + '“' : PH('Straße')}${nr}, ${[str(o.plz), stadt(o) || PH('Ort')].filter(Boolean).join(' ')}${ortsteil(o) ? ' (Ortsteil ' + ortsteil(o) + ')' : ''}.`);
     } else {
       const was = o.art === 'parkhaus' ? 'das Parkhaus' : o.art === 'parkplatz' ? 'den Parkplatz' : 'die Verkehrsfläche';
       out.push(`Bei der Unfallörtlichkeit handelt es sich um ${was}${has(o.zugehoerigkeit) ? ' ' + slot(o.zugehoerigkeit) : ''}, ${adresse(d)}.`);
@@ -1406,6 +1904,8 @@
     const raw = g.modus === 'beobachtet' ? 'frei' : g.modus;
     let modus = raw || (has(g.freitext) || g.aufmerksam === 'beobachtet' ? 'frei' : x.geparkt ? 'abgestellt' : 'kurz');
     if (modus === 'abgestellt' && !x.geparkt) modus = 'kurz';
+    // „vorher unbeschädigt“ gilt nur, solange die Angabe zu Altschäden nicht dagegen spricht
+    const vorher = (g.vorher === 'ja' && g.altschaden === 'ja') || (g.vorher === 'nein' && g.altschaden === 'nein') ? '' : g.vorher;
     const z = get(d, 'zeit') || {};
     const zr = z.art === 'zeitraum';
     const ab = zr ? (when(z.vonDatum, z.vonZeit) || PH('Abstellzeit')) : '';
@@ -1420,12 +1920,15 @@
       ang = get(d, 'ub02.park.abgestelltVon') === 'andere'
         ? `${cap(x.g.poss('nom', vehicleG(x.fz02)))} ${fzNoun(x.fz02, 'nom')} sei${ab ? ' ' + ab : ''} von einer anderen Person ${ortKurz(d, true)} ${parkArt(d)} worden.`
         : `${x.g.Er} habe ${fzRef}${ab ? ' ' + ab : ''} ${ortKurz(d, true)} ${parkArt(d)}.`;
+      // Stand beim Abstellen (Frage aus dem Vor-Ort-Modus)
+      ang += { ja: ' Zu diesem Zeitpunkt sei das Fahrzeug an den nunmehr beschädigten Stellen unbeschädigt gewesen.', unsicher: ` Ob das Fahrzeug zu diesem Zeitpunkt an den betroffenen Stellen bereits Beschädigungen aufgewiesen habe, könne ${x.g.er} nicht sicher sagen.`, nein: ' An den betroffenen Stellen hätten bereits zuvor Beschädigungen bestanden.' }[vorher] || '';
       const auf = aufmerksamSatz(x, g, rk, 'Später');
       ang += ' ' + (auf || `Bei ${x.g.poss('dat', 'w')} Rückkehr${rk ? ' ' + rk : ''} habe ${x.g.er} das Fahrzeug beschädigt vorgefunden.`);
       if (has(g.standort)) ang += ` Zum Unfallzeitpunkt habe ${x.g.er} sich ${slot(g.standort)} befunden${g.sichtkontakt === 'ja' ? ' und Sichtkontakt zum Fahrzeug gehabt' : g.sichtkontakt === 'nein' ? ' und keinen Sichtkontakt zum Fahrzeug gehabt' : ''}.`;
       if (g.zwischenzeit === 'ja') ang += ` In der Zwischenzeit habe ${x.g.er} Folgendes festgestellt: ${has(g.zwischenzeitText) ? sent(g.zwischenzeitText) : PH('Zwischenfeststellung')}`;
       else if (g.zwischenzeit === 'nein') ang += ` Zwischenzeitlich habe ${x.g.er} das Fahrzeug nicht gesehen.`;
       ang += ` ${x.g.Er} gehe davon aus, dass ${zr ? 'in diesem Zeitraum' : 'in der Zwischenzeit'} ein bislang unbekannter Verkehrsteilnehmer das Fahrzeug beschädigt und sich anschließend entfernt habe, ohne die erforderlichen Feststellungen zu ermöglichen.`;
+      if (g.verdacht === 'nein') ang += ` Verdächtige Beobachtungen habe ${x.g.er} nicht gemacht; Hinweise auf den Verursacher könne ${x.g.er} nicht geben.`;
     } else if (x.istFz) {
       const fzRef = x.g.poss('akk', vehicleG(x.fz02)) + ' ' + fzNoun(x.fz02);
       ang = `${x.g.Er} habe ${fzRef} ${zeitPhrase(d)} ${ortKurz(d)} geführt, als es zu einem Zusammenstoß mit einem anderen Fahrzeug gekommen sei. Dessen ${x.f.g === 'w' ? 'Führerin' : 'Führer'} habe sich anschließend vom Unfallort entfernt.`;
@@ -1440,7 +1943,9 @@
     const sch = num(g.schaden);
     if (sch != null) nach.push(`Den entstandenen Schaden bezifferte ${x.g.er} auf ca. ${euro(sch)}.`);
     const alt = { nein: `Altschäden an den betroffenen Stellen schloss ${x.g.er} aus.`, ja: `${x.g.Er} räumte ein, dass es sich teilweise um Altschäden handeln könne.`, unsicher: `Ob es sich teilweise um Altschäden handeln könnte, konnte ${x.g.er} nicht sicher sagen.` }[g.altschaden];
-    if (alt && x.istFz) nach.push(alt);
+    // Steht der Stand beim Abstellen schon in der Schilderung, wird er hier nicht wiederholt
+    const altGesagt = modus === 'abgestellt' && ((vorher === 'ja' && g.altschaden === 'nein') || (vorher === 'unsicher' && g.altschaden === 'unsicher'));
+    if (alt && x.istFz && !altGesagt) nach.push(alt);
     return B(kopf, bel + '\n' + ang.replace(/\s+/g, ' ').trim(), nach.join(' '));
   }
 
@@ -1692,33 +2197,35 @@
   /** Abschnitte: [Nummer, Überschrift, Text, Schritt zum Bearbeiten] – Überschriften ohne Text sind Gliederungsebenen. */
   function text(d) {
     const x = ctx(d), M = massnahmen(d);
+    // „Bearbeiten“ führt zur Folie der gerade genutzten Maske: [ausführlich, vor Ort]
+    const v = istVo(d), f = (voll, vorOrt) => (v ? vorOrt : voll);
     return [
       ['1', 'Allgemeines'],
-      ['1.1', 'Einsatzübernahme', allg1(d), 'einsatz'],
-      ['1.2', 'Erkenntnislage', allg2(d), 'einsatz'],
-      ['1.3', 'Eintreffsituation', allg3(d), 'eintreff'],
+      ['1.1', 'Einsatzübernahme', allg1(d), f('einsatz', 'vo_einsatz')],
+      ['1.2', 'Erkenntnislage', allg2(d), f('einsatz', 'vo_meldung')],
+      ['1.3', 'Eintreffsituation', allg3(d), f('eintreff', 'vo_eintreff')],
       ['2', 'Objektiver Befund'],
-      ['2.1', 'Ergänzende Angaben zum Unfallort', ort(d), 'ort'],
-      ['2.2', 'Spuren auf der Fahrbahn', spurenFahrbahn(d), 'spurenort'],
-      ['2.3', 'Spuren in/an den Fahrzeugen', fahrzeuge(d), x.istFz ? 'teile02' : x.angetroffen ? 'teile01' : 'taeterfz'],
-      ['2.4', 'Spuren an Personen', personenSpuren(d), x.ermittelt ? 'besch2' : 'lage'],
-      ['2.5', 'Spuren an sonstigen Gegenständen', sonstGegenst(d), x.istFz ? 'spurenort' : 'sache02'],
+      ['2.1', 'Ergänzende Angaben zum Unfallort', ort(d), f('ort', 'vo_adresse')],
+      ['2.2', 'Spuren auf der Fahrbahn', spurenFahrbahn(d), f('spurenort', 'vo_bodenspuren')],
+      ['2.3', 'Spuren in/an den Fahrzeugen', fahrzeuge(d), x.istFz ? f('teile02', 'vo_teile') : x.angetroffen ? 'teile01' : 'taeterfz'],
+      ['2.4', 'Spuren an Personen', personenSpuren(d), x.ermittelt ? 'besch2' : f('lage', 'vo_hinweise')],
+      ['2.5', 'Spuren an sonstigen Gegenständen', sonstGegenst(d), x.istFz ? f('spurenort', 'vo_sonstspuren') : 'sache02'],
       ['3', 'Subjektiver Befund'],
-      ['3.1', 'Unfallschilderung der Beteiligten', beteiligte(d), x.erreicht ? 'geschangaben' : 'gesch'],
-      ['3.2', 'Unfallschilderung der Zeugen', zeugenText(d), 'zeugen'],
-      ['3.3', 'Sonstige Angaben Dritter', dritteText(d), 'umfeld'],
+      ['3.1', 'Unfallschilderung der Beteiligten', beteiligte(d), x.erreicht ? f('geschangaben', 'vo_schilderung') : f('gesch', 'vo_person')],
+      ['3.2', 'Unfallschilderung der Zeugen', zeugenText(d), f('zeugen', 'vo_zeugen')],
+      ['3.3', 'Sonstige Angaben Dritter', dritteText(d), f('umfeld', 'vo_dritte')],
       ['4', 'Zusammenfassung und eigene Schlussfolgerungen'],
-      ['4.1', 'Deutung und Zuordnung der Spuren/Aussagen', deutung(d), 'bewertung'],
-      ['4.2', 'Vermutlicher Unfallhergang', hergang(d), 'bewertung'],
-      ['4.3', 'Widersprüche', widersprueche(d), 'bewertung'],
+      ['4.1', 'Deutung und Zuordnung der Spuren/Aussagen', deutung(d), f('bewertung', 'vo_spurenbild')],
+      ['4.2', 'Vermutlicher Unfallhergang', hergang(d), f('bewertung', 'vo_hergang')],
+      ['4.3', 'Widersprüche', widersprueche(d), f('bewertung', 'vo_wider')],
       ['5', 'Maßnahmen'],
-      ['5.1', 'Gefahrenabwehrende/strafprozessuale Maßnahmen', M.s1, x.hinweise ? 'ermittlung' : 'umfeld'],
-      ['5.2', 'Anforderungen/Benachrichtigungen', M.s2, 'massnahmen2'],
-      ['5.3', 'Weitere Veranlassungen', M.s3, 'massnahmen2'],
+      ['5.1', 'Gefahrenabwehrende/strafprozessuale Maßnahmen', M.s1, x.hinweise ? 'ermittlung' : f('umfeld', 'vo_kamera')],
+      ['5.2', 'Anforderungen/Benachrichtigungen', M.s2, f('massnahmen2', 'vo_sonst')],
+      ['5.3', 'Weitere Veranlassungen', M.s3, f('massnahmen2', 'vo_sonst')],
       ['6', 'Sonstiges'],
-      ['6.1', 'Verweis auf gesonderte Berichte', verweise(d), 'massnahmen1'],
-      ['6.2', 'Eingesetzte Kräfte', kraefteText(d), 'kraefte'],
-      ['6.3', 'Einsatzende', endeText(d), 'massnahmen2']
+      ['6.1', 'Verweis auf gesonderte Berichte', verweise(d), f('massnahmen1', 'vo_mitteilung')],
+      ['6.2', 'Eingesetzte Kräfte', kraefteText(d), f('kraefte', 'vo_team')],
+      ['6.3', 'Einsatzende', endeText(d), f('massnahmen2', 'vo_ende')]
     ];
   }
   /** Reiner Text (zum Kopieren) aus den Abschnitten. */
@@ -1867,8 +2374,9 @@
     const o = get(d, 'ort') || {};
     const ortS = [str(o.strasse), str(o.hausnr)].filter(Boolean).join(' ') || (has(o.zugehoerigkeit) ? ({ parkhaus: 'Parkhaus', parkplatz: 'Parkplatz' }[o.art] || 'Fläche') + ' ' + slot(o.zugehoerigkeit) : '');
     const z = get(d, 'zeit') || {};
-    const dat = z.art === 'zeitpunkt' ? fmtDate(z.datum) : z.art === 'zeitraum' ? fmtDate(z.bisDatum || z.vonDatum) : fmtDate(get(d, 'einsatz.datum'));
-    return ['VUF', ortS, has(o.stadt) ? str(o.stadt) : '', dat].filter(Boolean).join(' · ') || 'Verkehrsunfallflucht';
+    // Vor Ort steht der Zeitraum von Anfang an fest, die Daten kommen erst im Gespräch: bis dahin der Tag der Aufnahme
+    const dat = z.art === 'zeitpunkt' ? fmtDate(z.datum) : z.art === 'zeitraum' ? fmtDate(z.bisDatum || z.vonDatum || (istVo(d) ? get(d, 'einsatz.datum') : '')) : fmtDate(get(d, 'einsatz.datum'));
+    return ['VUF', ortS, stadt(o), dat].filter(Boolean).join(' · ') || 'Verkehrsunfallflucht';
   }
   function subtitle(d) {
     const f = get(d, 'ub02.fz') || {};
@@ -1895,12 +2403,61 @@
       if (g.fragebogen === 'ja') { g.fragebogen = 'ausgefuellt'; ch = true; }
       if (g.modus === 'beobachtet') { g.modus = 'frei'; ch = true; }
     }
+    // Maske: Vorgänge aus der Zeit vor dem Vor-Ort-Modus bleiben in der ausführlichen Maske
+    const mo = root.WVUF_VO.modus(d);
+    if (mo && get(d, 'meta.modus') !== mo) { obj(d, 'meta').modus = mo; ch = true; }
+    // Ort: Die Straßenauswahl (Vor-Ort-Modus) schreibt ort.ort, die ausführliche Maske ort.stadt – das Feld der
+    // gerade genutzten Maske gilt, das andere wird nachgezogen. „-“ (ohne Ortsteil) kennt nur die Straßenauswahl.
+    const oo = get(d, 'ort');
+    if (oo && typeof oo === 'object') {
+      const [von, nach] = mo === 'vorort' ? ['ort', 'stadt'] : ['stadt', 'ort'];
+      if (str(oo[von]) !== str(oo[nach])) { if (has(oo[von])) oo[nach] = oo[von]; else delete oo[nach]; ch = true; }
+      if (mo !== 'vorort' && str(oo.ortsteil) === '-') { delete oo.ortsteil; ch = true; }
+    }
     return ch;
+  }
+
+  /* ---------- Vor-Ort-Modus: Start und Wechsel ---------- */
+  const obj = (d, k) => (d[k] && typeof d[k] === 'object' && !Array.isArray(d[k]) ? d[k] : (d[k] = {}));
+  /**
+   * In den Vor-Ort-Modus wechseln: Er fragt nach dem abgestellten Fahrzeug bei einer Aufnahme am Unfallort,
+   * die Person steht vor einem. Was die ausführliche Maske dazu schon weiß, bleibt stehen.
+   */
+  function voWechsel(d) {
+    obj(d, 'meta').modus = 'vorort';
+    obj(d, 'einsatz').aufnahmeort = 'unfallort';
+    const g = obj(d, 'gesch'); if (!has(g.kontakt) || g.kontakt === 'wache') g.kontakt = 'vorort';
+    const u = obj(d, 'ub02'); u.typ = 'fahrzeug'; u.zustand = 'geparkt';
+    const fz = obj(u, 'fz'); if (!has(fz.art)) fz.art = 'pkw';
+    const z = obj(d, 'zeit');
+    if (z.art === 'zeitpunkt') { if (!has(z.bisDatum) && has(z.datum)) z.bisDatum = z.datum; if (!has(z.bisZeit) && has(z.zeit)) z.bisZeit = z.zeit; }
+    z.art = 'zeitraum';
+    const o = get(d, 'ort'); if (o && typeof o === 'object' && !has(o.ort) && has(o.stadt)) o.ort = o.stadt;
+    return d;
+  }
+  /**
+   * „Unfallaufnahme starten“: Der Tipp ist die Eintreffzeit (t = { now: 'HH:MM', today: 'JJJJ-MM-TT' }).
+   * Die Uhrzeit vom Anlegen des Vorgangs gilt als Einsatzübernahme – außer sie fällt mit dem Eintreffen zusammen,
+   * dann wurde der Vorgang erst an der Unfallstelle angelegt und die Einsatzzeit wird am Ende nachgetragen.
+   */
+  function voStart(d, t) {
+    const e = obj(d, 'einsatz'), now = str(t && t.now), today = str(t && t.today);
+    if (today) e.datum = today;
+    if (now) e.eintreffZeit = now;
+    const hm = root.WVUF_VO.hm, a = hm(e.zeit), b = hm(now);
+    if (a != null && b != null && b - a >= 0 && b - a <= 2) delete e.zeit;
+    if (!has(e.mitteiler)) e.mitteiler = 'gesch';
+    return voWechsel(d);
   }
 
   root.WVUF = Object.freeze({
     id: 'vuf', name: 'Verkehrsunfallflucht ohne Personenschaden', short: 'VUF Sachschaden', kurz: 'VUF',
+    intro: 'Vor Ort Frage für Frage oder ausführliche Maske, nur passende Fragen · Befundbericht nach Anlage 6, Kurzsachverhalt, Fahndungstext, offene Punkte',
+    inherit: ['vo'], // Einstellungen des Vor-Ort-Modus (Blättern) gelten auch für den nächsten Vorgang
     steps: root.WVUF_STEPS, text, plain, preview, kurzText: kurz, fahndung, offen, personalien, title, subtitle, ctx, migrate,
-    hergangVorschlag: d => autoHergang(ctx(d), get(d, 'bewertung') || {})
+    hergangVorschlag: d => autoHergang(ctx(d), get(d, 'bewertung') || {}),
+    /** Schilderung der geschädigten Person (Teil von 3.1) – steht im Vor-Ort-Modus direkt auf der Folie. */
+    schilderung: d => ub02Angaben(d, ctx(d)),
+    voStart, voWechsel, modus: d => root.WVUF_VO.modus(d)
   });
 })(typeof window !== 'undefined' ? window : globalThis);

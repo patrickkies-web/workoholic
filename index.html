@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="de" data-stand="20261124-0033">
+<html lang="de" data-stand="20261124-0154">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -1444,6 +1444,24 @@ body[data-area=schreiben] .pane-schreiben{display:grid}
 .w-pre.on{background:rgba(236,217,111,.1);border-color:rgba(236,217,111,.45)}
 .w-pre.on b::after{content:" ✓";color:var(--accent)}
 @media (hover:hover) and (pointer:fine){.w-pre:hover{background:rgba(255,255,255,.08)}}
+/* Schnellwahl als Antwort: große Knöpfe untereinander; „haupt“ ist der eine Knopf, auf den es ankommt */
+.w-pre-row.gross{flex-direction:column;gap:10px}
+.w-pre-row.gross .w-pre{width:100%;min-height:68px;padding:14px 18px;border-radius:18px;justify-content:center;gap:3px}
+.w-pre-row.gross .w-pre b{font-size:16px;font-weight:600;letter-spacing:-.01em}
+.w-pre-row.gross .w-pre small{font-size:12.5px;line-height:1.45;color:var(--text-2)}
+.w-pre.haupt{background:var(--accent);border-color:transparent}
+.w-pre.haupt b{color:var(--accent-ink)}
+.w-pre.haupt small,.w-pre-row.gross .w-pre.haupt small{color:var(--accent-ink);opacity:.74}
+.w-pre-row.gross .w-pre.haupt{min-height:96px}
+.w-pre-row.gross .w-pre.haupt b{font-size:20px}
+@media (hover:hover) and (pointer:fine){.w-pre.haupt:hover{background:var(--accent);filter:brightness(1.05)}}
+/* Folien mit Luft (Vor-Ort-Modus): eine Frage je Seite, große Ziele für den Daumen */
+.w-step.luft > .w-grid{gap:26px 14px}
+.w-step.luft > .w-grid > .w-q > .w-lbl{font-size:15px;margin-bottom:10px}
+.w-step.luft .w-seg{gap:8px}
+.w-step.luft > .w-grid > .w-q > .w-seg .w-opt{min-height:58px;font-size:16px;border-radius:16px}
+.w-step.luft > .w-grid > .w-q > .w-chips{gap:8px}
+.w-step.luft > .w-grid > .w-q > .w-chips > .chip:not(.sm){height:auto;min-height:46px;padding:9px 16px;font-size:14.5px;line-height:1.3;white-space:normal;text-align:left;border-radius:23px}
 .w-karo-g{display:flex;flex-direction:column;gap:5px;padding:10px;border-radius:16px;background:rgba(255,255,255,.025);border:1px solid var(--line)}
 .w-karo-l{font-size:10px;font-weight:500;letter-spacing:.22em;text-transform:uppercase;color:var(--text-3);margin:0 0 4px 2px}
 .w-karo-r{display:grid;grid-template-columns:repeat(var(--n,1),1fr);gap:5px}
@@ -2884,29 +2902,29 @@ dialog.brief-dlg.open .brief{opacity:1;transform:none}
 <input type="file" id="fileInput" multiple hidden>
 <input type="file" id="importFile" accept=".vault,.json,application/json,application/octet-stream" hidden>
 
-<script src="vendor/hash-wasm/argon2.umd.min.js?v=20261124-0033"></script>
-<script src="js/vault.js?v=20261124-0033"></script>
-<script src="js/app.js?v=20261124-0033"></script>
-<script src="js/fe.js?v=20261124-0033"></script>
-<script src="js/vuf.js?v=20261124-0033"></script>
-<script src="js/vermisst.js?v=20261124-0033"></script>
-<script src="js/hg.js?v=20261124-0033"></script>
-<script src="js/hgv.js?v=20261124-0033"></script>
-<script src="js/febericht.js?v=20261124-0033"></script>
-<script src="js/skizze.js?v=20261124-0033"></script>
-<script src="js/strassen-gt.js?v=20261124-0033"></script>
-<script src="js/anzeige.js?v=20261124-0033"></script>
-<script src="js/unfallort.js?v=20261124-0033"></script>
-<script src="js/schilderung.js?v=20261124-0033"></script>
-<script src="js/eintreffen.js?v=20261124-0033"></script>
-<script src="js/gewahrsam.js?v=20261124-0033"></script>
-<script src="js/psychkg.js?v=20261124-0033"></script>
-<script src="js/blutprobe.js?v=20261124-0033"></script>
-<script src="js/personenbeschreibung.js?v=20261124-0033"></script>
-<script src="js/fahrzeugbeschreibung.js?v=20261124-0033"></script>
-<script src="js/massnahmen.js?v=20261124-0033"></script>
-<script src="js/vorgang.js?v=20261124-0033"></script>
-<script src="js/writer.js?v=20261124-0033"></script>
-<script src="js/update.js?v=20261124-0033"></script>
+<script src="vendor/hash-wasm/argon2.umd.min.js?v=20261124-0154"></script>
+<script src="js/vault.js?v=20261124-0154"></script>
+<script src="js/app.js?v=20261124-0154"></script>
+<script src="js/fe.js?v=20261124-0154"></script>
+<script src="js/vuf.js?v=20261124-0154"></script>
+<script src="js/vermisst.js?v=20261124-0154"></script>
+<script src="js/hg.js?v=20261124-0154"></script>
+<script src="js/hgv.js?v=20261124-0154"></script>
+<script src="js/febericht.js?v=20261124-0154"></script>
+<script src="js/skizze.js?v=20261124-0154"></script>
+<script src="js/strassen-gt.js?v=20261124-0154"></script>
+<script src="js/anzeige.js?v=20261124-0154"></script>
+<script src="js/unfallort.js?v=20261124-0154"></script>
+<script src="js/schilderung.js?v=20261124-0154"></script>
+<script src="js/eintreffen.js?v=20261124-0154"></script>
+<script src="js/gewahrsam.js?v=20261124-0154"></script>
+<script src="js/psychkg.js?v=20261124-0154"></script>
+<script src="js/blutprobe.js?v=20261124-0154"></script>
+<script src="js/personenbeschreibung.js?v=20261124-0154"></script>
+<script src="js/fahrzeugbeschreibung.js?v=20261124-0154"></script>
+<script src="js/massnahmen.js?v=20261124-0154"></script>
+<script src="js/vorgang.js?v=20261124-0154"></script>
+<script src="js/writer.js?v=20261124-0154"></script>
+<script src="js/update.js?v=20261124-0154"></script>
 </body>
 </html>
