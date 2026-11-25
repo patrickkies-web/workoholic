@@ -618,9 +618,14 @@
   /* ======================= Zeitleiste und Antrag ======================= */
   function timeline(d) {
     const f = F(d);
-    if (istKurz(d)) { // keine Uhrzeiten gefragt; die Frist hängt nur am Tag des Ergreifens
-      const t = folgetag(f.e1_d);
-      return (t ? `Frist ohne richterliche Anordnung: spätestens ${t}, 24:00 Uhr (§ 38 Abs. 1 Nr. 3 PolG NRW, Art. 104 Abs. 2 Satz 3 GG)` : 'Frist: Datum der Ingewahrsamnahme eintragen.') + '\n\nDie Kurzfassung fragt keine Uhrzeiten ab. Wer sie braucht, trägt sie im fertigen Text von Hand nach.';
+    if (istKurz(d)) { // eine Uhrzeit (Ingewahrsamnahme): Ablauf beim Richter und Frist
+      const t = folgetag(f.e1_d), fall = riFall(f), T = mins(f.e1_t) != null ? f.e1_t : '';
+      return [`Ingewahrsamnahme: ${has(f.e1_d) ? fmtD(f.e1_d) : '[Datum]'}${T ? `, ${T} Uhr` : ''}`,
+        `Richterlicher Bereitschaftsdienst (Amtsgericht ${RI.ag}): ${RI.von} bis ${RI.bis} Uhr; Entscheidung nicht vor ${RI.ab} Uhr zu erwarten`,
+        fall === 'tag' ? 'Ablauf: Antrag stellen – die richterliche Entscheidung muss unverzüglich herbeigeführt werden (§ 36 Abs. 1 Satz 1 PolG NRW).'
+          : fall === 'nacht' ? `Ablauf: Antrag trotzdem stellen. Auf die Entscheidung kommt es nur dann nicht an, wenn der Grund voraussichtlich vor ${RI.ab} Uhr wegfällt (§ 36 Abs. 1 Satz 2 PolG NRW); sonst wird sie auf den Antrag hin herbeigeführt.`
+            : 'Ablauf: Uhrzeit der Ingewahrsamnahme eintragen – danach richtet er sich.',
+        t ? `Frist ohne richterliche Anordnung: spätestens ${t}, 24:00 Uhr (§ 38 Abs. 1 Nr. 3 PolG NRW, Art. 104 Abs. 2 Satz 3 GG)` : 'Frist: Datum der Ingewahrsamnahme eintragen.'].join('\n');
     }
     const C = compose(d);
     const first = C.ctx.times.find(([t]) => mins(t) != null), ref = first ? mins(first[0]) : null;
@@ -641,9 +646,9 @@
   function antrag(d) {
     const f = F(d), v = V[f.art]; if (!v) return 'Zuerst die Gewahrsamsart wählen.';
     const C = istKurz(d) ? (P => ({ s: [P.a[0]], r: P.a.slice(1) }))(kurzTeile(d)) : compose(d);
-    const ag = has(f.e6_ag) ? clean(f.e6_ag) : '[Ort des Amtsgerichts]';
-    const kurz = istKurz(d); // Kurzfassung: keine Uhrzeiten, Dauer wie im Textbaustein
-    const seit = kurz ? (has(f.e1_d) ? fmtD(f.e1_d) : '[Datum]') : `${has(f.e1_d) ? fmtD(f.e1_d) : '[Datum]'}, ${has(f.e1_t) ? f.e1_t : '[Uhrzeit]'} Uhr`;
+    const kurz = istKurz(d); // Kurzfassung: Amtsgericht Gütersloh als Konzentrationsgericht, Dauer wie im Textbaustein
+    const agOrt = has(f.e6_ag) ? clean(f.e6_ag) : kurz ? RI.ag : '[Ort des Amtsgerichts]', ag = kurz && agOrt === RI.ag ? `${agOrt}\n${RI.anschrift}` : agOrt;
+    const seit = `${has(f.e1_d) ? fmtD(f.e1_d) : '[Datum]'}, ${has(f.e1_t) ? f.e1_t : '[Uhrzeit]'} Uhr`;
     const bis = kurz ? 'zum Wegfall des Grundes, längstens bis zum Ende des Tages nach dem Ergreifen,' : has(f.f_bis) ? clean(f.f_bis) : '[Datum, Uhrzeit]';
     return `Antrag auf richterliche Entscheidung über die Zulässigkeit und Fortdauer der Freiheitsentziehung\n(§ 36 Abs. 1 PolG NRW i. V. m. §§ 415 ff. FamFG, Art. 104 Abs. 2 GG)\n\nAn das Amtsgericht ${ag}\n\n${LABEL[gOf(d)]}: ${personLine(d)}\nFreiheitsentziehung seit: ${seit}, nach ${v.norm}\n\nBegründung (§ 417 Abs. 2 FamFG)\n\nSachverhalt\n${C.s.join('\n\n')}\n\nErforderlichkeit der Freiheitsentziehung\n${C.r.join('\n\n')}\n\nErforderliche Dauer\nDie Freiheitsentziehung ist voraussichtlich bis ${bis} erforderlich.\n\nEs wird beantragt, die Zulässigkeit der Freiheitsentziehung festzustellen und ihre Fortdauer bis ${bis} anzuordnen.`;
   }
@@ -654,12 +659,12 @@
   function text(d) {
     const f = F(d), v = V[f.art];
     if (!v) return [['', 'Gewahrsam nach PolG NRW', null], ['1', 'Gewahrsamsart', '[Gewahrsamsart wählen]', 'art']];
-    if (has(f.eigen)) return [['', `Ingewahrsamnahme nach ${v.norm}`, null], ['', 'Bericht (von Hand angepasst)', str(f.eigen), istKurz(d) ? 'k_text' : 'text']];
-    if (istKurz(d)) { const P = kurzTeile(d); return [['', `Ingewahrsamnahme nach ${v.norm}`, null], ['', 'Sachverhalt und Begründung', P.a.join('\n\n'), 'k_a'], ['', K_KOPF[0], P.z.join('\n'), 'k_c'], ['', K_KOPF[1], P.r, 'k_d'], ['', K_KOPF[2], P.e, 'k_d']]; }
+    if (has(f.eigen)) return [['', istKurz(d) ? kTitel(d) : `Ingewahrsamnahme nach ${v.norm}`, null], ['', 'Bericht (von Hand angepasst)', str(f.eigen), istKurz(d) ? 'k_text' : 'text']];
+    if (istKurz(d)) { const P = kurzTeile(d); return [['', kTitel(d), null], ['', 'Sachverhalt und Begründung', P.a.join('\n\n'), 'k_a'], ['', K_KOPF[0], P.z.join('\n'), 'k_c'], ['', K_KOPF[1], P.r, 'k_d'], ['', K_KOPF[2], P.e, 'k_d']]; }
     const C = compose(d);
     return [['', `Ingewahrsamnahme nach ${v.norm}`, null], ['1', 'Sachverhalt', C.s.join('\n\n'), firstOf(d, 's')], ['2', 'Rechtliche Bewertung', C.r.join('\n\n'), firstOf(d, 'r')], ['3', 'Durchführung der Maßnahme', C.e.join('\n\n'), 'dfa']];
   }
-  const plain = d => { const f = F(d), v = V[f.art]; return v && has(f.eigen) ? `Ingewahrsamnahme nach ${v.norm}\n\n${str(f.eigen)}` : genPlain(d); };
+  const plain = d => { const f = F(d), v = V[f.art]; return v && has(f.eigen) ? `${istKurz(d) ? kTitel(d) : 'Ingewahrsamnahme nach ' + v.norm}\n\n${str(f.eigen)}` : genPlain(d); };
   function preview(id, d) {
     const f = F(d), v = V[f.art];
     if (id === 'art') return v ? `${v.norm} · ${v.name}\n${LABEL[gOf(d)]}: ${personLine(d)}` : '';
@@ -720,11 +725,16 @@
      · Antippen gibt es nur, wo die Auswahl abschließend ist – was das Gesetz aufzählt (Zustand, Gründe der Fesselung,
        Platzverweis oder Aufenthaltsverbot, veranlasst oder abgesehen) oder die Vorlage (mildere Mittel, Unterbringung,
        Übermittlung, Kriterien der Entlassung). Daneben steht immer ein Feld für eigene Worte.
-     · Uhrzeiten werden nicht gefragt und stehen nicht im Text; wer sie braucht, trägt sie im fertigen Text von Hand nach.
-     Rechtlich geändert gegenüber der Vorlage: Rechtsgrundlage genannt, Gesetzeswortlaut (Gefahr für Leib oder Leben,
-     freie Willensbestimmung, unmittelbar bevorstehend, unerlässlich), § 34 Abs. 1 und Abs. 2 getrennt, Fesselung und
-     Durchsuchung mit eigener Grundlage, Grund und Benachrichtigung (§ 37), richterliche Entscheidung als Entweder-oder
-     (§ 36 Abs. 1 Satz 1 oder Satz 2), Entlassung als Pflicht (§ 38 Abs. 1 Nr. 1).
+     · Ausnahme von „kleine Listen“: Beim Unterbindungsgewahrsam werden die Straftaten aus einer umfassenden, nach
+       Gruppen geordneten Auswahl angetippt und stehen als Aufzählung im Text („… folgender Straftaten zu verhindern: …“).
+     · Gefragt wird eine einzige Uhrzeit: die der Ingewahrsamnahme. Nach ihr richtet sich der Ablauf beim Richter (siehe RI).
+       Weitere Uhrzeiten stehen nicht im Text; wer sie braucht, trägt sie im fertigen Text von Hand nach.
+     · Paragraphen stehen nur im Abschnitt „Richterliche Entscheidung“ (und im Antrag ans Amtsgericht). Überall sonst
+       steht die Bezeichnung: Platzverweis, Körperverletzung, gefesselt, durchsucht – der Gesetzeswortlaut bleibt.
+     Rechtlich geändert gegenüber der Vorlage: Gesetzeswortlaut (Gefahr für Leib oder Leben, freie Willensbestimmung,
+     unmittelbar bevorstehend, unerlässlich), Platzverweis und Aufenthaltsverbot getrennt, Fesselung mit ihren Tatsachen,
+     Grund und Benachrichtigung, richterliche Entscheidung nach Uhrzeit und Prognose (§ 36 Abs. 1 Satz 1 oder Satz 2;
+     der Antrag wird immer gestellt), Entlassung als Pflicht.
      Im Vorgang kommen Person, Datum, Kräfte und Ort aus den anderen Abschnitten. */
   const KURZ = ['n1', 'n2', 'n3'];
   const KN = { n1: 'Schutzgewahrsam', n2: 'Unterbindungsgewahrsam', n3: 'Platzverweis durchsetzen' };
@@ -748,27 +758,70 @@
   const K_MILD = {
     n1: [['ang', 'Angehörige waren nicht erreichbar'], ['abl', 'Angehörige lehnten die Übernahme ab'], ['begl', 'eine Begleitung ohne Freiheitsentziehung reichte nicht aus'], ['arzt', 'ärztliche Hilfe vor Ort reichte nicht aus']],
     n2: [['ga', 'eine Gefährderansprache blieb ohne Wirkung'], ['pv', 'ein Platzverweis wurde nicht befolgt'], ['pv0', 'ein Platzverweis versprach keinen Erfolg'], ['si', 'die Sicherstellung des Tatmittels reichte nicht aus']],
-    n3: [['anspr', 'weitere Ansprachen'], ['begl', 'Begleitung aus dem Bereich'], ['zwang', 'das zuvor angedrohte Verbringen aus dem Bereich unter Anwendung unmittelbaren Zwangs (§ 61 PolG NRW)']]
+    n3: [['anspr', 'weitere Ansprachen'], ['begl', 'Begleitung aus dem Bereich'], ['zwang', 'das zuvor angedrohte Verbringen aus dem Bereich unter Anwendung unmittelbaren Zwangs']]
   };
   const MILD_FELD = { n1: 'k_mild', n2: 'd_mild', n3: 'k_mild3' };
   /* Wann der Grund entfällt: die Kriterien der Vorlage, je Art */
   const K_ENDE = {
     n1: [['abgekl', 'die alkohol- oder drogenbedingte Beeinflussung abgeklungen ist'], ['wege', '{er} wieder sicher steh- und gehfähig ist'], ['komm', '{er} sich verständlich äußern und polizeiliche Anweisungen befolgen kann'], ['unter', '{er} witterungsgerecht untergebracht werden kann'], ['heim', 'ein sicherer Heimweg in Begleitung von Angehörigen gewährleistet ist']],
-    n2: [['abgekl', 'die akute Alkohol- oder Drogenbeeinflussung abgeklungen und die Einsichts- und Steuerungsfähigkeit wiedererlangt ist'], ['stabil', 'sich der psychophysische Zustand stabilisiert hat (Abbau von Erregung, Aggression, Enthemmung)'], ['tat', 'die Begehung oder Fortsetzung der Straftat nicht mehr unmittelbar bevorsteht']],
+    n2: [['abgekl', 'die akute Alkohol- oder Drogenbeeinflussung abgeklungen und die Einsichts- und Steuerungsfähigkeit wiedererlangt ist'], ['stabil', 'sich der psychophysische Zustand stabilisiert hat (Abbau von Erregung, Aggression, Enthemmung)'], ['tat', 'die Begehung oder Fortsetzung {derTat} nicht mehr unmittelbar bevorsteht']],
     n3: [['ablauf', '{pvDer} abgelaufen ist'], ['befolgt', 'die Befolgung {pvDes} zu erwarten ist']]
   };
-  /* Fesselung: die Gründe des § 62 PolG NRW */
+  /* Unterbindungsgewahrsam: Straftaten zum Antippen, je Gruppe ein Feld ([Schlüssel, Chip, Wortlaut im Text]).
+     Hier ist die Auswahl bewusst umfassend – die Tat wird nur angetippt, nicht ausformuliert.
+     Im Text steht die Bezeichnung der Tat, kein Paragraph. */
+  const K_ST = [
+    ['pers', 'Gegen Personen', [['kv', 'Körperverletzung', 'Körperverletzung'], ['gkv', 'gefährliche Körperverletzung', 'gefährliche Körperverletzung'], ['toet', 'Tötungsdelikt', 'Tötungsdelikt'], ['bedr', 'Bedrohung', 'Bedrohung'], ['noet', 'Nötigung', 'Nötigung'], ['frei', 'Freiheitsberaubung', 'Freiheitsberaubung'], ['nachst', 'Nachstellung', 'Nachstellung'], ['gewsch', 'Verstoß Gewaltschutzgesetz', 'Verstoß gegen das Gewaltschutzgesetz'], ['bel', 'Beleidigung', 'Beleidigung'], ['raub', 'Raub', 'Raub'], ['erpr', 'Erpressung', 'Erpressung'], ['rerpr', 'räuberische Erpressung', 'räuberische Erpressung']]],
+    ['sex', 'Sexualdelikte', [['belaest', 'sexuelle Belästigung', 'sexuelle Belästigung'], ['uebergr', 'sexueller Übergriff', 'sexueller Übergriff'], ['vergew', 'Vergewaltigung', 'Vergewaltigung'], ['exhib', 'exhibitionistische Handlungen', 'exhibitionistische Handlungen']]],
+    ['eig', 'Eigentum und Sachen', [['diebst', 'Diebstahl', 'Diebstahl'], ['einbr', 'Wohnungseinbruchdiebstahl', 'Wohnungseinbruchdiebstahl'], ['sachb', 'Sachbeschädigung', 'Sachbeschädigung'], ['gsachb', 'gemeinschädliche Sachbeschädigung', 'gemeinschädliche Sachbeschädigung'], ['brand', 'Brandstiftung', 'Brandstiftung'], ['hfb', 'Hausfriedensbruch', 'Hausfriedensbruch'], ['betrug', 'Betrug', 'Betrug']]],
+    ['ord', 'Einsatzkräfte und öffentliche Ordnung', [['wid', 'Widerstand gegen Vollstreckungsbeamte', 'Widerstand gegen Vollstreckungsbeamte'], ['angr', 'tätlicher Angriff auf Vollstreckungsbeamte', 'tätlicher Angriff auf Vollstreckungsbeamte'], ['rett', 'Angriff auf Rettungskräfte', 'Widerstand gegen oder tätlicher Angriff auf Rettungskräfte'], ['behind', 'Behinderung von Hilfeleistenden', 'Behinderung von hilfeleistenden Personen'], ['lfb', 'Landfriedensbruch', 'Landfriedensbruch'], ['androh', 'Androhung von Straftaten', 'Störung des öffentlichen Friedens durch Androhung von Straftaten'], ['volksv', 'Volksverhetzung', 'Volksverhetzung'], ['kennz', 'verbotene Kennzeichen', 'Verwenden von Kennzeichen verfassungswidriger und terroristischer Organisationen'], ['notruf', 'Missbrauch von Notrufen', 'Missbrauch von Notrufen'], ['gefbefr', 'Gefangenenbefreiung', 'Gefangenenbefreiung']]],
+    ['verk', 'Straßenverkehr', [['trunk', 'Trunkenheit im Verkehr', 'Trunkenheit im Verkehr'], ['gefstr', 'Gefährdung des Straßenverkehrs', 'Gefährdung des Straßenverkehrs'], ['eingr', 'gefährlicher Eingriff in den Straßenverkehr', 'gefährlicher Eingriff in den Straßenverkehr'], ['rennen', 'verbotenes Kraftfahrzeugrennen', 'verbotenes Kraftfahrzeugrennen'], ['ofe', 'Fahren ohne Fahrerlaubnis', 'Fahren ohne Fahrerlaubnis']]],
+    ['wb', 'Waffen und Betäubungsmittel', [['waff', 'Verstoß Waffengesetz', 'Verstoß gegen das Waffengesetz'], ['handel', 'Handel mit Betäubungsmitteln', 'unerlaubtes Handeltreiben mit Betäubungsmitteln']]]
+  ];
+  /** Die angetippten Straftaten in der Reihenfolge der Liste, dahinter eine eigene Angabe. */
+  const stListe = f => [...K_ST.flatMap(g => g[2].filter(o => arr(get(f, 'k_st.' + g[0])).includes(o[0])).map(o => o[2])), has(f.k_st_x) ? ohnePunkt(f.k_st_x) : ''].filter(Boolean);
+  /** Früher wurde die Tat ausformuliert („einer Körperverletzung“). Solche Entwürfe bleiben lesbar – nicht gemeint ist, was kZuLang selbst eingetragen hat. */
+  const altTat = f => (has(f.c_delikt) && f.c_delikt !== f.k_st_c ? ohnePunkt(f.c_delikt) : '');
+  /* Fesselung: die Gründe des § 62 PolG NRW (im Text ohne Paragraph) */
   const K_FES = [['ang', 'angreift oder Widerstand leistet', 'Polizeivollzugsbeamte oder Dritte angreifen oder Widerstand leisten'], ['fl', 'flieht', 'fliehen'], ['selbst', 'sich tötet oder verletzt', 'sich töten oder verletzen']];
-  const PV = { pv: { ein: 'einen Platzverweis', der: 'der Platzverweis', den: 'den Platzverweis', des: 'des Platzverweises', norm: '§ 34 Abs. 1 Satz 1 PolG NRW' }, av: { ein: 'ein Aufenthaltsverbot', der: 'das Aufenthaltsverbot', den: 'das Aufenthaltsverbot', des: 'des Aufenthaltsverbots', norm: '§ 34 Abs. 2 PolG NRW' } };
+  /* Richterliche Entscheidung – Abläufe der Dienststelle (Angaben des Nutzers, nicht aus dem Gesetz):
+     Das Amtsgericht Gütersloh ist Konzentrationsgericht. Der richterliche Bereitschaftsdienst ist von 06:00 bis 21:00 Uhr
+     erreichbar; wegen der Vorlaufzeit des Gerichts ist mit einer Entscheidung nicht vor 07:30 Uhr zu rechnen.
+     Der Antrag wird bei jeder Ingewahrsamnahme gestellt (besonderes Behördenpostfach über die Dienstgruppenleitung der
+     Leitstelle, sonst Fax) – auch nachts. Was daraus rechtlich folgt, richtet sich nach § 36 Abs. 1 PolG NRW:
+     · 07:30 bis vor 21:00 Uhr („tag“): Die Entscheidung muss unverzüglich herbeigeführt werden (Satz 1).
+     · 21:00 bis vor 07:30 Uhr („nacht“): Antrag ja; auf die Entscheidung kommt es nur dann nicht an, wenn anzunehmen ist,
+       dass der Grund vorher wegfällt (Satz 2). Dauert der Gewahrsam länger, wird sie auf den Antrag hin herbeigeführt.
+     Die Uhrzeit allein befreit also nicht – deshalb fragt die Seite nachts nach der Prognose. */
+  const RI = { ag: 'Gütersloh', anschrift: 'Friedrich-Ebert-Straße 30, 33330 Gütersloh', von: '06:00', bis: '21:00', ab: '07:30' };
+  const riFall = f => {
+    const m = mins(f.e1_t);
+    if (m != null) return m >= mins(RI.ab) && m < mins(RI.bis) ? 'tag' : 'nacht';
+    return ['tag', 'nacht'].includes(f.k_ri_fall) ? f.k_ri_fall : ({ herb: 'tag', entb: 'nacht', nacht: 'nacht' })[f.e6] || ''; // ohne Uhrzeit: Auswahl; Entwürfe vom 24.11.: aus der alten Angabe
+  };
+  const riFrueh = f => { const m = mins(f.e1_t); return m != null && m >= mins(RI.von) && m < mins(RI.ab); }; // 06:00 bis vor 07:30: Richter erreichbar, Entscheidung aber noch nicht zu erwarten
+  const riProg = f => (['vor', 'laenger'].includes(f.k_ri_prog) ? f.k_ri_prog : f.e6 === 'entb' && !has(f.e1_t) ? 'vor' : '');
+  /* Warum der Grund voraussichtlich vorher wegfällt: [Schlüssel, Chip, Satz, Arten] */
+  const K_RI_GRUND = [['aus', 'Ausnüchterung bis dahin', 'Die Ausnüchterung war bis dahin zu erwarten.', ['n1', 'n2', 'n3']], ['ruhe', 'beruhigt sich bis dahin', 'Es war zu erwarten, dass {er} sich bis dahin beruhigt.', ['n1', 'n2', 'n3']], ['abhol', 'Übergabe an Angehörige bis dahin', 'Die Übergabe an Angehörige war bis dahin zu erwarten.', ['n1']], ['pv', 'Platzverweis endet vorher', '{PvDer} endet vorher.', ['n3']]];
+  const RI_WEG = { bebpo: 'über das besondere Behördenpostfach durch die Dienstgruppenleitung der Leitstelle', fax: 'per Fax', tel: 'telefonisch', el: 'elektronisch' };
+  /* Fesselung zum Antippen: Die Tatsachen stehen schon im Sachverhalt – der Baustein verweist darauf und zieht den Schluss
+     des § 62 (Verhalten setzt sich fort). Je Grund der passende Schluss; eigene Worte können dazu oder stattdessen stehen. */
+  const FES_VOR = {
+    ang: [' und es mit hoher Wahrscheinlichkeit in gleichgelagerte Straftaten mündet, insbesondere gegen die eingesetzten Polizeivollzugsbeamten', 'Das zuvor beschriebene Verhalten setzt sich fort – mit hoher Wahrscheinlichkeit auch gegen die eingesetzten Beamten', 'Trägt, wenn oben Angriff, Widerstand oder Gewalt beschrieben ist. Sonst darunter in deinen Worten ergänzen.'],
+    fl: [' und die nächste Gelegenheit zur Flucht nutzt', 'Das zuvor beschriebene Verhalten setzt sich fort – Flucht bei nächster Gelegenheit', 'Trägt, wenn oben ein Weglaufen oder Losreißen beschrieben ist. Sonst darunter in deinen Worten ergänzen.'],
+    selbst: [' und sich dabei selbst verletzt', 'Das zuvor beschriebene Verhalten setzt sich fort – Selbstverletzung', 'Trägt, wenn oben eine Selbstgefährdung beschrieben ist. Sonst darunter in deinen Worten ergänzen.']
+  };
+  const fesVor = (f, er) => (arr(f.e2_fes_v).includes('vor') ? `Nach dem zuvor beschriebenen Verhalten war davon auszugehen, dass ${er} dieses fortsetzt${(FES_VOR[f.e2_fes_g] || [''])[0]}.` : '');
+  const PV = { pv: { ein: 'einen Platzverweis', der: 'der Platzverweis', den: 'den Platzverweis', des: 'des Platzverweises' }, av: { ein: 'ein Aufenthaltsverbot', der: 'das Aufenthaltsverbot', den: 'das Aufenthaltsverbot', des: 'des Aufenthaltsverbots' } };
   const pvOf = f => PV[f.k_pv_typ === 'av' ? 'av' : 'pv'];
   /* Satzanfänge vor dem Freitext – stehen so auch auf der Seite vor der Lücke */
   const L_TAT = { n1: 'Grundlage sind folgende aktuelle, konkret festgestellte Tatsachen:', n2: 'Die Entscheidung stützt sich auf folgende konkrete, zeitnahe Beobachtungen und Erkenntnisse:' };
   const L_NICHT = wer => `Trotz eindeutiger Anordnung und wiederholter, unmissverständlicher Aufforderung befolgte ${wer} die Anweisung nicht, verblieb im Verbotsbereich und änderte das Verhalten nicht.`;
-  const endeText = (o, er, pv) => o[1].replace('{er}', er).replace('{pvDer}', pv.der).replace('{pvDes}', pv.des);
+  const endeText = (o, er, pv, f) => o[1].replace('{er}', er).replace('{pvDer}', pv.der).replace('{pvDes}', pv.des).replace('{derTat}', stListe(f || {}).length > 1 ? 'der Straftaten' : 'der Straftat');
 
   /**
    * Die vier Teile des Textes: a = Sachverhalt und Begründung, z = Anordnung & Verbringung, r = Richter, e = Fortdauer/Entlassung.
-   * Uhrzeiten kommen nicht vor: Wer sie braucht, trägt sie im fertigen Text von Hand nach.
+   * Einzige Uhrzeit ist die der Ingewahrsamnahme (nach ihr richtet sich der Ablauf beim Richter); weitere trägt man im fertigen Text von Hand nach.
    */
   function kurzTeile(d) {
     const f = F(d), art = f.art, g = gOf(d), GG = G(d), ctx = { times: [], ff: [], miss: [] };
@@ -780,33 +833,40 @@
     const frei = (v, l) => { const t = str(v).replace(/\s*\n+\s*/g, ' ').trim(); if (!t) return l ? ph(l) : ''; ctx.ff.push(t); return punkt(t); };
     const wahl = (L, a, x) => [...L.filter(o => arr(a).includes(o[0])).map(o => o[1]), has(x) ? ohnePunkt(x) : ''].filter(Boolean);
     const D = has(f.e1_d) ? fmtD(f.e1_d) : '', inOrt = has(f.k_stadt) ? ` in ${ohnePunkt(f.k_stadt)}` : '';
-    const anf = D ? `Am ${D} wurde ${N.nom}` : `${N.nom} wurde`;
+    const T = mins(f.e1_t) != null ? str(f.e1_t) : ''; // die einzige Uhrzeit: Nach ihr richtet sich der Ablauf beim Richter
+    const anf = D ? `Am ${D}${T ? ` um ${T} Uhr` : ''} wurde ${N.nom}` : T ? `Um ${T} Uhr wurde ${N.nom}` : `${N.nom} wurde`;
     const pv = pvOf(f), a = [];
 
     if (art === 'n1') {
-      a.push(`${anf}${inOrt} gemäß § 35 Abs. 1 Nr. 1 PolG NRW ${g === 'm' ? 'zu seinem' : g === 'w' ? 'zu ihrem' : 'zum eigenen'} Schutz in Gewahrsam genommen. ${L_TAT.n1} ${frei(f.b_fest, 'Tatsachen')}`);
+      a.push(`${anf}${inOrt} ${g === 'm' ? 'zu seinem' : g === 'w' ? 'zu ihrem' : 'zum eigenen'} Schutz in Gewahrsam genommen. ${L_TAT.n1} ${frei(f.b_fest, 'Tatsachen')}`);
       const Z = arr(f.c_zust), zust = Z.includes('will') && Z.includes('hilf') ? 'in einem die freie Willensbestimmung ausschließenden Zustand und in hilfloser Lage' : Z.includes('will') ? 'in einem die freie Willensbestimmung ausschließenden Zustand' : Z.includes('hilf') ? 'in hilfloser Lage' : ph('Zustand');
       const mild = wahl(K_MILD.n1, f.k_mild, f.k_mild_x);
       a.push(`Aus diesen Umständen ergab sich in kurzer zeitlicher Nähe eine Gefahr für Leib oder Leben von ${N.dat}. ${N.nom} befand sich erkennbar ${zust}. Mildere, gleich geeignete Maßnahmen wurden geprüft und verworfen: ${mild.length ? mild.join('; ') : ph('mildere Mittel')}.`);
     } else if (art === 'n2') {
       const was = { beg: 'Begehung', fort: 'Fortsetzung' }[f.c_art] || 'Begehung bzw. Fortsetzung';
-      a.push(`${anf}${inOrt} gemäß § 35 Abs. 1 Nr. 2 PolG NRW in Gewahrsam genommen, um die unmittelbar bevorstehende ${was} ${has(f.c_delikt) ? ohnePunkt(f.c_delikt) : ph('Straftat')} zu verhindern. ${L_TAT.n2} ${frei(f.b_fest, 'Beobachtungen')}`);
+      const st = stListe(f), mehr = st.length > 1;
+      const ziel = st.length ? `folgender ${mehr ? 'Straftaten' : 'Straftat'} zu verhindern: ${liste(st, 'und')}.`
+        : altTat(f) ? `${altTat(f)} zu verhindern.` // Entwurf aus der Zeit, als die Tat ausformuliert wurde („einer Körperverletzung“)
+          : `folgender Straftaten zu verhindern: ${ph('Straftaten')}.`;
+      a.push(`${anf}${inOrt} in Gewahrsam genommen, um die unmittelbar bevorstehende ${was} ${ziel} ${L_TAT.n2} ${frei(f.b_fest, 'Beobachtungen')}`);
       const mild = wahl(K_MILD.n2, f.d_mild, f.k_mild_x);
-      a.push(`Aufgrund der genannten Tatsachen stand die ${was} der Tat durch ${N.dat} unmittelbar bevor; ein Zuwarten hätte das Risiko weiterer Rechtsgutverletzungen erheblich erhöht. Mildere Mittel reichten nicht aus: ${mild.length ? mild.join('; ') : ph('mildere Mittel')}. Die Ingewahrsamnahme war daher unerlässlich, um die Gefahr wirksam zu unterbinden.`);
+      a.push(`Aufgrund der genannten Tatsachen stand die ${was} der ${mehr ? 'Taten' : 'Tat'} durch ${N.dat} unmittelbar bevor; ein Zuwarten hätte das Risiko weiterer Rechtsgutverletzungen erheblich erhöht. Mildere Mittel reichten nicht aus: ${mild.length ? mild.join('; ') : ph('mildere Mittel')}. Die Ingewahrsamnahme war daher unerlässlich, um die Gefahr wirksam zu unterbinden.`);
     } else if (art === 'n3') {
       const av = f.k_pv_typ === 'av', ber = has(f.b_pv_ber) ? ohnePunkt(f.b_pv_ber) : ph('Bereich');
       a.push(av
         ? `Folgende Tatsachen rechtfertigten die Annahme, dass ${N.nom} im Bereich ${ber} eine Straftat, nämlich ${has(f.k_av_tat) ? ohnePunkt(f.k_av_tat) : ph('Straftat')}, begehen oder zu ihrer Begehung beitragen wird: ${frei(f.b_pv_gef, 'Tatsachen')}`
         : `Aufgrund folgender Tatsachen bestand eine Gefahr für ${has(f.k_gut) ? ohnePunkt(f.k_gut) : ph('Schutzgut')}: ${frei(f.b_pv_gef, 'Tatsachen')}`);
-      const bis = av ? `, befristet bis ${has(f.b_pv_bis) ? ohnePunkt(f.b_pv_bis) : ph('Dauer')}` : `, vorübergehend${has(f.b_pv_bis) ? ' bis ' + ohnePunkt(f.b_pv_bis) : ''}`;
-      a.push([`${kraft('b_pv_wer', 'Wer sprach ' + pv.den + ' aus')} erließ daraufhin gegenüber ${N.dat} ${pv.ein} für den Bereich ${ber}, gestützt auf ${pv.norm}${bis}.`,
+      /* ohne Enddatum steht „vorübergehend“ vorn („einen vorübergehenden Platzverweis“), mit Enddatum dahinter */
+      const was = av ? `${pv.ein} für den Bereich ${ber}, befristet bis ${has(f.b_pv_bis) ? ohnePunkt(f.b_pv_bis) : ph('Dauer')}`
+        : has(f.b_pv_bis) ? `${pv.ein} für den Bereich ${ber}, vorübergehend bis ${ohnePunkt(f.b_pv_bis)}` : `einen vorübergehenden Platzverweis für den Bereich ${ber}`;
+      a.push([`${kraft('b_pv_wer', 'Wer sprach ' + pv.den + ' aus')} erließ daraufhin gegenüber ${N.dat} ${was}.`,
         av ? `${N.nom} hat dort keine Wohnung und nimmt dort keine berechtigten Interessen wahr.` : '',
         `${N.nom} wurde verständlich über Rechtsgrundlage, Zweck, Inhalt und Dauer sowie über die Folgen der Nichtbefolgung${f.b_pv_ank === 'nein' ? '' : ` einschließlich der Möglichkeit einer Ingewahrsamnahme zur Durchsetzung ${pv.des}`} belehrt und zum sofortigen Verlassen des Bereichs aufgefordert.`].filter(Boolean).join(' '));
       const mild = wahl(K_MILD.n3, f.k_mild3, f.k_mild_x);
       a.push([L_NICHT(N.nom), frei(f.b_fest, ''),
         `Mildere Mittel (insbesondere ${mild.length ? liste(mild, 'und') : ph('mildere Mittel')}) waren untauglich, nicht ausreichend oder ausgeschöpft.`,
-        `Die Ingewahrsamnahme gemäß § 35 Abs. 1 Nr. 3 PolG NRW war daher unerlässlich, um ${pv.den} durchzusetzen.`].filter(Boolean).join(' '));
-      a.push(`${N.nom} wurde${D ? ' am ' + D : ''}${inOrt} zur Durchsetzung ${pv.des} in Gewahrsam genommen.`);
+        `Die Ingewahrsamnahme war daher unerlässlich, um ${pv.den} durchzusetzen.`].filter(Boolean).join(' '));
+      a.push(`${N.nom} wurde${D ? ' am ' + D : ''}${T ? ` um ${T} Uhr` : ''}${inOrt} zur Durchsetzung ${pv.des} in Gewahrsam genommen.`);
     }
 
     /* ---------- Anordnung & Verbringung, dazu Fesselung, Durchsuchung und was der Person mitgeteilt wurde ---------- */
@@ -815,44 +875,60 @@
       `Das Ergreifen erfolgte ${has(f.k_ort) ? ohnePunkt(f.k_ort) : ph('Ort des Ergreifens')}.`,
       `Die Verbringung erfolgte in ${has(f.k_wohin) ? ohnePunkt(f.k_wohin) : ph('Unterbringung')}.`].join('\n'));
     const zw = [];
-    if (f.e2_fes === 'ja') zw.push(`${N.nom} wurde gemäß § 62 PolG NRW mit Stahlhandfesseln gefesselt, weil Tatsachen die Annahme rechtfertigten, dass ${er} ${(K_FES.find(o => o[0] === f.e2_fes_g) || [])[2] || ph('Grund der Fesselung')} wird: ${frei(f.e2_fes_x, 'Tatsachen für die Fesselung')}`);
-    if (f.k_durchs === 'ja') zw.push(`${zw.length ? Er : N.nom} wurde gemäß § 39 Abs. 1 Nr. 1 PolG NRW durchsucht.`);
+    if (f.e2_fes === 'ja') {
+      const vor = fesVor(f, er), eigen = frei(f.e2_fes_x === f.e2_fes_c ? '' : f.e2_fes_x, vor ? '' : 'Tatsachen für die Fesselung'); // e2_fes_c: von kZuLang übertragener Baustein, kein eigener Text
+      zw.push(`${N.nom} wurde mit Stahlhandfesseln gefesselt, weil Tatsachen die Annahme rechtfertigten, dass ${er} ${(K_FES.find(o => o[0] === f.e2_fes_g) || [])[2] || ph('Grund der Fesselung')} wird: ${[vor, eigen].filter(Boolean).join(' ')}`);
+    }
+    if (f.k_durchs === 'ja') zw.push(`${zw.length ? Er : N.nom} wurde im Zuge der Ingewahrsamnahme durchsucht.`);
     if (zw.length) z.push(zw.join(' '));
     const gel = `${Er} erhielt Gelegenheit, einen Angehörigen oder eine Person ${GG.seines} Vertrauens zu benachrichtigen,`;
     const rechte = [
-      f.e1_bek === 'sof' ? `Der Grund der Ingewahrsamnahme wurde ${N.dat} unverzüglich bekannt gegeben (§ 37 Abs. 1 PolG NRW).`
-        : f.e1_bek === 'spaet' ? `Der Grund der Ingewahrsamnahme wurde ${N.dat} bekannt gegeben, sobald ${er} aufnahmefähig war (§ 37 Abs. 1 PolG NRW).` : ph('Grund bekannt gegeben?'),
-      { selbst: `${gel} und machte davon Gebrauch (§ 37 Abs. 2 PolG NRW).`, verz: `${gel} und verzichtete darauf (§ 37 Abs. 2 PolG NRW).`,
-        pol: `Da ${er} dazu nicht in der Lage war, übernahm die Polizei die Benachrichtigung eines Angehörigen oder einer Person ${GG.seines} Vertrauens (§ 37 Abs. 2 PolG NRW).`,
-        unt: 'Eine Benachrichtigung von Angehörigen oder einer Vertrauensperson unterblieb, weil dadurch der Zweck der Freiheitsentziehung gefährdet worden wäre (§ 37 Abs. 2 PolG NRW).' }[f.e5] || ph('Benachrichtigung?'),
+      f.e1_bek === 'sof' ? `Der Grund der Ingewahrsamnahme wurde ${N.dat} unverzüglich bekannt gegeben.`
+        : f.e1_bek === 'spaet' ? `Der Grund der Ingewahrsamnahme wurde ${N.dat} bekannt gegeben, sobald ${er} aufnahmefähig war.` : ph('Grund bekannt gegeben?'),
+      { selbst: `${gel} und machte davon Gebrauch.`, verz: `${gel} und verzichtete darauf.`,
+        pol: `Da ${er} dazu nicht in der Lage war, übernahm die Polizei die Benachrichtigung eines Angehörigen oder einer Person ${GG.seines} Vertrauens.`,
+        unt: 'Eine Benachrichtigung von Angehörigen oder einer Vertrauensperson unterblieb, weil dadurch der Zweck der Freiheitsentziehung gefährdet worden wäre.' }[f.e5] || ph('Benachrichtigung?'),
       { arzt: 'Die Gewahrsamsfähigkeit wurde ärztlich festgestellt.', kz: 'Zweifel an der Gewahrsamsfähigkeit bestanden nicht.', nein: 'Die Gewahrsamsfähigkeit wurde ärztlich verneint.' }[f.e4] || ''
     ].filter(Boolean);
     z.push(rechte.join(' '));
 
-    /* ---------- Richterliche Entscheidung: entweder veranlasst oder davon abgesehen ---------- */
-    const ag = has(f.e6_ag) ? ohnePunkt(f.e6_ag) : '';
+    /* ---------- Richterliche Entscheidung: Antrag immer; ob die Entscheidung abgewartet werden muss, richtet sich nach der Uhrzeit ---------- */
+    const ag = has(f.e6_ag) ? ohnePunkt(f.e6_ag) : RI.ag, fall = riFall(f);
+    const weg = RI_WEG[f.k_ri_weg] || ph('Übermittlung des Antrags');
+    const zeiten = `(${RI.von} bis ${RI.bis} Uhr)`, dienst = `des richterlichen Bereitschaftsdienstes beim Amtsgericht ${ag} ${zeiten}`;
     let r;
-    if (f.e6 === 'herb') {
-      const weg = { tel: 'per Telefon', fax: 'per Fax', el: 'elektronisch' }[f.k_ri_weg];
-      r = `Die richterliche Entscheidung über Zulässigkeit und Fortdauer wurde unverzüglich beim zuständigen Amtsgericht ${ag || ph('Ort des Amtsgerichts')} veranlasst (§ 36 Abs. 1 Satz 1 PolG NRW)${weg ? `; Übermittlung ${weg} an die zuständige Stelle` : ''}.`;
-    } else if (f.e6 === 'entb' || f.e6 === 'nacht') {
-      const dienst = `Der richterliche Bereitschaftsdienst${ag ? ' des Amtsgerichts ' + ag : ''}`;
-      const bd = { ne: `${dienst} wurde nicht erreicht. `, spaet: `${dienst} wurde erreicht; eine Entscheidung war danach nicht vor Wegfall des Grundes zu erwarten. ` }[f.k_bd] || '';
-      const warum = frei(f.e6_prog, 'Begründung');
-      r = `${bd}Eine richterliche Entscheidung über Zulässigkeit und Fortdauer wurde nicht herbeigeführt, weil anzunehmen war, dass sie erst nach Wegfall des Grundes der Maßnahme ergehen würde (§ 36 Abs. 1 Satz 2 PolG NRW): ${/\]$/.test(warum) ? warum + '.' : warum} Unabhängig davon wird ${N.nom} spätestens bis zum Ende des Tages nach dem Ergreifen entlassen (Art. 104 Abs. 2 Satz 3 GG, § 38 Abs. 1 Nr. 3 PolG NRW).`;
-    } else r = ph('Richterliche Entscheidung: veranlasst oder davon abgesehen?');
+    if (fall === 'tag') {
+      const erg = { aus: 'Die Entscheidung des Gerichts stand bei Abschluss dieses Berichts noch aus.', fort: 'Das Gericht hat die Fortdauer der Freiheitsentziehung angeordnet.',
+        abl: `Das Gericht hat die Fortdauer der Freiheitsentziehung für unzulässig erklärt; ${N.nom} wurde entlassen (§ 38 Abs. 1 Nr. 2 PolG NRW).`,
+        erl: `Vor einer Entscheidung des Gerichts fiel der Grund der Maßnahme weg; ${N.nom} wurde entlassen (§ 38 Abs. 1 Nr. 1 PolG NRW).` }[f.k_ri_erg] || '';
+      r = [`Die Ingewahrsamnahme erfolgte ${T ? `um ${T} Uhr und damit ` : ''}innerhalb der Erreichbarkeit ${dienst}.`,
+        'Die richterliche Entscheidung über Zulässigkeit und Fortdauer der Freiheitsentziehung wurde unverzüglich beantragt (§ 36 Abs. 1 Satz 1 PolG NRW).',
+        `Der Antrag wurde ${weg} übermittelt.`, erg].filter(Boolean).join(' ');
+    } else if (fall === 'nacht') {
+      const frueh = riFrueh(f), prog = riProg(f);
+      const gruende = [...K_RI_GRUND.filter(o => o[3].includes(art) && arr(f.k_ri_grund).includes(o[0])).map(o => o[2].replace('{er}', er).replace('{PvDer}', cap(pv.der))), frei(f.e6_prog, '')].filter(Boolean);
+      r = [frueh ? `Die Ingewahrsamnahme erfolgte um ${T} Uhr, kurz nach Beginn der Erreichbarkeit ${dienst}.` : `Die Ingewahrsamnahme erfolgte ${T ? `um ${T} Uhr und damit ` : ''}außerhalb der Erreichbarkeit ${dienst}.`,
+        `Der Antrag auf richterliche Entscheidung über Zulässigkeit und Fortdauer der Freiheitsentziehung wurde gleichwohl gestellt (§ 36 Abs. 1 Satz 1 PolG NRW) und ${weg} übermittelt.`,
+        `Mit einer Entscheidung war ${frueh ? 'wegen der Vorlaufzeit des Gerichts ' : ''}nicht vor ${RI.ab} Uhr zu rechnen.`,
+        prog === 'vor' ? `Es war anzunehmen, dass der Grund der Maßnahme vorher wegfällt und die Entscheidung erst danach ergehen würde (§ 36 Abs. 1 Satz 2 PolG NRW): ${gruende.length ? gruende.join(' ') : ph('Begründung') + '.'} Dauert der Gewahrsam wider Erwarten darüber hinaus an, wird die Entscheidung auf den gestellten Antrag hin unverzüglich herbeigeführt.`
+          : prog === 'laenger' ? 'Der Gewahrsam wird voraussichtlich darüber hinaus andauern; die richterliche Entscheidung wird auf den gestellten Antrag hin unverzüglich herbeigeführt, sobald das Gericht erreichbar ist.'
+            : ph('Prognose: Grund entfällt vorher oder Gewahrsam dauert länger?'),
+        `Unabhängig davon wird ${N.nom} spätestens bis zum Ende des Tages nach dem Ergreifen entlassen, wenn nicht vorher die Fortdauer richterlich angeordnet ist (Art. 104 Abs. 2 Satz 3 GG, § 38 Abs. 1 Nr. 3 PolG NRW).`].join(' ');
+    } else r = ph('Uhrzeit der Ingewahrsamnahme – danach richtet sich der Ablauf');
 
     /* ---------- Fortdauer / Entlassung ---------- */
-    const wann = [...(K_ENDE[art] || []).filter(o => arr(f.k_ende).includes(o[0])).map(o => endeText(o, er, pv)), has(f.k_ende_x) ? ohnePunkt(f.k_ende_x) : ''].filter(Boolean);
-    const e = [f.e6 === 'herb' ? 'Die Fortdauer wird nur bis zum Wegfall des Grundes, längstens bis zum Ende des Tages nach dem Ergreifen, beantragt.' : '',
-      `${N.nom} wird unverzüglich entlassen, sobald der Grund für den Gewahrsam weggefallen ist (§ 38 Abs. 1 Nr. 1 PolG NRW).`,
+    const wann = [...(K_ENDE[art] || []).filter(o => arr(f.k_ende).includes(o[0])).map(o => endeText(o, er, pv, f)), has(f.k_ende_x) ? ohnePunkt(f.k_ende_x) : ''].filter(Boolean);
+    const e = ['Die Fortdauer wird nur bis zum Wegfall des Grundes, längstens bis zum Ende des Tages nach dem Ergreifen, beantragt.', // der Antrag wird immer gestellt
+      `${N.nom} wird unverzüglich entlassen, sobald der Grund für den Gewahrsam weggefallen ist.`,
       `Dies kann angenommen werden, sobald ${wann.length ? liste(wann) : ph('Wann entfällt der Grund')}.`].filter(Boolean).join(' ');
     return { a: a.map(tidy), z: z.map(s => s.split('\n').map(tidy).join('\n')), r: tidy(r), e: tidy(e), ctx };
   }
   const K_KOPF = ['Anordnung & Verbringung', 'Richterliche Entscheidung', 'Fortdauer / Entlassung'];
+  /** Überschrift der Kurzfassung: die Bezeichnung, kein Paragraph. */
+  const kTitel = d => { const f = F(d); return ({ n1: 'Ingewahrsamnahme zum Schutz der Person', n2: 'Ingewahrsamnahme zur Verhinderung von Straftaten', n3: `Ingewahrsamnahme zur Durchsetzung eines ${f.k_pv_typ === 'av' ? 'Aufenthaltsverbots' : 'Platzverweises'}` })[f.art]; };
   function kurzPlain(d) {
-    const v = V[F(d).art], P = kurzTeile(d);
-    return `Ingewahrsamnahme nach ${v.norm}\n\n${P.a.join('\n\n')}\n\n${K_KOPF[0]}\n${P.z.join('\n')}\n\n${K_KOPF[1]}\n${P.r}\n\n${K_KOPF[2]}\n${P.e}`;
+    const P = kurzTeile(d);
+    return `${kTitel(d)}\n\n${P.a.join('\n\n')}\n\n${K_KOPF[0]}\n${P.z.join('\n')}\n\n${K_KOPF[1]}\n${P.r}\n\n${K_KOPF[2]}\n${P.e}`;
   }
   const SUIZ = /suizid|selbstt[öo]tung|umbringen|leben nehmen|nicht mehr leben/i;
   const K_ALK = /alkohol|promille|mg\/l|betrunken|lall|drogen|rausch|bet[äa]ubungsmittel/i; // Freitext: weiter gefasst als in der ausführlichen Fassung
@@ -863,7 +939,8 @@
     if (K_ALK.test(all) && !f.e4) out.push('Alkohol- oder Drogeneinfluss beschrieben: Gewahrsamsfähigkeit ärztlich klären und antippen.');
     if (f.art === 'n1' && SUIZ.test(all)) out.push('Suizidgefahr: Ordnungsbehörde zur Prüfung nach dem PsychKG NRW verständigen.');
     if (f.art === 'n3' && f.b_pv_ank === 'nein') out.push('Die Ingewahrsamnahme wurde vorher nicht angekündigt – im Text fehlt deshalb der Hinweis darauf. Wenn möglich nachholen.');
-    if ((f.e6 === 'entb' || f.e6 === 'nacht') && !f.k_bd) out.push('Von der richterlichen Entscheidung abgesehen: antippen, ob der richterliche Bereitschaftsdienst erreicht wurde.');
+    if (riFall(f) === 'nacht' && riProg(f) === 'laenger') out.push(`Gewahrsam dauert voraussichtlich über ${RI.ab} Uhr hinaus: Entscheidung des Gerichts nachhalten und im Text nachtragen.`);
+    if (riFall(f) === 'tag' && !f.k_ri_erg) out.push('Richter erreichbar: Entscheidung des Gerichts nachhalten und antippen, sobald sie vorliegt.');
     const age = ageAt(get(d, 'gw.p.geb'), f.e1_d);
     if (age != null && age < 18) out.push(`Nach dem Geburtsdatum ${age} Jahre alt: Sorgeberechtigte unverzüglich benachrichtigen (§ 37 Abs. 2 PolG NRW).`);
     if (TAT.test(all)) out.push('Mögliche Straftat beschrieben: Strafanzeige gesondert. Der Gewahrsam bleibt präventiv begründet.');
@@ -872,7 +949,8 @@
   const kurzOffen = d => { const P = kurzTeile(d); return [...[...new Set(P.ctx.miss)].map(x => 'Fehlt – ' + x), ...kurzRules(d, P)]; };
   function kurzPreview(id, d) {
     const P = kurzTeile(d), n3 = F(d).art === 'n3';
-    if (id === 'k_a') return (n3 ? P.a.slice(0, 2) : P.a).join('\n\n');
+    if (id === 'k_a') return F(d).art === 'n2' ? P.a[0].split(' ' + L_TAT.n2)[0] : (n3 ? P.a.slice(0, 2) : P.a).join('\n\n'); // Unterbindung: erst der Satz mit den Straftaten
+    if (id === 'k_a2') return P.a.join('\n\n');
     if (id === 'k_b') return P.a.slice(2).join('\n\n');
     if (id === 'k_c') return `${K_KOPF[0]}\n${P.z.join('\n')}`;
     if (id === 'k_d') return `${K_KOPF[1]}\n${P.r}\n\n${K_KOPF[2]}\n${P.e}`;
@@ -887,7 +965,6 @@
   const erSie = d => ({ m: 'er', w: 'sie' }[gOf(d)] || 'sie');
   const istAv = d => F(d).k_pv_typ === 'av';
   const EIGEN = 'oder in deinen Worten';
-  const AG = [['Gütersloh', 'Gütersloh'], ['Rheda-Wiedenbrück', 'Rheda-Wiedenbrück'], ['Halle (Westf.)', 'Halle (Westf.)'], ['Bielefeld', 'Bielefeld']]; // die vier Amtsgerichte, zu deren Bezirken die Gemeinden des Kreises Gütersloh gehören
   const K_STEPS = [
     { id: 'k_wahl', phase: 'Start', title: 'Welcher Gewahrsam?', lead: 'Deine drei Textbausteine als Lückentext: Du trägst ein, was passiert ist – der Rest steht.', ohneWeiter: true, luft: true, when: d => !form(d), fields: [{
       t: 'preset', gross: true, o: [
@@ -898,27 +975,30 @@
       ]
     }] },
     { id: 'k_a', phase: 'Sachverhalt', luft: true, when: istKurz, title: d => KN[F(d).art],
-      lead: d => ({ n1: 'Du beschreibst in einem Satz, was du festgestellt hast. Gefahr, Zustand und mildere Mittel stehen als Text – du tippst nur an, was zutrifft.', n2: 'Du beschreibst, was du beobachtet hast. Die Begründung steht als Text – du tippst nur an, was zutrifft.', n3: 'Du beschreibst, was los war. Platzverweis und Belehrung stehen als Text.' }[F(d).art]),
+      lead: d => ({ n1: 'Du beschreibst in einem Satz, was du festgestellt hast. Gefahr, Zustand und mildere Mittel stehen als Text – du tippst nur an, was zutrifft.', n2: 'Wer – und welche Straftaten standen unmittelbar bevor? Die Taten tippst du nur an.', n3: 'Du beschreibst, was los war. Platzverweis und Belehrung stehen als Text.' }[F(d).art]),
       fields: [
         { k: 'gw.p', t: 'person', l: 'Wer?', fields: ['geschlecht', 'nachname', 'vorname'] },
         fS('k_stadt', 'Ort', 'in', 'Gütersloh', { w: 'half', recent: true, sugg: d => (has(F(d).k_stadt) ? [] : orteKreis().map(o => [o, o])) }),
         fD('e1_d', 'Datum'),
+        fT('e1_t', 'Uhrzeit der Ingewahrsamnahme', { req: true, h: 'Danach richtet sich der Ablauf beim Richter.' }),
         /* Unterbindung: Was stand bevor? */
         fC('c_art', 'Was stand unmittelbar bevor?', [['beg', 'Begehung'], ['fort', 'Fortsetzung']], { when: kArt('n2') }),
-        fS('c_delikt', 'Welche Straftat?', d => `um die unmittelbar bevorstehende ${({ beg: 'Begehung', fort: 'Fortsetzung' })[F(d).c_art] || 'Begehung bzw. Fortsetzung'}`, 'einer Körperverletzung (§ 223 StGB)', { when: kArt('n2'), req: true, recent: true }),
+        { t: 'head', when: kArt('n2'), text: d => `… um die unmittelbar bevorstehende ${({ beg: 'Begehung', fort: 'Fortsetzung' })[F(d).c_art] || 'Begehung bzw. Fortsetzung'} folgender Straftaten zu verhindern:`, h: 'Antippen, was zutrifft – so steht es dann in der Aufzählung.' },
+        ...K_ST.map(g => ({ k: K('k_st.' + g[0]), t: 'multi', l: g[1], when: kArt('n2'), o: g[2].map(o => [o[0], o[1]]) })),
+        fS('k_st_x', 'oder eine andere Straftat', '', 'Störung der Totenruhe', { when: kArt('n2'), recent: true }),
+        fS('c_delikt', 'Bisherige Eingabe (gilt, solange oben nichts angetippt ist)', 'um die unmittelbar bevorstehende Begehung', 'einer Körperverletzung', { when: d => kArt('n2')(d) && !!altTat(F(d)) && !stListe(F(d)).length }),
         /* Platzverweis: Was wurde ausgesprochen, welche Gefahr? */
-        fC('k_pv_typ', 'Was wurde ausgesprochen?', [['pv', 'Platzverweis (§ 34 Abs. 1)'], ['av', 'Aufenthaltsverbot (§ 34 Abs. 2)']], { when: kArt('n3'), h: 'Platzverweis: wehrt eine Gefahr ab, gilt vorübergehend. Aufenthaltsverbot: Im Bereich ist eine Straftat zu erwarten, gilt für eine bestimmte Zeit.' }),
+        fC('k_pv_typ', 'Was wurde ausgesprochen?', [['pv', 'Platzverweis'], ['av', 'Aufenthaltsverbot']], { when: kArt('n3'), h: 'Platzverweis: wehrt eine Gefahr ab, gilt vorübergehend. Aufenthaltsverbot: Im Bereich ist eine Straftat zu erwarten, gilt für eine bestimmte Zeit.' }),
         fS('k_gut', 'Gefahr für …', 'Es bestand eine Gefahr für', 'die körperliche Unversehrtheit anderer Personen', { when: d => kArt('n3')(d) && !istAv(d), req: true, recent: true, sugg: [['Leben und Gesundheit anderer', 'Leben und Gesundheit anderer Personen'], ['Eigentum Dritter', 'das Eigentum Dritter'], ['Rettungseinsatz', 'den Einsatz der Rettungskräfte'], ['polizeiliche Maßnahmen', 'die Durchführung der polizeilichen Maßnahmen']] }),
-        fS('k_av_tat', 'Welche Straftat war im Bereich zu erwarten?', 'eine Straftat, nämlich', 'eine Körperverletzung (§ 223 StGB)', { when: d => kArt('n3')(d) && istAv(d), req: true, recent: true }),
+        fS('k_av_tat', 'Welche Straftat war im Bereich zu erwarten?', 'eine Straftat, nämlich', 'eine Körperverletzung', { when: d => kArt('n3')(d) && istAv(d), req: true, recent: true }),
         /* die Lücke: was passiert ist, in eigenen Worten */
-        fA('b_fest', d => (F(d).art === 'n2' ? 'Was hast du beobachtet? In deinen Worten.' : 'Was hast du festgestellt? In deinen Worten.'), d => (F(d).art === 'n2' ? 'Er ging mit erhobener Faust erneut auf seinen Nachbarn zu.' : 'Der Betroffene lag regungslos bei -3 Grad im Gebüsch.'), '', { when: kArt('n1', 'n2'), pre: d => L_TAT[F(d).art], req: true, rows: 3 }),
+        fA('b_fest', 'Was hast du festgestellt? In deinen Worten.', 'Der Betroffene lag regungslos bei -3 Grad im Gebüsch.', '', { when: kArt('n1'), pre: L_TAT.n1, req: true, rows: 3 }),
         fA('b_pv_gef', 'Was war los? In deinen Worten.', 'Er schrie Gäste an und stieß einen Gast zu Boden.', '', { when: kArt('n3'), pre: d => (istAv(d) ? 'Folgende Tatsachen rechtfertigten diese Annahme:' : 'Aufgrund folgender Tatsachen bestand diese Gefahr:'), req: true, rows: 3 }),
         /* Schutzgewahrsam: Zustand nach dem Gesetz */
         fM('c_zust', d => `${cap(wer(d))} befand sich erkennbar in …`, K_ZUST, { when: kArt('n1'), req: true }),
         /* mildere Mittel: die der Vorlage zum Antippen, sonst eigene Worte */
         fM('k_mild', 'Mildere, gleich geeignete Maßnahmen wurden geprüft und verworfen:', K_MILD.n1.map(o => [o[0], cap(o[1])]), { when: kArt('n1') }),
-        fM('d_mild', 'Mildere Mittel reichten nicht aus:', K_MILD.n2.map(o => [o[0], cap(o[1])]), { when: kArt('n2') }),
-        fS('k_mild_x', EIGEN, '', d => (F(d).art === 'n2' ? 'der Nachbar konnte die Wohnung nicht verlassen' : 'ein Taxi nahm ihn nicht mit'), { when: kArt('n1', 'n2'), recent: true }),
+        fS('k_mild_x', EIGEN, '', 'ein Taxi nahm ihn nicht mit', { when: kArt('n1'), recent: true }),
         /* Platzverweis: wer, wo, bis wann */
         fW('b_pv_wer', d => `Wer sprach ${pvOf(F(d)).den} aus?`, { when: kArt('n3'), req: true }),
         fS('b_pv_ber', 'Für welchen Bereich?', 'für den Bereich', 'Berliner Platz einschließlich der angrenzenden Fußgängerzone', { when: kArt('n3'), req: true, recent: true }),
@@ -926,6 +1006,12 @@
         fY('b_pv_ank', 'Ingewahrsamnahme für den Fall der Nichtbefolgung angekündigt?', { when: kArt('n3') }),
         kOut('k_a')
       ] },
+    { id: 'k_a2', phase: 'Sachverhalt', luft: true, when: kArt('n2'), title: 'Worauf stützt sich das?', lead: 'Du beschreibst, was du beobachtet hast. Die Begründung steht als Text – du tippst nur an, was zutrifft.', fields: [
+      fA('b_fest', 'Was hast du beobachtet? In deinen Worten.', 'Er ging mit erhobener Faust erneut auf seinen Nachbarn zu.', '', { pre: L_TAT.n2, req: true, rows: 3 }),
+      fM('d_mild', 'Mildere Mittel reichten nicht aus:', K_MILD.n2.map(o => [o[0], cap(o[1])])),
+      fS('k_mild_x', EIGEN, '', 'der Nachbar konnte die Wohnung nicht verlassen', { recent: true }),
+      kOut('k_a2')
+    ] },
     { id: 'k_b', phase: 'Sachverhalt', luft: true, when: kArt('n3'), title: 'Nicht befolgt', lead: 'Der Satz steht. Wenn du magst, beschreibst du dahinter, was die Person stattdessen tat.', fields: [
       fA('b_fest', 'Was tat die Person stattdessen? In deinen Worten. (optional)', d => `${cap(erSie(d))} setzte sich auf den Boden und erklärte, nicht zu gehen.`, '', { pre: d => L_NICHT(wer(d)), rows: 2 }),
       fM('k_mild3', 'Mildere Mittel waren untauglich, nicht ausreichend oder ausgeschöpft – insbesondere:', [['anspr', 'Weitere Ansprachen'], ['begl', 'Begleitung aus dem Bereich'], ['zwang', 'Verbringen aus dem Bereich mit unmittelbarem Zwang (angedroht)']], { req: true }),
@@ -938,27 +1024,30 @@
       fS('k_wohin', 'Wohin kam die Person?', 'Die Verbringung erfolgte in', 'das Polizeigewahrsam Gütersloh', { req: true, recent: true, sugg: [['Polizeigewahrsam Gütersloh', 'das Polizeigewahrsam Gütersloh'], ['Krankenhaus …', 'das Krankenhaus '], ['geeignete Einrichtung …', 'die Einrichtung ']] }),
       fY('e2_fes', 'Gefesselt?'),
       fC('e2_fes_g', d => `… weil Tatsachen die Annahme rechtfertigten, dass ${erSie(d)}`, K_FES.map(o => [o[0], o[1]]), { when: isF('e2_fes', 'ja'), req: true }),
-      fA('e2_fes_x', 'Woran war das zu erkennen? In deinen Worten.', d => `${cap(erSie(d))} schlug um sich und trat nach PK Weber.`, '', { when: isF('e2_fes', 'ja'), req: true, rows: 2, lint: null }),
+      { k: K('e2_fes_v'), t: 'multi', l: 'Worauf stützt sich das?', when: isF('e2_fes', 'ja'), h: d => (FES_VOR[F(d).e2_fes_g] || FES_VOR.ang)[2], o: d => [['vor', (FES_VOR[F(d).e2_fes_g] || ['', 'Das zuvor beschriebene Verhalten setzt sich fort'])[1]]] },
+      fA('e2_fes_x', 'dazu oder stattdessen in deinen Worten', d => `${cap(erSie(d))} schlug um sich und trat nach PK Weber.`, '', { when: isF('e2_fes', 'ja'), rows: 2, lint: null }),
       fY('k_durchs', 'Durchsucht?'),
       fC('e1_bek', 'Grund der Ingewahrsamnahme bekannt gegeben', [['sof', 'unverzüglich'], ['spaet', 'später, sobald aufnahmefähig']], { req: true }),
       fC('e5', 'Benachrichtigung von Angehörigen oder Vertrauensperson', [['selbst', 'selbst benachrichtigt'], ['verz', 'verzichtet'], ['pol', 'durch die Polizei'], ['unt', 'unterblieben – Zweck gefährdet']], { req: true }),
       fC('e4', 'Gewahrsamsfähigkeit', [['arzt', 'ärztlich festgestellt'], ['kz', 'keine Zweifel']]),
       kOut('k_c')
     ] },
-    { id: 'k_d', phase: 'Richter', luft: true, when: istKurz, title: 'Richter & Entlassung', lead: 'Entweder wurde die richterliche Entscheidung veranlasst – oder davon abgesehen, weil sie erst nach Wegfall des Grundes käme.', fields: [
-      fC('e6', 'Richterliche Entscheidung', [['herb', 'unverzüglich veranlasst'], ['entb', 'abgesehen – käme erst nach Wegfall des Grundes']], { req: true }),
-      fS('e6_ag', 'Amtsgericht', 'beim zuständigen Amtsgericht', 'Gütersloh', { when: isF('e6', 'herb'), req: true, recent: true, h: 'Zuständig ist das Amtsgericht des Bezirks, in dem die Freiheit entzogen wurde.', sugg: AG }),
-      fC('k_ri_weg', 'Übermittlung', [['tel', 'Telefon'], ['fax', 'Fax'], ['el', 'elektronisch']], { when: isF('e6', 'herb') }),
-      fC('k_bd', 'Richterlicher Bereitschaftsdienst', [['ne', 'nicht erreicht'], ['spaet', 'erreicht – Entscheidung erst später möglich']], { when: isF('e6', ['entb', 'nacht']) }),
-      fS('e6_ag', 'Welches Amtsgericht? (optional)', 'Bereitschaftsdienst des Amtsgerichts', 'Gütersloh', { when: d => isF('e6', ['entb', 'nacht'])(d) && has(F(d).k_bd), recent: true, sugg: AG }), // dasselbe Feld, hier nur für den Satz zum Bereitschaftsdienst
-      fA('e6_prog', 'Warum käme die Entscheidung zu spät? In deinen Worten.', 'Die Ausnüchterung war bis zum Morgen zu erwarten.', '', { when: isF('e6', ['entb', 'nacht']), req: true, rows: 2, lint: null, recent: true }),
-      { k: K('k_ende'), t: 'multi', l: d => `${cap(wer(d))} wird entlassen, sobald der Grund weggefallen ist. Das kann angenommen werden, sobald …`, req: true, o: d => (K_ENDE[F(d).art] || []).map(o => [o[0], endeText(o, erSie(d), pvOf(F(d)))]) },
+    { id: 'k_d', phase: 'Richter', luft: true, when: istKurz, title: 'Richter & Entlassung', lead: 'Der Antrag ans Amtsgericht Gütersloh wird immer gestellt. Ob die Entscheidung abgewartet werden muss, richtet sich nach der Uhrzeit der Ingewahrsamnahme.', fields: [
+      fH(d => { const f = F(d), t = mins(f.e1_t) != null ? `Ingewahrsamnahme um ${f.e1_t} Uhr: ` : ''; return ({ tag: `${t}Der Richter ist erreichbar (${RI.von}–${RI.bis} Uhr).`, nacht: riFrueh(f) ? `${t}vor ${RI.ab} Uhr – das Gericht braucht Vorlauf.` : `${t}außerhalb der richterlichen Erreichbarkeit (${RI.von}–${RI.bis} Uhr).` })[riFall(f)] || 'Die Uhrzeit der Ingewahrsamnahme fehlt.'; },
+        d => ({ tag: 'Die richterliche Entscheidung muss unverzüglich herbeigeführt werden.', nacht: `Der Antrag wird trotzdem gestellt. Eine Entscheidung ist nicht vor ${RI.ab} Uhr zu erwarten.` })[riFall(F(d))] || 'Unten auswählen oder die Uhrzeit auf der ersten Seite eintragen.'),
+      fC('k_ri_fall', 'Wann war die Ingewahrsamnahme?', [['tag', `${RI.ab} bis ${RI.bis} Uhr`], ['nacht', `${RI.bis} bis ${RI.ab} Uhr`]], { when: d => mins(F(d).e1_t) == null, req: true }),
+      fC('k_ri_weg', 'Antrag ans Amtsgericht Gütersloh übermittelt', [['bebpo', 'über das besondere Behördenpostfach (Dienstgruppenleitung der Leitstelle)'], ['fax', 'per Fax']], { req: true }),
+      fC('k_ri_prog', 'Voraussichtlich …', [['vor', `entfällt der Grund vor ${RI.ab} Uhr`], ['laenger', 'dauert der Gewahrsam länger']], { when: d => riFall(F(d)) === 'nacht', req: true, h: 'Nur wenn der Grund vorher entfällt, kommt es auf die Entscheidung nicht an (§ 36 Abs. 1 Satz 2). Sonst holt das Gericht sie auf den Antrag hin nach.' }),
+      { k: K('k_ri_grund'), t: 'multi', l: 'Warum entfällt der Grund vorher?', when: d => riFall(F(d)) === 'nacht' && riProg(F(d)) === 'vor', o: d => K_RI_GRUND.filter(o => o[3].includes(F(d).art)).map(o => [o[0], o[1]]) },
+      fS('e6_prog', EIGEN, '', 'Die Ehefrau holt ihn gegen 05:00 Uhr ab.', { when: d => riFall(F(d)) === 'nacht' && riProg(F(d)) === 'vor', recent: true }),
+      fC('k_ri_erg', 'Entscheidung des Gerichts (sobald bekannt)', [['aus', 'steht noch aus'], ['fort', 'Fortdauer angeordnet'], ['abl', 'für unzulässig erklärt – entlassen'], ['erl', 'vorher entlassen – Grund entfallen']], { when: d => riFall(F(d)) === 'tag' }),
+      { k: K('k_ende'), t: 'multi', l: d => `${cap(wer(d))} wird entlassen, sobald der Grund weggefallen ist. Das kann angenommen werden, sobald …`, req: true, o: d => (K_ENDE[F(d).art] || []).map(o => [o[0], endeText(o, erSie(d), pvOf(F(d)), F(d))]) },
       fS('k_ende_x', EIGEN, 'oder sobald', d => `${erSie(d)} von Angehörigen abgeholt wird`, { recent: true }),
       kOut('k_d')
     ] },
-    { id: 'k_text', phase: 'Text', luft: true, when: istKurz, title: 'Fertiger Textbaustein', lead: 'Aus deinen Angaben, im Aufbau deiner Vorlage. Uhrzeiten stehen nicht drin – wer sie braucht, trägt sie hier von Hand nach.', fields: [
+    { id: 'k_text', phase: 'Text', luft: true, when: istKurz, title: 'Fertiger Textbaustein', lead: 'Aus deinen Angaben, im Aufbau deiner Vorlage. Außer der Uhrzeit der Ingewahrsamnahme stehen keine Uhrzeiten drin – weitere trägst du hier von Hand nach.', fields: [
       { k: 'gw:text', t: 'custom' },
-      { t: 'preset', l: 'Mehr Tiefe nötig?', o: [['Zur ausführlichen Fassung', { 'gw.form': 'lang' }, 'Würdigung Schritt für Schritt, Zwang, Durchsuchung, Verwahrung, Uhrzeiten – deine Angaben bleiben', { toast: 'Ausführliche Fassung – deine Angaben bleiben erhalten' }]] }
+      { t: 'preset', l: 'Mehr Tiefe nötig?', o: [['Zur ausführlichen Fassung', { 'gw.form': 'lang' }, 'Würdigung Schritt für Schritt, Zwang, Durchsuchung, Verwahrung, Uhrzeiten – deine Angaben bleiben', { call: 'kZuLang', toast: 'Ausführliche Fassung – deine Angaben bleiben erhalten' }]] }
     ] }
   ];
   /** Start der Kurzfassung: vorbelegen, was fast immer stimmt (t = { now, today }). Nichts davon überschreibt eine Eingabe. */
@@ -969,7 +1058,17 @@
       if (gw.e1_d) d.vgv = { ...(d.vgv && typeof d.vgv === 'object' ? d.vgv : {}), datum: gw.e1_d };
     }
     if (!has(gw.k_wohin)) gw.k_wohin = 'das Polizeigewahrsam Gütersloh';
+    if (!has(gw.k_ri_weg)) gw.k_ri_weg = 'bebpo'; // der übliche Weg des Antrags; sichtbar und änderbar
     if (gw.art === 'n3') { if (!has(gw.k_pv_typ)) gw.k_pv_typ = 'pv'; if (!has(gw.b_pv_ank)) gw.b_pv_ank = 'ja'; }
+    if (has(gw.e2_fes_c) && gw.e2_fes_x === gw.e2_fes_c) { delete gw.e2_fes_x; delete gw.e2_fes_c; } // zurück aus der ausführlichen Fassung: Der Baustein steht hier als Auswahl, nicht als Text
+    return d;
+  }
+  /** Wechsel zur ausführlichen Fassung: Dort steht die Tat in einem Textfeld („nämlich …“) – die angetippten Straftaten kommen hinein, wenn es leer ist. */
+  function kZuLang(d) {
+    const f = F(d), st = f.art === 'n2' ? stListe(f) : [];
+    if (st.length && (!has(f.c_delikt) || f.c_delikt === f.k_st_c)) f.c_delikt = f.k_st_c = liste(st, 'und'); // k_st_c merkt, dass der Eintrag von hier stammt
+    const g = gOf(d), vor = f.e2_fes === 'ja' ? fesVor(f, g === 'm' ? 'er' : g === 'w' ? 'sie' : 'die Person') : '';
+    if (vor && (!has(f.e2_fes_x) || f.e2_fes_x === f.e2_fes_c)) f.e2_fes_x = f.e2_fes_c = vor.charAt(0).toLowerCase() + ohnePunkt(vor).slice(1); // dort steht der Text klein hinter einem Doppelpunkt
     return d;
   }
   /** Im Vorgang: Ort der Ingewahrsamnahme aus der Einsatzörtlichkeit – folgt ihr, solange hier nichts anderes eingetragen ist. */
@@ -1069,7 +1168,7 @@
       { k: 'zeit', l: 'Zeitleiste', hint: 'Alle eingetragenen Uhrzeiten, Nachtzeit und Frist.', text: timeline }
     ],
     upgrade, noPreview: true, // der fertige Abschnittstext steht in jedem Schritt sichtbar unten (Feld „So steht es im Bericht“)
-    steps: STEPS, text, plain, preview, kurzText, fahndung: () => '', offen, personalien, title, subtitle, mount, kStart, ...OUTS,
-    form, _test: { V, E, SW, compose, genPlain, antrag, timeline, rules, offen, nachtzeit, kurzTeile, kurzPlain, kurzOffen, kontextNimmt, K_MILD, K_ENDE }
+    steps: STEPS, text, plain, preview, kurzText, fahndung: () => '', offen, personalien, title, subtitle, mount, kStart, kZuLang, ...OUTS,
+    form, _test: { V, E, SW, compose, genPlain, antrag, timeline, rules, offen, nachtzeit, kurzTeile, kurzPlain, kurzOffen, kontextNimmt, K_MILD, K_ENDE, K_ST, FES_VOR, RI, riFall }
   });
 })(typeof window !== 'undefined' ? window : globalThis);
